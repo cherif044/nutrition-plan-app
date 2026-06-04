@@ -1,0 +1,127 @@
+fdc_id,display_name,description,food_category_id,category_name,protein_g,fat_g,carbs_g,calories_kcal,fiber_g,sodium_mg,serving_size_g,serving_amount,serving_unit
+168013,"Bread, multi-grain","Bread, multi-grain (includes whole-grain)",18,Baked Products,13.36,4.23,43.34,265.0,7.4,381.0,28.35,1.0,oz
+174915,"Bread, pita, white","Bread, pita, white, enriched",18,Baked Products,9.1,1.2,55.7,275.0,2.2,536.0,60.0,1.0,"pita, large (6-1/2"" dia)"
+174916,"Bread, pita, whole-wheat","Bread, pita, whole-wheat",18,Baked Products,9.8,1.71,55.89,262.0,6.1,421.0,64.0,1.0,"pita, large (6-1/2"" dia)"
+172686,"Bread, wheat","Bread, wheat",18,Baked Products,10.67,4.53,47.54,274.0,4.0,473.0,29.0,1.0,slice
+174924,"Bread, white","Bread, white, commercially prepared (includes soft bread crumbs)",18,Baked Products,8.85,3.33,49.42,266.0,2.7,490.0,29.0,1.0,slice
+172688,"Bread, whole-wheat","Bread, whole-wheat, commercially prepared",18,Baked Products,12.45,3.5,42.71,252.0,6.0,455.0,32.0,1.0,slice
+171797,"Beef, ground, 80% lean, cooked, broiled","Beef, ground, 80% lean meat / 20% fat, patty, cooked, broiled",13,Beef Products,25.75,17.78,0.0,270.0,0.0,75.0,85.0,3.0,oz
+171791,"Beef, ground, 95% lean, cooked, broiled","Beef, ground, 95% lean meat / 5% fat, patty, cooked, broiled",13,Beef Products,26.29,6.8,0.0,174.0,0.0,65.0,85.0,3.0,oz
+173905,"Oats, cooked with water","Cereals, oats, regular and quick, unenriched, cooked with water (includes boiling and microwaving), without salt",8,Breakfast Cereals,2.54,1.52,12.0,71.0,1.7,4.0,234.0,1.0,cup
+170287,"Bulgur, cooked","Bulgur, cooked",20,Cereal Grains and Pasta,3.08,0.24,18.58,83.0,4.5,5.0,182.0,1.0,cup
+169700,"Couscous, cooked","Couscous, cooked",20,Cereal Grains and Pasta,3.79,0.16,23.22,112.0,1.4,5.0,157.0,1.0,"cup, cooked"
+169705,"Oats, raw",Oats (Includes foods for USDA's Food Distribution Program),20,Cereal Grains and Pasta,16.89,6.9,66.27,389.0,10.6,2.0,156.0,1.0,cup
+169737,"Pasta, cooked, enriched","Pasta, cooked, enriched, without added salt",20,Cereal Grains and Pasta,5.8,0.93,30.86,158.0,1.8,1.0,124.0,1.0,cup spaghetti not packed
+170285,"Pasta, whole-wheat, cooked","Barley, pearled, cooked",20,Cereal Grains and Pasta,2.26,0.44,28.22,123.0,3.8,3.0,157.0,1.0,cup
+168917,"Quinoa, cooked","Quinoa, cooked",20,Cereal Grains and Pasta,4.4,1.92,21.3,120.0,2.8,7.0,185.0,1.0,cup
+169704,"Rice, brown, long-grain, cooked","Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",20,Cereal Grains and Pasta,2.74,0.97,25.58,123.0,1.6,4.0,202.0,1.0,cup
+168878,"Rice, white, long-grain, cooked","Rice, white, long-grain, regular, enriched, cooked",20,Cereal Grains and Pasta,2.69,0.28,28.17,130.0,0.4,1.0,158.0,1.0,cup
+171314,"Butter, Clarified (ghee)","Butter, Clarified butter (ghee)",1,Dairy and Egg Products,0.0,100.0,0.0,900.0,0.0,0.0,,,
+173430,"Butter, without salt","Butter, without salt",1,Dairy and Egg Products,0.85,81.11,0.06,717.0,0.0,11.0,5.0,1.0,"pat (1"" sq, 1/3"" high)"
+173414,"Cheese, cheddar","Cheese, cheddar (Includes foods for USDA's Food Distribution Program)",1,Dairy and Egg Products,22.87,33.31,3.37,403.0,0.0,653.0,132.0,1.0,"cup, diced"
+172179,"Cheese, cottage, creamed","Cheese, cottage, creamed, large or small curd",1,Dairy and Egg Products,11.12,4.3,3.38,98.0,0.0,315.0,113.0,4.0,oz
+173420,"Cheese, feta","Cheese, feta",1,Dairy and Egg Products,14.21,21.49,3.88,265.0,0.0,1139.0,150.0,1.0,"cup, crumbled"
+171241,"Cheese, gouda","Cheese, gouda",1,Dairy and Egg Products,24.94,27.44,2.22,356.0,0.0,819.0,28.35,1.0,oz
+170845,"Cheese, mozzarella, whole milk","Cheese, mozzarella, whole milk",1,Dairy and Egg Products,22.17,22.14,2.4,299.0,0.0,486.0,112.0,1.0,"cup, shredded"
+170848,"Cheese, parmesan, hard","Cheese, parmesan, hard",1,Dairy and Egg Products,35.75,25.0,3.22,392.0,0.0,1175.0,28.35,1.0,oz
+170851,"Cheese, ricotta, whole milk","Cheese, ricotta, whole milk",1,Dairy and Egg Products,7.54,10.18,7.27,150.0,0.0,110.0,124.0,0.5,cup
+171257,"Cream, sour, cultured","Cream, sour, cultured",1,Dairy and Egg Products,2.44,19.35,4.63,198.0,0.0,31.0,12.0,1.0,tbsp
+172183,"Egg, white, raw, fresh","Egg, white, raw, fresh",1,Dairy and Egg Products,10.9,0.17,0.73,52.0,0.0,166.0,33.0,1.0,large
+173423,"Egg, whole, cooked, fried","Egg, whole, cooked, fried",1,Dairy and Egg Products,13.61,14.84,0.83,196.0,0.0,207.0,46.0,1.0,large
+173424,"Egg, whole, cooked, hard-boiled","Egg, whole, cooked, hard-boiled",1,Dairy and Egg Products,12.58,10.61,1.12,155.0,0.0,124.0,136.0,1.0,"cup, chopped"
+172187,"Egg, whole, cooked, scrambled","Egg, whole, cooked, scrambled",1,Dairy and Egg Products,9.99,10.98,1.61,149.0,0.0,145.0,61.0,1.0,large
+171267,"Milk, reduced fat, 2% milkfat","Milk, reduced fat, fluid, 2% milkfat, with added vitamin A and vitamin D",1,Dairy and Egg Products,3.3,1.98,4.8,50.0,0.0,47.0,244.0,1.0,cup
+171265,"Milk, whole, 3.25% milkfat","Milk, whole, 3.25% milkfat, with added vitamin D",1,Dairy and Egg Products,3.15,3.25,4.8,61.0,0.0,43.0,244.0,1.0,cup
+171304,"Yogurt, Greek, plain, whole milk","Yogurt, Greek, plain, whole milk",1,Dairy and Egg Products,9.0,5.0,3.98,97.0,0.0,35.0,,,
+171284,"Yogurt, plain, whole milk","Yogurt, plain, whole milk",1,Dairy and Egg Products,3.47,3.25,4.66,61.0,0.0,46.0,170.0,1.0,container (6 oz)
+171042,"Oil, canola","Oil, industrial, canola, high oleic",4,Fats and Oils,0.0,100.0,0.0,900.0,0.0,0.0,14.0,1.0,tablespoon
+171412,"Oil, coconut","Oil, coconut",4,Fats and Oils,0.0,99.06,0.0,892.0,0.0,0.0,13.6,1.0,tbsp
+171413,"Oil, olive, salad or cooking","Oil, olive, salad or cooking",4,Fats and Oils,0.0,100.0,0.0,884.0,0.0,2.0,13.5,1.0,tablespoon
+171016,"Oil, sesame, salad or cooking","Oil, sesame, salad or cooking",4,Fats and Oils,0.0,100.0,0.0,884.0,0.0,0.0,13.6,1.0,tablespoon
+171025,"Oil, sunflower, linoleic","Oil, sunflower, linoleic, (approx. 65%)",4,Fats and Oils,0.0,100.0,0.0,884.0,0.0,0.0,13.6,1.0,tbsp
+171956,"Fish, cod, Atlantic, cooked","Fish, cod, Atlantic, cooked, dry heat",15,Finfish and Shellfish Products,22.83,0.86,0.0,105.0,0.0,78.0,85.0,3.0,oz
+175168,"Fish, salmon, Atlantic, farmed, cooked","Fish, salmon, Atlantic, farmed, cooked, dry heat",15,Finfish and Shellfish Products,22.1,12.35,0.0,206.0,0.0,61.0,85.0,3.0,oz
+175177,"Fish, tilapia, cooked","Fish, tilapia, cooked, dry heat",15,Finfish and Shellfish Products,26.15,2.65,0.0,128.0,0.0,56.0,87.0,1.0,fillet
+171986,"Fish, tuna, light, canned in water","Fish, tuna, light, canned in water, without salt, drained solids",15,Finfish and Shellfish Products,25.51,0.82,0.0,116.0,0.0,50.0,85.0,3.0,oz
+171987,"Fish, tuna, white, canned in oil","Fish, tuna, white, canned in oil, without salt, drained solids",15,Finfish and Shellfish Products,26.53,8.08,0.0,186.0,0.0,50.0,85.0,3.0,oz
+171971,"Shrimp, cooked, moist heat","Crustaceans, shrimp, mixed species, cooked, moist heat (may contain additives to retain moisture)",15,Finfish and Shellfish Products,22.78,1.7,1.52,119.0,0.0,947.0,85.0,3.0,oz
+171688,"Apples, raw, with skin","Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",9,Fruits and Fruit Juices,0.26,0.17,13.81,52.0,2.4,1.0,125.0,1.0,"cup, quartered or chopped"
+171697,"Apricots, raw","Apricots, raw",9,Fruits and Fruit Juices,1.4,0.39,11.12,48.0,2.0,1.0,155.0,1.0,"cup, halves"
+171705,"Avocados, raw","Avocados, raw, all commercial varieties",9,Fruits and Fruit Juices,2.0,14.66,8.53,160.0,6.7,7.0,150.0,1.0,"cup, cubes"
+173944,"Bananas, raw","Bananas, raw",9,Fruits and Fruit Juices,1.09,0.33,22.84,89.0,2.6,1.0,225.0,1.0,"cup, mashed"
+171711,"Blueberries, raw","Blueberries, raw",9,Fruits and Fruit Juices,0.74,0.33,14.49,57.0,2.4,1.0,148.0,1.0,cup
+171719,"Cherries, sweet, raw","Cherries, sweet, raw",9,Fruits and Fruit Juices,1.06,0.2,16.01,63.0,2.1,0.0,138.0,1.0,"cup, with pits, yields"
+168191,"Dates, medjool","Dates, medjool",9,Fruits and Fruit Juices,1.81,0.15,74.97,277.0,6.7,1.0,24.0,1.0,"date, pitted"
+174683,"Grapes, red or green, raw","Grapes, red or green (European type, such as Thompson seedless), raw",9,Fruits and Fruit Juices,0.72,0.16,18.1,69.0,0.9,2.0,151.0,1.0,cup
+168153,"Kiwifruit, green, raw","Kiwifruit, green, raw",9,Fruits and Fruit Juices,1.14,0.52,14.66,61.0,3.0,3.0,180.0,1.0,"cup, sliced"
+169910,"Mangos, raw","Mangos, raw",9,Fruits and Fruit Juices,0.82,0.38,14.98,60.0,1.6,1.0,165.0,1.0,cup pieces
+169097,"Oranges, raw","Oranges, raw, all commercial varieties",9,Fruits and Fruit Juices,0.94,0.12,11.75,47.0,2.4,0.0,180.0,1.0,"cup, sections"
+169928,"Peaches, raw","Peaches, yellow, raw",9,Fruits and Fruit Juices,0.91,0.25,9.54,39.0,1.5,0.0,154.0,1.0,cup slices
+169118,"Pears, raw","Pears, raw",9,Fruits and Fruit Juices,0.36,0.14,15.23,57.0,3.1,1.0,140.0,1.0,"cup, slices"
+169124,"Pineapple, raw","Pineapple, raw, all varieties",9,Fruits and Fruit Juices,0.54,0.12,13.12,50.0,1.4,1.0,165.0,1.0,"cup, chunks"
+169949,"Plums, raw","Plums, raw",9,Fruits and Fruit Juices,0.7,0.28,11.42,46.0,1.4,0.0,165.0,1.0,"cup, sliced"
+169134,"Pomegranates, raw","Pomegranates, raw",9,Fruits and Fruit Juices,1.67,1.17,18.7,83.0,4.0,3.0,87.0,0.5,cup arils (seed/juice sacs)
+167762,"Strawberries, raw","Strawberries, raw",9,Fruits and Fruit Juices,0.67,0.3,7.68,32.0,2.0,1.0,152.0,1.0,"cup, halves"
+167765,"Watermelon, raw","Watermelon, raw",9,Fruits and Fruit Juices,0.61,0.15,7.55,30.0,0.4,1.0,154.0,1.0,"cup, balls"
+173735,"Beans, black, cooked, boiled","Beans, black, mature seeds, cooked, boiled, without salt",16,Legumes and Legume Products,8.86,0.54,23.71,132.0,8.7,1.0,172.0,1.0,cup
+173740,"Beans, kidney, cooked, boiled","Beans, kidney, all types, mature seeds, cooked, boiled, without salt",16,Legumes and Legume Products,8.67,0.5,22.8,127.0,6.4,1.0,177.0,1.0,cup
+173753,"Broadbeans (fava beans), cooked","Broadbeans (fava beans), mature seeds, cooked, boiled, without salt",16,Legumes and Legume Products,7.6,0.4,19.65,110.0,5.4,5.0,170.0,1.0,cup
+173757,"Chickpeas, cooked, boiled","Chickpeas (garbanzo beans, bengal gram), mature seeds, cooked, boiled, without salt",16,Legumes and Legume Products,8.86,2.59,27.42,164.0,7.6,7.0,164.0,1.0,cup
+172421,"Lentils, cooked, boiled","Lentils, mature seeds, cooked, boiled, without salt",16,Legumes and Legume Products,9.02,0.38,20.13,116.0,7.9,2.0,198.0,1.0,cup
+172470,"Peanut butter, smooth, without salt","Peanut butter, smooth style, without salt",16,Legumes and Legume Products,22.21,51.36,22.31,598.0,5.0,17.0,32.0,2.0,tbsp
+173806,"Peanuts, dry-roasted, without salt","Peanuts, all types, dry-roasted, without salt",16,Legumes and Legume Products,24.35,49.66,21.26,587.0,8.4,6.0,146.0,1.0,cup
+174277,"Soy sauce, from soy and wheat (shoyu)",Soy sauce made from soy and wheat (shoyu),16,Legumes and Legume Products,8.14,0.57,4.93,53.0,0.8,5493.0,16.0,1.0,tbsp
+172475,"Tofu, firm, raw","Tofu, raw, firm, prepared with calcium sulfate",16,Legumes and Legume Products,17.27,8.72,2.78,144.0,2.3,14.0,126.0,0.5,cup
+168588,"Nuts, almond butter, without salt","Nuts, almond butter, plain, without salt added",12,Nut and Seed Products,20.96,55.5,18.82,614.0,10.3,7.0,16.0,1.0,tbsp
+170567,"Nuts, almonds","Nuts, almonds",12,Nut and Seed Products,21.15,49.93,21.55,579.0,12.5,1.0,143.0,1.0,"cup, whole"
+170569,"Nuts, brazilnuts, dried","Nuts, brazilnuts, dried, unblanched",12,Nut and Seed Products,14.32,67.1,11.74,659.0,7.5,3.0,133.0,1.0,"cup, whole"
+170162,"Nuts, cashew nuts, raw","Nuts, cashew nuts, raw",12,Nut and Seed Products,18.22,43.85,30.19,553.0,3.3,12.0,28.35,1.0,oz
+170169,"Nuts, coconut meat, raw","Nuts, coconut meat, raw",12,Nut and Seed Products,3.33,33.49,15.23,354.0,9.0,20.0,80.0,1.0,"cup, shredded"
+170581,"Nuts, hazelnuts","Nuts, hazelnuts or filberts",12,Nut and Seed Products,14.95,60.75,16.7,628.0,9.7,0.0,115.0,1.0,"cup, chopped"
+170182,"Nuts, pecans","Nuts, pecans",12,Nut and Seed Products,9.17,71.97,13.86,691.0,9.6,0.0,109.0,1.0,"cup, chopped"
+170591,"Nuts, pine nuts, dried","Nuts, pine nuts, dried",12,Nut and Seed Products,13.69,68.37,13.08,673.0,3.7,2.0,135.0,1.0,cup
+170184,"Nuts, pistachio nuts, raw","Nuts, pistachio nuts, raw",12,Nut and Seed Products,20.16,45.32,27.17,560.0,10.6,1.0,123.0,1.0,cup
+170187,"Nuts, walnuts, english","Nuts, walnuts, english",12,Nut and Seed Products,15.23,65.21,13.71,654.0,6.7,2.0,117.0,1.0,"cup, chopped"
+170554,"Seeds, chia seeds, dried","Seeds, chia seeds, dried",12,Nut and Seed Products,16.54,30.74,42.12,486.0,34.4,16.0,28.35,1.0,oz
+169414,"Seeds, flaxseed","Seeds, flaxseed",12,Nut and Seed Products,18.29,42.16,28.88,534.0,27.3,30.0,10.3,1.0,"tbsp, whole"
+170148,"Seeds, hemp seed, hulled","Seeds, hemp seed, hulled",12,Nut and Seed Products,31.56,48.75,8.67,553.0,4.0,5.0,30.0,3.0,tbsp
+170188,"Seeds, pumpkin, roasted, no salt","Seeds, pumpkin and squash seeds, whole, roasted, without salt",12,Nut and Seed Products,18.55,19.4,53.75,446.0,18.4,18.0,64.0,1.0,cup
+170150,"Seeds, sesame seeds, whole, dried","Seeds, sesame seeds, whole, dried",12,Nut and Seed Products,17.73,49.67,23.45,573.0,11.8,11.0,144.0,1.0,cup
+170563,"Seeds, sunflower, dry roasted, no salt","Seeds, sunflower seed kernels, dry roasted, without salt",12,Nut and Seed Products,19.33,49.8,24.07,582.0,11.1,3.0,128.0,1.0,cup
+170189,"Seeds, tahini","Seeds, sesame butter, tahini, from roasted and toasted kernels (most common type)",12,Nut and Seed Products,17.0,53.76,21.19,595.0,9.3,115.0,15.0,1.0,tbsp
+171534,"Chicken breast, skinless, boneless, grilled","Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled",5,Poultry Products,30.54,3.17,0.0,151.0,0.0,52.0,85.0,3.0,oz
+172388,"Chicken thighs, meat only, cooked, roasted","Chicken, broilers or fryers, thigh, meat only, cooked, roasted",5,Poultry Products,24.76,8.15,0.0,179.0,0.0,106.0,85.0,3.0,oz
+171167,"Sauce, teriyaki, ready-to-serve","Sauce, teriyaki, ready-to-serve",6,"Soups, Sauces, and Gravies",5.93,0.02,15.56,89.0,0.1,3833.0,18.0,1.0,tbsp
+172234,"Mustard, prepared, yellow","Mustard, prepared, yellow",2,Spices and Herbs,3.74,3.34,5.83,60.0,4.0,1104.0,5.0,1.0,tsp or 1 packet
+168390,"Asparagus, cooked, boiled","Asparagus, cooked, boiled, drained",11,Vegetables and Vegetable Products,2.4,0.22,4.11,22.0,2.0,14.0,90.0,0.5,cup
+169141,"Beans, snap, green, cooked","Beans, snap, green, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,1.89,0.28,7.88,35.0,3.2,1.0,125.0,1.0,cup
+169967,"Broccoli, cooked, boiled","Broccoli, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,2.38,0.41,7.18,35.0,3.3,41.0,78.0,0.5,"cup, chopped"
+169976,"Cabbage, cooked, boiled","Cabbage, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,1.27,0.06,5.51,23.0,1.9,8.0,75.0,0.5,"cup, shredded"
+170394,"Carrots, cooked, boiled","Carrots, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,0.76,0.18,8.22,35.0,3.0,58.0,9.7,1.0,tbsp
+170397,"Cauliflower, cooked, boiled","Cauliflower, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,1.84,0.45,4.11,23.0,2.3,15.0,62.0,0.5,"cup (1"" pieces)"
+169999,"Corn, sweet, yellow, cooked, boiled","Corn, sweet, yellow, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,3.41,1.5,20.98,96.0,2.4,1.0,89.0,1.0,"ear small (5-1/2"" to 6-1/2"" long)"
+168409,"Cucumber, with peel, raw","Cucumber, with peel, raw",11,Vegetables and Vegetable Products,0.65,0.11,3.63,15.0,0.5,2.0,52.0,0.5,cup slices
+169229,"Eggplant, cooked, boiled","Eggplant, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,0.83,0.23,8.73,35.0,2.5,1.0,99.0,1.0,"cup (1"" cubes)"
+169230,"Garlic, raw","Garlic, raw",11,Vegetables and Vegetable Products,6.36,0.5,33.06,149.0,2.1,17.0,136.0,1.0,cup
+169231,"Ginger root, raw","Ginger root, raw",11,Vegetables and Vegetable Products,1.82,0.75,17.77,80.0,2.0,13.0,2.0,1.0,tsp
+169238,"Kale, cooked, boiled","Kale, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,2.94,1.21,5.3,36.0,4.0,16.0,118.0,1.0,cup
+169247,"Lettuce, romaine, raw","Lettuce, cos or romaine, raw",11,Vegetables and Vegetable Products,1.23,0.3,3.29,17.0,2.1,8.0,47.0,1.0,cup shredded
+169252,"Mushrooms, white, cooked, boiled","Mushrooms, white, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,2.17,0.47,5.29,28.0,2.2,2.0,156.0,1.0,cup pieces
+170000,"Onions, raw","Onions, raw",11,Vegetables and Vegetable Products,1.1,0.1,9.34,40.0,1.7,4.0,160.0,1.0,"cup, chopped"
+170420,"Peas, green, cooked, boiled","Peas, green, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,5.36,0.22,15.63,84.0,5.5,3.0,160.0,1.0,cup
+170427,"Peppers, sweet, green, raw","Peppers, sweet, green, raw",11,Vegetables and Vegetable Products,0.86,0.17,4.64,20.0,1.7,3.0,149.0,1.0,"cup, chopped"
+170108,"Peppers, sweet, red, raw","Peppers, sweet, red, raw",11,Vegetables and Vegetable Products,0.99,0.3,6.03,26.0,2.1,4.0,149.0,1.0,"cup, chopped"
+170440,"Potatoes, boiled, without skin","Potatoes, boiled, cooked without skin, flesh, without salt",11,Vegetables and Vegetable Products,1.71,0.1,20.01,86.0,1.8,5.0,78.0,0.5,cup
+168463,"Spinach, cooked, boiled","Spinach, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,2.97,0.26,3.75,23.0,2.4,70.0,180.0,1.0,cup
+168483,"Sweet potato, baked in skin","Sweet potato, cooked, baked in skin, flesh, without salt",11,Vegetables and Vegetable Products,2.01,0.15,20.71,90.0,3.3,36.0,200.0,1.0,cup
+170457,"Tomatoes, red, raw","Tomatoes, red, ripe, raw, year round average",11,Vegetables and Vegetable Products,0.88,0.2,3.89,18.0,1.2,5.0,149.0,1.0,cup cherry tomatoes
+168470,"Zucchini, cooked, boiled","Squash, summer, zucchini, includes skin, frozen, cooked, boiled, drained, without salt",11,Vegetables and Vegetable Products,1.15,0.13,3.56,17.0,1.3,2.0,223.0,1.0,cup
+90001,"Whey protein isolate, unflavored","Whey protein isolate, unflavored (manual entry)",1,Dairy and Egg Products,90.0,1.0,3.0,370.0,0.0,150.0,30.0,1.0,scoop
+90002,"Whey protein concentrate, unflavored","Whey protein concentrate, unflavored (manual entry)",1,Dairy and Egg Products,80.0,5.0,10.0,400.0,0.0,180.0,30.0,1.0,scoop
+90003,"Rice, basmati, cooked","Rice, basmati, cooked (manual entry)",20,Cereal Grains and Pasta,2.7,0.3,28.0,130.0,0.4,1.0,185.0,1.0,cup cooked
+90004,"Granola, plain, homemade-style","Granola, plain, homemade-style (manual entry)",8,Breakfast Cereals,15.0,24.0,53.0,490.0,8.6,22.0,50.0,0.5,cup
+90005,"Bread, Egyptian baladi (eish baladi)","Bread, Egyptian baladi (eish baladi), whole wheat (manual entry)",18,Baked Products,10.1,1.3,52.7,257.0,1.3,304.0,90.0,1.0,loaf
+90006,"Bread, brown, whole grain","Bread, brown, whole grain (manual entry)",18,Baked Products,8.5,2.8,53.5,245.0,4.2,380.0,30.0,1.0,slice
+90007,"Turkey breast, deli slices","Turkey breast, deli slices, prepackaged (manual entry)",5,Poultry Products,15.0,4.0,2.0,104.0,0.0,600.0,56.0,2.0,slices
+90008,"Protein bar, average","Protein bar, average macros (manual entry)",19,Sweets,23.0,11.0,44.0,374.0,6.0,195.0,60.0,1.0,bar
+90009,"Sauce, BBQ, regular","Sauce, barbecue (BBQ), regular (manual entry)",6,"Soups, Sauces, and Gravies",0.8,0.6,41.5,172.0,0.9,985.0,34.0,2.0,tbsp

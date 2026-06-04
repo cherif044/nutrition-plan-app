@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-05-26T19:17:50.044858",
+  "total_items": 126,
+  "category_breakdown": {
+    "Vegetables and Vegetable Products": 23,
+    "Dairy and Egg Products": 20,
+    "Fruits and Fruit Juices": 18,
+    "Nut and Seed Products": 17,
+    "Legumes and Legume Products": 9,
+    "Cereal Grains and Pasta": 9,
+    "Baked Products": 8,
+    "Finfish and Shellfish Products": 6,
+    "Fats and Oils": 5,
+    "Poultry Products": 3,
+    "Breakfast Cereals": 2,
+    "Beef Products": 2,
+    "Soups, Sauces, and Gravies": 2,
+    "Spices and Herbs": 1,
+    "Sweets": 1
+  },
+  "nutrient_coverage": {
+    "calories_kcal": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    },
+    "protein_g": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    },
+    "carbs_g": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    },
+    "fat_g": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    },
+    "fiber_g": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    },
+    "sodium_mg": {
+      "filled": 126,
+      "missing": 0,
+      "coverage_pct": 100.0
+    }
+  },
+  "missing_from_usda": [],
+  "note": "Items in missing_from_usda need to be added to manual_ingredients.csv"
+}

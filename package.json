@@ -1,0 +1,17 @@
+{
+  "name": "nutrition-plan-web",
+  "version": "1.0.0",
+  "description": "Node.js/Express website version of the Nutrition Plan app.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/routes/apiRoutes.js && node --check src/middleware/errorHandler.js && node --check src/data/foodRepository.js && node --check src/config/nutritionConstants.js && node --check src/config/preferenceTaxonomy.js && node --check src/services/nutritionService.js && node --check src/services/planGenerator.js && node --check public/js/app.js && node --check scripts/enrichFoodData.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
