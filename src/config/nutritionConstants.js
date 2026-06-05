@@ -3,7 +3,7 @@ const NUTRITION = {
   carbKcalPerGram: 4,
   fatKcalPerGram: 9,
   proteinPerKg: 2,
-  fatPerKg: 0.6,
+  fatPerKg: 1.0,
   katchMcArdleBase: 370,
   katchMcArdleLeanMassMultiplier: 21.6,
   activityMultipliers: {

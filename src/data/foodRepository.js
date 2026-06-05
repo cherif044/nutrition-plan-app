@@ -57,6 +57,8 @@ function normalizeFood(food) {
     proteinGPer100g: Number(food.protein_g_per_100g),
     carbGPer100g: Number(food.carb_g_per_100g),
     fatGPer100g: Number(food.fat_g_per_100g),
+    fiberGPer100g: Number(food.fiber_g_per_100g ?? 0),
+    sodiumMgPer100g: Number(food.sodium_mg_per_100g ?? 0),
     isVegan: Boolean(food.is_vegan),
     isVegetarian: Boolean(food.is_vegetarian),
     allergens: food.allergens.map(String),
@@ -65,6 +67,7 @@ function normalizeFood(food) {
     defaultServingG: Number(food.default_serving_g),
     minServingG: Number(food.min_serving_g),
     maxServingG: Number(food.max_serving_g),
+    fdcId: food.fdc_id ? Number(food.fdc_id) : null,
   };
 }
 

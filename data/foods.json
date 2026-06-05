@@ -1,2095 +1,2683 @@
 [
   {
-    "id": "chicken_breast",
-    "name": "Grilled Chicken Breast",
-    "name_ar": "صدر فراخ مشوي",
-    "macro_role": "protein",
-    "calories_per_100g": 165,
-    "protein_g_per_100g": 31,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 3.6,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "poultry",
-      "chicken",
-      "lean_protein"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "chicken_thigh",
-    "name": "Chicken Thigh (skinless)",
-    "name_ar": "فخدة فراخ بدون جلد",
-    "macro_role": "protein",
-    "calories_per_100g": 177,
-    "protein_g_per_100g": 24,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 9,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "poultry",
-      "chicken"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "turkey_breast",
-    "name": "Grilled Turkey Breast",
-    "name_ar": "صدر ديك رومي",
-    "macro_role": "protein",
-    "calories_per_100g": 135,
-    "protein_g_per_100g": 30,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 1,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "poultry",
-      "turkey",
-      "lean_protein"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "chicken_kofta",
-    "name": "Chicken Kofta",
-    "name_ar": "كفتة فراخ",
-    "macro_role": "protein",
-    "calories_per_100g": 185,
-    "protein_g_per_100g": 22,
-    "carb_g_per_100g": 4,
-    "fat_g_per_100g": 9,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "poultry",
-      "chicken",
-      "kofta"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 200
-  },
-  {
-    "id": "beef_lean",
-    "name": "Lean Beef (grilled)",
-    "name_ar": "لحم بقري قليل الدهن",
-    "macro_role": "protein",
-    "calories_per_100g": 215,
-    "protein_g_per_100g": 26,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 12,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "red_meat",
-      "beef",
-      "lean_protein"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "kofta_beef",
-    "name": "Beef Kofta",
-    "name_ar": "كفتة لحم",
-    "macro_role": "protein",
-    "calories_per_100g": 250,
-    "protein_g_per_100g": 17,
-    "carb_g_per_100g": 5,
-    "fat_g_per_100g": 18,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "red_meat",
-      "beef",
-      "kofta"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 200
-  },
-  {
-    "id": "lamb_lean",
-    "name": "Lean Lamb (grilled)",
-    "name_ar": "لحم ضأن قليل الدهن",
-    "macro_role": "protein",
-    "calories_per_100g": 218,
-    "protein_g_per_100g": 25,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 13,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "red_meat",
-      "lamb"
-    ],
-    "min_serving_g": 70,
-    "max_serving_g": 180
-  },
-  {
-    "id": "liver_beef",
-    "name": "Beef Liver",
-    "name_ar": "كبدة بقري",
-    "macro_role": "protein",
-    "calories_per_100g": 175,
-    "protein_g_per_100g": 27,
-    "carb_g_per_100g": 4,
-    "fat_g_per_100g": 5,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "red_meat",
-      "beef",
-      "organ_meat",
-      "liver"
-    ],
-    "min_serving_g": 70,
-    "max_serving_g": 160
-  },
-  {
-    "id": "liver_chicken",
-    "name": "Chicken Liver",
-    "name_ar": "كبدة فراخ",
-    "macro_role": "protein",
-    "calories_per_100g": 167,
-    "protein_g_per_100g": 24,
-    "carb_g_per_100g": 1,
-    "fat_g_per_100g": 7,
-    "is_vegan": false,
-    "is_vegetarian": false,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "meat",
-      "poultry",
-      "chicken",
-      "organ_meat",
-      "liver"
-    ],
-    "min_serving_g": 70,
-    "max_serving_g": 160
-  },
-  {
-    "id": "tilapia",
-    "name": "Grilled Tilapia (Bolti)",
-    "name_ar": "بلطي مشوي",
-    "macro_role": "protein",
-    "calories_per_100g": 128,
-    "protein_g_per_100g": 26,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 2.7,
-    "is_vegan": false,
-    "is_vegetarian": false,
+    "id": "bread_multi_grain",
+    "name": "Bread, multi-grain",
+    "macro_role": "carb",
+    "calories_per_100g": 265,
+    "protein_g_per_100g": 13.36,
+    "carb_g_per_100g": 43.34,
+    "fat_g_per_100g": 4.23,
+    "fiber_g_per_100g": 7.4,
+    "sodium_mg_per_100g": 381,
+    "is_vegan": true,
+    "is_vegetarian": true,
     "allergens": [
-      "fish"
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "baked_products",
+      "bread",
+      "wheat",
+      "gluten"
     ],
     "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
+      "breakfast",
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "animal_protein",
-      "seafood",
-      "fish",
-      "white_fish",
-      "tilapia",
-      "lean_protein"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 250
+    "default_serving_g": 28.4,
+    "min_serving_g": 14.2,
+    "max_serving_g": 150,
+    "fdc_id": 168013
   },
   {
-    "id": "white_fish",
-    "name": "Baked White Fish",
-    "name_ar": "سمك أبيض في الفرن",
-    "macro_role": "protein",
-    "calories_per_100g": 105,
-    "protein_g_per_100g": 22,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 1.5,
-    "is_vegan": false,
-    "is_vegetarian": false,
+    "id": "bread_brown_whole_grain",
+    "name": "Bread, brown, whole grain",
+    "macro_role": "carb",
+    "calories_per_100g": 245,
+    "protein_g_per_100g": 8.5,
+    "carb_g_per_100g": 53.5,
+    "fat_g_per_100g": 2.8,
+    "fiber_g_per_100g": 4.2,
+    "sodium_mg_per_100g": 380,
+    "is_vegan": true,
+    "is_vegetarian": true,
     "allergens": [
-      "fish"
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "baked_products",
+      "bread",
+      "wheat",
+      "gluten"
     ],
     "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
+      "breakfast",
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "animal_protein",
-      "seafood",
-      "fish",
-      "white_fish",
-      "lean_protein"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 250
+    "default_serving_g": 30,
+    "min_serving_g": 15,
+    "max_serving_g": 150,
+    "fdc_id": 90006
   },
   {
-    "id": "tuna_canned",
-    "name": "Canned Tuna (in water)",
-    "name_ar": "تونة معلبة بالماء",
+    "id": "bread_white",
+    "name": "Bread, white",
+    "macro_role": "carb",
+    "calories_per_100g": 266,
+    "protein_g_per_100g": 8.85,
+    "carb_g_per_100g": 49.42,
+    "fat_g_per_100g": 3.33,
+    "fiber_g_per_100g": 2.7,
+    "sodium_mg_per_100g": 490,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "baked_products",
+      "bread",
+      "wheat",
+      "gluten"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "dinner"
+    ],
+    "default_serving_g": 29,
+    "min_serving_g": 14.5,
+    "max_serving_g": 150,
+    "fdc_id": 174924
+  },
+  {
+    "id": "bread_egyptian_baladi_eish_baladi",
+    "name": "Bread, Egyptian baladi (eish baladi)",
+    "macro_role": "carb",
+    "calories_per_100g": 257,
+    "protein_g_per_100g": 10.1,
+    "carb_g_per_100g": 52.7,
+    "fat_g_per_100g": 1.3,
+    "fiber_g_per_100g": 1.3,
+    "sodium_mg_per_100g": 304,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "baked_products",
+      "bread",
+      "wheat",
+      "gluten"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "dinner"
+    ],
+    "default_serving_g": 90,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 90005
+  },
+  {
+    "id": "beef_ground_80_lean_cooked_broiled",
+    "name": "Beef, ground, 80% lean, cooked, broiled",
     "macro_role": "protein",
-    "calories_per_100g": 116,
-    "protein_g_per_100g": 25.8,
+    "calories_per_100g": 270,
+    "protein_g_per_100g": 25.75,
     "carb_g_per_100g": 0,
-    "fat_g_per_100g": 1,
+    "fat_g_per_100g": 17.78,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 75,
     "is_vegan": false,
     "is_vegetarian": false,
-    "allergens": [
-      "fish"
+    "allergens": [],
+    "categories": [
+      "beef_products",
+      "beef",
+      "red_meat",
+      "meat",
+      "animal_protein"
     ],
     "meal_tags": [
       "lunch",
-      "snack",
-      "suhoor"
+      "dinner"
+    ],
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 171797
+  },
+  {
+    "id": "beef_ground_95_lean_cooked_broiled",
+    "name": "Beef, ground, 95% lean, cooked, broiled",
+    "macro_role": "protein",
+    "calories_per_100g": 174,
+    "protein_g_per_100g": 26.29,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 6.8,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 65,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [],
+    "categories": [
+      "beef_products",
+      "beef",
+      "red_meat",
+      "meat",
+      "animal_protein"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 171791
+  },
+  {
+    "id": "oats_raw",
+    "name": "Oats, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 389,
+    "protein_g_per_100g": 16.89,
+    "carb_g_per_100g": 66.27,
+    "fat_g_per_100g": 6.9,
+    "fiber_g_per_100g": 10.6,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "cereal_grains",
+      "grain",
+      "wheat",
+      "oats"
+    ],
+    "meal_tags": [
+      "breakfast"
     ],
     "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "seafood",
-      "fish",
-      "tuna",
-      "canned_fish",
-      "lean_protein"
-    ],
-    "min_serving_g": 60,
-    "max_serving_g": 150
+    "min_serving_g": 30,
+    "max_serving_g": 150,
+    "fdc_id": 169705
   },
   {
-    "id": "shrimp",
-    "name": "Grilled Shrimp",
-    "name_ar": "جمبري مشوي",
-    "macro_role": "protein",
-    "calories_per_100g": 99,
-    "protein_g_per_100g": 24,
-    "carb_g_per_100g": 0,
+    "id": "pasta_whole_wheat_cooked",
+    "name": "Pasta, whole-wheat, cooked",
+    "macro_role": "carb",
+    "calories_per_100g": 149,
+    "protein_g_per_100g": 5.99,
+    "carb_g_per_100g": 30.07,
+    "fat_g_per_100g": 1.71,
+    "fiber_g_per_100g": 3.9,
+    "sodium_mg_per_100g": 4,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "cereal_grains",
+      "grain",
+      "wheat",
+      "pasta"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 124,
+    "min_serving_g": 62,
+    "max_serving_g": 350,
+    "fdc_id": 168910
+  },
+  {
+    "id": "quinoa_cooked",
+    "name": "Quinoa, cooked",
+    "macro_role": "carb",
+    "calories_per_100g": 120,
+    "protein_g_per_100g": 4.4,
+    "carb_g_per_100g": 21.3,
+    "fat_g_per_100g": 1.92,
+    "fiber_g_per_100g": 2.8,
+    "sodium_mg_per_100g": 7,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "cereal_grains",
+      "grain",
+      "wheat"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 185,
+    "min_serving_g": 92.5,
+    "max_serving_g": 350,
+    "fdc_id": 168917
+  },
+  {
+    "id": "rice_basmati_cooked",
+    "name": "Rice, basmati, cooked",
+    "macro_role": "carb",
+    "calories_per_100g": 130,
+    "protein_g_per_100g": 2.7,
+    "carb_g_per_100g": 28,
     "fat_g_per_100g": 0.3,
-    "is_vegan": false,
-    "is_vegetarian": false,
+    "fiber_g_per_100g": 0.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
     "allergens": [
-      "shellfish",
-      "crustacean"
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "cereal_grains",
+      "grain",
+      "wheat",
+      "rice"
     ],
     "meal_tags": [
       "lunch",
-      "dinner",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 120,
-    "categories": [
-      "animal_protein",
-      "seafood",
-      "shellfish",
-      "crustacean",
-      "shrimp",
-      "lean_protein"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
+    "default_serving_g": 185,
+    "min_serving_g": 92.5,
+    "max_serving_g": 400,
+    "fdc_id": 90003
   },
   {
-    "id": "sardines",
-    "name": "Sardines (canned in water)",
-    "name_ar": "سردين معلب بالماء",
-    "macro_role": "protein",
-    "calories_per_100g": 185,
-    "protein_g_per_100g": 25,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 10,
-    "is_vegan": false,
-    "is_vegetarian": false,
+    "id": "rice_white_long_grain_cooked",
+    "name": "Rice, white, long-grain, cooked",
+    "macro_role": "carb",
+    "calories_per_100g": 130,
+    "protein_g_per_100g": 2.69,
+    "carb_g_per_100g": 28.17,
+    "fat_g_per_100g": 0.28,
+    "fiber_g_per_100g": 0.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
     "allergens": [
-      "fish"
+      "gluten",
+      "wheat"
+    ],
+    "categories": [
+      "cereal_grains",
+      "grain",
+      "wheat",
+      "rice"
     ],
     "meal_tags": [
       "lunch",
-      "snack",
-      "suhoor"
+      "dinner"
     ],
-    "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "seafood",
-      "fish",
-      "sardines",
-      "canned_fish"
-    ],
-    "min_serving_g": 60,
-    "max_serving_g": 140
+    "default_serving_g": 158,
+    "min_serving_g": 79,
+    "max_serving_g": 400,
+    "fdc_id": 168878
   },
   {
-    "id": "whole_eggs",
-    "name": "Whole Eggs",
-    "name_ar": "بيض كامل",
-    "macro_role": "protein",
-    "calories_per_100g": 155,
-    "protein_g_per_100g": 13,
-    "carb_g_per_100g": 1.1,
-    "fat_g_per_100g": 11,
+    "id": "butter_without_salt",
+    "name": "Butter, without salt",
+    "macro_role": "fat",
+    "calories_per_100g": 717,
+    "protein_g_per_100g": 0.85,
+    "carb_g_per_100g": 0.06,
+    "fat_g_per_100g": 81.11,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 11,
     "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "egg"
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose",
+      "butter"
     ],
     "meal_tags": [
       "breakfast",
-      "dinner",
-      "snack",
-      "suhoor"
+      "lunch",
+      "dinner"
     ],
-    "default_serving_g": 50,
-    "categories": [
-      "animal_protein",
-      "eggs",
-      "egg",
-      "breakfast_protein"
-    ],
-    "min_serving_g": 50,
-    "max_serving_g": 150
+    "default_serving_g": 5,
+    "min_serving_g": 2.5,
+    "max_serving_g": 10,
+    "fdc_id": 173430
   },
   {
-    "id": "egg_whites",
-    "name": "Egg Whites",
-    "name_ar": "بياض البيض",
-    "macro_role": "protein",
-    "calories_per_100g": 52,
-    "protein_g_per_100g": 11,
-    "carb_g_per_100g": 0.7,
-    "fat_g_per_100g": 0.2,
+    "id": "cheese_cheddar",
+    "name": "Cheese, cheddar",
+    "macro_role": "fat",
+    "calories_per_100g": 403,
+    "protein_g_per_100g": 22.87,
+    "carb_g_per_100g": 3.37,
+    "fat_g_per_100g": 33.31,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 653,
     "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "egg"
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
     ],
     "meal_tags": [
       "breakfast",
-      "dinner",
-      "snack",
-      "suhoor"
+      "lunch",
+      "dinner"
     ],
-    "default_serving_g": 100,
-    "categories": [
-      "animal_protein",
-      "eggs",
-      "egg",
-      "egg_whites",
-      "lean_protein",
-      "breakfast_protein"
-    ],
-    "min_serving_g": 60,
-    "max_serving_g": 250
+    "default_serving_g": 60,
+    "min_serving_g": 18,
+    "max_serving_g": 60,
+    "fdc_id": 173414
   },
   {
-    "id": "cottage_cheese",
-    "name": "Cottage Cheese (low fat)",
-    "name_ar": "جبن كوخ قليل الدهن",
+    "id": "cheese_cottage_creamed",
+    "name": "Cheese, cottage, creamed",
     "macro_role": "protein",
     "calories_per_100g": 98,
-    "protein_g_per_100g": 11,
-    "carb_g_per_100g": 3.4,
+    "protein_g_per_100g": 11.12,
+    "carb_g_per_100g": 3.38,
     "fat_g_per_100g": 4.3,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 315,
     "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "milk",
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
       "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 113,
+    "min_serving_g": 56.5,
+    "max_serving_g": 150,
+    "fdc_id": 172179
+  },
+  {
+    "id": "cheese_feta",
+    "name": "Cheese, feta",
+    "macro_role": "fat",
+    "calories_per_100g": 265,
+    "protein_g_per_100g": 14.21,
+    "carb_g_per_100g": 3.88,
+    "fat_g_per_100g": 21.49,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 1139,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 40,
+    "min_serving_g": 12,
+    "max_serving_g": 40,
+    "fdc_id": 173420
+  },
+  {
+    "id": "cheese_gouda",
+    "name": "Cheese, gouda",
+    "macro_role": "protein",
+    "calories_per_100g": 356,
+    "protein_g_per_100g": 24.94,
+    "carb_g_per_100g": 2.22,
+    "fat_g_per_100g": 27.44,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 819,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 28.4,
+    "min_serving_g": 14.2,
+    "max_serving_g": 60,
+    "fdc_id": 171241
+  },
+  {
+    "id": "cheese_mozzarella_whole_milk",
+    "name": "Cheese, mozzarella, whole milk",
+    "macro_role": "protein",
+    "calories_per_100g": 299,
+    "protein_g_per_100g": 22.17,
+    "carb_g_per_100g": 2.4,
+    "fat_g_per_100g": 22.14,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 486,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 40,
+    "min_serving_g": 12,
+    "max_serving_g": 40,
+    "fdc_id": 170845
+  },
+  {
+    "id": "egg_white_raw_fresh",
+    "name": "Egg, white, raw, fresh",
+    "macro_role": "protein",
+    "calories_per_100g": 52,
+    "protein_g_per_100g": 10.9,
+    "carb_g_per_100g": 0.73,
+    "fat_g_per_100g": 0.17,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 166,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "egg"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "eggs",
+      "egg",
+      "egg_whites"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 33,
+    "min_serving_g": 16.5,
+    "max_serving_g": 100,
+    "fdc_id": 172183
+  },
+  {
+    "id": "egg_whole_cooked_hard_boiled",
+    "name": "Egg, whole, cooked, hard-boiled",
+    "macro_role": "protein",
+    "calories_per_100g": 155,
+    "protein_g_per_100g": 12.58,
+    "carb_g_per_100g": 1.12,
+    "fat_g_per_100g": 10.61,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 124,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "egg"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "eggs",
+      "egg",
+      "egg_whites"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 136,
+    "min_serving_g": 68,
+    "max_serving_g": 250,
+    "fdc_id": 173424
+  },
+  {
+    "id": "egg_whole_cooked_scrambled",
+    "name": "Egg, whole, cooked, scrambled",
+    "macro_role": "protein",
+    "calories_per_100g": 149,
+    "protein_g_per_100g": 9.99,
+    "carb_g_per_100g": 1.61,
+    "fat_g_per_100g": 10.98,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 145,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "egg"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "eggs",
+      "egg",
+      "egg_whites"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "dinner"
+    ],
+    "default_serving_g": 61,
+    "min_serving_g": 30.5,
+    "max_serving_g": 250,
+    "fdc_id": 172187
+  },
+  {
+    "id": "skimmed_milk_fat_free",
+    "name": "Skimmed milk (fat free)",
+    "macro_role": "protein",
+    "calories_per_100g": 34,
+    "protein_g_per_100g": 3.37,
+    "carb_g_per_100g": 4.96,
+    "fat_g_per_100g": 0.08,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 42,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
       "lactose"
     ],
     "meal_tags": [
       "breakfast",
       "snack",
-      "suhoor"
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "animal_protein",
-      "dairy",
-      "milk",
-      "cheese",
-      "cottage_cheese"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 250
+    "default_serving_g": 244,
+    "min_serving_g": 122,
+    "max_serving_g": 400,
+    "fdc_id": 171269
   },
   {
-    "id": "greek_yogurt",
-    "name": "Greek Yogurt (plain)",
-    "name_ar": "زبادي يوناني",
+    "id": "milk_whole_3_25_milkfat",
+    "name": "Milk, whole, 3.25% milkfat",
+    "macro_role": "protein",
+    "calories_per_100g": 61,
+    "protein_g_per_100g": 3.15,
+    "carb_g_per_100g": 4.8,
+    "fat_g_per_100g": 3.25,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 43,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 244,
+    "min_serving_g": 122,
+    "max_serving_g": 400,
+    "fdc_id": 171265
+  },
+  {
+    "id": "yogurt_greek_plain_whole_milk",
+    "name": "Yogurt, Greek, plain, whole milk",
+    "macro_role": "protein",
+    "calories_per_100g": 59,
+    "protein_g_per_100g": 10.19,
+    "carb_g_per_100g": 3.6,
+    "fat_g_per_100g": 0.39,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 36,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 170,
+    "min_serving_g": 85,
+    "max_serving_g": 250,
+    "fdc_id": 170894
+  },
+  {
+    "id": "greek_yogurt_5_fat_whole_milk",
+    "name": "Greek yogurt, 5% fat (whole milk)",
     "macro_role": "protein",
     "calories_per_100g": 97,
     "protein_g_per_100g": 9,
-    "carb_g_per_100g": 3.6,
+    "carb_g_per_100g": 3.98,
     "fat_g_per_100g": 5,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 35,
     "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "milk",
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
       "dairy",
+      "milk",
       "lactose"
     ],
     "meal_tags": [
       "breakfast",
       "snack",
-      "suhoor"
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "animal_protein",
-      "dairy",
-      "milk",
-      "yogurt",
-      "greek_yogurt"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 250
+    "default_serving_g": 170,
+    "min_serving_g": 85,
+    "max_serving_g": 250,
+    "fdc_id": 171304
   },
   {
-    "id": "labneh",
-    "name": "Labneh",
-    "name_ar": "لبنة",
+    "id": "whey_protein_isolate_unflavored",
+    "name": "Whey protein isolate, unflavored",
     "macro_role": "protein",
-    "calories_per_100g": 180,
-    "protein_g_per_100g": 8,
-    "carb_g_per_100g": 4,
-    "fat_g_per_100g": 15,
+    "calories_per_100g": 370,
+    "protein_g_per_100g": 90,
+    "carb_g_per_100g": 3,
+    "fat_g_per_100g": 1,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 150,
     "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "milk",
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
       "dairy",
+      "milk",
       "lactose"
     ],
     "meal_tags": [
       "breakfast",
       "snack",
-      "suhoor"
+      "dinner"
     ],
-    "default_serving_g": 50,
-    "categories": [
-      "animal_protein",
-      "dairy",
-      "milk",
-      "yogurt",
-      "labneh"
-    ],
-    "min_serving_g": 30,
-    "max_serving_g": 100
+    "default_serving_g": 30,
+    "min_serving_g": 15,
+    "max_serving_g": 50,
+    "fdc_id": 90001
   },
   {
-    "id": "ful_medames",
-    "name": "Ful Medames (cooked)",
-    "name_ar": "فول مدمس",
+    "id": "whey_protein_concentrate_unflavored",
+    "name": "Whey protein concentrate, unflavored",
     "macro_role": "protein",
-    "calories_per_100g": 110,
-    "protein_g_per_100g": 8,
-    "carb_g_per_100g": 18,
-    "fat_g_per_100g": 0.5,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 200,
-    "categories": [
-      "plant_protein",
-      "legumes",
-      "beans",
-      "fava_beans",
-      "vegan"
-    ],
-    "min_serving_g": 120,
-    "max_serving_g": 300
-  },
-  {
-    "id": "lentils_red",
-    "name": "Red Lentils (cooked)",
-    "name_ar": "عدس أحمر مطبوخ",
-    "macro_role": "protein",
-    "calories_per_100g": 116,
-    "protein_g_per_100g": 9,
-    "carb_g_per_100g": 20,
-    "fat_g_per_100g": 0.4,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "plant_protein",
-      "legumes",
-      "lentils",
-      "red_lentils",
-      "vegan"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 280
-  },
-  {
-    "id": "lentils_brown",
-    "name": "Brown Lentils (cooked)",
-    "name_ar": "عدس بني مطبوخ",
-    "macro_role": "protein",
-    "calories_per_100g": 116,
-    "protein_g_per_100g": 9,
-    "carb_g_per_100g": 20,
-    "fat_g_per_100g": 0.4,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "plant_protein",
-      "legumes",
-      "lentils",
-      "brown_lentils",
-      "vegan"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 280
-  },
-  {
-    "id": "chickpeas",
-    "name": "Chickpeas (cooked)",
-    "name_ar": "حمص مطبوخ",
-    "macro_role": "protein",
-    "calories_per_100g": 164,
-    "protein_g_per_100g": 9,
-    "carb_g_per_100g": 27,
-    "fat_g_per_100g": 2.6,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "snack",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "plant_protein",
-      "legumes",
-      "chickpeas",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 240
-  },
-  {
-    "id": "tofu",
-    "name": "Firm Tofu",
-    "name_ar": "توفو",
-    "macro_role": "protein",
-    "calories_per_100g": 144,
-    "protein_g_per_100g": 17,
-    "carb_g_per_100g": 2.8,
-    "fat_g_per_100g": 8,
-    "is_vegan": true,
+    "calories_per_100g": 400,
+    "protein_g_per_100g": 80,
+    "carb_g_per_100g": 10,
+    "fat_g_per_100g": 5,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 180,
+    "is_vegan": false,
     "is_vegetarian": true,
     "allergens": [
-      "soy"
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 15,
+    "max_serving_g": 50,
+    "fdc_id": 90002
+  },
+  {
+    "id": "oil_olive_salad_or_cooking",
+    "name": "Oil, olive, salad or cooking",
+    "macro_role": "fat",
+    "calories_per_100g": 884,
+    "protein_g_per_100g": 0,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 100,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fats_and_oils",
+      "fat",
+      "oil"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 10,
+    "min_serving_g": 5,
+    "max_serving_g": 10,
+    "fdc_id": 171413
+  },
+  {
+    "id": "oil_sunflower_linoleic",
+    "name": "Oil, sunflower, linoleic",
+    "macro_role": "fat",
+    "calories_per_100g": 884,
+    "protein_g_per_100g": 0,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 100,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fats_and_oils",
+      "fat",
+      "oil"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 10,
+    "min_serving_g": 5,
+    "max_serving_g": 10,
+    "fdc_id": 171025
+  },
+  {
+    "id": "fish_salmon_atlantic_farmed_cooked",
+    "name": "Fish, salmon, Atlantic, farmed, cooked",
+    "macro_role": "protein",
+    "calories_per_100g": 206,
+    "protein_g_per_100g": 22.1,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 12.35,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 61,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [
+      "fish"
+    ],
+    "categories": [
+      "seafood",
+      "fish"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 175168
+  },
+  {
+    "id": "fish_tilapia_cooked",
+    "name": "Fish, tilapia, cooked",
+    "macro_role": "protein",
+    "calories_per_100g": 128,
+    "protein_g_per_100g": 26.15,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 2.65,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 56,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [
+      "fish"
+    ],
+    "categories": [
+      "seafood",
+      "fish"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 87,
+    "min_serving_g": 43.5,
+    "max_serving_g": 250,
+    "fdc_id": 175177
+  },
+  {
+    "id": "fish_tuna_light_canned_in_water",
+    "name": "Fish, tuna, light, canned in water",
+    "macro_role": "protein",
+    "calories_per_100g": 116,
+    "protein_g_per_100g": 25.51,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 0.82,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 50,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [
+      "fish"
+    ],
+    "categories": [
+      "seafood",
+      "fish"
     ],
     "meal_tags": [
       "lunch",
       "dinner",
       "snack"
     ],
-    "default_serving_g": 120,
-    "categories": [
-      "plant_protein",
-      "soy",
-      "tofu",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 150,
+    "fdc_id": 171986
   },
   {
-    "id": "whey_protein",
-    "name": "Whey Protein (1 scoop ~30g)",
-    "name_ar": "بروتين مسحوق",
+    "id": "fish_tuna_white_canned_in_oil",
+    "name": "Fish, tuna, white, canned in oil",
     "macro_role": "protein",
-    "calories_per_100g": 400,
-    "protein_g_per_100g": 80,
-    "carb_g_per_100g": 8,
-    "fat_g_per_100g": 8,
+    "calories_per_100g": 186,
+    "protein_g_per_100g": 26.53,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 8.08,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 50,
     "is_vegan": false,
-    "is_vegetarian": true,
+    "is_vegetarian": false,
     "allergens": [
-      "milk",
-      "dairy",
-      "lactose"
+      "fish"
     ],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor"
-    ],
-    "default_serving_g": 30,
     "categories": [
-      "animal_protein",
-      "dairy",
-      "milk",
-      "whey",
-      "protein_powder"
+      "seafood",
+      "fish"
     ],
-    "min_serving_g": 20,
-    "max_serving_g": 40
-  },
-  {
-    "id": "white_rice",
-    "name": "White Rice (cooked)",
-    "name_ar": "أرز أبيض مطبوخ",
-    "macro_role": "carb",
-    "calories_per_100g": 130,
-    "protein_g_per_100g": 2.7,
-    "carb_g_per_100g": 28,
-    "fat_g_per_100g": 0.3,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
     "meal_tags": [
       "lunch",
-      "dinner",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "rice",
-      "white_rice",
-      "gluten_free"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 260
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 150,
+    "fdc_id": 171987
   },
   {
-    "id": "brown_rice",
-    "name": "Brown Rice (cooked)",
-    "name_ar": "أرز بني مطبوخ",
-    "macro_role": "carb",
-    "calories_per_100g": 123,
-    "protein_g_per_100g": 2.7,
-    "carb_g_per_100g": 26,
-    "fat_g_per_100g": 1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "rice",
-      "brown_rice",
-      "whole_grain",
-      "gluten_free"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 260
-  },
-  {
-    "id": "oats",
-    "name": "Rolled Oats (dry)",
-    "name_ar": "شوفان",
-    "macro_role": "carb",
-    "calories_per_100g": 389,
-    "protein_g_per_100g": 17,
-    "carb_g_per_100g": 66,
-    "fat_g_per_100g": 7,
-    "is_vegan": true,
-    "is_vegetarian": true,
+    "id": "shrimp_cooked",
+    "name": "Shrimp, cooked",
+    "macro_role": "protein",
+    "calories_per_100g": 99,
+    "protein_g_per_100g": 23.98,
+    "carb_g_per_100g": 0.2,
+    "fat_g_per_100g": 0.28,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 111,
+    "is_vegan": false,
+    "is_vegetarian": false,
     "allergens": [
-      "gluten"
+      "shellfish"
     ],
-    "meal_tags": [
-      "breakfast",
-      "dinner",
-      "snack",
-      "suhoor"
-    ],
-    "default_serving_g": 60,
     "categories": [
-      "carb",
-      "grain",
-      "oats",
-      "breakfast_cereal",
-      "whole_grain"
-    ],
-    "min_serving_g": 30,
-    "max_serving_g": 90
-  },
-  {
-    "id": "fino_bread",
-    "name": "Fino Bread (white roll)",
-    "name_ar": "خبز فينو",
-    "macro_role": "carb",
-    "calories_per_100g": 270,
-    "protein_g_per_100g": 9,
-    "carb_g_per_100g": 53,
-    "fat_g_per_100g": 2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
-    ],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor"
-    ],
-    "default_serving_g": 60,
-    "categories": [
-      "carb",
-      "grain",
-      "wheat",
-      "gluten",
-      "bread",
-      "white_bread"
-    ],
-    "min_serving_g": 30,
-    "max_serving_g": 100
-  },
-  {
-    "id": "baladi_bread",
-    "name": "Baladi Bread (whole wheat)",
-    "name_ar": "خبز بلدي",
-    "macro_role": "carb",
-    "calories_per_100g": 250,
-    "protein_g_per_100g": 9,
-    "carb_g_per_100g": 49,
-    "fat_g_per_100g": 2.5,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
-    ],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 65,
-    "categories": [
-      "carb",
-      "grain",
-      "wheat",
-      "gluten",
-      "bread",
-      "whole_wheat",
-      "whole_grain"
-    ],
-    "min_serving_g": 35,
-    "max_serving_g": 130
-  },
-  {
-    "id": "pasta_cooked",
-    "name": "Pasta (cooked)",
-    "name_ar": "معكرونة مطبوخة",
-    "macro_role": "carb",
-    "calories_per_100g": 158,
-    "protein_g_per_100g": 5.8,
-    "carb_g_per_100g": 31,
-    "fat_g_per_100g": 1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
+      "seafood",
+      "shellfish",
+      "crustacean"
     ],
     "meal_tags": [
       "lunch",
-      "dinner",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "wheat",
-      "gluten",
-      "pasta"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 260
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 200,
+    "fdc_id": 175180
   },
   {
-    "id": "whole_wheat_pasta",
-    "name": "Whole Wheat Pasta (cooked)",
-    "name_ar": "معكرونة قمح كامل",
-    "macro_role": "carb",
-    "calories_per_100g": 149,
-    "protein_g_per_100g": 5.5,
-    "carb_g_per_100g": 30,
-    "fat_g_per_100g": 0.8,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
-    ],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "wheat",
-      "gluten",
-      "pasta",
-      "whole_wheat",
-      "whole_grain"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 260
-  },
-  {
-    "id": "quinoa",
-    "name": "Quinoa (cooked)",
-    "name_ar": "كينوا مطبوخة",
-    "macro_role": "carb",
-    "calories_per_100g": 120,
-    "protein_g_per_100g": 4.4,
-    "carb_g_per_100g": 21,
-    "fat_g_per_100g": 1.9,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "quinoa",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 240
-  },
-  {
-    "id": "freekeh",
-    "name": "Freekeh (cooked)",
-    "name_ar": "فريكة مطبوخة",
-    "macro_role": "carb",
-    "calories_per_100g": 150,
-    "protein_g_per_100g": 5,
-    "carb_g_per_100g": 29,
-    "fat_g_per_100g": 1.5,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
-    ],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "wheat",
-      "gluten",
-      "freekeh",
-      "whole_grain"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 240
-  },
-  {
-    "id": "koshari_rice_pasta",
-    "name": "Koshari Mix (rice + pasta)",
-    "name_ar": "مزيج كشري",
-    "macro_role": "carb",
-    "calories_per_100g": 145,
-    "protein_g_per_100g": 4.5,
-    "carb_g_per_100g": 29,
-    "fat_g_per_100g": 1.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "gluten",
-      "wheat"
-    ],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "rice",
-      "wheat",
-      "gluten",
-      "pasta",
-      "koshari"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 300
-  },
-  {
-    "id": "sweet_potato",
-    "name": "Sweet Potato (baked)",
-    "name_ar": "بطاطا حلوة في الفرن",
-    "macro_role": "carb",
-    "calories_per_100g": 90,
-    "protein_g_per_100g": 2,
-    "carb_g_per_100g": 21,
-    "fat_g_per_100g": 0.1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "starchy_vegetable",
-      "potato",
-      "sweet_potato",
-      "root_vegetable",
-      "gluten_free"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 300
-  },
-  {
-    "id": "potato_boiled",
-    "name": "Boiled Potato",
-    "name_ar": "بطاطس مسلوقة",
-    "macro_role": "carb",
-    "calories_per_100g": 87,
-    "protein_g_per_100g": 1.9,
-    "carb_g_per_100g": 20,
-    "fat_g_per_100g": 0.1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "starchy_vegetable",
-      "potato",
-      "white_potato",
-      "root_vegetable",
-      "gluten_free"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 300
-  },
-  {
-    "id": "corn",
-    "name": "Corn (boiled)",
-    "name_ar": "ذرة مسلوقة",
-    "macro_role": "carb",
-    "calories_per_100g": 96,
-    "protein_g_per_100g": 3.4,
-    "carb_g_per_100g": 21,
-    "fat_g_per_100g": 1.5,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "snack",
-      "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "grain",
-      "corn",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "banana",
-    "name": "Banana",
-    "name_ar": "موز",
-    "macro_role": "carb",
-    "calories_per_100g": 89,
-    "protein_g_per_100g": 1.1,
-    "carb_g_per_100g": 23,
-    "fat_g_per_100g": 0.3,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "carb",
-      "fruit",
-      "banana",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 160
-  },
-  {
-    "id": "mango",
-    "name": "Mango",
-    "name_ar": "مانجو",
-    "macro_role": "carb",
-    "calories_per_100g": 60,
-    "protein_g_per_100g": 0.8,
-    "carb_g_per_100g": 15,
-    "fat_g_per_100g": 0.4,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "fruit",
-      "mango",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 220
-  },
-  {
-    "id": "apple",
-    "name": "Apple",
-    "name_ar": "تفاحة",
+    "id": "apples_raw_with_skin",
+    "name": "Apples, raw, with skin",
     "macro_role": "carb",
     "calories_per_100g": 52,
-    "protein_g_per_100g": 0.3,
-    "carb_g_per_100g": 14,
-    "fat_g_per_100g": 0.2,
+    "protein_g_per_100g": 0.26,
+    "carb_g_per_100g": 13.81,
+    "fat_g_per_100g": 0.17,
+    "fiber_g_per_100g": 2.4,
+    "sodium_mg_per_100g": 1,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
     "meal_tags": [
       "breakfast",
       "snack",
-      "suhoor"
+      "dinner"
+    ],
+    "default_serving_g": 125,
+    "min_serving_g": 62.5,
+    "max_serving_g": 150,
+    "fdc_id": 171688
+  },
+  {
+    "id": "apricots_raw",
+    "name": "Apricots, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 48,
+    "protein_g_per_100g": 1.4,
+    "carb_g_per_100g": 11.12,
+    "fat_g_per_100g": 0.39,
+    "fiber_g_per_100g": 2,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
     ],
     "default_serving_g": 150,
-    "categories": [
-      "carb",
-      "fruit",
-      "apple",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 100,
-    "max_serving_g": 220
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 171697
   },
   {
-    "id": "orange",
-    "name": "Orange",
-    "name_ar": "برتقال",
+    "id": "avocados_raw",
+    "name": "Avocados, raw",
     "macro_role": "carb",
-    "calories_per_100g": 47,
-    "protein_g_per_100g": 0.9,
-    "carb_g_per_100g": 12,
-    "fat_g_per_100g": 0.1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 180,
-    "categories": [
-      "carb",
-      "fruit",
-      "citrus",
-      "orange",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 120,
-    "max_serving_g": 240
-  },
-  {
-    "id": "watermelon",
-    "name": "Watermelon",
-    "name_ar": "بطيخ",
-    "macro_role": "carb",
-    "calories_per_100g": 30,
-    "protein_g_per_100g": 0.6,
-    "carb_g_per_100g": 7.6,
-    "fat_g_per_100g": 0.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "snack",
-      "iftar"
-    ],
-    "default_serving_g": 300,
-    "categories": [
-      "carb",
-      "fruit",
-      "melon",
-      "watermelon",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 150,
-    "max_serving_g": 450
-  },
-  {
-    "id": "dates",
-    "name": "Dates (Medjool)",
-    "name_ar": "تمر مجدول",
-    "macro_role": "carb",
-    "calories_per_100g": 277,
-    "protein_g_per_100g": 1.8,
-    "carb_g_per_100g": 75,
-    "fat_g_per_100g": 0.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 30,
-    "categories": [
-      "carb",
-      "fruit",
-      "dried_fruit",
-      "dates",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 10,
-    "max_serving_g": 45
-  },
-  {
-    "id": "olive_oil",
-    "name": "Olive Oil",
-    "name_ar": "زيت زيتون",
-    "macro_role": "fat",
-    "calories_per_100g": 884,
-    "protein_g_per_100g": 0,
-    "carb_g_per_100g": 0,
-    "fat_g_per_100g": 100,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 10,
-    "categories": [
-      "fat",
-      "oil",
-      "olive",
-      "olive_oil",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 5,
-    "max_serving_g": 20
-  },
-  {
-    "id": "avocado",
-    "name": "Avocado",
-    "name_ar": "أفوكادو",
-    "macro_role": "fat",
     "calories_per_100g": 160,
     "protein_g_per_100g": 2,
-    "carb_g_per_100g": 9,
-    "fat_g_per_100g": 15,
+    "carb_g_per_100g": 8.53,
+    "fat_g_per_100g": 14.66,
+    "fiber_g_per_100g": 6.7,
+    "sodium_mg_per_100g": 7,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "lunch",
-      "suhoor"
-    ],
-    "default_serving_g": 80,
     "categories": [
-      "fat",
-      "fruit",
-      "avocado",
-      "plant_fat",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 40,
-    "max_serving_g": 140
-  },
-  {
-    "id": "tahini",
-    "name": "Tahini (sesame paste)",
-    "name_ar": "طحينة",
-    "macro_role": "fat",
-    "calories_per_100g": 595,
-    "protein_g_per_100g": 17,
-    "carb_g_per_100g": 21,
-    "fat_g_per_100g": 54,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "sesame"
+      "fruits",
+      "fruit"
     ],
     "meal_tags": [
       "breakfast",
-      "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 15,
-    "categories": [
-      "fat",
-      "seed",
-      "sesame",
-      "tahini",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 10,
-    "max_serving_g": 35
+    "default_serving_g": 100,
+    "min_serving_g": 30,
+    "max_serving_g": 100,
+    "fdc_id": 171705
   },
   {
-    "id": "peanut_butter",
-    "name": "Peanut Butter (natural)",
-    "name_ar": "زبدة فول سوداني",
-    "macro_role": "fat",
-    "calories_per_100g": 588,
-    "protein_g_per_100g": 25,
-    "carb_g_per_100g": 20,
-    "fat_g_per_100g": 50,
+    "id": "bananas_raw",
+    "name": "Bananas, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 89,
+    "protein_g_per_100g": 1.09,
+    "carb_g_per_100g": 22.84,
+    "fat_g_per_100g": 0.33,
+    "fiber_g_per_100g": 2.6,
+    "sodium_mg_per_100g": 1,
     "is_vegan": true,
     "is_vegetarian": true,
-    "allergens": [
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 173944
+  },
+  {
+    "id": "blueberries_raw",
+    "name": "Blueberries, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 57,
+    "protein_g_per_100g": 0.74,
+    "carb_g_per_100g": 14.49,
+    "fat_g_per_100g": 0.33,
+    "fiber_g_per_100g": 2.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 148,
+    "min_serving_g": 74,
+    "max_serving_g": 150,
+    "fdc_id": 171711
+  },
+  {
+    "id": "cherries_sweet_raw",
+    "name": "Cherries, sweet, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 63,
+    "protein_g_per_100g": 1.06,
+    "carb_g_per_100g": 16.01,
+    "fat_g_per_100g": 0.2,
+    "fiber_g_per_100g": 2.1,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 138,
+    "min_serving_g": 69,
+    "max_serving_g": 150,
+    "fdc_id": 171719
+  },
+  {
+    "id": "dates_medjool",
+    "name": "Dates, medjool",
+    "macro_role": "carb",
+    "calories_per_100g": 277,
+    "protein_g_per_100g": 1.81,
+    "carb_g_per_100g": 74.97,
+    "fat_g_per_100g": 0.15,
+    "fiber_g_per_100g": 6.7,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 24,
+    "min_serving_g": 12,
+    "max_serving_g": 40,
+    "fdc_id": 168191
+  },
+  {
+    "id": "grapes_red_or_green_raw",
+    "name": "Grapes, red or green, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 69,
+    "protein_g_per_100g": 0.72,
+    "carb_g_per_100g": 18.1,
+    "fat_g_per_100g": 0.16,
+    "fiber_g_per_100g": 0.9,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 174683
+  },
+  {
+    "id": "kiwifruit_green_raw",
+    "name": "Kiwifruit, green, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 61,
+    "protein_g_per_100g": 1.14,
+    "carb_g_per_100g": 14.66,
+    "fat_g_per_100g": 0.52,
+    "fiber_g_per_100g": 3,
+    "sodium_mg_per_100g": 3,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 168153
+  },
+  {
+    "id": "mangos_raw",
+    "name": "Mangos, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 60,
+    "protein_g_per_100g": 0.82,
+    "carb_g_per_100g": 14.98,
+    "fat_g_per_100g": 0.38,
+    "fiber_g_per_100g": 1.6,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 169910
+  },
+  {
+    "id": "oranges_raw",
+    "name": "Oranges, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 47,
+    "protein_g_per_100g": 0.94,
+    "carb_g_per_100g": 11.75,
+    "fat_g_per_100g": 0.12,
+    "fiber_g_per_100g": 2.4,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 169097
+  },
+  {
+    "id": "peaches_raw",
+    "name": "Peaches, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 39,
+    "protein_g_per_100g": 0.91,
+    "carb_g_per_100g": 9.54,
+    "fat_g_per_100g": 0.25,
+    "fiber_g_per_100g": 1.5,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 169928
+  },
+  {
+    "id": "pears_raw",
+    "name": "Pears, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 57,
+    "protein_g_per_100g": 0.36,
+    "carb_g_per_100g": 15.23,
+    "fat_g_per_100g": 0.14,
+    "fiber_g_per_100g": 3.1,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 140,
+    "min_serving_g": 70,
+    "max_serving_g": 150,
+    "fdc_id": 169118
+  },
+  {
+    "id": "pineapple_raw",
+    "name": "Pineapple, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 50,
+    "protein_g_per_100g": 0.54,
+    "carb_g_per_100g": 13.12,
+    "fat_g_per_100g": 0.12,
+    "fiber_g_per_100g": 1.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 169124
+  },
+  {
+    "id": "plums_raw",
+    "name": "Plums, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 46,
+    "protein_g_per_100g": 0.7,
+    "carb_g_per_100g": 11.42,
+    "fat_g_per_100g": 0.28,
+    "fiber_g_per_100g": 1.4,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 169949
+  },
+  {
+    "id": "pomegranates_raw",
+    "name": "Pomegranates, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 83,
+    "protein_g_per_100g": 1.67,
+    "carb_g_per_100g": 18.7,
+    "fat_g_per_100g": 1.17,
+    "fiber_g_per_100g": 4,
+    "sodium_mg_per_100g": 3,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 87,
+    "min_serving_g": 43.5,
+    "max_serving_g": 150,
+    "fdc_id": 169134
+  },
+  {
+    "id": "strawberries_raw",
+    "name": "Strawberries, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 32,
+    "protein_g_per_100g": 0.67,
+    "carb_g_per_100g": 7.68,
+    "fat_g_per_100g": 0.3,
+    "fiber_g_per_100g": 2,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 167762
+  },
+  {
+    "id": "watermelon_raw",
+    "name": "Watermelon, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 30,
+    "protein_g_per_100g": 0.61,
+    "carb_g_per_100g": 7.55,
+    "fat_g_per_100g": 0.15,
+    "fiber_g_per_100g": 0.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack",
+      "dinner"
+    ],
+    "default_serving_g": 150,
+    "min_serving_g": 45,
+    "max_serving_g": 150,
+    "fdc_id": 167765
+  },
+  {
+    "id": "beans_kidney_cooked_boiled",
+    "name": "Beans, kidney, cooked, boiled",
+    "macro_role": "protein",
+    "calories_per_100g": 127,
+    "protein_g_per_100g": 8.67,
+    "carb_g_per_100g": 22.8,
+    "fat_g_per_100g": 0.5,
+    "fiber_g_per_100g": 6.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 177,
+    "min_serving_g": 88.5,
+    "max_serving_g": 300,
+    "fdc_id": 173740
+  },
+  {
+    "id": "broadbeans_fava_beans_cooked",
+    "name": "Broadbeans (fava beans), cooked",
+    "macro_role": "protein",
+    "calories_per_100g": 110,
+    "protein_g_per_100g": 7.6,
+    "carb_g_per_100g": 19.65,
+    "fat_g_per_100g": 0.4,
+    "fiber_g_per_100g": 5.4,
+    "sodium_mg_per_100g": 5,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "dinner"
+    ],
+    "default_serving_g": 170,
+    "min_serving_g": 85,
+    "max_serving_g": 300,
+    "fdc_id": 173753
+  },
+  {
+    "id": "chickpeas_cooked_boiled",
+    "name": "Chickpeas, cooked, boiled",
+    "macro_role": "protein",
+    "calories_per_100g": 164,
+    "protein_g_per_100g": 8.86,
+    "carb_g_per_100g": 27.42,
+    "fat_g_per_100g": 2.59,
+    "fiber_g_per_100g": 7.6,
+    "sodium_mg_per_100g": 7,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 164,
+    "min_serving_g": 82,
+    "max_serving_g": 300,
+    "fdc_id": 173757
+  },
+  {
+    "id": "lentils_cooked_boiled",
+    "name": "Lentils, cooked, boiled",
+    "macro_role": "protein",
+    "calories_per_100g": 116,
+    "protein_g_per_100g": 9.02,
+    "carb_g_per_100g": 20.13,
+    "fat_g_per_100g": 0.38,
+    "fiber_g_per_100g": 7.9,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 198,
+    "min_serving_g": 99,
+    "max_serving_g": 300,
+    "fdc_id": 172421
+  },
+  {
+    "id": "peanut_butter_smooth_without_salt",
+    "name": "Peanut butter, smooth, without salt",
+    "macro_role": "protein",
+    "calories_per_100g": 598,
+    "protein_g_per_100g": 22.21,
+    "carb_g_per_100g": 22.31,
+    "fat_g_per_100g": 51.36,
+    "fiber_g_per_100g": 5,
+    "sodium_mg_per_100g": 17,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume",
+      "butter",
       "peanut"
     ],
     "meal_tags": [
       "breakfast",
-      "snack",
-      "suhoor"
+      "snack"
     ],
-    "default_serving_g": 20,
-    "categories": [
-      "fat",
-      "legumes",
-      "peanut",
-      "nut_butter",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 10,
-    "max_serving_g": 35
+    "default_serving_g": 32,
+    "min_serving_g": 16,
+    "max_serving_g": 32,
+    "fdc_id": 172470
   },
   {
-    "id": "almonds",
-    "name": "Almonds",
-    "name_ar": "لوز",
-    "macro_role": "fat",
-    "calories_per_100g": 579,
-    "protein_g_per_100g": 21,
-    "carb_g_per_100g": 22,
-    "fat_g_per_100g": 50,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "tree_nut",
-      "almond"
-    ],
-    "meal_tags": [
-      "snack",
-      "breakfast",
-      "suhoor"
-    ],
-    "default_serving_g": 25,
-    "categories": [
-      "fat",
-      "tree_nut",
-      "almond",
-      "nuts",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 10,
-    "max_serving_g": 40
-  },
-  {
-    "id": "walnuts",
-    "name": "Walnuts",
-    "name_ar": "جوز",
-    "macro_role": "fat",
-    "calories_per_100g": 654,
-    "protein_g_per_100g": 15,
-    "carb_g_per_100g": 14,
-    "fat_g_per_100g": 65,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [
-      "tree_nut",
-      "walnut"
-    ],
-    "meal_tags": [
-      "snack",
-      "breakfast",
-      "suhoor"
-    ],
-    "default_serving_g": 25,
-    "categories": [
-      "fat",
-      "tree_nut",
-      "walnut",
-      "nuts",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 10,
-    "max_serving_g": 40
-  },
-  {
-    "id": "flaxseeds",
-    "name": "Flaxseeds",
-    "name_ar": "بذور الكتان",
-    "macro_role": "fat",
-    "calories_per_100g": 534,
-    "protein_g_per_100g": 18,
-    "carb_g_per_100g": 29,
-    "fat_g_per_100g": 42,
+    "id": "peanuts_dry_roasted_without_salt",
+    "name": "Peanuts, dry-roasted, without salt",
+    "macro_role": "protein",
+    "calories_per_100g": 587,
+    "protein_g_per_100g": 24.35,
+    "carb_g_per_100g": 21.26,
+    "fat_g_per_100g": 49.66,
+    "fiber_g_per_100g": 8.4,
+    "sodium_mg_per_100g": 6,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor"
-    ],
-    "default_serving_g": 10,
     "categories": [
-      "fat",
-      "seed",
-      "flaxseed",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 5,
-    "max_serving_g": 20
-  },
-  {
-    "id": "full_fat_cheese",
-    "name": "Full Fat Cheese (Romy)",
-    "name_ar": "جبن رومي",
-    "macro_role": "fat",
-    "calories_per_100g": 350,
-    "protein_g_per_100g": 25,
-    "carb_g_per_100g": 2,
-    "fat_g_per_100g": 28,
-    "is_vegan": false,
-    "is_vegetarian": true,
-    "allergens": [
-      "milk",
-      "dairy",
-      "lactose"
+      "legumes",
+      "beans",
+      "legume",
+      "peanut"
     ],
     "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor"
+      "snack"
     ],
     "default_serving_g": 30,
-    "categories": [
-      "fat",
-      "animal_fat",
-      "dairy",
-      "milk",
-      "cheese",
-      "romy_cheese"
-    ],
-    "min_serving_g": 20,
-    "max_serving_g": 70
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 173806
   },
   {
-    "id": "feta_cheese",
-    "name": "Feta Cheese",
-    "name_ar": "جبن فيتا",
-    "macro_role": "fat",
-    "calories_per_100g": 264,
-    "protein_g_per_100g": 14,
-    "carb_g_per_100g": 4,
-    "fat_g_per_100g": 21,
-    "is_vegan": false,
+    "id": "soy_sauce_from_soy_and_wheat_shoyu",
+    "name": "Soy sauce, from soy and wheat (shoyu)",
+    "macro_role": "protein",
+    "calories_per_100g": 53,
+    "protein_g_per_100g": 8.14,
+    "carb_g_per_100g": 4.93,
+    "fat_g_per_100g": 0.57,
+    "fiber_g_per_100g": 0.8,
+    "sodium_mg_per_100g": 5493,
+    "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [
-      "milk",
-      "dairy",
-      "lactose"
+      "soy"
+    ],
+    "categories": [
+      "legumes",
+      "beans",
+      "legume"
     ],
     "meal_tags": [
-      "breakfast",
-      "snack",
-      "suhoor"
+      "lunch",
+      "dinner"
     ],
-    "default_serving_g": 40,
-    "categories": [
-      "fat",
-      "animal_fat",
-      "dairy",
-      "milk",
-      "cheese",
-      "feta"
-    ],
-    "min_serving_g": 20,
-    "max_serving_g": 80
+    "default_serving_g": 15,
+    "min_serving_g": 5,
+    "max_serving_g": 15,
+    "fdc_id": 174277
   },
   {
-    "id": "butter",
-    "name": "Butter",
-    "name_ar": "زبدة",
+    "id": "nuts_almond_butter_without_salt",
+    "name": "Nuts, almond butter, without salt",
     "macro_role": "fat",
-    "calories_per_100g": 717,
-    "protein_g_per_100g": 0.9,
-    "carb_g_per_100g": 0.1,
-    "fat_g_per_100g": 81,
-    "is_vegan": false,
+    "calories_per_100g": 614,
+    "protein_g_per_100g": 20.96,
+    "carb_g_per_100g": 18.82,
+    "fat_g_per_100g": 55.5,
+    "fiber_g_per_100g": 10.3,
+    "sodium_mg_per_100g": 7,
+    "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [
-      "milk",
-      "dairy",
-      "lactose"
+      "tree_nut"
     ],
-    "meal_tags": [
-      "breakfast",
-      "suhoor"
-    ],
-    "default_serving_g": 10,
     "categories": [
-      "fat",
-      "animal_fat",
-      "dairy",
-      "milk",
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut",
       "butter"
     ],
-    "min_serving_g": 5,
-    "max_serving_g": 20
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 16,
+    "min_serving_g": 8,
+    "max_serving_g": 32,
+    "fdc_id": 168588
   },
   {
-    "id": "sunflower_oil",
-    "name": "Sunflower Oil",
-    "name_ar": "زيت عباد الشمس",
+    "id": "nuts_almonds",
+    "name": "Nuts, almonds",
     "macro_role": "fat",
-    "calories_per_100g": 884,
-    "protein_g_per_100g": 0,
+    "calories_per_100g": 579,
+    "protein_g_per_100g": 21.15,
+    "carb_g_per_100g": 21.55,
+    "fat_g_per_100g": 49.93,
+    "fiber_g_per_100g": 12.5,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170567
+  },
+  {
+    "id": "nuts_cashew_nuts_raw",
+    "name": "Nuts, cashew nuts, raw",
+    "macro_role": "fat",
+    "calories_per_100g": 553,
+    "protein_g_per_100g": 18.22,
+    "carb_g_per_100g": 30.19,
+    "fat_g_per_100g": 43.85,
+    "fiber_g_per_100g": 3.3,
+    "sodium_mg_per_100g": 12,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 28.4,
+    "min_serving_g": 14.2,
+    "max_serving_g": 30,
+    "fdc_id": 170162
+  },
+  {
+    "id": "nuts_hazelnuts",
+    "name": "Nuts, hazelnuts",
+    "macro_role": "fat",
+    "calories_per_100g": 628,
+    "protein_g_per_100g": 14.95,
+    "carb_g_per_100g": 16.7,
+    "fat_g_per_100g": 60.75,
+    "fiber_g_per_100g": 9.7,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170581
+  },
+  {
+    "id": "nuts_pecans",
+    "name": "Nuts, pecans",
+    "macro_role": "fat",
+    "calories_per_100g": 691,
+    "protein_g_per_100g": 9.17,
+    "carb_g_per_100g": 13.86,
+    "fat_g_per_100g": 71.97,
+    "fiber_g_per_100g": 9.6,
+    "sodium_mg_per_100g": 0,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170182
+  },
+  {
+    "id": "nuts_pistachio_nuts_raw",
+    "name": "Nuts, pistachio nuts, raw",
+    "macro_role": "fat",
+    "calories_per_100g": 560,
+    "protein_g_per_100g": 20.16,
+    "carb_g_per_100g": 27.17,
+    "fat_g_per_100g": 45.32,
+    "fiber_g_per_100g": 10.6,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170184
+  },
+  {
+    "id": "nuts_walnuts_english",
+    "name": "Nuts, walnuts, english",
+    "macro_role": "fat",
+    "calories_per_100g": 654,
+    "protein_g_per_100g": 15.23,
+    "carb_g_per_100g": 13.71,
+    "fat_g_per_100g": 65.21,
+    "fiber_g_per_100g": 6.7,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170187
+  },
+  {
+    "id": "seeds_chia_seeds_dried",
+    "name": "Seeds, chia seeds, dried",
+    "macro_role": "fat",
+    "calories_per_100g": 486,
+    "protein_g_per_100g": 16.54,
+    "carb_g_per_100g": 42.12,
+    "fat_g_per_100g": 30.74,
+    "fiber_g_per_100g": 34.4,
+    "sodium_mg_per_100g": 16,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 20,
+    "min_serving_g": 6,
+    "max_serving_g": 20,
+    "fdc_id": 170554
+  },
+  {
+    "id": "seeds_flaxseed",
+    "name": "Seeds, flaxseed",
+    "macro_role": "fat",
+    "calories_per_100g": 534,
+    "protein_g_per_100g": 18.29,
+    "carb_g_per_100g": 28.88,
+    "fat_g_per_100g": 42.16,
+    "fiber_g_per_100g": 27.3,
+    "sodium_mg_per_100g": 30,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 10.3,
+    "min_serving_g": 5.2,
+    "max_serving_g": 20,
+    "fdc_id": 169414
+  },
+  {
+    "id": "seeds_pumpkin_roasted_no_salt",
+    "name": "Seeds, pumpkin, roasted, no salt",
+    "macro_role": "fat",
+    "calories_per_100g": 446,
+    "protein_g_per_100g": 18.55,
+    "carb_g_per_100g": 53.75,
+    "fat_g_per_100g": 19.4,
+    "fiber_g_per_100g": 18.4,
+    "sodium_mg_per_100g": 18,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170188
+  },
+  {
+    "id": "seeds_sunflower_dry_roasted_no_salt",
+    "name": "Seeds, sunflower, dry roasted, no salt",
+    "macro_role": "fat",
+    "calories_per_100g": 582,
+    "protein_g_per_100g": 19.33,
+    "carb_g_per_100g": 24.07,
+    "fat_g_per_100g": 49.8,
+    "fiber_g_per_100g": 11.1,
+    "sodium_mg_per_100g": 3,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "tree_nut"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "tree_nut"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 9,
+    "max_serving_g": 30,
+    "fdc_id": 170563
+  },
+  {
+    "id": "chicken_breast_skinless_boneless_grilled",
+    "name": "Chicken breast, skinless, boneless, grilled",
+    "macro_role": "protein",
+    "calories_per_100g": 151,
+    "protein_g_per_100g": 30.54,
     "carb_g_per_100g": 0,
-    "fat_g_per_100g": 100,
-    "is_vegan": true,
-    "is_vegetarian": true,
+    "fat_g_per_100g": 3.17,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 52,
+    "is_vegan": false,
+    "is_vegetarian": false,
     "allergens": [],
+    "categories": [
+      "poultry",
+      "chicken",
+      "animal_protein",
+      "meat"
+    ],
     "meal_tags": [
       "lunch",
-      "dinner",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 10,
-    "categories": [
-      "fat",
-      "oil",
-      "sunflower",
-      "sunflower_oil",
-      "plant_fat",
-      "vegan"
-    ],
-    "min_serving_g": 5,
-    "max_serving_g": 20
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 171534
   },
   {
-    "id": "cucumber",
-    "name": "Cucumber",
-    "name_ar": "خيار",
-    "macro_role": "mixed",
-    "calories_per_100g": 16,
-    "protein_g_per_100g": 0.7,
-    "carb_g_per_100g": 3.6,
-    "fat_g_per_100g": 0.1,
-    "is_vegan": true,
-    "is_vegetarian": true,
+    "id": "turkey_breast_deli_slices",
+    "name": "Turkey breast, deli slices",
+    "macro_role": "protein",
+    "calories_per_100g": 104,
+    "protein_g_per_100g": 15,
+    "carb_g_per_100g": 2,
+    "fat_g_per_100g": 4,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 600,
+    "is_vegan": false,
+    "is_vegetarian": false,
     "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 100,
     "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "cucumber",
-      "gluten_free",
-      "vegan"
+      "poultry",
+      "chicken",
+      "animal_protein",
+      "meat"
     ],
-    "min_serving_g": 50,
-    "max_serving_g": 250
-  },
-  {
-    "id": "tomato",
-    "name": "Tomato",
-    "name_ar": "طماطم",
-    "macro_role": "mixed",
-    "calories_per_100g": 18,
-    "protein_g_per_100g": 0.9,
-    "carb_g_per_100g": 3.9,
-    "fat_g_per_100g": 0.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
     "meal_tags": [
       "breakfast",
       "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
+      "snack"
     ],
-    "default_serving_g": 100,
-    "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "nightshade",
-      "tomato",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 50,
-    "max_serving_g": 250
+    "default_serving_g": 56,
+    "min_serving_g": 28,
+    "max_serving_g": 80,
+    "fdc_id": 90007
   },
   {
-    "id": "lettuce",
-    "name": "Lettuce",
-    "name_ar": "خس",
-    "macro_role": "mixed",
-    "calories_per_100g": 15,
-    "protein_g_per_100g": 1.4,
-    "carb_g_per_100g": 2.9,
-    "fat_g_per_100g": 0.2,
+    "id": "chicken_thighs_meat_only_cooked_roasted",
+    "name": "Chicken thighs, meat only, cooked, roasted",
+    "macro_role": "protein",
+    "calories_per_100g": 179,
+    "protein_g_per_100g": 24.76,
+    "carb_g_per_100g": 0,
+    "fat_g_per_100g": 8.15,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 106,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [],
+    "categories": [
+      "poultry",
+      "chicken",
+      "animal_protein",
+      "meat"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 172388
+  },
+  {
+    "id": "sauce_teriyaki_ready_to_serve",
+    "name": "Sauce, teriyaki, ready-to-serve",
+    "macro_role": "misc",
+    "calories_per_100g": 89,
+    "protein_g_per_100g": 5.93,
+    "carb_g_per_100g": 15.56,
+    "fat_g_per_100g": 0.02,
+    "fiber_g_per_100g": 0.1,
+    "sodium_mg_per_100g": 3833,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
+    "categories": [
+      "sauces",
+      "condiment"
+    ],
     "meal_tags": [
       "lunch",
-      "dinner",
-      "snack",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 50,
-    "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "leafy_greens",
-      "lettuce",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 30,
-    "max_serving_g": 150
+    "default_serving_g": 18,
+    "min_serving_g": 9,
+    "max_serving_g": 20,
+    "fdc_id": 171167
   },
   {
-    "id": "bell_pepper",
-    "name": "Bell Pepper",
-    "name_ar": "فلفل ألوان",
-    "macro_role": "mixed",
-    "calories_per_100g": 31,
-    "protein_g_per_100g": 1,
-    "carb_g_per_100g": 7,
-    "fat_g_per_100g": 0.3,
+    "id": "mustard_prepared_yellow",
+    "name": "Mustard, prepared, yellow",
+    "macro_role": "misc",
+    "calories_per_100g": 60,
+    "protein_g_per_100g": 3.74,
+    "carb_g_per_100g": 5.83,
+    "fat_g_per_100g": 3.34,
+    "fiber_g_per_100g": 4,
+    "sodium_mg_per_100g": 1104,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "snack",
-      "iftar"
-    ],
-    "default_serving_g": 100,
     "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "nightshade",
-      "pepper",
-      "bell_pepper",
-      "gluten_free",
-      "vegan"
+      "spices",
+      "herbs",
+      "condiment"
     ],
-    "min_serving_g": 50,
-    "max_serving_g": 200
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 5,
+    "min_serving_g": 2.5,
+    "max_serving_g": 20,
+    "fdc_id": 172234
   },
   {
-    "id": "spinach",
-    "name": "Spinach",
-    "name_ar": "سبانخ",
-    "macro_role": "mixed",
+    "id": "beans_snap_green_cooked",
+    "name": "Beans, snap, green, cooked",
+    "macro_role": "carb",
+    "calories_per_100g": 35,
+    "protein_g_per_100g": 1.89,
+    "carb_g_per_100g": 7.88,
+    "fat_g_per_100g": 0.28,
+    "fiber_g_per_100g": 3.2,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 125,
+    "min_serving_g": 62.5,
+    "max_serving_g": 200,
+    "fdc_id": 169141
+  },
+  {
+    "id": "broccoli_cooked_boiled",
+    "name": "Broccoli, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 35,
+    "protein_g_per_100g": 2.38,
+    "carb_g_per_100g": 7.18,
+    "fat_g_per_100g": 0.41,
+    "fiber_g_per_100g": 3.3,
+    "sodium_mg_per_100g": 41,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 78,
+    "min_serving_g": 39,
+    "max_serving_g": 200,
+    "fdc_id": 169967
+  },
+  {
+    "id": "cabbage_cooked_boiled",
+    "name": "Cabbage, cooked, boiled",
+    "macro_role": "carb",
     "calories_per_100g": 23,
-    "protein_g_per_100g": 2.9,
-    "carb_g_per_100g": 3.6,
-    "fat_g_per_100g": 0.4,
+    "protein_g_per_100g": 1.27,
+    "carb_g_per_100g": 5.51,
+    "fat_g_per_100g": 0.06,
+    "fiber_g_per_100g": 1.9,
+    "sodium_mg_per_100g": 8,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 75,
+    "min_serving_g": 37.5,
+    "max_serving_g": 200,
+    "fdc_id": 169976
+  },
+  {
+    "id": "carrots_cooked_boiled",
+    "name": "Carrots, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 35,
+    "protein_g_per_100g": 0.76,
+    "carb_g_per_100g": 8.22,
+    "fat_g_per_100g": 0.18,
+    "fiber_g_per_100g": 3,
+    "sodium_mg_per_100g": 58,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 9.7,
+    "min_serving_g": 4.8,
+    "max_serving_g": 200,
+    "fdc_id": 170394
+  },
+  {
+    "id": "cauliflower_cooked_boiled",
+    "name": "Cauliflower, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 23,
+    "protein_g_per_100g": 1.84,
+    "carb_g_per_100g": 4.11,
+    "fat_g_per_100g": 0.45,
+    "fiber_g_per_100g": 2.3,
+    "sodium_mg_per_100g": 15,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 62,
+    "min_serving_g": 31,
+    "max_serving_g": 200,
+    "fdc_id": 170397
+  },
+  {
+    "id": "corn_sweet_yellow_cooked_boiled",
+    "name": "Corn, sweet, yellow, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 96,
+    "protein_g_per_100g": 3.41,
+    "carb_g_per_100g": 20.98,
+    "fat_g_per_100g": 1.5,
+    "fiber_g_per_100g": 2.4,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 89,
+    "min_serving_g": 44.5,
+    "max_serving_g": 200,
+    "fdc_id": 169999
+  },
+  {
+    "id": "cucumber_with_peel_raw",
+    "name": "Cucumber, with peel, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 15,
+    "protein_g_per_100g": 0.65,
+    "carb_g_per_100g": 3.63,
+    "fat_g_per_100g": 0.11,
+    "fiber_g_per_100g": 0.5,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
     "meal_tags": [
       "breakfast",
       "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 100,
-    "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "leafy_greens",
-      "spinach",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 50,
-    "max_serving_g": 200
+    "default_serving_g": 52,
+    "min_serving_g": 26,
+    "max_serving_g": 200,
+    "fdc_id": 168409
   },
   {
-    "id": "zucchini",
-    "name": "Zucchini",
-    "name_ar": "كوسة",
-    "macro_role": "mixed",
+    "id": "eggplant_cooked_boiled",
+    "name": "Eggplant, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 35,
+    "protein_g_per_100g": 0.83,
+    "carb_g_per_100g": 8.73,
+    "fat_g_per_100g": 0.23,
+    "fiber_g_per_100g": 2.5,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 99,
+    "min_serving_g": 49.5,
+    "max_serving_g": 200,
+    "fdc_id": 169229
+  },
+  {
+    "id": "lettuce_romaine_raw",
+    "name": "Lettuce, romaine, raw",
+    "macro_role": "carb",
     "calories_per_100g": 17,
-    "protein_g_per_100g": 1.2,
-    "carb_g_per_100g": 3.1,
+    "protein_g_per_100g": 1.23,
+    "carb_g_per_100g": 3.29,
     "fat_g_per_100g": 0.3,
+    "fiber_g_per_100g": 2.1,
+    "sodium_mg_per_100g": 8,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 150,
     "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "squash",
-      "zucchini",
-      "gluten_free",
-      "vegan"
+      "vegetables",
+      "vegetable"
     ],
-    "min_serving_g": 80,
-    "max_serving_g": 250
-  },
-  {
-    "id": "eggplant",
-    "name": "Eggplant (grilled)",
-    "name_ar": "باذنجان مشوي",
-    "macro_role": "mixed",
-    "calories_per_100g": 35,
-    "protein_g_per_100g": 0.8,
-    "carb_g_per_100g": 8.7,
-    "fat_g_per_100g": 0.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 150,
-    "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "nightshade",
-      "eggplant",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 250
-  },
-  {
-    "id": "mushrooms",
-    "name": "Mushrooms",
-    "name_ar": "فطر",
-    "macro_role": "mixed",
-    "calories_per_100g": 22,
-    "protein_g_per_100g": 3.1,
-    "carb_g_per_100g": 3.3,
-    "fat_g_per_100g": 0.3,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
     "meal_tags": [
       "breakfast",
       "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 100,
-    "categories": [
-      "vegetable",
-      "fungi",
-      "mushroom",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 50,
-    "max_serving_g": 200
+    "default_serving_g": 47,
+    "min_serving_g": 23.5,
+    "max_serving_g": 100,
+    "fdc_id": 169247
   },
   {
-    "id": "broccoli",
-    "name": "Broccoli (steamed)",
-    "name_ar": "بروكلي مطبوخ",
-    "macro_role": "mixed",
-    "calories_per_100g": 35,
-    "protein_g_per_100g": 2.4,
-    "carb_g_per_100g": 7.2,
-    "fat_g_per_100g": 0.4,
+    "id": "mushrooms_white_cooked_boiled",
+    "name": "Mushrooms, white, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 28,
+    "protein_g_per_100g": 2.17,
+    "carb_g_per_100g": 5.29,
+    "fat_g_per_100g": 0.47,
+    "fiber_g_per_100g": 2.2,
+    "sodium_mg_per_100g": 2,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 100,
     "categories": [
-      "vegetable",
-      "non_starchy_vegetable",
-      "cruciferous",
-      "broccoli",
-      "gluten_free",
-      "vegan"
+      "vegetables",
+      "vegetable"
     ],
-    "min_serving_g": 80,
-    "max_serving_g": 250
+    "meal_tags": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 156,
+    "min_serving_g": 78,
+    "max_serving_g": 200,
+    "fdc_id": 169252
   },
   {
-    "id": "carrots",
-    "name": "Carrots",
-    "name_ar": "جزر",
-    "macro_role": "mixed",
-    "calories_per_100g": 41,
-    "protein_g_per_100g": 0.9,
-    "carb_g_per_100g": 9.6,
-    "fat_g_per_100g": 0.2,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "snack",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "vegetable",
-      "root_vegetable",
-      "carrot",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 50,
-    "max_serving_g": 200
-  },
-  {
-    "id": "green_beans",
-    "name": "Green Beans (steamed)",
-    "name_ar": "فاصوليا خضراء",
-    "macro_role": "mixed",
-    "calories_per_100g": 31,
-    "protein_g_per_100g": 1.8,
-    "carb_g_per_100g": 7,
-    "fat_g_per_100g": 0.1,
-    "is_vegan": true,
-    "is_vegetarian": true,
-    "allergens": [],
-    "meal_tags": [
-      "lunch",
-      "dinner",
-      "iftar"
-    ],
-    "default_serving_g": 100,
-    "categories": [
-      "vegetable",
-      "legumes",
-      "green_beans",
-      "gluten_free",
-      "vegan"
-    ],
-    "min_serving_g": 80,
-    "max_serving_g": 250
-  },
-  {
-    "id": "onion",
-    "name": "Onion",
-    "name_ar": "بصل",
-    "macro_role": "mixed",
+    "id": "onions_raw",
+    "name": "Onions, raw",
+    "macro_role": "carb",
     "calories_per_100g": 40,
     "protein_g_per_100g": 1.1,
-    "carb_g_per_100g": 9.3,
+    "carb_g_per_100g": 9.34,
     "fat_g_per_100g": 0.1,
+    "fiber_g_per_100g": 1.7,
+    "sodium_mg_per_100g": 4,
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "meal_tags": [
-      "breakfast",
-      "lunch",
-      "dinner",
-      "suhoor",
-      "iftar"
-    ],
-    "default_serving_g": 50,
     "categories": [
-      "vegetable",
-      "allium",
-      "onion",
-      "gluten_free",
-      "vegan"
+      "vegetables",
+      "vegetable"
     ],
-    "min_serving_g": 20,
-    "max_serving_g": 120
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 100,
+    "min_serving_g": 30,
+    "max_serving_g": 100,
+    "fdc_id": 170000
   },
   {
-    "id": "hummus",
-    "name": "Hummus",
-    "name_ar": "حمص بالطحينة",
-    "macro_role": "mixed",
-    "calories_per_100g": 177,
-    "protein_g_per_100g": 8,
-    "carb_g_per_100g": 20,
-    "fat_g_per_100g": 8,
+    "id": "peas_green_cooked_boiled",
+    "name": "Peas, green, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 84,
+    "protein_g_per_100g": 5.36,
+    "carb_g_per_100g": 15.63,
+    "fat_g_per_100g": 0.22,
+    "fiber_g_per_100g": 5.5,
+    "sodium_mg_per_100g": 3,
     "is_vegan": true,
     "is_vegetarian": true,
-    "allergens": [
-      "sesame"
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
     ],
     "meal_tags": [
-      "breakfast",
       "lunch",
-      "snack",
-      "suhoor",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 50,
-    "categories": [
-      "mixed",
-      "dip",
-      "legumes",
-      "chickpeas",
-      "sesame",
-      "tahini",
-      "hummus",
-      "vegan"
-    ],
-    "min_serving_g": 30,
-    "max_serving_g": 120
+    "default_serving_g": 160,
+    "min_serving_g": 80,
+    "max_serving_g": 200,
+    "fdc_id": 170420
   },
   {
-    "id": "baba_ghanoush",
-    "name": "Baba Ghanoush",
-    "name_ar": "بابا غنوج",
-    "macro_role": "mixed",
-    "calories_per_100g": 95,
-    "protein_g_per_100g": 1.5,
-    "carb_g_per_100g": 8.5,
-    "fat_g_per_100g": 6.5,
+    "id": "peppers_sweet_green_raw",
+    "name": "Peppers, sweet, green, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 20,
+    "protein_g_per_100g": 0.86,
+    "carb_g_per_100g": 4.64,
+    "fat_g_per_100g": 0.17,
+    "fiber_g_per_100g": 1.7,
+    "sodium_mg_per_100g": 3,
     "is_vegan": true,
     "is_vegetarian": true,
-    "allergens": [
-      "sesame"
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 149,
+    "min_serving_g": 74.5,
+    "max_serving_g": 200,
+    "fdc_id": 170427
+  },
+  {
+    "id": "peppers_sweet_red_raw",
+    "name": "Peppers, sweet, red, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 26,
+    "protein_g_per_100g": 0.99,
+    "carb_g_per_100g": 6.03,
+    "fat_g_per_100g": 0.3,
+    "fiber_g_per_100g": 2.1,
+    "sodium_mg_per_100g": 4,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 149,
+    "min_serving_g": 74.5,
+    "max_serving_g": 200,
+    "fdc_id": 170108
+  },
+  {
+    "id": "potatoes_boiled_without_skin",
+    "name": "Potatoes, boiled, without skin",
+    "macro_role": "carb",
+    "calories_per_100g": 86,
+    "protein_g_per_100g": 1.71,
+    "carb_g_per_100g": 20.01,
+    "fat_g_per_100g": 0.1,
+    "fiber_g_per_100g": 1.8,
+    "sodium_mg_per_100g": 5,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable",
+      "potato"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 78,
+    "min_serving_g": 39,
+    "max_serving_g": 300,
+    "fdc_id": 170440
+  },
+  {
+    "id": "spinach_cooked_boiled",
+    "name": "Spinach, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 23,
+    "protein_g_per_100g": 2.97,
+    "carb_g_per_100g": 3.75,
+    "fat_g_per_100g": 0.26,
+    "fiber_g_per_100g": 2.4,
+    "sodium_mg_per_100g": 70,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 180,
+    "min_serving_g": 90,
+    "max_serving_g": 200,
+    "fdc_id": 168463
+  },
+  {
+    "id": "sweet_potato_baked_in_skin",
+    "name": "Sweet potato, baked in skin",
+    "macro_role": "carb",
+    "calories_per_100g": 90,
+    "protein_g_per_100g": 2.01,
+    "carb_g_per_100g": 20.71,
+    "fat_g_per_100g": 0.15,
+    "fiber_g_per_100g": 3.3,
+    "sodium_mg_per_100g": 36,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable",
+      "potato",
+      "sweet_potato"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 200,
+    "min_serving_g": 100,
+    "max_serving_g": 300,
+    "fdc_id": 168483
+  },
+  {
+    "id": "tomatoes_red_raw",
+    "name": "Tomatoes, red, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 18,
+    "protein_g_per_100g": 0.88,
+    "carb_g_per_100g": 3.89,
+    "fat_g_per_100g": 0.2,
+    "fiber_g_per_100g": 1.2,
+    "sodium_mg_per_100g": 5,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
     ],
     "meal_tags": [
       "breakfast",
       "lunch",
-      "dinner",
-      "snack",
-      "suhoor",
-      "iftar"
+      "dinner"
     ],
-    "default_serving_g": 50,
+    "default_serving_g": 149,
+    "min_serving_g": 74.5,
+    "max_serving_g": 200,
+    "fdc_id": 170457
+  },
+  {
+    "id": "zucchini_cooked_boiled",
+    "name": "Zucchini, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 17,
+    "protein_g_per_100g": 1.15,
+    "carb_g_per_100g": 3.56,
+    "fat_g_per_100g": 0.13,
+    "fiber_g_per_100g": 1.3,
+    "sodium_mg_per_100g": 2,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
     "categories": [
-      "mixed",
-      "dip",
-      "vegetable",
-      "eggplant",
-      "sesame",
-      "tahini",
-      "baba_ghanoush",
-      "vegan"
+      "vegetables",
+      "vegetable"
     ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 200,
+    "min_serving_g": 60,
+    "max_serving_g": 200,
+    "fdc_id": 168470
+  },
+  {
+    "id": "protein_bar_average",
+    "name": "Protein bar, average",
+    "macro_role": "misc",
+    "calories_per_100g": 374,
+    "protein_g_per_100g": 23,
+    "carb_g_per_100g": 44,
+    "fat_g_per_100g": 11,
+    "fiber_g_per_100g": 6,
+    "sodium_mg_per_100g": 195,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sweets"
+    ],
+    "meal_tags": [
+      "snack"
+    ],
+    "default_serving_g": 60,
     "min_serving_g": 30,
-    "max_serving_g": 120
+    "max_serving_g": 70,
+    "fdc_id": 90008
+  },
+  {
+    "id": "sauce_bbq_regular",
+    "name": "Sauce, BBQ, regular",
+    "macro_role": "misc",
+    "calories_per_100g": 172,
+    "protein_g_per_100g": 0.8,
+    "carb_g_per_100g": 41.5,
+    "fat_g_per_100g": 0.6,
+    "fiber_g_per_100g": 0.9,
+    "sodium_mg_per_100g": 985,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sauces",
+      "condiment"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 20,
+    "min_serving_g": 6,
+    "max_serving_g": 20,
+    "fdc_id": 90009
   }
 ]

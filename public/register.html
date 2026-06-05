@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create account — NutriPlan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <div class="auth-page">
+      <div class="auth-card">
+        <div class="auth-card__brand">
+          <p class="eyebrow">NutriPlan</p>
+          <h1>Nutrition Plan</h1>
+        </div>
+
+        <h2>Create your account</h2>
+        <p class="auth-subtitle">Free to use. No credit card required.</p>
+
+        <form class="auth-form" id="register-form" novalidate>
+          <div class="two-col">
+            <label>
+              <span>First name</span>
+              <input type="text" name="firstname" autocomplete="given-name" required />
+              <span class="field-hint" data-hint="firstname"></span>
+            </label>
+            <label>
+              <span>Last name</span>
+              <input type="text" name="lastname" autocomplete="family-name" required />
+              <span class="field-hint" data-hint="lastname"></span>
+            </label>
+          </div>
+          <label>
+            <span>Username</span>
+            <input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+            <span class="field-hint" data-hint="username"></span>
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required />
+            <div class="password-strength" id="password-strength" hidden>
+              <div class="password-strength__bar">
+                <div class="password-strength__segment" data-index="0"></div>
+                <div class="password-strength__segment" data-index="1"></div>
+                <div class="password-strength__segment" data-index="2"></div>
+                <div class="password-strength__segment" data-index="3"></div>
+              </div>
+              <span class="password-strength__label" id="strength-label"></span>
+            </div>
+            <span class="field-hint" data-hint="password"></span>
+          </label>
+
+          <button class="auth-submit" type="submit">
+            <span>Create account</span>
+          </button>
+          <p class="auth-message" id="form-message" role="status" aria-live="polite"></p>
+        </form>
+
+        <p class="auth-switch">
+          Already have an account?
+          <a href="/login">Log in</a>
+        </p>
+        <p class="auth-switch">
+          <a href="/">&#8592; Back to home</a>
+        </p>
+      </div>
+    </div>
+
+    <script src="/js/auth.js" defer></script>
+  </body>
+</html>

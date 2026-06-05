@@ -28,9 +28,12 @@ function generatePlan(rawInput) {
     throw new Error('No foods match the selected restrictions. Try removing one filter.');
   }
 
-  const meals = mealTargets.map((target, index) =>
-    generateMeal({ target, allowedFoods, mealIndex: index }),
-  );
+  const meals = mealTargets.map((target, index) => {
+    const meal = generateMeal({ target, allowedFoods, mealIndex: index });
+    const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
+    const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
+    return { ...meal, sensitivityMatrix: computeSensitivityMatrix(plainItems, mealTotals) };
+  });
 
   return {
     input,
@@ -242,34 +245,54 @@ function generateMeal({ target, allowedFoods, mealIndex }) {
 }
 
 function selectInitialItems({ target, allowedFoods, seed }) {
-  const proteinFoods = foodsForRole(allowedFoods, 'protein', target.tag);
-  const carbFoods = foodsForRole(allowedFoods, 'carb', target.tag);
-  const fatFoods = foodsForRole(allowedFoods, 'fat', target.tag);
+  const calTarget = target.targets.calories;
+  // Filter out protein/fat foods whose max serving can't meaningfully contribute to this meal's
+  // calorie target (e.g. egg white or olive oil in a 979-kcal lunch). Always falls back to full
+  // list so rare diet combinations still work.
+  function capablePool(foods, fraction) {
+    const minCal = calTarget * fraction;
+    const capable = foods.filter((f) => (f.maxServingG * f.caloriesPer100g) / 100 > minCal);
+    return capable.length > 0 ? capable : foods;
+  }
+
+  const proteinFoods = capablePool(foodsForRole(allowedFoods, 'protein', target.tag), 0.22);
+  const carbFoods    = foodsForRole(allowedFoods, 'carb', target.tag);
+  const fatFoods     = capablePool(foodsForRole(allowedFoods, 'fat', target.tag), 0.10);
   const mixedFoods = foodsForRole(allowedFoods, 'mixed', target.tag);
   const items = [];
 
   const protein = pick(proteinFoods, seed) || pick(mixedFoods, seed);
-  const carb = pick(carbFoods, seed + 1) || pick(mixedFoods, seed + 1);
-  const fat = pick(fatFoods, seed + 2);
+  const proteinCuisine = protein ? getCuisineGroup(protein) : 'neutral';
+
+  const compatCarbs = carbFoods.filter((f) => cuisineCompatible(getCuisineGroup(f), proteinCuisine));
+  const compatFats = fatFoods.filter((f) => cuisineCompatible(getCuisineGroup(f), proteinCuisine));
+
+  const carb = pick(compatCarbs.length ? compatCarbs : carbFoods, seed + 1) || pick(mixedFoods, seed + 1);
+  const fat = pick(compatFats.length ? compatFats : fatFoods, seed + 2);
   const mixed = target.tag === 'snack' ? null : pick(mixedFoods, seed + 3);
 
-  if (protein) {
-    items.push(defaultItem(protein));
-  }
-  if (carb && carb.id !== protein?.id) {
-    items.push(defaultItem(carb));
-  }
-  if (fat && fat.id !== protein?.id && fat.id !== carb?.id) {
-    items.push(defaultItem(fat));
-  }
-  if (mixed && items.every((item) => item.food.id !== mixed.id) && target.targets.calories > 450) {
+  if (protein) items.push(defaultItem(protein));
+  if (carb && carb.id !== protein?.id) items.push(defaultItem(carb));
+  if (fat && fat.id !== protein?.id && fat.id !== carb?.id) items.push(defaultItem(fat));
+  if (mixed && items.every((item) => item.food.id !== mixed.id) && calTarget > 450) {
     items.push(defaultItem(mixed, 0.55));
   }
   if (items.length === 0) {
     const anyFood = pick(allowedFoods, seed);
-    if (anyFood) {
-      items.push(defaultItem(anyFood));
-    }
+    if (anyFood) items.push(defaultItem(anyFood));
+  }
+
+  // Scale initial portions toward the calorie target so adjustPortions starts close
+  const defaultCal = items.reduce(
+    (sum, item) => sum + (item.food.caloriesPer100g * item.quantityG) / 100,
+    0,
+  );
+  if (defaultCal > 0 && calTarget > defaultCal * 1.2) {
+    const scale = calTarget / defaultCal;
+    return items.map((item) => ({
+      ...item,
+      quantityG: clampServing(item.food, item.quantityG * scale),
+    }));
   }
 
   return items;
@@ -307,25 +330,26 @@ function adjustPortions(initialItems, target) {
     const carbIndex = firstIndexForRole(items, 'carb') ?? firstIndexForRole(items, 'mixed');
 
     if (proteinIndex !== null && Math.abs(proteinDiff) > NUTRITION.proteinToleranceG / 2) {
-      items = replaceAt(
-        items,
-        proteinIndex,
-        adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g),
-      );
-      continue;
+      const updated = adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g);
+      if (updated.quantityG !== items[proteinIndex].quantityG) {
+        items = replaceAt(items, proteinIndex, updated);
+        continue;
+      }
     }
 
     if (fatIndex !== null && Math.abs(fatDiff) > NUTRITION.fatToleranceG / 2) {
-      items = replaceAt(
-        items,
-        fatIndex,
-        adjustByMacro(items[fatIndex], fatDiff, items[fatIndex].food.fatGPer100g),
-      );
-      continue;
+      const updated = adjustByMacro(items[fatIndex], fatDiff, items[fatIndex].food.fatGPer100g);
+      if (updated.quantityG !== items[fatIndex].quantityG) {
+        items = replaceAt(items, fatIndex, updated);
+        continue;
+      }
+      // Fat food is at its limit — fall through to calorie adjustment
     }
 
     if (carbIndex !== null && Math.abs(calorieDiff) > target.calories * 0.05) {
-      items = replaceAt(items, carbIndex, adjustByCalories(items[carbIndex], calorieDiff));
+      const updated = adjustByCalories(items[carbIndex], calorieDiff);
+      if (updated.quantityG === items[carbIndex].quantityG) break; // carb food is at its limit too
+      items = replaceAt(items, carbIndex, updated);
       continue;
     }
 
@@ -375,6 +399,24 @@ function totalsForItems(items) {
   return sumTargets(items.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
 }
 
+function computeMealBounds(target, tolerance) {
+  const t = tolerance ?? 0.10;
+  return {
+    calories: { min: target.calories * (1 - t), max: target.calories * (1 + t) },
+    proteinG: { min: target.proteinG * (1 - t), max: target.proteinG * (1 + t) },
+    carbG: { min: target.carbG * (1 - t), max: target.carbG * (1 + t) },
+    fatG: { min: target.fatG * (1 - t), max: target.fatG * (1 + t) },
+  };
+}
+
+function findBoundsViolation(totals, bounds) {
+  if (totals.calories < bounds.calories.min || totals.calories > bounds.calories.max) return 'calories';
+  if (totals.proteinG < bounds.proteinG.min || totals.proteinG > bounds.proteinG.max) return 'protein';
+  if (totals.carbG < bounds.carbG.min || totals.carbG > bounds.carbG.max) return 'carbs';
+  if (totals.fatG < bounds.fatG.min || totals.fatG > bounds.fatG.max) return 'fat';
+  return null;
+}
+
 function isWithinTolerance(items, target) {
   const totals = totalsForItems(items);
   return (
@@ -388,7 +430,8 @@ function isWithinTolerance(items, target) {
 
 function mealScore(items, target) {
   const totals = totalsForItems(items);
-  const calorieScore = Math.abs(totals.calories - target.calories) / Math.max(1, target.calories);
+  // Weight calories 3× — calorie accuracy is the primary quality signal
+  const calorieScore = 3 * Math.abs(totals.calories - target.calories) / Math.max(1, target.calories);
   const proteinScore = Math.abs(totals.proteinG - target.proteinG) / Math.max(1, target.proteinG);
   const carbScore = Math.abs(totals.carbG - target.carbG) / Math.max(1, target.carbG);
   const fatScore = Math.abs(totals.fatG - target.fatG) / Math.max(1, target.fatG);
@@ -415,6 +458,22 @@ function alternativesFor({ original, allowedFoods, mealTag, limit = 2 }) {
   return Array.from(unique.values()).slice(0, limit);
 }
 
+function getCuisineGroup(food) {
+  const cats = new Set(food.categories);
+  if (cats.has('fruits') || cats.has('fruit')) return 'sweet';
+  if (
+    cats.has('beef') || cats.has('poultry') || cats.has('seafood') ||
+    cats.has('fish') || cats.has('shellfish') || cats.has('legumes') ||
+    cats.has('vegetables') || cats.has('vegetable') || cats.has('sauces')
+  ) return 'savory';
+  return 'neutral';
+}
+
+function cuisineCompatible(groupA, groupB) {
+  if (groupA === 'neutral' || groupB === 'neutral') return true;
+  return groupA === groupB;
+}
+
 function macroDistance(original, candidate) {
   return (
     Math.abs(original.caloriesPer100g - candidate.caloriesPer100g) +
@@ -424,8 +483,227 @@ function macroDistance(original, candidate) {
   );
 }
 
+// ── Interactive meal rebalancing ─────────────────────────────────────────────
+
+// After the main algorithm converges, nudge the most relevant unlocked food to fix
+// any remaining bounds violations (e.g. protein drift when no protein-role food exists).
+// Runs up to 4 single-food adjustments; gives up if a pass makes no progress.
+function nudgeIntoBounds(items, bounds) {
+  // Maps the violation label returned by findBoundsViolation to the keys used in totals/bounds
+  const VIOLATION_TO_KEY = { calories: 'calories', protein: 'proteinG', carbs: 'carbG', fat: 'fatG' };
+  const KEY_TO_FOOD_FIELD = {
+    calories: 'caloriesPer100g',
+    proteinG: 'proteinGPer100g',
+    carbG: 'carbGPer100g',
+    fatG: 'fatGPer100g',
+  };
+
+  let current = items.map((i) => ({ ...i }));
+
+  for (let pass = 0; pass < 4; pass++) {
+    const totals = totalsForItems(current);
+    const violation = findBoundsViolation(totals, bounds);
+    if (!violation) return current;
+
+    const key = VIOLATION_TO_KEY[violation];
+    const field = KEY_TO_FOOD_FIELD[key];
+    const currentVal = totals[key];
+    const tooLow = currentVal < bounds[key].min;
+    const deficit = tooLow ? bounds[key].min - currentVal : bounds[key].max - currentVal;
+
+    let bestIdx = -1;
+    let bestRate = 0;
+    current.forEach((item, i) => {
+      if (item.locked) return;
+      const rate = item.food[field] / 100;
+      if (rate <= 0) return;
+      const minQ = item.food.minServingG ?? 20;
+      const maxQ = item.food.maxServingG ?? 500;
+      const atLimit = tooLow ? item.quantityG >= maxQ : item.quantityG <= minQ;
+      if (!atLimit && rate > bestRate) {
+        bestRate = rate;
+        bestIdx = i;
+      }
+    });
+
+    if (bestIdx === -1) return current;
+
+    const item = current[bestIdx];
+    const deltaG = (tooLow ? 1 : -1) * Math.abs(deficit) / bestRate;
+    const minQ = item.food.minServingG ?? 20;
+    const maxQ = item.food.maxServingG ?? 500;
+    const newQ = roundToNearest(Math.min(maxQ, Math.max(minQ, item.quantityG + deltaG)), 5);
+    if (newQ === item.quantityG) return current;
+
+    current[bestIdx] = { ...item, quantityG: newQ };
+  }
+
+  return current;
+}
+
+function rebalanceMeal({ mealTarget, items: rawItems, mealBounds }) {
+  const foods = loadFoods();
+  const foodMap = new Map(foods.map((f) => [f.id, f]));
+
+  const items = rawItems.map((item) => {
+    const food = foodMap.get(String(item.foodId));
+    if (!food) throw new Error(`Unknown food id: ${item.foodId}`);
+    return {
+      food,
+      quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),
+      locked: Boolean(item.locked),
+    };
+  });
+
+  const bounds = mealBounds ?? computeMealBounds(mealTarget);
+  const adjusted = adjustPortionsWithLocks(items, mealTarget, bounds);
+
+  const finalItems = findBoundsViolation(totalsForItems(adjusted), bounds)
+    ? nudgeIntoBounds(adjusted, bounds)
+    : adjusted;
+
+  const totals = totalsForItems(finalItems);
+  const violation = findBoundsViolation(totals, bounds);
+  if (violation) {
+    return { success: false, violatedMacro: violation };
+  }
+
+  return {
+    success: true,
+    items: finalItems.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
+    totals,
+  };
+}
+
+function checkRebalanceFeasibility({ mealTarget, items: rawItems, mealBounds }) {
+  const foods = loadFoods();
+  const foodMap = new Map(foods.map((f) => [f.id, f]));
+
+  try {
+    const items = rawItems.map((item) => {
+      const food = foodMap.get(String(item.foodId));
+      if (!food) throw new Error(`Unknown food id: ${item.foodId}`);
+      return {
+        food,
+        quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),
+        locked: Boolean(item.locked),
+      };
+    });
+
+    const bounds = mealBounds ?? computeMealBounds(mealTarget);
+    const adjusted = adjustPortionsWithLocks(items, mealTarget, bounds);
+
+    const finalItems = findBoundsViolation(totalsForItems(adjusted), bounds)
+      ? nudgeIntoBounds(adjusted, bounds)
+      : adjusted;
+
+    const totals = totalsForItems(finalItems);
+    const violation = findBoundsViolation(totals, bounds);
+
+    return { feasible: !violation, violatedMacro: violation ?? null };
+  } catch {
+    return { feasible: false, violatedMacro: null };
+  }
+}
+
+function adjustPortionsWithLocks(initialItems, target, bounds) {
+  let items = initialItems.map((item) => ({ ...item }));
+
+  // When 10% bounds are provided use tighter per-macro thresholds (5% of target)
+  // so that drifts within NUTRITION tolerances but outside bounds still get corrected.
+  const proteinThresh = bounds ? target.proteinG * 0.05 : NUTRITION.proteinToleranceG / 2;
+  const fatThresh     = bounds ? target.fatG     * 0.05 : NUTRITION.fatToleranceG     / 2;
+  const carbThresh    = bounds ? target.carbG    * 0.05 : NUTRITION.carbToleranceG    / 2;
+
+  for (let i = 0; i < NUTRITION.maxPortionAdjustmentIterations; i += 1) {
+    const totals = totalsForItems(items);
+    const proteinDiff = target.proteinG - totals.proteinG;
+    const fatDiff = target.fatG - totals.fatG;
+    const carbDiff = target.carbG - totals.carbG;
+    const calorieDiff = target.calories - totals.calories;
+    const proteinIndex =
+      firstAdjustableIndexForRole(items, 'protein') ?? firstAdjustableIndexForRole(items, 'mixed');
+    const fatIndex = firstAdjustableIndexForRole(items, 'fat');
+    const carbIndex =
+      firstAdjustableIndexForRole(items, 'carb') ?? firstAdjustableIndexForRole(items, 'mixed');
+
+    if (proteinIndex !== null && Math.abs(proteinDiff) > proteinThresh) {
+      const updated = adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g);
+      if (updated.quantityG !== items[proteinIndex].quantityG) {
+        items = replaceAt(items, proteinIndex, updated);
+        continue;
+      }
+    }
+    if (fatIndex !== null && Math.abs(fatDiff) > fatThresh) {
+      const updated = adjustByMacro(items[fatIndex], fatDiff, items[fatIndex].food.fatGPer100g);
+      if (updated.quantityG !== items[fatIndex].quantityG) {
+        items = replaceAt(items, fatIndex, updated);
+        continue;
+      }
+    }
+    if (carbIndex !== null && Math.abs(carbDiff) > carbThresh) {
+      const updated = adjustByMacro(items[carbIndex], carbDiff, items[carbIndex].food.carbGPer100g);
+      if (updated.quantityG !== items[carbIndex].quantityG) {
+        items = replaceAt(items, carbIndex, updated);
+        continue;
+      }
+    }
+    if (carbIndex !== null && Math.abs(calorieDiff) > 15) {
+      const updated = adjustByCalories(items[carbIndex], calorieDiff);
+      if (updated.quantityG === items[carbIndex].quantityG) break;
+      items = replaceAt(items, carbIndex, updated);
+      continue;
+    }
+    break;
+  }
+
+  return items.map((item) => ({ ...item, quantityG: roundToNearest(item.quantityG, 5) }));
+}
+
+function firstAdjustableIndexForRole(items, role) {
+  const index = items.findIndex((item) => !item.locked && item.food.macroRole === role);
+  return index === -1 ? null : index;
+}
+
+// Pre-compute how other foods should change when a given food increases by 10g.
+// Uses pure calorie compensation: the best calorie-absorbing unlocked food adjusts.
+function computeSensitivityMatrix(items, mealTarget) {
+  return items.map((trigger, triggerIdx) => {
+    const deltas = new Array(items.length).fill(0);
+    const extraCal = 10 * trigger.food.caloriesPer100g / 100;
+    if (extraCal <= 0) return deltas;
+
+    const compIdx = findCalorieCompensatorIndex(items, triggerIdx);
+    if (compIdx === -1) return deltas;
+
+    const comp = items[compIdx];
+    if (comp.food.caloriesPer100g <= 0) return deltas;
+
+    const rawDelta = -extraCal / (comp.food.caloriesPer100g / 100);
+    const minQ = comp.food.minServingG ?? 20;
+    const maxQ = comp.food.maxServingG ?? 500;
+    const newQ = Math.min(Math.max(comp.quantityG + rawDelta, minQ), maxQ);
+    // Store exact delta (not rounded) so the frontend can accumulate correctly
+    deltas[compIdx] = newQ - comp.quantityG;
+
+    return deltas;
+  });
+}
+
+function findCalorieCompensatorIndex(items, excludeIdx) {
+  for (const role of ['carb', 'mixed', 'protein']) {
+    const idx = items.findIndex((item, i) => i !== excludeIdx && item.food.macroRole === role);
+    if (idx !== -1) return idx;
+  }
+  return items.findIndex((_, i) => i !== excludeIdx);
+}
+
 module.exports = {
   generatePlan,
   getFoods,
   normalizeInput,
+  rebalanceMeal,
+  computeSensitivityMatrix,
+  checkRebalanceFeasibility,
+  computeMealBounds,
 };

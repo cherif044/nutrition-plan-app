@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customers — NutriPlan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <style>
+      .customers-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .customer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px;
+      }
+      .customer-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        text-decoration: none;
+        color: inherit;
+      }
+      .customer-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 4px 16px rgba(18,121,111,0.1);
+      }
+      .customer-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .customer-username {
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .customer-card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 4px;
+      }
+      .btn-delete-customer {
+        background: none;
+        border: none;
+        color: var(--danger);
+        cursor: pointer;
+        font-size: 0.78rem;
+        padding: 4px 6px;
+        border-radius: 4px;
+        font-weight: 700;
+      }
+      .btn-delete-customer:hover { background: #fff3f2; }
+      .modal-overlay {
+        position: fixed; inset: 0;
+        background: rgba(22,27,31,0.45);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 100;
+      }
+      .modal-overlay[hidden] { display: none; }
+      .modal {
+        background: var(--panel);
+        border-radius: 14px;
+        padding: 28px 24px;
+        width: min(400px, calc(100vw - 32px));
+        box-shadow: 0 20px 48px rgba(22,27,31,0.18);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .modal h3 { font-size: 1.1rem; font-weight: 800; margin: 0; }
+      .modal label { display: flex; flex-direction: column; gap: 5px; font-size: 0.86rem; font-weight: 700; }
+      .modal input { min-height: 38px; border: 1px solid var(--line); border-radius: 7px; padding: 0 10px; font: inherit; outline: none; }
+      .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(18,121,111,0.12); }
+      .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+      .empty-customers { text-align: center; padding: 60px 20px; color: var(--muted); }
+      .empty-customers p { margin-top: 8px; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="planner-nav">
+        <div class="planner-nav__brand">
+          <p class="eyebrow">NutriPlan</p>
+          <h1>Customers</h1>
+        </div>
+        <div class="planner-nav__user" id="planner-nav-user"></div>
+      </nav>
+
+      <div class="customers-header">
+        <p style="color:var(--muted);font-size:.9rem;">Manage your clients and their nutrition plans.</p>
+        <button class="btn btn-primary" id="add-customer-btn" type="button">+ Add Customer</button>
+      </div>
+
+      <p id="page-message" class="message" role="status" aria-live="polite" style="min-height:1.5em;"></p>
+
+      <div id="customer-grid" class="customer-grid"></div>
+
+      <div class="empty-customers" id="empty-state" hidden>
+        <strong style="font-size:1.1rem;">No customers yet</strong>
+        <p>Add your first client to get started.</p>
+      </div>
+    </main>
+
+    <!-- Add customer modal -->
+    <div class="modal-overlay" id="add-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h3 id="modal-title">Add Customer</h3>
+        <label>Username <input type="text" id="f-username" placeholder="e.g. john_doe" autocomplete="off" /></label>
+        <label>First name <input type="text" id="f-firstname" placeholder="John" autocomplete="off" /></label>
+        <label>Last name <input type="text" id="f-lastname" placeholder="Doe" autocomplete="off" /></label>
+        <p id="modal-error" class="message" style="color:var(--danger);min-height:1.2em;"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="modal-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="modal-save" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (async () => {
+        try {
+          const res = await fetch('/api/auth/me');
+          if (!res.ok) { window.location.replace('/login'); return; }
+          const { user } = await res.json();
+          document.getElementById('planner-nav-user').innerHTML = `
+            <span class="planner-nav__greeting">Hi, ${user.firstname}</span>
+            <a class="btn btn-ghost" href="/planner" style="min-height:36px;font-size:.82rem;">Planner</a>
+            <button class="btn btn-ghost" id="logout-btn" style="min-height:36px;font-size:.82rem;">Log out</button>
+          `;
+          document.getElementById('logout-btn').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.replace('/');
+          });
+        } catch { window.location.replace('/login'); }
+      })();
+
+      const grid = document.getElementById('customer-grid');
+      const emptyState = document.getElementById('empty-state');
+      const pageMessage = document.getElementById('page-message');
+      const addModal = document.getElementById('add-modal');
+      const modalError = document.getElementById('modal-error');
+
+      async function loadCustomers() {
+        const res = await fetch('/api/customers');
+        const { customers } = await res.json();
+        renderCustomers(customers);
+      }
+
+      function renderCustomers(customers) {
+        grid.innerHTML = '';
+        if (!customers.length) { emptyState.hidden = false; return; }
+        emptyState.hidden = true;
+        for (const c of customers) {
+          const card = document.createElement('div');
+          card.className = 'customer-card';
+          card.innerHTML = `
+            <div>
+              <div class="customer-name">${esc(c.first_name)} ${esc(c.last_name)}</div>
+              <div class="customer-username">@${esc(c.username)}</div>
+            </div>
+            <div class="customer-card-footer">
+              <span style="font-size:.78rem;color:var(--faint);">${new Date(c.created_at).toLocaleDateString()}</span>
+              <button class="btn-delete-customer" data-id="${c.customer_id}" type="button">Delete</button>
+            </div>
+          `;
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-delete-customer')) return;
+            window.location.href = `/customer/${c.customer_id}`;
+          });
+          card.querySelector('.btn-delete-customer').addEventListener('click', async () => {
+            if (!confirm(`Delete ${c.first_name} ${c.last_name}? All their plans will be deleted too.`)) return;
+            const r = await fetch(`/api/customers/${c.customer_id}`, { method: 'DELETE' });
+            if (r.ok) { loadCustomers(); }
+            else { pageMessage.textContent = 'Failed to delete customer.'; }
+          });
+          grid.append(card);
+        }
+      }
+
+      // Add customer modal
+      document.getElementById('add-customer-btn').addEventListener('click', () => {
+        document.getElementById('f-username').value = '';
+        document.getElementById('f-firstname').value = '';
+        document.getElementById('f-lastname').value = '';
+        modalError.textContent = '';
+        addModal.hidden = false;
+        document.getElementById('f-username').focus();
+      });
+      document.getElementById('modal-cancel').addEventListener('click', () => { addModal.hidden = true; });
+      addModal.addEventListener('click', (e) => { if (e.target === addModal) addModal.hidden = true; });
+
+      document.getElementById('modal-save').addEventListener('click', async () => {
+        modalError.textContent = '';
+        const username = document.getElementById('f-username').value.trim();
+        const firstName = document.getElementById('f-firstname').value.trim();
+        const lastName = document.getElementById('f-lastname').value.trim();
+        if (!username || !firstName) { modalError.textContent = 'Username and first name are required.'; return; }
+        const res = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, firstName, lastName }),
+        });
+        const data = await res.json();
+        if (!res.ok) { modalError.textContent = data.error; return; }
+        addModal.hidden = true;
+        loadCustomers();
+      });
+
+      function esc(str) {
+        return String(str || '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      loadCustomers();
+    </script>
+  </body>
+</html>
