@@ -1,21 +1,19 @@
-// Auth guard -- redirect to login if not authenticated
+// Auth guard
 (async () => {
   try {
     const res = await fetch('/api/auth/me');
-    if (!res.ok) {
-      window.location.replace('/login');
-      return;
-    }
+    if (!res.ok) { window.location.replace('/login'); return; }
     const { user } = await res.json();
     const navUser = document.getElementById('planner-nav-user');
     if (navUser) {
-      const backLink = customerCtx
-        ? `<a class="btn btn-ghost" href="/customer/${customerCtx.customerId}" style="min-height:36px;font-size:.82rem;">← ${escapeHtml(customerCtx.customerName)}</a>`
-        : `<a class="btn btn-ghost" href="/customers" style="min-height:36px;font-size:.82rem;">Customers</a>`;
+      const backHref = plannerCtx?.folderId
+        ? `/explorer?folderId=${plannerCtx.folderId}`
+        : '/explorer';
+      const backLabel = plannerCtx?.planId ? '← Back' : 'Explorer';
       navUser.innerHTML = `
         <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
         <a class="btn btn-ghost" href="/" style="min-height:36px;font-size:.82rem;">Home</a>
-        ${backLink}
+        <a class="btn btn-ghost" href="${backHref}" style="min-height:36px;font-size:.82rem;">${backLabel}</a>
         <button class="btn btn-ghost" id="logout-btn" style="min-height:36px;font-size:.82rem;">Log out</button>
       `;
       document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -24,12 +22,23 @@
       });
     }
 
-    // Update nav brand if in customer context
-    if (customerCtx) {
+    if (plannerCtx?.planId) {
       const eyebrow = document.getElementById('planner-eyebrow');
       const title = document.getElementById('planner-title');
-      if (eyebrow) eyebrow.innerHTML = `<a href="/customers" style="color:var(--accent);text-decoration:none;">Customers</a> / <a href="/customer/${customerCtx.customerId}" style="color:var(--accent);text-decoration:none;">${escapeHtml(customerCtx.customerName)}</a>`;
-      if (title) title.textContent = 'New Plan';
+      if (eyebrow) eyebrow.textContent = 'Edit Plan';
+      if (title) title.textContent = 'Edit Mode';
+      loadPlanForEdit(plannerCtx.planId);
+    } else if (plannerCtx?.folderId) {
+      // Fetch folder name for context
+      fetch(`/api/folders/${plannerCtx.folderId}`)
+        .then((r) => r.json())
+        .then(({ folder }) => {
+          if (!folder) return;
+          plannerCtx.folderName = folder.name;
+          const eyebrow = document.getElementById('planner-eyebrow');
+          if (eyebrow) eyebrow.textContent = `Saving to: ${folder.name}`;
+        })
+        .catch(() => {});
     }
   } catch {
     window.location.replace('/login');
@@ -55,25 +64,31 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
-const preferenceState = { allergies: [], dislikes: [] };
-let preferenceOptions = { allergies: [], dislikes: [] };
 
-// All foods catalog for swap search (loaded once)
+// MOD-4: single avoidFoods preference state
+const preferenceState = { avoidFoods: [] };
+let preferenceOptions = { avoidFoods: [] };
+
+// All foods catalog for swap search
 let foodsById = new Map();
 loadAllFoods();
 
 // Per-meal interactive state
 const mealStates = [];
 
-// ── Customer context (when opened from /planner?customerId=...) ──────────────
-const customerCtx = (() => {
-  const params = new URLSearchParams(location.search);
-  const id = params.get('customerId');
-  if (!id) return null;
-  return { customerId: id, customerName: params.get('customerName') || 'Customer' };
+// MOD-8: stored daily targets for live summary
+let dailyTargets = null;
+
+// Context from URL (folderId = save destination, planId = edit mode)
+const plannerCtx = (() => {
+  const p = new URLSearchParams(location.search);
+  const planId = p.get('planId');
+  const folderId = p.get('folderId');
+  if (!planId && !folderId) return null;
+  return { planId, folderId, folderName: null };
 })();
 
-// ── Form submit ──────────────────────────────────────────────────────────────
+// ── Form submit (new plan) ───────────────────────────────────────────────────
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -115,8 +130,7 @@ function readForm() {
     numberOfMeals: data.get('numberOfMeals'),
     numberOfSnacks: data.get('numberOfSnacks'),
     dietType: data.get('dietType'),
-    allergies: preferenceState.allergies.map((o) => o.id),
-    dislikes: preferenceState.dislikes.map((o) => o.id),
+    avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
     milkType: data.get('milkType'),
     coffeesPerDay: data.get('coffeesPerDay'),
     ramadanMode: data.has('ramadanMode'),
@@ -134,9 +148,47 @@ async function loadAllFoods() {
   } catch { /* non-critical */ }
 }
 
+// ── Edit mode: load saved plan ───────────────────────────────────────────────
+
+async function loadPlanForEdit(planId) {
+  try {
+    const res = await fetch(`/api/plans/${planId}`);
+    if (!res.ok) { message.textContent = 'Plan not found.'; return; }
+    const { plan } = await res.json();
+
+    // Populate form from saved input if available
+    if (plan.plan_data?.input) {
+      populateFormFromInput(plan.plan_data.input);
+    }
+
+    renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
+  } catch (err) {
+    message.textContent = 'Failed to load plan.';
+  }
+}
+
+function populateFormFromInput(input) {
+  const set = (name, val) => {
+    const el = form.elements[name];
+    if (el && val !== undefined && val !== null) el.value = val;
+  };
+  set('weightKg', input.weightKg);
+  set('heightCm', input.heightCm);
+  set('bodyFatPercentage', input.bodyFatPercentage);
+  set('activityLevel', input.activityLevel);
+  set('goal', input.goal);
+  set('numberOfMeals', input.numberOfMeals);
+  set('numberOfSnacks', input.numberOfSnacks);
+  set('dietType', input.dietType);
+  set('milkType', input.milkType);
+  set('coffeesPerDay', input.coffeesPerDay);
+  if (input.ramadanMode) form.elements.ramadanMode.checked = true;
+  syncRamadanControls();
+}
+
 // ── Render plan ──────────────────────────────────────────────────────────────
 
-function renderPlan(plan) {
+function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {}) {
   output.innerHTML = '';
   mealStates.length = 0;
   output.hidden = false;
@@ -144,8 +196,10 @@ function renderPlan(plan) {
 
   output.append(renderSummary(plan.dailyTargets));
 
-  if (customerCtx) {
-    showCustomerSaveBar();
+  if (editMode) {
+    showEditBar(planId, planName);
+  } else if (plannerCtx?.folderId) {
+    showFolderSaveBar(plannerCtx.folderId);
   }
 
   plan.meals.forEach((meal, mealIndex) => {
@@ -154,18 +208,16 @@ function renderPlan(plan) {
       name: meal.name,
       tag: meal.tag,
       target: meal.target,
-      // Deep-copy items so we can mutate without touching original
       items: meal.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
         alternatives: item.alternatives || [],
       })),
-      lastBalanced: null, // set after first render
-      mealBounds: null,   // 10% bounds around initial meal totals; reset on swap
+      lastBalanced: null,
+      mealBounds: null,
       sensitivityMatrix: meal.sensitivityMatrix || null,
       cardEl: null,
     };
-    // Snapshot as last-known-good baseline
     state.lastBalanced = deepCopyItems(state.items);
     state.mealBounds = computeMealBounds(computeTotals(state.items));
     mealStates.push(state);
@@ -173,80 +225,154 @@ function renderPlan(plan) {
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
+
+    // Refresh sensitivity matrix async (handles loaded plans with no matrix)
+    if (!state.sensitivityMatrix) {
+      refreshSensitivityMatrix(state);
+    }
   });
+
+  refreshDailySummary();
 }
 
-// ── Customer save bar (shown when customerId is in URL) ───────────────────────
+// ── Edit bar (edit mode: save / discard) ─────────────────────────────────────
 
-function showCustomerSaveBar() {
-  const existing = document.getElementById('customer-save-bar');
+function showEditBar(planId, initialName) {
+  const existing = document.getElementById('edit-bar');
   if (existing) existing.remove();
 
   const bar = document.createElement('div');
-  bar.id = 'customer-save-bar';
-  bar.className = 'customer-save-bar';
+  bar.id = 'edit-bar';
+  bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <span class="customer-save-bar__label">Saving for <strong>${escapeHtml(customerCtx.customerName)}</strong></span>
-    <input class="customer-save-bar__input" type="text" placeholder="Plan name (e.g. Cut Phase Week 1)" autocomplete="off" />
-    <button class="btn btn-primary customer-save-bar__btn" type="button">Save plan</button>
-    <p class="customer-save-bar__msg message" aria-live="polite"></p>
+    <input class="save-action-bar__name" type="text" value="${escapeHtml(initialName)}" placeholder="Plan name" autocomplete="off" />
+    <button class="btn btn-primary save-action-bar__save" type="button">Save changes</button>
+    <button class="btn btn-ghost save-action-bar__discard" type="button">Discard</button>
+    <p class="save-action-bar__msg message" aria-live="polite"></p>
   `;
 
-  bar.querySelector('.customer-save-bar__btn').addEventListener('click', async () => {
-    const planName = bar.querySelector('.customer-save-bar__input').value.trim();
-    const msgEl = bar.querySelector('.customer-save-bar__msg');
+  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+    const name = bar.querySelector('.save-action-bar__name').value.trim();
+    const msgEl = bar.querySelector('.save-action-bar__msg');
     msgEl.textContent = '';
-    if (!planName) { msgEl.textContent = 'Enter a plan name first.'; return; }
+    if (!name) { msgEl.textContent = 'Enter a plan name.'; return; }
 
-    // Build current plan data from live mealStates
-    const planData = {
-      dailyTargets: null,
-      meals: mealStates.map((state) => ({
-        name: state.name,
-        tag: state.tag,
-        target: state.target,
-        items: state.items.map((item) => ({
-          food: item.food,
-          quantityG: item.quantityG,
-          alternatives: item.alternatives || [],
-          totals: itemTotals(item.food, item.quantityG),
-        })),
-        totals: computeTotals(state.items),
-      })),
-    };
+    const planData = buildPlanData();
+    const btn = bar.querySelector('.save-action-bar__save');
+    btn.disabled = true; btn.textContent = 'Saving…';
 
-    // Grab daily targets from the summary panel
-    const summaryEl = output.querySelector('.summary');
-    if (summaryEl) {
-      const vals = [...summaryEl.querySelectorAll('.metric strong')].map((el) => Number(el.textContent));
-      planData.dailyTargets = { calories: vals[0], proteinG: vals[1], carbG: vals[2], fatG: vals[3] };
-    }
-
-    const btn = bar.querySelector('.customer-save-bar__btn');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
-
-    const res = await fetch(`/api/customers/${customerCtx.customerId}/plans`, {
-      method: 'POST',
+    const res = await fetch(`/api/plans/${planId}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planName, planData }),
+      body: JSON.stringify({ name, planData }),
     });
     const data = await res.json();
-    btn.disabled = false;
-    btn.textContent = 'Save plan';
+    btn.disabled = false; btn.textContent = 'Save changes';
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
-    msgEl.textContent = `"${planName}" saved!`;
-    setTimeout(() => {
-      window.location.href = `/customer/${customerCtx.customerId}`;
-    }, 1000);
+    msgEl.textContent = 'Saved!';
+    document.getElementById('planner-title').textContent = name;
+    setTimeout(() => { msgEl.textContent = ''; msgEl.style.color = ''; }, 2000);
+  });
+
+  bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
+    if (confirm('Discard changes and reload the saved plan?')) {
+      loadPlanForEdit(planId);
+    }
   });
 
   output.prepend(bar);
 }
 
+// ── Folder save bar (new plan in folder) ──────────────────────────────────────
+
+function showFolderSaveBar(folderId) {
+  const existing = document.getElementById('folder-save-bar');
+  if (existing) existing.remove();
+
+  const folderLabel = plannerCtx?.folderName ? `Saving to: <strong>${escapeHtml(plannerCtx.folderName)}</strong>` : 'Save plan';
+
+  const bar = document.createElement('div');
+  bar.id = 'folder-save-bar';
+  bar.className = 'save-action-bar';
+  bar.innerHTML = `
+    <span class="save-action-bar__label">${folderLabel}</span>
+    <input class="save-action-bar__name" type="text" placeholder="Plan name (e.g. Cut Phase Week 1)" autocomplete="off" />
+    <button class="btn btn-primary save-action-bar__save" type="button">Save plan</button>
+    <p class="save-action-bar__msg message" aria-live="polite"></p>
+  `;
+
+  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+    const name = bar.querySelector('.save-action-bar__name').value.trim();
+    const msgEl = bar.querySelector('.save-action-bar__msg');
+    msgEl.textContent = '';
+    if (!name) { msgEl.textContent = 'Enter a plan name first.'; return; }
+
+    const planData = buildPlanData();
+    const btn = bar.querySelector('.save-action-bar__save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const res = await fetch(`/api/folders/${folderId}/plans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, planData }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = 'Save plan';
+
+    if (!res.ok) { msgEl.textContent = data.error; return; }
+    msgEl.style.color = 'var(--accent)';
+    msgEl.textContent = `"${name}" saved!`;
+    setTimeout(() => {
+      window.location.href = `/explorer?folderId=${folderId}`;
+    }, 900);
+  });
+
+  output.prepend(bar);
+}
+
+function buildPlanData() {
+  const planData = {
+    input: readForm(),
+    dailyTargets,
+    meals: mealStates.map((state) => ({
+      name: state.name,
+      tag: state.tag,
+      target: state.target,
+      items: state.items.map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+        alternatives: item.alternatives || [],
+        totals: itemTotals(item.food, item.quantityG),
+      })),
+      totals: computeTotals(state.items),
+      sensitivityMatrix: state.sensitivityMatrix,
+    })),
+  };
+
+  // Grab actual daily totals from summary
+  const summaryEl = output.querySelector('.summary');
+  if (summaryEl && dailyTargets) {
+    const actual = mealStates.reduce(
+      (acc, state) => {
+        const t = computeTotals(state.items);
+        acc.calories += t.calories; acc.proteinG += t.proteinG;
+        acc.carbG += t.carbG; acc.fatG += t.fatG;
+        return acc;
+      },
+      { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+    );
+    planData.dailyActuals = actual;
+  }
+
+  return planData;
+}
+
+// ── Summary (MOD-8: actual / target) ─────────────────────────────────────────
+
 function renderSummary(targets) {
+  dailyTargets = targets;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
   const metrics = summary.querySelector('.metrics');
 
@@ -255,13 +381,38 @@ function renderSummary(targets) {
     metric.className = 'metric';
     metric.innerHTML = `
       <span>${labels[key][0]}</span>
-      <strong>${formatNumber(targets[key])}</strong>
+      <strong>
+        <span class="daily-actual daily-actual-${key}">—</span>
+        <span class="daily-sep"> / </span>
+        <span class="daily-target daily-target-${key}">${formatNumber(targets[key])}</span>
+      </strong>
       <small>${labels[key][1]}</small>
     `;
     metrics.append(metric);
   }
 
   return summary;
+}
+
+function refreshDailySummary() {
+  if (!dailyTargets) return;
+  const summaryEl = output.querySelector('.summary');
+  if (!summaryEl) return;
+
+  const actual = mealStates.reduce(
+    (acc, state) => {
+      const t = computeTotals(state.items);
+      acc.calories += t.calories; acc.proteinG += t.proteinG;
+      acc.carbG += t.carbG; acc.fatG += t.fatG;
+      return acc;
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    const el = summaryEl.querySelector(`.daily-actual-${key}`);
+    if (el) el.textContent = formatNumber(actual[key]);
+  }
 }
 
 function renderMealCard(state) {
@@ -331,7 +482,6 @@ function renderFoodItem(state, itemIndex) {
     <div class="food-balance-msg" hidden></div>
   `;
 
-  // Gram input -- debounced rebalance (manual typing)
   const gramInput = row.querySelector('.food-gram-input');
   let debounceTimer = null;
   gramInput.addEventListener('input', () => {
@@ -343,22 +493,15 @@ function renderFoodItem(state, itemIndex) {
     }, 400);
   });
 
-  // ±10g buttons -- instant via sensitivity matrix
   row.querySelector('.gram-minus').addEventListener('click', () => handleGramStep(state, itemIndex, -1, row));
   row.querySelector('.gram-plus').addEventListener('click', () => handleGramStep(state, itemIndex, +1, row));
 
-  // Swap button
   const swapBtn = row.querySelector('.food-swap-btn');
   const swapPanel = row.querySelector('.food-swap-panel');
   swapBtn.addEventListener('click', () => {
     const isOpen = !swapPanel.hidden;
-    // Close all other open panels in this meal card
-    state.cardEl.querySelectorAll('.food-swap-panel').forEach((p) => {
-      p.hidden = true;
-    });
-    state.cardEl.querySelectorAll('.food-swap-btn').forEach((b) => {
-      b.classList.remove('active');
-    });
+    state.cardEl.querySelectorAll('.food-swap-panel').forEach((p) => { p.hidden = true; });
+    state.cardEl.querySelectorAll('.food-swap-btn').forEach((b) => { b.classList.remove('active'); });
     if (!isOpen) {
       swapPanel.hidden = false;
       swapBtn.classList.add('active');
@@ -376,14 +519,12 @@ async function handleGramChange(state, lockedIndex, newGrams, rowEl) {
   await triggerRebalance(state, lockedIndex, rowEl);
 }
 
-// ── ±10g instant step via sensitivity matrix ─────────────────────────────────
+// ── ±10g step: apply matrix, adjust other foods, no error messages ───────────
 
 function handleGramStep(state, triggerIdx, sign, rowEl) {
   const trigger = state.items[triggerIdx];
   const newQ = clampGrams(trigger.food, trigger.quantityG + sign * 10);
   if (newQ === trigger.quantityG) return;
-
-  const snapshot = deepCopyItems(state.items);
 
   trigger.quantityG = newQ;
   const matrix = state.sensitivityMatrix;
@@ -400,18 +541,8 @@ function handleGramStep(state, triggerIdx, sign, rowEl) {
     }
   }
 
-  if (state.mealBounds && !isWithinBounds(computeTotals(state.items), state.mealBounds)) {
-    state.items = snapshot;
-    const dir = sign > 0 ? 'increase' : 'decrease';
-    showBalanceError(rowEl, `Can't ${dir} more -- meal macros would exceed 10% limit`);
-    updateGramButtonStates(state);
-    refreshMealDOM(state);
-    return;
-  }
-
   state.lastBalanced = deepCopyItems(state.items);
   refreshMealDOM(state);
-  clearBalanceError(rowEl);
   refreshSensitivityMatrix(state);
 }
 
@@ -423,8 +554,8 @@ function buildSwapPanel(panelEl, state, itemIndex) {
 
   panelEl.innerHTML = '';
 
-  // Suggested alternatives
-  const alts = getAlternatives(item.food, mealTag);
+  // Use backend-computed alternatives (MOD-11, category-aware); fall back to client-side
+  const alts = item.alternatives?.length ? item.alternatives : getAlternatives(item.food, mealTag);
   if (alts.length > 0) {
     const label = document.createElement('div');
     label.className = 'swap-section-label';
@@ -447,10 +578,10 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       altRow.append(btn);
     }
     panelEl.append(altRow);
-    checkAltsFeasibility(state, itemIndex, alts, altRow);
+    // Remove infeasible alts after check (async — section cleans itself up if all removed)
+    checkAltsFeasibility(state, itemIndex, alts, altRow, label);
   }
 
-  // Search all foods
   const searchLabel = document.createElement('div');
   searchLabel.className = 'swap-section-label';
   searchLabel.textContent = 'Search any food';
@@ -476,7 +607,6 @@ function buildSwapPanel(panelEl, state, itemIndex) {
     const matches = [...foodsById.values()]
       .filter((f) => f.id !== item.food.id && f.name.toLowerCase().includes(q))
       .sort((a, b) => {
-        // Prefer same meal tag
         const aTag = a.mealTags.includes(mealTag) ? 0 : 1;
         const bTag = b.mealTags.includes(mealTag) ? 0 : 1;
         return aTag - bTag || a.name.localeCompare(b.name);
@@ -504,7 +634,6 @@ function buildSwapPanel(panelEl, state, itemIndex) {
     resultsEl.hidden = false;
   });
 
-  // Close results on outside click
   document.addEventListener('click', function closeResults(e) {
     if (!searchWrap.contains(e.target)) {
       resultsEl.hidden = true;
@@ -527,12 +656,9 @@ async function handleFoodSwap(state, itemIndex, newFood) {
     alternatives: getAlternatives(newFood, state.tag),
   };
 
-  // null = no lock, so the algorithm can also adjust the new food's portion to fit within bounds
   await triggerRebalance(state, null, rowEl);
 
-  // Always recompute from lastBalanced: on success it's the new state, on failure it's the old one
   state.mealBounds = computeMealBounds(computeTotals(state.lastBalanced));
-
   refreshSensitivityMatrix(state);
 }
 
@@ -551,7 +677,7 @@ async function refreshSensitivityMatrix(state) {
     const { sensitivityMatrix } = await res.json();
     state.sensitivityMatrix = sensitivityMatrix;
     updateGramButtonStates(state);
-  } catch { /* non-critical -- buttons still work, just no compensation */ }
+  } catch { /* non-critical */ }
 }
 
 // ── Core rebalance ───────────────────────────────────────────────────────────
@@ -560,9 +686,6 @@ async function triggerRebalance(state, lockedIndex, triggerRowEl) {
   const card = state.cardEl;
   card.classList.add('meal-rebalancing');
 
-  // Target = current actual totals of last balanced state (not the plan's ideal target).
-  // This asks "can we preserve the meal's current balance after this change?"
-  // and works correctly for both exact and approximate meals.
   const mealTarget = computeTotals(state.lastBalanced);
 
   try {
@@ -587,24 +710,21 @@ async function triggerRebalance(state, lockedIndex, triggerRowEl) {
       refreshMealDOM(state);
       const macro = payload?.violatedMacro;
       const msg = macro
-        ? `Can't balance -- ${macro} would exceed 10% limit`
-        : "This change can't be balanced in this meal -- try a different food or adjust another item first.";
+        ? `Can't balance — ${macro} would exceed 10% limit`
+        : "This change can't be balanced in this meal — try a different food or adjust another item first.";
       showBalanceError(triggerRowEl, msg);
       return;
     }
 
-    // Apply new quantities from server
     for (const update of payload.items) {
       const stateItem = state.items.find((it) => it.food.id === update.foodId);
       if (stateItem) stateItem.quantityG = update.quantityG;
     }
 
-    // Snapshot the new balanced state
     state.lastBalanced = deepCopyItems(state.items);
     refreshMealDOM(state);
     clearBalanceError(triggerRowEl);
   } catch {
-    // Network error -- revert silently
     state.items = deepCopyItems(state.lastBalanced);
     refreshMealDOM(state);
   } finally {
@@ -639,6 +759,7 @@ function refreshMealDOM(state) {
   });
 
   updateGramButtonStates(state);
+  refreshDailySummary(); // MOD-8: update live totals
 }
 
 function showBalanceError(rowEl, msg) {
@@ -694,7 +815,8 @@ function wouldStepBeWithinBounds(state, triggerIdx, sign) {
     return { ...item, quantityG: Math.round(Math.min(Math.max(item.quantityG + rawDelta, minQ), maxQ) / 5) * 5 };
   });
 
-  return isWithinBounds(computeTotals(simulated), state.mealBounds);
+  const cal = computeTotals(simulated).calories;
+  return cal >= state.mealBounds.calories.min && cal <= state.mealBounds.calories.max;
 }
 
 function updateGramButtonStates(state) {
@@ -728,28 +850,38 @@ async function fetchSwapFeasibility(state, itemIndex, newFood) {
   }
 }
 
-async function checkAltsFeasibility(state, itemIndex, alts, containerEl) {
+async function checkAltsFeasibility(state, itemIndex, alts, containerEl, labelEl) {
   await Promise.all(alts.map(async (alt) => {
     const feasible = await fetchSwapFeasibility(state, itemIndex, alt);
     if (!feasible) {
       const btn = containerEl.querySelector(`[data-alt-food-id="${alt.id}"]`);
-      if (!btn) return;
-      btn.classList.add('swap-alt-btn--warn');
-      btn.title = "May not balance within 10% -- try anyway";
-      const icon = document.createElement('span');
-      icon.className = 'swap-warn-icon';
-      icon.textContent = ' ⚠';
-      btn.append(icon);
+      if (btn) btn.remove();
     }
   }));
+  // Hide the whole suggestions section if nothing is left
+  if (containerEl.children.length === 0) {
+    containerEl.remove();
+    labelEl?.remove();
+  }
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
-function getAlternatives(food, mealTag, limit = 3) {
-  return [...foodsById.values()]
-    .filter((f) => f.id !== food.id && f.macroRole === food.macroRole && f.mealTags.includes(mealTag))
-    .slice(0, limit);
+// MOD-11: category-aware alternatives
+function getAlternatives(food, mealTag, limit = 4) {
+  const byRole = (f) =>
+    f.id !== food.id &&
+    f.macroRole === food.macroRole &&
+    f.mealTags.includes(mealTag);
+
+  const withCategory = [...foodsById.values()].filter(
+    (f) => byRole(f) && f.categories.some((c) => food.categories.includes(c)),
+  );
+  const pool = withCategory.length > 0
+    ? withCategory
+    : [...foodsById.values()].filter(byRole);
+
+  return pool.slice(0, limit);
 }
 
 function computeTotals(items) {
@@ -786,7 +918,7 @@ function deepCopyItems(items) {
   return items.map((item) => ({ ...item, alternatives: [...(item.alternatives || [])] }));
 }
 
-// ── Preference pickers ───────────────────────────────────────────────────────
+// ── Preference picker (MOD-4: single avoidFoods field) ──────────────────────
 
 async function loadPreferenceOptions() {
   try {
@@ -798,8 +930,7 @@ async function loadPreferenceOptions() {
     }
 
     preferenceOptions = {
-      allergies: payload.allergyOptions || [],
-      dislikes: payload.dislikeOptions || [],
+      avoidFoods: payload.allergyOptions || [],
     };
 
     for (const field of preferenceFields) {
@@ -868,7 +999,8 @@ function setupPreferencePicker(field) {
   function renderSuggestions() {
     const query = input.value.trim();
     const selected = new Set(preferenceState[key].map((o) => o.id));
-    const matches = preferenceOptions[key]
+    const opts = preferenceOptions[key] || [];
+    const matches = opts
       .filter((o) => !selected.has(o.id))
       .map((o) => ({ option: o, score: scoreOption(o, query) }))
       .filter((m) => m.score > -1)
@@ -912,7 +1044,7 @@ function setupPreferencePicker(field) {
 }
 
 function optionById(key, id) {
-  return preferenceOptions[key].find((o) => o.id === id);
+  return (preferenceOptions[key] || []).find((o) => o.id === id);
 }
 
 function scoreOption(option, query) {

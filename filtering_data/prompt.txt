@@ -1,8 +1,11 @@
-1.user when entering the website when logged in should see all his customers and choose to enter which one or add a customer and when entering the customer either click a plan
-and edit it or add a new plan, welcome page should be only for not logged in people then when logging in they go to the screen i mentioned
-
-
-2.user now cant even edit the grams and cant even swap food what have u done, can u run actual tests to make sure everything is good and working as expected
-also the actual vs target calories gap is so big so fix that
-
-please do big testing to ensure all things we agreed in this chat works
+ok
+ok
+ok
+ok
+ok but what i wante d only to make sure is that you remove duplicate field in the ropt own list of the islikes an allergies
+yes but only the ones store in the atabase ont increase new ones like the acceptable ones only
+what u recommend here i am clueless honestly in this decision
+yes but for all callories and macros
+ok
+ok
+what u recommen here

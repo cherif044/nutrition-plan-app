@@ -31,8 +31,8 @@ const preferenceTaxonomy = [
     label: 'Milk / Dairy',
     type: 'allergen',
     scopes: ['allergy', 'dislike'],
-    expandsTo: ['milk', 'dairy', 'lactose', 'cheese', 'yogurt', 'whey', 'butter'],
-    aliases: ['milk', 'dairy', 'cheese', 'yogurt', 'labneh', 'whey', 'butter'],
+    expandsTo: ['milk', 'dairy', 'dairy_and_eggs', 'lactose', 'cheese', 'yogurt', 'whey', 'butter'],
+    aliases: ['milk', 'dairy', 'dairy_and_eggs', 'cheese', 'yogurt', 'labneh', 'whey', 'butter'],
     description: 'Milk-based foods including cheese, yogurt, labneh, whey, and butter.',
   },
   {
@@ -112,7 +112,7 @@ const preferenceTaxonomy = [
     label: 'Nuts',
     type: 'category',
     scopes: ['allergy', 'dislike'],
-    expandsTo: ['nuts', 'peanut', 'tree_nut', 'almond', 'walnut'],
+    expandsTo: ['nuts', 'nuts_and_seeds', 'peanut', 'tree_nut', 'almond', 'walnut'],
     aliases: ['nut', 'nuts', 'all nuts'],
     description: 'Broad match for peanuts and tree nuts.',
   },
@@ -130,8 +130,8 @@ const preferenceTaxonomy = [
     label: 'Red meat',
     type: 'category',
     scopes: ['dislike'],
-    expandsTo: ['red_meat', 'beef', 'lamb'],
-    aliases: ['red meat', 'beef', 'lamb'],
+    expandsTo: ['red_meat', 'beef', 'beef_products', 'lamb'],
+    aliases: ['red meat', 'beef', 'beef_products', 'lamb'],
     description: 'Beef, lamb, kofta, and liver from red meat.',
   },
   {
@@ -157,7 +157,7 @@ const preferenceTaxonomy = [
     label: 'Legumes',
     type: 'category',
     scopes: ['dislike'],
-    expandsTo: ['legumes', 'beans', 'fava_beans', 'lentils', 'chickpeas', 'peanut', 'green_beans'],
+    expandsTo: ['legumes', 'legume', 'beans', 'fava_beans', 'lentils', 'chickpeas', 'peanut', 'green_beans'],
     aliases: ['legume', 'legumes', 'beans', 'lentils', 'chickpeas', 'ful'],
     description: 'Ful, lentils, chickpeas, peanuts, and beans.',
   },
@@ -202,7 +202,7 @@ const preferenceTaxonomy = [
     label: 'Fruit',
     type: 'category',
     scopes: ['dislike'],
-    expandsTo: ['fruit', 'banana', 'mango', 'apple', 'orange', 'watermelon', 'dates', 'dried_fruit'],
+    expandsTo: ['fruit', 'fruits', 'banana', 'mango', 'apple', 'orange', 'watermelon', 'dates', 'dried_fruit'],
     aliases: ['fruit', 'fruits'],
     description: 'Banana, mango, apple, orange, watermelon, dates, and avocado.',
   },
@@ -211,7 +211,7 @@ const preferenceTaxonomy = [
     label: 'Vegetables',
     type: 'category',
     scopes: ['dislike'],
-    expandsTo: ['vegetable', 'non_starchy_vegetable', 'root_vegetable', 'leafy_greens', 'nightshade', 'cruciferous'],
+    expandsTo: ['vegetable', 'vegetables', 'non_starchy_vegetable', 'root_vegetable', 'leafy_greens', 'nightshade', 'cruciferous'],
     aliases: ['vegetable', 'vegetables', 'veggies', 'veg'],
     description: 'Fresh and cooked vegetables.',
   },
@@ -238,8 +238,8 @@ const preferenceTaxonomy = [
     label: 'Oils',
     type: 'category',
     scopes: ['dislike'],
-    expandsTo: ['oil', 'olive_oil', 'sunflower_oil'],
-    aliases: ['oil', 'oils', 'olive oil', 'sunflower oil'],
+    expandsTo: ['oil', 'fat', 'fats_and_oils', 'olive_oil', 'sunflower_oil'],
+    aliases: ['oil', 'oils', 'olive oil', 'sunflower oil', 'fat', 'fats'],
     description: 'Olive oil and sunflower oil.',
   },
   {
@@ -252,6 +252,29 @@ const preferenceTaxonomy = [
     description: 'Sesame, tahini, and flaxseeds.',
   },
 ];
+
+// Maps raw food category strings to their canonical form to eliminate duplicates in the UI.
+const CATEGORY_CANONICAL = {
+  fruits: 'fruit',
+  vegetables: 'vegetable',
+  eggs: 'egg',
+  egg_whites: 'egg',
+  legume: 'legumes',
+  beans: 'legumes',
+  nuts_and_seeds: 'nuts',
+  beef: 'red_meat',
+  beef_products: 'red_meat',
+  dairy_and_eggs: 'milk',
+  dairy: 'milk',
+  butter: 'milk',
+  fat: 'oil',
+  fats_and_oils: 'oil',
+  cereal_grains: 'grain',
+  chicken: 'poultry',
+  crustacean: 'shellfish',
+  animal_protein: 'meat',
+  sweet_potato: 'potato',
+};
 
 function getPreferenceOptions(foods) {
   const categoryOptions = buildCategoryOptions(foods);
@@ -273,24 +296,34 @@ function getPreferenceOptions(foods) {
 }
 
 function buildCategoryOptions(foods) {
-  const categories = [...new Set(foods.flatMap((food) => food.categories))].sort();
+  const rawCategories = [...new Set(foods.flatMap((food) => food.categories))].sort();
+  const seen = new Map();
 
-  return categories.map((category) => {
-    const taxonomyEntry = findTaxonomyEntry(normalizeToken(category));
+  for (const category of rawCategories) {
+    const canonical = CATEGORY_CANONICAL[category] || category;
+    if (seen.has(canonical)) continue;
 
-    return {
-      id: `category:${category}`,
-      label: taxonomyEntry?.label || humanizeCategory(category),
+    const taxonomyEntry =
+      findTaxonomyEntry(normalizeToken(canonical)) ||
+      findTaxonomyEntry(normalizeToken(category));
+
+    seen.set(canonical, {
+      id: `category:${canonical}`,
+      label: taxonomyEntry?.label || humanizeCategory(canonical),
       type: 'category',
       aliases: [
+        canonical,
         category,
-        humanizeCategory(category),
+        humanizeCategory(canonical),
         ...(taxonomyEntry?.aliases || []),
-      ],
-      description: taxonomyEntry?.description || `All foods tagged ${humanizeCategory(category)}.`,
-      expandsTo: taxonomyEntry?.expandsTo || [category],
-    };
-  });
+      ].filter((v, i, arr) => v && arr.indexOf(v) === i),
+      description:
+        taxonomyEntry?.description || `All foods tagged ${humanizeCategory(canonical)}.`,
+      expandsTo: taxonomyEntry?.expandsTo || [canonical, category].filter(Boolean),
+    });
+  }
+
+  return [...seen.values()];
 }
 
 function preferenceOptionSort(a, b) {

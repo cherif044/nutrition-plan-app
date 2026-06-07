@@ -95,11 +95,11 @@
     </main>
 
     <script>
-      // Redirect logged-in users straight to their customers page
+      // Redirect logged-in users straight to their explorer
       (async () => {
         try {
           const res = await fetch('/api/auth/me');
-          if (res.ok) { window.location.replace('/customers'); }
+          if (res.ok) { window.location.replace('/explorer'); }
         } catch { /* stay on welcome page */ }
       })();
 
@@ -108,7 +108,7 @@
         try {
           const res = await fetch('/api/auth/me');
           if (res.ok) {
-            window.location.href = '/customers';
+            window.location.href = '/explorer';
           } else {
             window.location.href = '/login';
           }
@@ -126,8 +126,7 @@
             const nav = document.getElementById('nav-actions');
             nav.innerHTML = `
               <span style="color:var(--muted);font-size:.875rem;font-weight:600">Hi, ${escapeHtml(user.firstname)}</span>
-              <a class="btn btn-ghost" href="/planner">Planner</a>
-              <a class="btn btn-ghost" href="/customers">Customers</a>
+              <a class="btn btn-ghost" href="/explorer">Explorer</a>
               <button class="btn btn-ghost" id="logout-btn">Log out</button>
             `;
             document.getElementById('logout-btn').addEventListener('click', async () => {

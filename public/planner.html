@@ -58,11 +58,12 @@
               <span>Activity level</span>
               <select name="activityLevel">
                 <option value="sedentary">Sedentary</option>
-                <option value="light">Light</option>
-                <option value="moderate" selected>Moderate</option>
+                <option value="light" selected>Light</option>
+                <option value="moderate">Moderate</option>
                 <option value="very_active">Very active</option>
                 <option value="athlete">Athlete</option>
               </select>
+              <small style="color:var(--muted);">Most people fall under Light.</small>
             </label>
           </section>
 
@@ -94,6 +95,7 @@
                   <option value="3" selected>3 meals</option>
                   <option value="4">4 meals</option>
                   <option value="5">5 meals</option>
+                  <option value="6">6 meals</option>
                 </select>
               </label>
               <label>
@@ -102,6 +104,7 @@
                   <option value="0">0 snacks</option>
                   <option value="1" selected>1 snack</option>
                   <option value="2">2 snacks</option>
+                  <option value="3">3 snacks</option>
                 </select>
               </label>
             </div>
@@ -117,28 +120,22 @@
                 <option value="vegan">Vegan</option>
               </select>
             </label>
-            <div class="preference-field" data-picker="allergies">
-              <span>Allergies</span>
+            <div class="preference-field" data-picker="avoidFoods">
+              <span>Avoid foods <small>(allergies &amp; dislikes)</small></span>
               <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
                 <div class="selected-tokens"></div>
-                <input type="search" placeholder="Type fish, dairy, nuts..." autocomplete="off" />
+                <input type="search" placeholder="Type fish, dairy, nuts, chicken..." autocomplete="off" />
               </div>
-              <input type="hidden" name="allergies" />
-              <div class="suggestions" role="listbox" hidden></div>
-            </div>
-            <div class="preference-field" data-picker="dislikes">
-              <span>Dislikes</span>
-              <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
-                <div class="selected-tokens"></div>
-                <input type="search" placeholder="Type tuna, fish, bread..." autocomplete="off" />
-              </div>
-              <input type="hidden" name="dislikes" />
+              <input type="hidden" name="avoidFoods" />
               <div class="suggestions" role="listbox" hidden></div>
             </div>
             <div class="field-grid">
               <label>
                 <span>Milk type</span>
-                <input type="text" name="milkType" value="skimmed" />
+                <select name="milkType">
+                  <option value="skimmed" selected>Skimmed (fat free)</option>
+                  <option value="whole">Whole milk (3.25%)</option>
+                </select>
               </label>
               <label>
                 <span>Coffees per day</span>
@@ -174,7 +171,7 @@
 
     <template id="summary-template">
       <section class="summary panel">
-        <h2>Daily targets</h2>
+        <h2>Daily totals</h2>
         <div class="metrics"></div>
       </section>
     </template>

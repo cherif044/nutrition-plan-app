@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Explorer — NutriPlan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <style>
+      .explorer-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .breadcrumb a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .breadcrumb a:hover { text-decoration: underline; }
+      .breadcrumb span { color: var(--faint); }
+      .breadcrumb strong { color: var(--ink); }
+
+      .explorer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+      .explorer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .folder-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        position: relative;
+        user-select: none;
+      }
+      .folder-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(18,121,111,0.09); }
+      .folder-icon { font-size: 1.5rem; flex-shrink: 0; }
+      .folder-name { font-weight: 700; font-size: 0.9rem; word-break: break-word; flex: 1; }
+      .folder-card .item-menu-btn { position: absolute; top: 8px; right: 8px; }
+
+      .plans-section h3 { font-size: 0.88rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+      .plan-list { display: grid; gap: 8px; }
+      .plan-row {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+        position: relative;
+      }
+      .plan-row:hover { border-color: var(--accent); }
+      .plan-icon { font-size: 1.1rem; flex-shrink: 0; color: var(--muted); }
+      .plan-info { flex: 1; min-width: 0; }
+      .plan-row-name { font-weight: 700; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .plan-row-date { color: var(--muted); font-size: 0.76rem; margin-top: 2px; }
+      .plan-row .item-menu-btn { flex-shrink: 0; }
+
+      .item-menu-btn {
+        background: none; border: none; cursor: pointer;
+        color: var(--faint); font-size: 1.1rem; padding: 4px 6px;
+        border-radius: 5px; line-height: 1;
+      }
+      .item-menu-btn:hover { background: var(--subtle); color: var(--ink); }
+
+      .context-menu {
+        position: fixed; z-index: 300;
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(22,27,31,0.15);
+        min-width: 150px;
+        padding: 4px;
+      }
+      .context-menu[hidden] { display: none; }
+      .context-menu button {
+        display: block; width: 100%;
+        background: none; border: none; cursor: pointer;
+        text-align: left; padding: 9px 12px; border-radius: 5px;
+        font-size: 0.86rem; font-weight: 600; color: var(--ink);
+      }
+      .context-menu button:hover { background: var(--subtle); }
+      .context-menu button.danger { color: var(--danger); }
+
+      .explorer-empty {
+        text-align: center; padding: 60px 20px; color: var(--muted);
+      }
+      .explorer-empty p { margin-top: 8px; font-size: 0.9rem; }
+
+      /* Modal */
+      .modal-overlay {
+        position: fixed; inset: 0;
+        background: rgba(22,27,31,0.45);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 200;
+      }
+      .modal-overlay[hidden] { display: none; }
+      .modal {
+        background: var(--panel); border-radius: 14px;
+        padding: 28px 24px; width: min(420px, calc(100vw - 32px));
+        box-shadow: 0 20px 48px rgba(22,27,31,0.18);
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .modal h3 { font-size: 1.1rem; font-weight: 800; margin: 0; }
+      .modal label { display: flex; flex-direction: column; gap: 5px; font-size: 0.86rem; font-weight: 700; }
+      .modal input {
+        min-height: 38px; border: 1px solid var(--line); border-radius: 7px;
+        padding: 0 10px; font: inherit; outline: none;
+      }
+      .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(18,121,111,0.12); }
+      .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+      .modal-error { color: var(--danger); font-size: 0.84rem; font-weight: 700; min-height: 1.2em; }
+
+      /* Folder tree picker */
+      .folder-tree { max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+      .tree-item {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 10px; border-radius: 6px; cursor: pointer;
+        font-size: 0.86rem; font-weight: 600; color: var(--ink);
+      }
+      .tree-item:hover { background: var(--subtle); }
+      .tree-item.selected { background: var(--accent-soft); color: var(--accent-strong); border: 1px solid #95c8bf; }
+      .tree-item-children { padding-left: 18px; }
+      .tree-empty { padding: 12px; color: var(--muted); font-size: 0.84rem; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="planner-nav">
+        <div class="planner-nav__brand">
+          <p class="eyebrow">NutriPlan</p>
+          <h1>Plans</h1>
+        </div>
+        <div class="planner-nav__user" id="planner-nav-user"></div>
+      </nav>
+
+      <div class="explorer-toolbar">
+        <div class="breadcrumb" id="breadcrumb">
+          <strong>Home</strong>
+        </div>
+        <div class="explorer-actions" id="explorer-actions">
+          <button class="btn btn-ghost" id="new-folder-btn" type="button">+ New folder</button>
+        </div>
+      </div>
+
+      <p id="page-message" class="message" role="status" aria-live="polite" style="min-height:1.4em;"></p>
+
+      <div class="explorer-grid" id="folder-grid"></div>
+
+      <div class="plans-section" id="plans-section" hidden>
+        <h3>Plans</h3>
+        <div class="plan-list" id="plan-list"></div>
+      </div>
+
+      <div class="explorer-empty" id="empty-state" hidden>
+        <strong style="font-size:1.1rem;">This folder is empty</strong>
+        <p>Create a folder or add a new plan to get started.</p>
+      </div>
+
+      <div class="explorer-empty" id="root-empty" hidden>
+        <strong style="font-size:1.1rem;">No folders yet</strong>
+        <p>Create your first folder to organize your plans.</p>
+      </div>
+    </main>
+
+    <!-- Shared context menu -->
+    <div class="context-menu" id="context-menu" hidden></div>
+
+    <!-- New/rename folder modal -->
+    <div class="modal-overlay" id="folder-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true">
+        <h3 id="folder-modal-title">New folder</h3>
+        <label>Folder name <input type="text" id="folder-name-input" placeholder="e.g. Ahmed" autocomplete="off" /></label>
+        <p class="modal-error" id="folder-modal-error"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="folder-modal-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="folder-modal-save" type="button">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duplicate plan modal -->
+    <div class="modal-overlay" id="dup-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true">
+        <h3>Copy plan to folder</h3>
+        <div>
+          <div style="font-size:.84rem;font-weight:700;color:var(--muted);margin-bottom:6px;">Select destination folder</div>
+          <div class="folder-tree" id="dup-tree"></div>
+        </div>
+        <label>New plan name <input type="text" id="dup-name-input" autocomplete="off" /></label>
+        <p class="modal-error" id="dup-modal-error"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="dup-modal-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="dup-modal-save" type="button">Duplicate</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const folderId = params.get('folderId') || null;
+      const pageMessage = document.getElementById('page-message');
+      let currentFolderId = folderId;
+
+      // Auth
+      (async () => {
+        try {
+          const res = await fetch('/api/auth/me');
+          if (!res.ok) { window.location.replace('/login'); return; }
+          const { user } = await res.json();
+          document.getElementById('planner-nav-user').innerHTML = `
+            <span class="planner-nav__greeting">Hi, ${esc(user.firstname)}</span>
+            <button class="btn btn-ghost" id="logout-btn" style="min-height:36px;font-size:.82rem;">Log out</button>
+          `;
+          document.getElementById('logout-btn').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.replace('/');
+          });
+        } catch { window.location.replace('/login'); }
+      })();
+
+      // ── Load contents ──────────────────────────────────────────────────────
+
+      async function load() {
+        const url = currentFolderId ? `/api/folders/${currentFolderId}` : '/api/folders';
+        const res = await fetch(url);
+        if (!res.ok) { pageMessage.textContent = 'Failed to load.'; return; }
+        const data = await res.json();
+        renderContents(data);
+        await renderBreadcrumb();
+        updateActions();
+      }
+
+      function renderContents({ subfolders, plans }) {
+        const grid = document.getElementById('folder-grid');
+        const planList = document.getElementById('plan-list');
+        const plansSection = document.getElementById('plans-section');
+        const emptyState = document.getElementById('empty-state');
+        const rootEmpty = document.getElementById('root-empty');
+        grid.innerHTML = '';
+        planList.innerHTML = '';
+        emptyState.hidden = true;
+        rootEmpty.hidden = true;
+        plansSection.hidden = true;
+
+        if (!subfolders.length && !plans.length) {
+          if (currentFolderId) emptyState.hidden = false;
+          else rootEmpty.hidden = false;
+          return;
+        }
+
+        subfolders.forEach((folder) => {
+          const card = document.createElement('div');
+          card.className = 'folder-card';
+          card.innerHTML = `
+            <span class="folder-icon">📁</span>
+            <span class="folder-name">${esc(folder.name)}</span>
+            <button class="item-menu-btn" type="button" title="Folder options" data-folder-id="${folder.id}" data-folder-name="${esc(folder.name)}">⋯</button>
+          `;
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.item-menu-btn')) return;
+            window.location.href = `/explorer?folderId=${folder.id}`;
+          });
+          card.querySelector('.item-menu-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFolderMenu(e, folder.id, folder.name);
+          });
+          grid.append(card);
+        });
+
+        if (plans.length && currentFolderId) {
+          plansSection.hidden = false;
+          plans.forEach((plan) => {
+            const row = document.createElement('div');
+            row.className = 'plan-row';
+            row.innerHTML = `
+              <span class="plan-icon">📄</span>
+              <div class="plan-info">
+                <div class="plan-row-name">${esc(plan.name)}</div>
+                <div class="plan-row-date">${new Date(plan.updated_at || plan.created_at).toLocaleDateString()}</div>
+              </div>
+              <button class="item-menu-btn" type="button" title="Plan options" data-plan-id="${plan.id}" data-plan-name="${esc(plan.name)}">⋯</button>
+            `;
+            row.addEventListener('click', (e) => {
+              if (e.target.closest('.item-menu-btn')) return;
+              window.location.href = `/planner?planId=${plan.id}&folderId=${currentFolderId}`;
+            });
+            row.querySelector('.item-menu-btn').addEventListener('click', (e) => {
+              e.stopPropagation();
+              showPlanMenu(e, plan.id, plan.name);
+            });
+            planList.append(row);
+          });
+        }
+      }
+
+      async function renderBreadcrumb() {
+        const bc = document.getElementById('breadcrumb');
+        bc.innerHTML = '';
+        const homeLink = document.createElement('a');
+        homeLink.href = '/explorer';
+        homeLink.textContent = 'Home';
+        bc.append(homeLink);
+
+        if (!currentFolderId) {
+          bc.querySelector('a').outerHTML = '<strong>Home</strong>';
+          bc.innerHTML = '<strong>Home</strong>';
+          return;
+        }
+
+        const res = await fetch(`/api/folders/${currentFolderId}/breadcrumb`);
+        if (!res.ok) return;
+        const { breadcrumb } = await res.json();
+
+        bc.innerHTML = '';
+        bc.append(makeLink('/explorer', 'Home'));
+
+        breadcrumb.forEach((item, i) => {
+          const sep = document.createElement('span');
+          sep.textContent = ' / ';
+          bc.append(sep);
+
+          if (i === breadcrumb.length - 1) {
+            const strong = document.createElement('strong');
+            strong.textContent = item.name;
+            bc.append(strong);
+          } else {
+            bc.append(makeLink(`/explorer?folderId=${item.id}`, item.name));
+          }
+        });
+      }
+
+      function makeLink(href, text) {
+        const a = document.createElement('a');
+        a.href = href;
+        a.textContent = text;
+        return a;
+      }
+
+      function updateActions() {
+        const actions = document.getElementById('explorer-actions');
+        actions.innerHTML = '';
+        const newFolderBtn = document.createElement('button');
+        newFolderBtn.className = 'btn btn-ghost';
+        newFolderBtn.type = 'button';
+        newFolderBtn.textContent = '+ New folder';
+        newFolderBtn.addEventListener('click', () => openFolderModal());
+        actions.append(newFolderBtn);
+
+        if (currentFolderId) {
+          const newPlanBtn = document.createElement('button');
+          newPlanBtn.className = 'btn btn-primary';
+          newPlanBtn.type = 'button';
+          newPlanBtn.textContent = '+ New plan';
+          newPlanBtn.addEventListener('click', () => {
+            window.location.href = `/planner?folderId=${currentFolderId}`;
+          });
+          actions.append(newPlanBtn);
+        }
+      }
+
+      // ── Context menus ──────────────────────────────────────────────────────
+
+      const ctxMenu = document.getElementById('context-menu');
+      document.addEventListener('click', () => { ctxMenu.hidden = true; });
+
+      function positionMenu(e) {
+        ctxMenu.hidden = false;
+        const rect = ctxMenu.getBoundingClientRect();
+        let x = e.clientX, y = e.clientY;
+        if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+        if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top = y + 'px';
+      }
+
+      function showFolderMenu(e, folderId, folderName) {
+        e.stopPropagation();
+        ctxMenu.innerHTML = `
+          <button data-action="rename">Rename</button>
+          <button data-action="delete" class="danger">Delete</button>
+        `;
+        ctxMenu.querySelector('[data-action="rename"]').addEventListener('click', () => {
+          ctxMenu.hidden = true;
+          openFolderModal(folderId, folderName);
+        });
+        ctxMenu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+          ctxMenu.hidden = true;
+          if (!confirm(`Delete folder "${folderName}" and all its contents?`)) return;
+          const r = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+          if (r.ok) load();
+          else pageMessage.textContent = 'Failed to delete folder.';
+        });
+        positionMenu(e);
+      }
+
+      function showPlanMenu(e, planId, planName) {
+        e.stopPropagation();
+        ctxMenu.innerHTML = `
+          <button data-action="open">Open</button>
+          <button data-action="dup">Duplicate</button>
+          <button data-action="delete" class="danger">Delete</button>
+        `;
+        ctxMenu.querySelector('[data-action="open"]').addEventListener('click', () => {
+          ctxMenu.hidden = true;
+          window.location.href = `/planner?planId=${planId}&folderId=${currentFolderId}`;
+        });
+        ctxMenu.querySelector('[data-action="dup"]').addEventListener('click', () => {
+          ctxMenu.hidden = true;
+          openDupModal(planId, planName);
+        });
+        ctxMenu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+          ctxMenu.hidden = true;
+          if (!confirm(`Delete plan "${planName}"?`)) return;
+          const r = await fetch(`/api/plans/${planId}`, { method: 'DELETE' });
+          if (r.ok) load();
+          else pageMessage.textContent = 'Failed to delete plan.';
+        });
+        positionMenu(e);
+      }
+
+      // ── Folder modal (create / rename) ─────────────────────────────────────
+
+      let editingFolderId = null;
+
+      function openFolderModal(folderId = null, existingName = '') {
+        editingFolderId = folderId;
+        document.getElementById('folder-modal-title').textContent = folderId ? 'Rename folder' : 'New folder';
+        document.getElementById('folder-modal-save').textContent = folderId ? 'Rename' : 'Create';
+        document.getElementById('folder-name-input').value = existingName;
+        document.getElementById('folder-modal-error').textContent = '';
+        document.getElementById('folder-modal').hidden = false;
+        document.getElementById('folder-name-input').focus();
+      }
+
+      document.getElementById('folder-modal-cancel').addEventListener('click', () => {
+        document.getElementById('folder-modal').hidden = true;
+      });
+      document.getElementById('folder-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('folder-modal')) document.getElementById('folder-modal').hidden = true;
+      });
+
+      document.getElementById('folder-modal-save').addEventListener('click', async () => {
+        const name = document.getElementById('folder-name-input').value.trim();
+        const errEl = document.getElementById('folder-modal-error');
+        errEl.textContent = '';
+        if (!name) { errEl.textContent = 'Enter a folder name.'; return; }
+
+        let res;
+        if (editingFolderId) {
+          res = await fetch(`/api/folders/${editingFolderId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          });
+        } else {
+          res = await fetch('/api/folders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, parentId: currentFolderId }),
+          });
+        }
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error; return; }
+        document.getElementById('folder-modal').hidden = true;
+        load();
+      });
+
+      document.getElementById('folder-name-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('folder-modal-save').click();
+      });
+
+      // ── Duplicate modal ────────────────────────────────────────────────────
+
+      let dupPlanId = null;
+      let selectedDupFolderId = null;
+
+      async function openDupModal(planId, planName) {
+        dupPlanId = planId;
+        selectedDupFolderId = null;
+        document.getElementById('dup-name-input').value = planName + ' (copy)';
+        document.getElementById('dup-modal-error').textContent = '';
+
+        const res = await fetch('/api/folders/tree');
+        const { tree } = await res.json();
+        const treeEl = document.getElementById('dup-tree');
+        treeEl.innerHTML = '';
+        if (!tree.length) {
+          treeEl.innerHTML = '<div class="tree-empty">No folders yet. Create a folder first.</div>';
+        } else {
+          renderTree(tree, treeEl, 0);
+        }
+        document.getElementById('dup-modal').hidden = false;
+      }
+
+      function renderTree(nodes, container, depth) {
+        nodes.forEach((node) => {
+          const item = document.createElement('div');
+          item.className = 'tree-item';
+          item.style.paddingLeft = (10 + depth * 18) + 'px';
+          item.dataset.folderId = node.id;
+          item.innerHTML = `📁 ${esc(node.name)}`;
+          item.addEventListener('click', () => {
+            container.querySelectorAll('.tree-item').forEach((el) => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedDupFolderId = node.id;
+          });
+          container.append(item);
+          if (node.children.length) renderTree(node.children, container, depth + 1);
+        });
+      }
+
+      document.getElementById('dup-modal-cancel').addEventListener('click', () => {
+        document.getElementById('dup-modal').hidden = true;
+      });
+      document.getElementById('dup-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('dup-modal')) document.getElementById('dup-modal').hidden = true;
+      });
+
+      document.getElementById('dup-modal-save').addEventListener('click', async () => {
+        const errEl = document.getElementById('dup-modal-error');
+        errEl.textContent = '';
+        if (!selectedDupFolderId) { errEl.textContent = 'Select a destination folder.'; return; }
+        const newName = document.getElementById('dup-name-input').value.trim();
+        if (!newName) { errEl.textContent = 'Enter a name for the copy.'; return; }
+
+        const res = await fetch(`/api/plans/${dupPlanId}/duplicate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetFolderId: selectedDupFolderId, newName }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error; return; }
+        document.getElementById('dup-modal').hidden = true;
+        pageMessage.style.color = 'var(--accent)';
+        pageMessage.textContent = `Copied to folder successfully.`;
+        setTimeout(() => { pageMessage.textContent = ''; pageMessage.style.color = ''; }, 3000);
+        load();
+      });
+
+      function esc(str) {
+        return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      load();
+    </script>
+  </body>
+</html>

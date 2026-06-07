@@ -28,8 +28,18 @@ function generatePlan(rawInput) {
     throw new Error('No foods match the selected restrictions. Try removing one filter.');
   }
 
+  const usedSnackFoodIds = new Set();
   const meals = mealTargets.map((target, index) => {
-    const meal = generateMeal({ target, allowedFoods, mealIndex: index });
+    // MOD-7: exclude foods already used in a previous snack
+    let foodPool = allowedFoods;
+    if (target.tag === 'snack' && usedSnackFoodIds.size > 0) {
+      const filtered = allowedFoods.filter((f) => !usedSnackFoodIds.has(f.id));
+      if (filtered.length > 0) foodPool = filtered;
+    }
+    const meal = generateMeal({ target, allowedFoods: foodPool, mealIndex: index });
+    if (target.tag === 'snack') {
+      meal.items.forEach((item) => usedSnackFoodIds.add(item.food.id));
+    }
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
     return { ...meal, sensitivityMatrix: computeSensitivityMatrix(plainItems, mealTotals) };
@@ -74,11 +84,11 @@ function normalizeInput(input = {}) {
   if (!DIETS.has(dietType)) {
     throw new Error('Choose a valid diet type.');
   }
-  if (![2, 3, 4, 5].includes(numberOfMeals)) {
-    throw new Error('Meals must be between 2 and 5.');
+  if (![2, 3, 4, 5, 6].includes(numberOfMeals)) {
+    throw new Error('Meals must be between 2 and 6.');
   }
-  if (![0, 1, 2].includes(numberOfSnacks)) {
-    throw new Error('Snacks must be between 0 and 2.');
+  if (![0, 1, 2, 3].includes(numberOfSnacks)) {
+    throw new Error('Snacks must be between 0 and 3.');
   }
 
   return {
@@ -94,6 +104,7 @@ function normalizeInput(input = {}) {
     dislikes: normalizeList(input.dislikes),
     milkType: String(input.milkType || '').trim(),
     coffeesPerDay: Number.isFinite(coffeesPerDay) ? Math.max(0, coffeesPerDay) : 0,
+    avoidFoods: normalizeList(input.avoidFoods ?? []),
     ramadanMode: Boolean(input.ramadanMode),
   };
 }
@@ -112,8 +123,10 @@ function normalizeList(value) {
 function filterFoods(foods, input) {
   const foodIds = new Set(foods.map((food) => food.id));
   const categoryIds = new Set(foods.flatMap((food) => food.categories));
-  const allergies = resolvePreferenceTerms(input.allergies);
-  const dislikes = resolvePreferenceTerms(input.dislikes);
+  // avoidFoods merges into both allergies and dislikes
+  const mergedAvoid = [...new Set([...input.avoidFoods, ...input.allergies])];
+  const allergies = resolvePreferenceTerms(mergedAvoid);
+  const dislikes = resolvePreferenceTerms([...new Set([...input.avoidFoods, ...input.dislikes])]);
   const unknownTerms = [...allergies.unknownTerms, ...dislikes.unknownTerms];
   const unknownFoodIds = [...allergies.selectedIds, ...dislikes.selectedIds].filter(
     (id) => !foodIds.has(id),
@@ -438,21 +451,23 @@ function mealScore(items, target) {
   return calorieScore + proteinScore + carbScore + fatScore;
 }
 
-function alternativesFor({ original, allowedFoods, mealTag, limit = 2 }) {
-  const sameRole = allowedFoods.filter(
-    (food) =>
-      food.id !== original.id &&
-      food.macroRole === original.macroRole &&
-      food.mealTags.includes(mealTag),
-  );
-  const unique = new Map();
+function alternativesFor({ original, allowedFoods, mealTag, limit = 4 }) {
+  // MOD-11: prefer foods sharing a category (same semantic type), fall back to same role only
+  const byRole = (food) =>
+    food.id !== original.id &&
+    food.macroRole === original.macroRole &&
+    food.mealTags.includes(mealTag);
 
-  sameRole
+  const withCategory = allowedFoods.filter(
+    (food) => byRole(food) && food.categories.some((c) => original.categories.includes(c)),
+  );
+  const pool = withCategory.length > 0 ? withCategory : allowedFoods.filter(byRole);
+
+  const unique = new Map();
+  pool
     .sort((a, b) => macroDistance(original, a) - macroDistance(original, b))
     .forEach((food) => {
-      if (!unique.has(food.id)) {
-        unique.set(food.id, food);
-      }
+      if (!unique.has(food.id)) unique.set(food.id, food);
     });
 
   return Array.from(unique.values()).slice(0, limit);
