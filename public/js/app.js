@@ -526,6 +526,8 @@ function handleGramStep(state, triggerIdx, sign, rowEl) {
   const newQ = clampGrams(trigger.food, trigger.quantityG + sign * 10);
   if (newQ === trigger.quantityG) return;
 
+  const snapshot = deepCopyItems(state.items);
+
   trigger.quantityG = newQ;
   const matrix = state.sensitivityMatrix;
   if (matrix && matrix[triggerIdx]) {
@@ -541,8 +543,18 @@ function handleGramStep(state, triggerIdx, sign, rowEl) {
     }
   }
 
+  if (state.mealBounds && !isWithinBounds(computeTotals(state.items), state.mealBounds)) {
+    state.items = snapshot;
+    const dir = sign > 0 ? 'increase' : 'decrease';
+    showBalanceError(rowEl, `Can't ${dir} more -- meal macros would exceed 10% limit`);
+    updateGramButtonStates(state);
+    refreshMealDOM(state);
+    return;
+  }
+
   state.lastBalanced = deepCopyItems(state.items);
   refreshMealDOM(state);
+  clearBalanceError(rowEl);
   refreshSensitivityMatrix(state);
 }
 
@@ -815,8 +827,7 @@ function wouldStepBeWithinBounds(state, triggerIdx, sign) {
     return { ...item, quantityG: Math.round(Math.min(Math.max(item.quantityG + rawDelta, minQ), maxQ) / 5) * 5 };
   });
 
-  const cal = computeTotals(simulated).calories;
-  return cal >= state.mealBounds.calories.min && cal <= state.mealBounds.calories.max;
+  return isWithinBounds(computeTotals(simulated), state.mealBounds);
 }
 
 function updateGramButtonStates(state) {
