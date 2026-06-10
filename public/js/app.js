@@ -29,7 +29,6 @@
       if (title) title.textContent = 'Edit Mode';
       loadPlanForEdit(plannerCtx.planId);
     } else if (plannerCtx?.folderId) {
-      // Fetch folder name for context
       fetch(`/api/folders/${plannerCtx.folderId}`)
         .then((r) => r.json())
         .then(({ folder }) => {
@@ -65,21 +64,15 @@ const labels = {
 };
 const separator = '·';
 
-// MOD-4: single avoidFoods preference state
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
 
-// All foods catalog for swap search
 let foodsById = new Map();
 loadAllFoods();
 
-// Per-meal interactive state
 const mealStates = [];
-
-// MOD-8: stored daily targets for live summary
 let dailyTargets = null;
 
-// Context from URL (folderId = save destination, planId = edit mode)
 const plannerCtx = (() => {
   const p = new URLSearchParams(location.search);
   const planId = p.get('planId');
@@ -88,7 +81,7 @@ const plannerCtx = (() => {
   return { planId, folderId, folderName: null };
 })();
 
-// ── Form submit (new plan) ───────────────────────────────────────────────────
+// ── Form submit ──────────────────────────────────────────────────────────────
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -148,7 +141,7 @@ async function loadAllFoods() {
   } catch { /* non-critical */ }
 }
 
-// ── Edit mode: load saved plan ───────────────────────────────────────────────
+// ── Edit mode ────────────────────────────────────────────────────────────────
 
 async function loadPlanForEdit(planId) {
   try {
@@ -156,13 +149,12 @@ async function loadPlanForEdit(planId) {
     if (!res.ok) { message.textContent = 'Plan not found.'; return; }
     const { plan } = await res.json();
 
-    // Populate form from saved input if available
     if (plan.plan_data?.input) {
       populateFormFromInput(plan.plan_data.input);
     }
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
-  } catch (err) {
+  } catch {
     message.textContent = 'Failed to load plan.';
   }
 }
@@ -207,35 +199,726 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       mealIndex,
       name: meal.name,
       tag: meal.tag,
-      target: meal.target,
+      target: { ...meal.target },
+      targetLocked: meal.targetLocked || false,
+      originalItems: (meal.originalItems || meal.items).map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+      })),
       items: meal.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
+        locked: item.locked || false,
         alternatives: item.alternatives || [],
       })),
-      lastBalanced: null,
-      mealBounds: null,
-      sensitivityMatrix: meal.sensitivityMatrix || null,
       cardEl: null,
     };
-    state.lastBalanced = deepCopyItems(state.items);
-    state.mealBounds = computeMealBounds(computeTotals(state.items));
     mealStates.push(state);
 
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
+  });
 
-    // Refresh sensitivity matrix async (handles loaded plans with no matrix)
-    if (!state.sensitivityMatrix) {
-      refreshSensitivityMatrix(state);
+  refreshRedFlags();
+}
+
+// ── Summary ──────────────────────────────────────────────────────────────────
+
+function renderSummary(targets) {
+  dailyTargets = targets;
+  const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
+  const metrics = summary.querySelector('.metrics');
+
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    const metric = document.createElement('div');
+    metric.className = 'metric';
+    metric.dataset.metric = key;
+    metric.innerHTML = `
+      <span>${labels[key][0]}</span>
+      <strong>
+        <span class="daily-actual daily-actual-${key}">—</span>
+        <span class="daily-sep"> / </span>
+        <span class="daily-target daily-target-${key}">${formatNumber(targets[key])}</span>
+      </strong>
+      <small>${labels[key][1]}</small>
+      <div class="flag-detail"></div>
+    `;
+    metrics.append(metric);
+  }
+
+  summary.querySelector('.redistribute-btn')?.addEventListener('click', handleRedistribute);
+
+  return summary;
+}
+
+// ── Red flags (daily level) ──────────────────────────────────────────────────
+
+function refreshRedFlags() {
+  if (!dailyTargets) return;
+  const summaryEl = output.querySelector('.summary');
+  if (!summaryEl) return;
+
+  const actual = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+  const mealTargetSum = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+
+  for (const state of mealStates) {
+    const t = computeTotals(state.items);
+    actual.calories += t.calories;
+    actual.proteinG += t.proteinG;
+    actual.carbG += t.carbG;
+    actual.fatG += t.fatG;
+
+    mealTargetSum.calories += state.target.calories;
+    mealTargetSum.proteinG += state.target.proteinG;
+    mealTargetSum.carbG += state.target.carbG;
+    mealTargetSum.fatG += state.target.fatG;
+  }
+
+  const THRESH = 0.10;
+
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    const tgt = dailyTargets[key];
+    const diff = actual[key] - tgt;
+    const pct = Math.abs(diff) / Math.max(1, tgt);
+    const flagged = pct > THRESH;
+
+    const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
+    if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
+
+    const actualEl = summaryEl.querySelector(`.daily-actual-${key}`);
+    if (actualEl) actualEl.textContent = formatNumber(actual[key]);
+
+    const flagDetail = metricEl?.querySelector('.flag-detail');
+    if (flagDetail) {
+      if (flagged) {
+        const sign = diff > 0 ? '+' : '';
+        flagDetail.textContent = `${sign}${Math.round(pct * 100)}% off target`;
+        flagDetail.hidden = false;
+      } else {
+        flagDetail.hidden = true;
+      }
+    }
+  }
+
+  // Check meal target sum vs daily goal
+  const targetSumFlagged = ['calories', 'proteinG', 'carbG', 'fatG'].some((key) => {
+    return Math.abs(mealTargetSum[key] - dailyTargets[key]) / Math.max(1, dailyTargets[key]) > THRESH;
+  });
+
+  const redistEl = summaryEl.querySelector('.meal-target-sum-warning');
+  if (redistEl) {
+    redistEl.hidden = !targetSumFlagged;
+    if (targetSumFlagged) {
+      const calGap = Math.round(mealTargetSum.calories - dailyTargets.calories);
+      const msgEl = redistEl.querySelector('.meal-target-sum-msg');
+      if (msgEl) {
+        msgEl.textContent = calGap > 0
+          ? `Meal targets exceed daily goal by ${calGap} kcal.`
+          : `Meal targets are ${Math.abs(calGap)} kcal short of daily goal.`;
+      }
+    }
+  }
+}
+
+// ── Auto-redistribute ────────────────────────────────────────────────────────
+
+function handleRedistribute() {
+  const unlockedStates = mealStates.filter((s) => !s.targetLocked);
+  if (unlockedStates.length === 0) return;
+
+  const unlockedSum = unlockedStates.reduce(
+    (acc, s) => {
+      acc.calories += s.target.calories;
+      acc.proteinG += s.target.proteinG;
+      acc.carbG += s.target.carbG;
+      acc.fatG += s.target.fatG;
+      return acc;
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+
+  const mealTargetSum = mealStates.reduce(
+    (acc, s) => {
+      acc.calories += s.target.calories;
+      acc.proteinG += s.target.proteinG;
+      acc.carbG += s.target.carbG;
+      acc.fatG += s.target.fatG;
+      return acc;
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+
+  for (const state of unlockedStates) {
+    for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+      const gap = dailyTargets[key] - mealTargetSum[key];
+      const total = unlockedSum[key];
+      if (total > 0) {
+        state.target[key] = Math.max(0, state.target[key] + gap * (state.target[key] / total));
+      } else {
+        state.target[key] = Math.max(0, state.target[key] + gap / unlockedStates.length);
+      }
+    }
+    refreshMealCardHeader(state.cardEl, state);
+    updateTargetEditorValues(state);
+  }
+
+  refreshRedFlags();
+}
+
+// ── Meal card rendering ──────────────────────────────────────────────────────
+
+function renderMealCard(state) {
+  const card = mealTemplate.content.firstElementChild.cloneNode(true);
+  card.querySelector('h2').textContent = state.name;
+  card.dataset.mealIndex = state.mealIndex;
+
+  refreshMealCardHeader(card, state);
+
+  const foodList = card.querySelector('.food-list');
+  state.items.forEach((_, itemIndex) => {
+    foodList.append(renderFoodItem(state, itemIndex));
+  });
+
+  // Auto-balance button
+  card.querySelector('.auto-balance-btn').addEventListener('click', () => handleAutoBalance(state));
+
+  // Add food button
+  card.querySelector('.add-food-btn').addEventListener('click', () => toggleAddFoodPanel(state, card));
+
+  // Meal target: click to edit
+  card.querySelector('.meal-target').addEventListener('click', () => toggleTargetEditor(state, card));
+
+  // Lock target button
+  card.querySelector('.lock-target-btn').addEventListener('click', () => toggleTargetLock(state, card));
+
+  return card;
+}
+
+function refreshMealCardHeader(card, state) {
+  const totals = computeTotals(state.items);
+  card.querySelector('.meal-card__meta').textContent =
+    `${state.items.length} food${state.items.length !== 1 ? 's' : ''}`;
+  card.querySelector('.meal-target').textContent = `${formatNumber(state.target.calories)} kcal`;
+  card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
+  card.querySelector('.meal-macros').textContent =
+    `P ${formatNumber(totals.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}g ${separator} F ${formatNumber(totals.fatG)}g`;
+
+  const lockBtn = card.querySelector('.lock-target-btn');
+  if (lockBtn) {
+    lockBtn.innerHTML = state.targetLocked ? '&#128274;' : '&#128275;';
+    lockBtn.title = state.targetLocked ? 'Unlock meal target' : 'Lock meal target';
+    lockBtn.classList.toggle('lock-btn--locked', state.targetLocked);
+  }
+}
+
+// ── Meal target editor ───────────────────────────────────────────────────────
+
+function toggleTargetEditor(state, card) {
+  const editorEl = card.querySelector('.meal-target-editor');
+  if (!editorEl) return;
+
+  if (!editorEl.hidden) {
+    editorEl.hidden = true;
+    return;
+  }
+
+  if (!editorEl.dataset.built) {
+    editorEl.innerHTML = `
+      <div class="target-field-grid">
+        <label class="target-input-label"><span>kcal</span><input type="number" class="target-input target-cal" min="0" step="1" /></label>
+        <label class="target-input-label"><span>Protein g</span><input type="number" class="target-input target-protein" min="0" step="0.1" /></label>
+        <label class="target-input-label"><span>Carbs g</span><input type="number" class="target-input target-carbs" min="0" step="0.1" /></label>
+        <label class="target-input-label"><span>Fat g</span><input type="number" class="target-input target-fat" min="0" step="0.1" /></label>
+      </div>
+      <button class="btn btn-primary save-target-btn" type="button" style="margin-top:8px;min-height:32px;font-size:.82rem;padding:0 12px;">Done</button>
+    `;
+    editorEl.dataset.built = '1';
+
+    // Save button closes editor
+    editorEl.querySelector('.save-target-btn').addEventListener('click', () => {
+      applyTargetEdits(state, editorEl);
+      editorEl.hidden = true;
+    });
+
+    // Live update on input
+    for (const input of editorEl.querySelectorAll('.target-input')) {
+      input.addEventListener('input', () => applyTargetEdits(state, editorEl));
+    }
+  }
+
+  // Fill current values
+  editorEl.querySelector('.target-cal').value = formatNumber(state.target.calories, 0);
+  editorEl.querySelector('.target-protein').value = formatNumber(state.target.proteinG, 1);
+  editorEl.querySelector('.target-carbs').value = formatNumber(state.target.carbG, 1);
+  editorEl.querySelector('.target-fat').value = formatNumber(state.target.fatG, 1);
+
+  editorEl.hidden = false;
+}
+
+function applyTargetEdits(state, editorEl) {
+  const cal = parseFloat(editorEl.querySelector('.target-cal').value);
+  const prot = parseFloat(editorEl.querySelector('.target-protein').value);
+  const carb = parseFloat(editorEl.querySelector('.target-carbs').value);
+  const fat = parseFloat(editorEl.querySelector('.target-fat').value);
+
+  if (Number.isFinite(cal)) state.target.calories = Math.max(0, cal);
+  if (Number.isFinite(prot)) state.target.proteinG = Math.max(0, prot);
+  if (Number.isFinite(carb)) state.target.carbG = Math.max(0, carb);
+  if (Number.isFinite(fat)) state.target.fatG = Math.max(0, fat);
+
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function updateTargetEditorValues(state) {
+  const editorEl = state.cardEl?.querySelector('.meal-target-editor');
+  if (!editorEl || editorEl.hidden || !editorEl.dataset.built) return;
+  editorEl.querySelector('.target-cal').value = formatNumber(state.target.calories, 0);
+  editorEl.querySelector('.target-protein').value = formatNumber(state.target.proteinG, 1);
+  editorEl.querySelector('.target-carbs').value = formatNumber(state.target.carbG, 1);
+  editorEl.querySelector('.target-fat').value = formatNumber(state.target.fatG, 1);
+}
+
+function toggleTargetLock(state, card) {
+  state.targetLocked = !state.targetLocked;
+  refreshMealCardHeader(card, state);
+}
+
+// ── Food item rendering ──────────────────────────────────────────────────────
+
+function renderFoodItem(state, itemIndex) {
+  const item = state.items[itemIndex];
+  const food = item.food;
+  const totals = itemTotals(food, item.quantityG);
+
+  const row = document.createElement('div');
+  row.className = `food-item${item.locked ? ' food-item--locked' : ''}`;
+  row.dataset.itemIndex = itemIndex;
+
+  row.innerHTML = `
+    <div class="food-main">
+      <div class="food-title">
+        <div class="food-name">${escapeHtml(food.name)}</div>
+        ${food.nameAr ? `<div class="food-ar">${escapeHtml(food.nameAr)}</div>` : ''}
+      </div>
+      <div class="food-gram-wrap">
+        <button class="gram-btn gram-minus" type="button" aria-label="Decrease grams">−</button>
+        <input
+          class="food-gram-input"
+          type="number"
+          value="${item.quantityG}"
+          min="${food.minServingG}"
+          max="${food.maxServingG}"
+          step="10"
+          aria-label="Grams of ${escapeHtml(food.name)}"
+        />
+        <span class="food-gram-unit">g</span>
+        <button class="gram-btn gram-plus" type="button" aria-label="Increase grams">+</button>
+      </div>
+      <div class="food-macros">
+        <strong class="item-kcal">${formatNumber(totals.calories)} kcal</strong>
+        <span class="item-p">P ${formatNumber(totals.proteinG)}g</span>
+        <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
+        <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
+      </div>
+      <div class="food-actions">
+        <button class="icon-btn lock-btn${item.locked ? ' lock-btn--locked' : ''}" type="button" title="${item.locked ? 'Unlock food' : 'Lock food'}" aria-label="${item.locked ? 'Unlock' : 'Lock'} ${escapeHtml(food.name)}">${item.locked ? '&#128274;' : '&#128275;'}</button>
+        <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">&#8652;</button>
+      </div>
+    </div>
+    <div class="food-swap-panel" hidden></div>
+  `;
+
+  const gramInput = row.querySelector('.food-gram-input');
+  let debounceTimer = null;
+  gramInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const newGrams = clampGrams(food, Number(gramInput.value));
+      gramInput.value = newGrams;
+      state.items[itemIndex].quantityG = newGrams;
+      refreshMealDOM(state);
+      refreshRedFlags();
+    }, 400);
+  });
+
+  row.querySelector('.gram-minus').addEventListener('click', () => {
+    const newQ = clampGrams(food, item.quantityG - 10);
+    if (newQ === item.quantityG) return;
+    state.items[itemIndex].quantityG = newQ;
+    refreshMealDOM(state);
+    refreshRedFlags();
+  });
+
+  row.querySelector('.gram-plus').addEventListener('click', () => {
+    const newQ = clampGrams(food, item.quantityG + 10);
+    if (newQ === item.quantityG) return;
+    state.items[itemIndex].quantityG = newQ;
+    refreshMealDOM(state);
+    refreshRedFlags();
+  });
+
+  // Lock button
+  row.querySelector('.lock-btn').addEventListener('click', () => {
+    state.items[itemIndex].locked = !state.items[itemIndex].locked;
+    const btn = row.querySelector('.lock-btn');
+    const locked = state.items[itemIndex].locked;
+    btn.innerHTML = locked ? '&#128274;' : '&#128275;';
+    btn.title = locked ? 'Unlock food' : 'Lock food';
+    btn.classList.toggle('lock-btn--locked', locked);
+    row.classList.toggle('food-item--locked', locked);
+  });
+
+  // Swap button
+  const swapBtn = row.querySelector('.food-swap-btn');
+  const swapPanel = row.querySelector('.food-swap-panel');
+  swapBtn.addEventListener('click', () => {
+    const isOpen = !swapPanel.hidden;
+    state.cardEl.querySelectorAll('.food-swap-panel').forEach((p) => { p.hidden = true; });
+    state.cardEl.querySelectorAll('.food-swap-btn').forEach((b) => b.classList.remove('active'));
+    if (!isOpen) {
+      swapPanel.hidden = false;
+      swapBtn.classList.add('active');
+      buildSwapPanel(swapPanel, state, itemIndex);
     }
   });
 
-  refreshDailySummary();
+  return row;
 }
 
-// ── Edit bar (edit mode: save / discard) ─────────────────────────────────────
+// ── Swap panel ───────────────────────────────────────────────────────────────
+
+function buildSwapPanel(panelEl, state, itemIndex) {
+  const item = state.items[itemIndex];
+  const mealTag = state.tag;
+
+  panelEl.innerHTML = '';
+
+  const alts = item.alternatives?.length ? item.alternatives : getAlternatives(item.food, mealTag);
+  if (alts.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'swap-section-label';
+    label.textContent = 'Suggestions';
+    panelEl.append(label);
+
+    const altRow = document.createElement('div');
+    altRow.className = 'swap-alternatives';
+    for (const alt of alts) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'swap-alt-btn';
+      btn.dataset.altFoodId = alt.id;
+      btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
+      btn.addEventListener('click', () => {
+        panelEl.hidden = true;
+        panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
+        applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
+      });
+      altRow.append(btn);
+    }
+    panelEl.append(altRow);
+  }
+
+  const searchLabel = document.createElement('div');
+  searchLabel.className = 'swap-section-label';
+  searchLabel.textContent = 'Search any food';
+  panelEl.append(searchLabel);
+
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'swap-search-wrap';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'search';
+  searchInput.className = 'swap-search-input';
+  searchInput.placeholder = 'Type to search…';
+  searchInput.autocomplete = 'off';
+
+  const resultsEl = document.createElement('div');
+  resultsEl.className = 'swap-search-results';
+  resultsEl.hidden = true;
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { resultsEl.hidden = true; return; }
+
+    const matches = [...foodsById.values()]
+      .filter((f) => f.id !== item.food.id && f.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aTag = a.mealTags.includes(mealTag) ? 0 : 1;
+        const bTag = b.mealTags.includes(mealTag) ? 0 : 1;
+        return aTag - bTag || a.name.localeCompare(b.name);
+      })
+      .slice(0, 10);
+
+    resultsEl.innerHTML = '';
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div style="padding:8px 10px;color:var(--muted);font-size:.82rem;">No matches</div>';
+    } else {
+      for (const food of matches) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'swap-result-item';
+        btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
+        btn.addEventListener('click', () => {
+          resultsEl.hidden = true;
+          panelEl.hidden = true;
+          panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
+          applyFoodSwap(state, itemIndex, food, clampGrams(food, food.defaultServingG));
+        });
+        resultsEl.append(btn);
+      }
+    }
+    resultsEl.hidden = false;
+  });
+
+  document.addEventListener('click', function closeResults(e) {
+    if (!searchWrap.contains(e.target)) {
+      resultsEl.hidden = true;
+      document.removeEventListener('click', closeResults);
+    }
+  });
+
+  searchWrap.append(searchInput, resultsEl);
+  panelEl.append(searchWrap);
+}
+
+// ── Food swap ────────────────────────────────────────────────────────────────
+
+function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
+  state.items[itemIndex] = {
+    food: newFood,
+    quantityG: gramAmount,
+    locked: false,
+    alternatives: getAlternatives(newFood, state.tag),
+  };
+  const oldRow = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
+  const newRow = renderFoodItem(state, itemIndex);
+  oldRow.replaceWith(newRow);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+// ── Insert food ──────────────────────────────────────────────────────────────
+
+function toggleAddFoodPanel(state, card) {
+  const panelEl = card.querySelector('.add-food-panel');
+  if (!panelEl) return;
+
+  if (!panelEl.hidden) {
+    panelEl.hidden = true;
+    return;
+  }
+
+  panelEl.innerHTML = '';
+
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'swap-search-wrap';
+  searchWrap.style.padding = '10px 18px 12px';
+
+  const label = document.createElement('div');
+  label.className = 'swap-section-label';
+  label.style.marginBottom = '6px';
+  label.textContent = 'Add food to this meal';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'search';
+  searchInput.className = 'swap-search-input';
+  searchInput.placeholder = 'Search food to add…';
+  searchInput.autocomplete = 'off';
+
+  const resultsEl = document.createElement('div');
+  resultsEl.className = 'swap-search-results';
+  resultsEl.hidden = true;
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { resultsEl.hidden = true; return; }
+
+    const matches = [...foodsById.values()]
+      .filter((f) => f.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aTag = a.mealTags.includes(state.tag) ? 0 : 1;
+        const bTag = b.mealTags.includes(state.tag) ? 0 : 1;
+        return aTag - bTag || a.name.localeCompare(b.name);
+      })
+      .slice(0, 10);
+
+    resultsEl.innerHTML = '';
+    for (const food of matches) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'swap-result-item';
+      btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
+      btn.addEventListener('click', () => {
+        const newItem = {
+          food,
+          quantityG: clampGrams(food, food.defaultServingG),
+          locked: false,
+          alternatives: getAlternatives(food, state.tag),
+        };
+        state.items.push(newItem);
+        const foodList = card.querySelector('.food-list');
+        foodList.append(renderFoodItem(state, state.items.length - 1));
+        refreshMealCardHeader(card, state);
+        refreshRedFlags();
+        panelEl.hidden = true;
+      });
+      resultsEl.append(btn);
+    }
+    resultsEl.hidden = matches.length === 0;
+  });
+
+  searchWrap.append(label, searchInput, resultsEl);
+  panelEl.append(searchWrap);
+  panelEl.hidden = false;
+  setTimeout(() => searchInput.focus(), 50);
+}
+
+// ── Auto-balance ─────────────────────────────────────────────────────────────
+
+async function handleAutoBalance(state) {
+  const card = state.cardEl;
+  const btn = card.querySelector('.auto-balance-btn');
+  btn.disabled = true;
+  btn.textContent = 'Balancing…';
+
+  // Clear previous suggestions
+  const prevSuggestions = card.querySelector('.auto-balance-suggestions');
+  if (prevSuggestions) {
+    prevSuggestions.innerHTML = '';
+    prevSuggestions.hidden = true;
+  }
+  card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
+
+  try {
+    const res = await fetch('/api/auto-balance-meal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mealTag: state.tag,
+        items: state.items.map((item) => ({
+          foodId: item.food.id,
+          quantityG: item.quantityG,
+          locked: item.locked || false,
+        })),
+        originalItems: state.originalItems.map((item) => ({
+          foodId: item.food.id,
+          quantityG: item.quantityG,
+        })),
+      }),
+    });
+
+    const payload = await res.json();
+
+    if (payload.success) {
+      for (const update of payload.items) {
+        const stateItem = state.items.find((it) => it.food.id === update.foodId);
+        if (stateItem) stateItem.quantityG = update.quantityG;
+      }
+      refreshMealDOM(state);
+      refreshRedFlags();
+    } else {
+      showAutoBalanceSuggestions(state, payload.problematicFoodId, payload.suggestions || []);
+    }
+  } catch {
+    // Network error — silently ignore
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Auto-balance';
+  }
+}
+
+function showAutoBalanceSuggestions(state, problematicFoodId, suggestions) {
+  const card = state.cardEl;
+
+  const probIdx = state.items.findIndex((i) => i.food.id === problematicFoodId);
+  if (probIdx !== -1) {
+    card.querySelector(`[data-item-index="${probIdx}"]`)?.classList.add('food-item--problematic');
+  }
+
+  const panel = card.querySelector('.auto-balance-suggestions');
+  if (!panel) return;
+
+  panel.hidden = false;
+  panel.innerHTML = '';
+
+  const title = document.createElement('p');
+  title.className = 'suggestions-title';
+  title.textContent = suggestions.length > 0
+    ? 'Auto-balance couldn\'t find a solution. Try one of these options:'
+    : 'Auto-balance couldn\'t find a solution. Try swapping the highlighted food manually.';
+  panel.append(title);
+
+  if (suggestions.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'suggestion-list';
+
+    for (const s of suggestions) {
+      const swapBtn = document.createElement('button');
+      swapBtn.type = 'button';
+      swapBtn.className = 'suggestion-action-btn';
+      swapBtn.innerHTML = `<span class="suggestion-action-tag">Swap</span> <strong>${escapeHtml(s.food.name)}</strong> <em>${s.gramAmount}g</em>`;
+      swapBtn.addEventListener('click', () => {
+        if (probIdx !== -1) {
+          applyFoodSwap(state, probIdx, s.food, s.gramAmount);
+        }
+        panel.hidden = true;
+        card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
+      });
+      list.append(swapBtn);
+
+      const insertBtn = document.createElement('button');
+      insertBtn.type = 'button';
+      insertBtn.className = 'suggestion-action-btn';
+      insertBtn.innerHTML = `<span class="suggestion-action-tag suggestion-action-tag--insert">Add</span> <strong>${escapeHtml(s.food.name)}</strong> <em>${s.gramAmount}g</em>`;
+      insertBtn.addEventListener('click', () => {
+        const newItem = {
+          food: s.food,
+          quantityG: s.gramAmount,
+          locked: false,
+          alternatives: getAlternatives(s.food, state.tag),
+        };
+        state.items.push(newItem);
+        const foodList = card.querySelector('.food-list');
+        foodList.append(renderFoodItem(state, state.items.length - 1));
+        refreshMealCardHeader(card, state);
+        refreshRedFlags();
+        panel.hidden = true;
+        card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
+      });
+      list.append(insertBtn);
+    }
+
+    panel.append(list);
+  }
+}
+
+// ── DOM refresh helpers ──────────────────────────────────────────────────────
+
+function refreshMealDOM(state) {
+  const card = state.cardEl;
+  refreshMealCardHeader(card, state);
+
+  state.items.forEach((item, itemIndex) => {
+    const rowEl = card.querySelector(`[data-item-index="${itemIndex}"]`);
+    if (!rowEl) return;
+
+    const totals = itemTotals(item.food, item.quantityG);
+
+    const gramInput = rowEl.querySelector('.food-gram-input');
+    if (gramInput && document.activeElement !== gramInput) {
+      gramInput.value = item.quantityG;
+    }
+
+    rowEl.querySelector('.item-kcal').textContent = `${formatNumber(totals.calories)} kcal`;
+    rowEl.querySelector('.item-p').textContent = `P ${formatNumber(totals.proteinG)}g`;
+    rowEl.querySelector('.item-c').textContent = `C ${formatNumber(totals.carbG)}g`;
+    rowEl.querySelector('.item-f').textContent = `F ${formatNumber(totals.fatG)}g`;
+  });
+}
+
+// ── Edit / Save bars ─────────────────────────────────────────────────────────
 
 function showEditBar(planId, initialName) {
   const existing = document.getElementById('edit-bar');
@@ -285,13 +968,13 @@ function showEditBar(planId, initialName) {
   output.prepend(bar);
 }
 
-// ── Folder save bar (new plan in folder) ──────────────────────────────────────
-
 function showFolderSaveBar(folderId) {
   const existing = document.getElementById('folder-save-bar');
   if (existing) existing.remove();
 
-  const folderLabel = plannerCtx?.folderName ? `Saving to: <strong>${escapeHtml(plannerCtx.folderName)}</strong>` : 'Save plan';
+  const folderLabel = plannerCtx?.folderName
+    ? `Saving to: <strong>${escapeHtml(plannerCtx.folderName)}</strong>`
+    : 'Save plan';
 
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
@@ -324,81 +1007,13 @@ function showFolderSaveBar(folderId) {
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
     msgEl.textContent = `"${name}" saved!`;
-    setTimeout(() => {
-      window.location.href = `/explorer?folderId=${folderId}`;
-    }, 900);
+    setTimeout(() => { window.location.href = `/explorer?folderId=${folderId}`; }, 900);
   });
 
   output.prepend(bar);
 }
 
 function buildPlanData() {
-  const planData = {
-    input: readForm(),
-    dailyTargets,
-    meals: mealStates.map((state) => ({
-      name: state.name,
-      tag: state.tag,
-      target: state.target,
-      items: state.items.map((item) => ({
-        food: item.food,
-        quantityG: item.quantityG,
-        alternatives: item.alternatives || [],
-        totals: itemTotals(item.food, item.quantityG),
-      })),
-      totals: computeTotals(state.items),
-      sensitivityMatrix: state.sensitivityMatrix,
-    })),
-  };
-
-  // Grab actual daily totals from summary
-  const summaryEl = output.querySelector('.summary');
-  if (summaryEl && dailyTargets) {
-    const actual = mealStates.reduce(
-      (acc, state) => {
-        const t = computeTotals(state.items);
-        acc.calories += t.calories; acc.proteinG += t.proteinG;
-        acc.carbG += t.carbG; acc.fatG += t.fatG;
-        return acc;
-      },
-      { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-    );
-    planData.dailyActuals = actual;
-  }
-
-  return planData;
-}
-
-// ── Summary (MOD-8: actual / target) ─────────────────────────────────────────
-
-function renderSummary(targets) {
-  dailyTargets = targets;
-  const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
-  const metrics = summary.querySelector('.metrics');
-
-  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-    const metric = document.createElement('div');
-    metric.className = 'metric';
-    metric.innerHTML = `
-      <span>${labels[key][0]}</span>
-      <strong>
-        <span class="daily-actual daily-actual-${key}">—</span>
-        <span class="daily-sep"> / </span>
-        <span class="daily-target daily-target-${key}">${formatNumber(targets[key])}</span>
-      </strong>
-      <small>${labels[key][1]}</small>
-    `;
-    metrics.append(metric);
-  }
-
-  return summary;
-}
-
-function refreshDailySummary() {
-  if (!dailyTargets) return;
-  const summaryEl = output.querySelector('.summary');
-  if (!summaryEl) return;
-
   const actual = mealStates.reduce(
     (acc, state) => {
       const t = computeTotals(state.items);
@@ -409,476 +1024,33 @@ function refreshDailySummary() {
     { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
   );
 
-  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-    const el = summaryEl.querySelector(`.daily-actual-${key}`);
-    if (el) el.textContent = formatNumber(actual[key]);
-  }
-}
-
-function renderMealCard(state) {
-  const card = mealTemplate.content.firstElementChild.cloneNode(true);
-  card.querySelector('h2').textContent = state.name;
-  card.dataset.mealIndex = state.mealIndex;
-  refreshMealCardHeader(card, state);
-
-  const foodList = card.querySelector('.food-list');
-  state.items.forEach((item, itemIndex) => {
-    foodList.append(renderFoodItem(state, itemIndex));
-  });
-
-  return card;
-}
-
-function refreshMealCardHeader(card, state) {
-  const totals = computeTotals(state.items);
-  card.querySelector('.meal-card__meta').textContent = `${state.items.length} food${state.items.length !== 1 ? 's' : ''}`;
-  card.querySelector('.meal-target').textContent = `${formatNumber(state.target.calories)} kcal`;
-  card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
-  card.querySelector('.meal-macros').textContent =
-    `P ${formatNumber(totals.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}g ${separator} F ${formatNumber(totals.fatG)}g`;
-  card.querySelector('.approx-badge').hidden = true;
-}
-
-// ── Interactive food item ────────────────────────────────────────────────────
-
-function renderFoodItem(state, itemIndex) {
-  const item = state.items[itemIndex];
-  const food = item.food;
-  const totals = itemTotals(food, item.quantityG);
-
-  const row = document.createElement('div');
-  row.className = 'food-item';
-  row.dataset.itemIndex = itemIndex;
-
-  row.innerHTML = `
-    <div class="food-main">
-      <div class="food-title">
-        <div class="food-name">${escapeHtml(food.name)}</div>
-        ${food.nameAr ? `<div class="food-ar">${escapeHtml(food.nameAr)}</div>` : ''}
-      </div>
-      <div class="food-gram-wrap">
-        <button class="gram-btn gram-minus" type="button" aria-label="Decrease grams">−</button>
-        <input
-          class="food-gram-input"
-          type="number"
-          value="${item.quantityG}"
-          min="${food.minServingG}"
-          max="${food.maxServingG}"
-          step="10"
-          aria-label="Grams of ${escapeHtml(food.name)}"
-        />
-        <span class="food-gram-unit">g</span>
-        <button class="gram-btn gram-plus" type="button" aria-label="Increase grams">+</button>
-      </div>
-      <div class="food-macros">
-        <strong class="item-kcal">${formatNumber(totals.calories)} kcal</strong>
-        <span class="item-p">P ${formatNumber(totals.proteinG)}g</span>
-        <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
-        <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
-      </div>
-      <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">&#8652;</button>
-    </div>
-    <div class="food-swap-panel" hidden></div>
-    <div class="food-balance-msg" hidden></div>
-  `;
-
-  const gramInput = row.querySelector('.food-gram-input');
-  let debounceTimer = null;
-  gramInput.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      const newGrams = clampGrams(food, Number(gramInput.value));
-      gramInput.value = newGrams;
-      handleGramChange(state, itemIndex, newGrams, row);
-    }, 400);
-  });
-
-  row.querySelector('.gram-minus').addEventListener('click', () => handleGramStep(state, itemIndex, -1, row));
-  row.querySelector('.gram-plus').addEventListener('click', () => handleGramStep(state, itemIndex, +1, row));
-
-  const swapBtn = row.querySelector('.food-swap-btn');
-  const swapPanel = row.querySelector('.food-swap-panel');
-  swapBtn.addEventListener('click', () => {
-    const isOpen = !swapPanel.hidden;
-    state.cardEl.querySelectorAll('.food-swap-panel').forEach((p) => { p.hidden = true; });
-    state.cardEl.querySelectorAll('.food-swap-btn').forEach((b) => { b.classList.remove('active'); });
-    if (!isOpen) {
-      swapPanel.hidden = false;
-      swapBtn.classList.add('active');
-      buildSwapPanel(swapPanel, state, itemIndex);
-    }
-  });
-
-  return row;
-}
-
-// ── Gram change handler ──────────────────────────────────────────────────────
-
-async function handleGramChange(state, lockedIndex, newGrams, rowEl) {
-  state.items[lockedIndex].quantityG = newGrams;
-  await triggerRebalance(state, lockedIndex, rowEl);
-}
-
-// ── ±10g step: apply matrix, adjust other foods, no error messages ───────────
-
-function handleGramStep(state, triggerIdx, sign, rowEl) {
-  const trigger = state.items[triggerIdx];
-  const newQ = clampGrams(trigger.food, trigger.quantityG + sign * 10);
-  if (newQ === trigger.quantityG) return;
-
-  const snapshot = deepCopyItems(state.items);
-
-  trigger.quantityG = newQ;
-  const matrix = state.sensitivityMatrix;
-  if (matrix && matrix[triggerIdx]) {
-    const deltas = matrix[triggerIdx];
-    for (let i = 0; i < state.items.length; i++) {
-      if (i === triggerIdx) continue;
-      const rawDelta = sign * deltas[i];
-      if (Math.abs(rawDelta) < 1) continue;
-      const item = state.items[i];
-      const minQ = item.food.minServingG ?? 20;
-      const maxQ = item.food.maxServingG ?? 500;
-      item.quantityG = Math.round(Math.min(Math.max(item.quantityG + rawDelta, minQ), maxQ) / 5) * 5;
-    }
-  }
-
-  if (state.mealBounds && !isWithinBounds(computeTotals(state.items), state.mealBounds)) {
-    state.items = snapshot;
-    const dir = sign > 0 ? 'increase' : 'decrease';
-    showBalanceError(rowEl, `Can't ${dir} more -- meal macros would exceed 10% limit`);
-    updateGramButtonStates(state);
-    refreshMealDOM(state);
-    return;
-  }
-
-  state.lastBalanced = deepCopyItems(state.items);
-  refreshMealDOM(state);
-  clearBalanceError(rowEl);
-  refreshSensitivityMatrix(state);
-}
-
-// ── Swap panel ───────────────────────────────────────────────────────────────
-
-function buildSwapPanel(panelEl, state, itemIndex) {
-  const item = state.items[itemIndex];
-  const mealTag = state.tag;
-
-  panelEl.innerHTML = '';
-
-  // Use backend-computed alternatives (MOD-11, category-aware); fall back to client-side
-  const alts = item.alternatives?.length ? item.alternatives : getAlternatives(item.food, mealTag);
-  if (alts.length > 0) {
-    const label = document.createElement('div');
-    label.className = 'swap-section-label';
-    label.textContent = 'Suggestions';
-    panelEl.append(label);
-
-    const altRow = document.createElement('div');
-    altRow.className = 'swap-alternatives';
-    for (const alt of alts) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'swap-alt-btn';
-      btn.dataset.altFoodId = alt.id;
-      btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
-      btn.addEventListener('click', () => {
-        panelEl.hidden = true;
-        panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        handleFoodSwap(state, itemIndex, alt);
-      });
-      altRow.append(btn);
-    }
-    panelEl.append(altRow);
-    // Remove infeasible alts after check (async — section cleans itself up if all removed)
-    checkAltsFeasibility(state, itemIndex, alts, altRow, label);
-  }
-
-  const searchLabel = document.createElement('div');
-  searchLabel.className = 'swap-section-label';
-  searchLabel.textContent = 'Search any food';
-  panelEl.append(searchLabel);
-
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'swap-search-wrap';
-
-  const searchInput = document.createElement('input');
-  searchInput.type = 'search';
-  searchInput.className = 'swap-search-input';
-  searchInput.placeholder = 'Type to search…';
-  searchInput.autocomplete = 'off';
-
-  const resultsEl = document.createElement('div');
-  resultsEl.className = 'swap-search-results';
-  resultsEl.hidden = true;
-
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    if (!q) { resultsEl.hidden = true; return; }
-
-    const matches = [...foodsById.values()]
-      .filter((f) => f.id !== item.food.id && f.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const aTag = a.mealTags.includes(mealTag) ? 0 : 1;
-        const bTag = b.mealTags.includes(mealTag) ? 0 : 1;
-        return aTag - bTag || a.name.localeCompare(b.name);
-      })
-      .slice(0, 10);
-
-    resultsEl.innerHTML = '';
-    if (matches.length === 0) {
-      resultsEl.innerHTML = '<div style="padding:8px 10px;color:var(--muted);font-size:.82rem;">No matches</div>';
-    } else {
-      for (const food of matches) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'swap-result-item';
-        btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
-        btn.addEventListener('click', () => {
-          resultsEl.hidden = true;
-          panelEl.hidden = true;
-          panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-          handleFoodSwap(state, itemIndex, food);
-        });
-        resultsEl.append(btn);
-      }
-    }
-    resultsEl.hidden = false;
-  });
-
-  document.addEventListener('click', function closeResults(e) {
-    if (!searchWrap.contains(e.target)) {
-      resultsEl.hidden = true;
-      document.removeEventListener('click', closeResults);
-    }
-  });
-
-  searchWrap.append(searchInput, resultsEl);
-  panelEl.append(searchWrap);
-}
-
-// ── Food swap handler ────────────────────────────────────────────────────────
-
-async function handleFoodSwap(state, itemIndex, newFood) {
-  const rowEl = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
-
-  state.items[itemIndex] = {
-    food: newFood,
-    quantityG: clampGrams(newFood, newFood.defaultServingG),
-    alternatives: getAlternatives(newFood, state.tag),
-  };
-
-  await triggerRebalance(state, null, rowEl);
-
-  state.mealBounds = computeMealBounds(computeTotals(state.lastBalanced));
-  refreshSensitivityMatrix(state);
-}
-
-async function refreshSensitivityMatrix(state) {
-  try {
-    const mealTarget = computeTotals(state.lastBalanced);
-    const res = await fetch('/api/compute-sensitivity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mealTarget,
-        items: state.items.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
-      }),
-    });
-    if (!res.ok) return;
-    const { sensitivityMatrix } = await res.json();
-    state.sensitivityMatrix = sensitivityMatrix;
-    updateGramButtonStates(state);
-  } catch { /* non-critical */ }
-}
-
-// ── Core rebalance ───────────────────────────────────────────────────────────
-
-async function triggerRebalance(state, lockedIndex, triggerRowEl) {
-  const card = state.cardEl;
-  card.classList.add('meal-rebalancing');
-
-  const mealTarget = computeTotals(state.lastBalanced);
-
-  try {
-    const res = await fetch('/api/rebalance-meal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mealTarget,
-        mealBounds: state.mealBounds,
-        items: state.items.map((item, i) => ({
-          foodId: item.food.id,
-          quantityG: item.quantityG,
-          locked: lockedIndex !== null && i === lockedIndex,
-        })),
-      }),
-    });
-
-    const payload = await res.json();
-
-    if (!res.ok || !payload.success) {
-      state.items = deepCopyItems(state.lastBalanced);
-      refreshMealDOM(state);
-      const macro = payload?.violatedMacro;
-      const msg = macro
-        ? `Can't balance — ${macro} would exceed 10% limit`
-        : "This change can't be balanced in this meal — try a different food or adjust another item first.";
-      showBalanceError(triggerRowEl, msg);
-      return;
-    }
-
-    for (const update of payload.items) {
-      const stateItem = state.items.find((it) => it.food.id === update.foodId);
-      if (stateItem) stateItem.quantityG = update.quantityG;
-    }
-
-    state.lastBalanced = deepCopyItems(state.items);
-    refreshMealDOM(state);
-    clearBalanceError(triggerRowEl);
-  } catch {
-    state.items = deepCopyItems(state.lastBalanced);
-    refreshMealDOM(state);
-  } finally {
-    card.classList.remove('meal-rebalancing');
-  }
-}
-
-// ── DOM refresh helpers ──────────────────────────────────────────────────────
-
-function refreshMealDOM(state) {
-  const card = state.cardEl;
-  refreshMealCardHeader(card, state);
-
-  state.items.forEach((item, itemIndex) => {
-    const rowEl = card.querySelector(`[data-item-index="${itemIndex}"]`);
-    if (!rowEl) return;
-
-    const totals = itemTotals(item.food, item.quantityG);
-
-    const gramInput = rowEl.querySelector('.food-gram-input');
-    if (gramInput && document.activeElement !== gramInput) {
-      gramInput.value = item.quantityG;
-    }
-
-    const nameEl = rowEl.querySelector('.food-name');
-    if (nameEl) nameEl.textContent = item.food.name;
-
-    rowEl.querySelector('.item-kcal').textContent = `${formatNumber(totals.calories)} kcal`;
-    rowEl.querySelector('.item-p').textContent = `P ${formatNumber(totals.proteinG)}g`;
-    rowEl.querySelector('.item-c').textContent = `C ${formatNumber(totals.carbG)}g`;
-    rowEl.querySelector('.item-f').textContent = `F ${formatNumber(totals.fatG)}g`;
-  });
-
-  updateGramButtonStates(state);
-  refreshDailySummary(); // MOD-8: update live totals
-}
-
-function showBalanceError(rowEl, msg) {
-  if (!rowEl) return;
-  const el = rowEl.querySelector('.food-balance-msg');
-  if (!el) return;
-  el.textContent = msg;
-  el.hidden = false;
-  setTimeout(() => { el.hidden = true; }, 5000);
-}
-
-function clearBalanceError(rowEl) {
-  if (!rowEl) return;
-  const el = rowEl.querySelector('.food-balance-msg');
-  if (el) el.hidden = true;
-}
-
-// ── Meal bounds (10% per macro) ──────────────────────────────────────────────
-
-function computeMealBounds(totals) {
-  const t = 0.10;
   return {
-    calories: { min: totals.calories * (1 - t), max: totals.calories * (1 + t) },
-    proteinG: { min: totals.proteinG * (1 - t), max: totals.proteinG * (1 + t) },
-    carbG: { min: totals.carbG * (1 - t), max: totals.carbG * (1 + t) },
-    fatG: { min: totals.fatG * (1 - t), max: totals.fatG * (1 + t) },
+    input: readForm(),
+    dailyTargets,
+    dailyActuals: actual,
+    meals: mealStates.map((state) => ({
+      name: state.name,
+      tag: state.tag,
+      target: state.target,
+      targetLocked: state.targetLocked || false,
+      originalItems: state.originalItems.map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+      })),
+      items: state.items.map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+        locked: item.locked || false,
+        alternatives: item.alternatives || [],
+        totals: itemTotals(item.food, item.quantityG),
+      })),
+      totals: computeTotals(state.items),
+    })),
   };
-}
-
-function isWithinBounds(totals, bounds) {
-  return (
-    totals.calories >= bounds.calories.min && totals.calories <= bounds.calories.max &&
-    totals.proteinG >= bounds.proteinG.min && totals.proteinG <= bounds.proteinG.max &&
-    totals.carbG >= bounds.carbG.min && totals.carbG <= bounds.carbG.max &&
-    totals.fatG >= bounds.fatG.min && totals.fatG <= bounds.fatG.max
-  );
-}
-
-function wouldStepBeWithinBounds(state, triggerIdx, sign) {
-  if (!state.mealBounds) return true;
-  const trigger = state.items[triggerIdx];
-  const newQ = clampGrams(trigger.food, trigger.quantityG + sign * 10);
-  if (newQ === trigger.quantityG) return false;
-
-  const matrix = state.sensitivityMatrix;
-  const simulated = state.items.map((item, i) => {
-    if (i === triggerIdx) return { ...item, quantityG: newQ };
-    if (!matrix || !matrix[triggerIdx]) return item;
-    const rawDelta = sign * matrix[triggerIdx][i];
-    if (Math.abs(rawDelta) < 1) return item;
-    const minQ = item.food.minServingG ?? 20;
-    const maxQ = item.food.maxServingG ?? 500;
-    return { ...item, quantityG: Math.round(Math.min(Math.max(item.quantityG + rawDelta, minQ), maxQ) / 5) * 5 };
-  });
-
-  return isWithinBounds(computeTotals(simulated), state.mealBounds);
-}
-
-function updateGramButtonStates(state) {
-  if (!state.mealBounds) return;
-  state.items.forEach((_, triggerIdx) => {
-    const rowEl = state.cardEl.querySelector(`[data-item-index="${triggerIdx}"]`);
-    if (!rowEl) return;
-    rowEl.querySelector('.gram-plus').classList.toggle('gram-btn--at-limit', !wouldStepBeWithinBounds(state, triggerIdx, +1));
-    rowEl.querySelector('.gram-minus').classList.toggle('gram-btn--at-limit', !wouldStepBeWithinBounds(state, triggerIdx, -1));
-  });
-}
-
-async function fetchSwapFeasibility(state, itemIndex, newFood) {
-  try {
-    const mealTarget = computeTotals(state.lastBalanced);
-    const items = state.items.map((item, i) => ({
-      foodId: i === itemIndex ? newFood.id : item.food.id,
-      quantityG: i === itemIndex ? clampGrams(newFood, newFood.defaultServingG) : item.quantityG,
-      locked: false,
-    }));
-    const res = await fetch('/api/check-swap', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mealTarget, items }),
-    });
-    if (!res.ok) return true;
-    const { feasible } = await res.json();
-    return feasible;
-  } catch {
-    return true;
-  }
-}
-
-async function checkAltsFeasibility(state, itemIndex, alts, containerEl, labelEl) {
-  await Promise.all(alts.map(async (alt) => {
-    const feasible = await fetchSwapFeasibility(state, itemIndex, alt);
-    if (!feasible) {
-      const btn = containerEl.querySelector(`[data-alt-food-id="${alt.id}"]`);
-      if (btn) btn.remove();
-    }
-  }));
-  // Hide the whole suggestions section if nothing is left
-  if (containerEl.children.length === 0) {
-    containerEl.remove();
-    labelEl?.remove();
-  }
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
-// MOD-11: category-aware alternatives
 function getAlternatives(food, mealTag, limit = 4) {
   const byRole = (f) =>
     f.id !== food.id &&
@@ -929,7 +1101,7 @@ function deepCopyItems(items) {
   return items.map((item) => ({ ...item, alternatives: [...(item.alternatives || [])] }));
 }
 
-// ── Preference picker (MOD-4: single avoidFoods field) ──────────────────────
+// ── Preference picker ────────────────────────────────────────────────────────
 
 async function loadPreferenceOptions() {
   try {
@@ -940,9 +1112,7 @@ async function loadPreferenceOptions() {
       throw new Error(payload.error || 'Unable to load preference options.');
     }
 
-    preferenceOptions = {
-      avoidFoods: payload.allergyOptions || [],
-    };
+    preferenceOptions = { avoidFoods: payload.allergyOptions || [] };
 
     for (const field of preferenceFields) {
       setupPreferencePicker(field);

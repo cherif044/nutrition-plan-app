@@ -173,6 +173,10 @@
       <section class="summary panel">
         <h2>Daily totals</h2>
         <div class="metrics"></div>
+        <div class="meal-target-sum-warning" hidden>
+          <span class="meal-target-sum-msg"></span>
+          <button class="btn btn-ghost redistribute-btn" type="button">Auto-redistribute</button>
+        </div>
       </section>
     </template>
 
@@ -183,12 +187,16 @@
             <h2></h2>
             <p class="meal-card__meta"></p>
           </div>
-          <span class="approx-badge" hidden title="Closest available match within current foods">Approx</span>
+          <div class="meal-card__actions">
+            <button class="btn btn-ghost auto-balance-btn" type="button">Auto-balance</button>
+            <button class="btn btn-ghost add-food-btn" type="button">+ Add food</button>
+          </div>
         </div>
         <div class="meal-card__totals">
-          <div>
-            <span>Target</span>
-            <strong class="meal-target"></strong>
+          <div class="meal-target-cell">
+            <span class="meal-target-label">Target <button class="lock-target-btn icon-btn" type="button" title="Lock target">&#128275;</button></span>
+            <strong class="meal-target" title="Click to edit target"></strong>
+            <div class="meal-target-editor" hidden></div>
           </div>
           <div>
             <span>Actual</span>
@@ -205,6 +213,8 @@
           <span>Macros</span>
         </div>
         <div class="food-list"></div>
+        <div class="auto-balance-suggestions" hidden></div>
+        <div class="add-food-panel" hidden></div>
       </article>
     </template>
 

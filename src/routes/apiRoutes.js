@@ -1,7 +1,7 @@
 const express = require('express');
 
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
-const { generatePlan, getFoods, rebalanceMeal, computeSensitivityMatrix, checkRebalanceFeasibility } = require('../services/planGenerator');
+const { generatePlan, getFoods, rebalanceMeal, autoBalanceMeal, computeSensitivityMatrix, checkRebalanceFeasibility } = require('../services/planGenerator');
 const { loadFoods } = require('../data/foodRepository');
 const { requireAuth } = require('../middleware/auth');
 
@@ -54,6 +54,18 @@ router.post('/check-swap', requireAuth, (req, res, next) => {
       return res.status(400).json({ error: 'mealTarget and items are required.' });
     }
     res.json(checkRebalanceFeasibility({ mealTarget, items, mealBounds }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/auto-balance-meal', requireAuth, (req, res, next) => {
+  try {
+    const { items, originalItems, mealTag } = req.body;
+    if (!Array.isArray(items) || !Array.isArray(originalItems)) {
+      return res.status(400).json({ error: 'items and originalItems must be arrays.' });
+    }
+    res.json(autoBalanceMeal({ items, originalItems, mealTag }));
   } catch (error) {
     next(error);
   }

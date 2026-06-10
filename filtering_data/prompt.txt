@@ -1,15 +1,99 @@
-ok
-ok
-ok
-ok
-ok but what i wante d only to make sure is that you remove duplicate field in the ropt own list of the islikes an allergies
-yes but only the ones store in the atabase ont increase new ones like the acceptable ones only
-what u recommend here i am clueless honestly in this decision
-yes but for all callories and macros
-ok
-ok
-what u recommen here
+Reorganize my backend repository into a clean, scalable, production-style Node.js architecture while preserving all current functionality.
 
+1. Target Folder Structure (Recommended)
+src/
+  routes/
+  controllers/
+  services/
+  repositories/
+  models/
+  middleware/
+  utils/
+  config/
+  data/
 
+You may add extra folders ONLY if absolutely necessary, but explain why.
 
-brp
+2. Refactor Rules
+Do NOT change any business logic or behavior.
+Only restructure code into proper layers.
+Split files if they contain multiple responsibilities (one file = one clear responsibility).
+Ensure correct separation:
+routes → define endpoints only
+controllers → request/response handling only
+services → ALL business logic (core system logic lives here)
+repositories → data access (JSON/DB/files)
+middleware → auth, validation, permissions
+utils → helper functions only
+Avoid overengineering, keep it clean and minimal.
+If something is unclear, choose the simplest correct architecture decision.
+3. Domain Context (IMPORTANT)
+
+This project is a nutrition plan generator system.
+
+Core logic includes:
+
+calorie calculation (TDEE, Katch-McArdle or fallback)
+macro splitting (protein, fat, carbs)
+meal distribution across day
+food selection from dataset
+constraint handling (goal: bulk/cut/maintain)
+rebalancing when constraints are not met
+4. REQUIRED OUTPUT AFTER REFACTOR
+
+After completing the restructuring, generate a PDF document (or a structured markdown file if PDF is not possible) that includes:
+
+A) File-by-file explanation
+
+For EACH file:
+
+What it does (short, simple explanation)
+Its role in the system
+Why it exists
+
+Keep it very concise (1–5 lines per file).
+
+B) Full Meal Generation Simulation (VERY IMPORTANT)
+
+Provide a step-by-step textual simulation of how a user request flows through the system:
+
+Example:
+
+User input → API request → controller → service → repository → service logic → response
+
+Then explain in detail:
+
+How calories are calculated
+How macros are derived
+How meals are distributed across the day
+How food items are selected from dataset
+How constraints are checked
+How rebalancing works if macros or calories are off
+
+Show actual example numbers (step-by-step calculations).
+
+This should clearly explain the CORE ENGINE of the system.
+
+5. Rebalancing Logic Explanation (IMPORTANT)
+
+Include a clear explanation of:
+
+what triggers rebalancing
+how surplus/deficit calories are handled
+how macro ratios are corrected
+how food swaps are selected from dataset
+6. Final Output Format
+
+After refactoring, provide:
+
+Summary of changes
+Files moved/split
+Any new folders created and why
+Link or generated output for documentation (PDF or markdown)
+Full simulation section
+Goal
+
+The goal is not just restructuring code — it is to:
+
+make the architecture clean and professional
+and clearly document how the nutrition generation engine works internally in a way a developer can fully understand
