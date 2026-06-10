@@ -1,4 +1,4 @@
-const { loadFoods } = require('../data/foodRepository');
+const { loadFoods } = require('../repositories/foodRepository');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const {
   NUTRITION,

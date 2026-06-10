@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const foodPath = path.join(__dirname, '..', 'data', 'foods.json');
+const foodPath = path.join(__dirname, '..', '..', 'data', 'foods.json');
 
 const metadata = {
   chicken_breast: {

@@ -4,9 +4,7 @@ const path = require('path');
 let cache;
 
 function loadFoods() {
-  if (cache) {
-    return cache;
-  }
+  if (cache) return cache;
 
   const filePath = path.join(__dirname, '..', '..', 'data', 'foods.json');
   const decoded = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -25,21 +23,10 @@ function loadFoods() {
 
 function normalizeFood(food) {
   const requiredFields = [
-    'id',
-    'name',
-    'macro_role',
-    'calories_per_100g',
-    'protein_g_per_100g',
-    'carb_g_per_100g',
-    'fat_g_per_100g',
-    'is_vegan',
-    'is_vegetarian',
-    'allergens',
-    'categories',
-    'meal_tags',
-    'default_serving_g',
-    'min_serving_g',
-    'max_serving_g',
+    'id', 'name', 'macro_role', 'calories_per_100g', 'protein_g_per_100g',
+    'carb_g_per_100g', 'fat_g_per_100g', 'is_vegan', 'is_vegetarian',
+    'allergens', 'categories', 'meal_tags', 'default_serving_g',
+    'min_serving_g', 'max_serving_g',
   ];
 
   for (const field of requiredFields) {
@@ -71,6 +58,4 @@ function normalizeFood(food) {
   };
 }
 
-module.exports = {
-  loadFoods,
-};
+module.exports = { loadFoods };

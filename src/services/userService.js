@@ -1,10 +1,8 @@
 const bcrypt = require('bcrypt');
 const zxcvbn = require('zxcvbn');
-const { pool } = require('../config/db');
+const { insertUser } = require('../repositories/userRepository');
 
 const SALT_ROUNDS = 12;
-
-// ── Validation helpers ──────────────────────────────────────────────────────
 
 function validateUsername(username) {
   if (typeof username !== 'string') throw new Error('Username must be a string.');
@@ -46,12 +44,10 @@ function validatePassword(password) {
   if (password.length > 128) throw new Error('Password must be at most 128 characters.');
 
   const result = zxcvbn(password);
-  const score = result.score; // 0–4
+  const score = result.score;
 
   console.log(`[auth] Password strength score: ${score}/4`);
-  if (result.feedback.warning) {
-    console.log(`[auth] Password warning: ${result.feedback.warning}`);
-  }
+  if (result.feedback.warning) console.log(`[auth] Password warning: ${result.feedback.warning}`);
   if (result.feedback.suggestions.length > 0) {
     console.log(`[auth] Password suggestions: ${result.feedback.suggestions.join(' ')}`);
   }
@@ -66,8 +62,6 @@ function validatePassword(password) {
   return password;
 }
 
-// ── User CRUD ────────────────────────────────────────────────────────────────
-
 async function createUser({ username, password, firstname, lastname }) {
   const cleanUsername = validateUsername(username);
   const cleanFirstname = validateName(firstname, 'First name');
@@ -77,60 +71,19 @@ async function createUser({ username, password, firstname, lastname }) {
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   console.log(`[auth] Creating user: ${cleanUsername}`);
 
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO users (username, password_hash, firstname, lastname)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, firstname, lastname, created_at`,
-      [cleanUsername, passwordHash, cleanFirstname, cleanLastname],
-    );
-    console.log(`[auth] User created: ${cleanUsername} (id: ${rows[0].id})`);
-    return rows[0];
-  } catch (err) {
-    if (err.code === '23505') {
-      throw new Error('Username is already taken.');
-    }
-    throw err;
-  }
-}
+  const user = await insertUser({
+    username: cleanUsername,
+    passwordHash,
+    firstname: cleanFirstname,
+    lastname: cleanLastname,
+  });
 
-async function findUserByUsername(username) {
-  const { rows } = await pool.query(
-    'SELECT * FROM users WHERE username = $1',
-    [String(username).trim()],
-  );
-  return rows[0] || null;
-}
-
-async function findUserById(id) {
-  const { rows } = await pool.query(
-    'SELECT id, username, firstname, lastname, token_version, created_at, last_login FROM users WHERE id = $1',
-    [id],
-  );
-  return rows[0] || null;
+  console.log(`[auth] User created: ${cleanUsername} (id: ${user.id})`);
+  return user;
 }
 
 async function verifyPassword(plaintext, hash) {
   return bcrypt.compare(plaintext, hash);
 }
 
-async function updateLastLogin(id) {
-  await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [id]);
-}
-
-async function incrementTokenVersion(id) {
-  const { rows } = await pool.query(
-    'UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING token_version',
-    [id],
-  );
-  return rows[0]?.token_version;
-}
-
-module.exports = {
-  createUser,
-  findUserByUsername,
-  findUserById,
-  verifyPassword,
-  updateLastLogin,
-  incrementTokenVersion,
-};
+module.exports = { createUser, verifyPassword };

@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { findUserById } = require('../models/User');
+const { findUserById } = require('../repositories/userRepository');
 
 function getSecret() {
   const secret = process.env.JWT_SECRET;

@@ -45,7 +45,7 @@ async function updatePlan(planId, userId, { name, planData }) {
   }
   fields.push(`updated_at = NOW()`);
 
-  if (fields.length === 1) return getPlanById(planId, userId); // only updated_at
+  if (fields.length === 1) return getPlanById(planId, userId);
 
   values.push(planId, userId);
   const { rows } = await pool.query(
