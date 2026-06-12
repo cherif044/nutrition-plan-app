@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 
-const apiRoutes = require('./routes/apiRoutes');
+const generationRoutes = require('./routes/generationRoutes');
 const authRoutes = require('./routes/authRoutes');
 const folderRoutes = require('./routes/folderRoutes');
 const planRoutes = require('./routes/planRoutes');
@@ -17,7 +17,7 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/plans', planRoutes);
-app.use('/api', apiRoutes);
+app.use('/api', generationRoutes);
 
 app.use(express.static(publicDir));
 app.get('/js/zxcvbn.browser.js', (_req, res) => {

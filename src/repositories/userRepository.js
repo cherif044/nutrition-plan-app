@@ -1,46 +1,38 @@
-const { pool } = require('../config/db');
+const { User } = require('../models');
 
 async function insertUser({ username, passwordHash, firstname, lastname }) {
   try {
-    const { rows } = await pool.query(
-      `INSERT INTO users (username, password_hash, firstname, lastname)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, firstname, lastname, created_at`,
-      [username, passwordHash, firstname, lastname],
-    );
-    return rows[0];
+    const user = await User.create({ username, password_hash: passwordHash, firstname, lastname });
+    return user;
   } catch (err) {
-    if (err.code === '23505') throw new Error('Username is already taken.');
+    if (err.name === 'SequelizeUniqueConstraintError') throw new Error('Username is already taken.');
     throw err;
   }
 }
 
 async function findUserByUsername(username) {
-  const { rows } = await pool.query(
-    'SELECT * FROM users WHERE username = $1',
-    [String(username).trim()],
-  );
-  return rows[0] || null;
+  return User.findOne({ where: { username: String(username).trim() } });
 }
 
 async function findUserById(id) {
-  const { rows } = await pool.query(
-    'SELECT id, username, firstname, lastname, token_version, created_at, last_login FROM users WHERE id = $1',
-    [id],
-  );
-  return rows[0] || null;
+  return User.findByPk(id, {
+    attributes: ['id', 'username', 'firstname', 'lastname', 'token_version', 'created_at', 'last_login'],
+  });
 }
 
 async function updateLastLogin(id) {
-  await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [id]);
+  await User.update({ last_login: new Date() }, { where: { id } });
 }
 
 async function incrementTokenVersion(id) {
-  const { rows } = await pool.query(
-    'UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING token_version',
-    [id],
-  );
-  return rows[0]?.token_version;
+  await User.increment({ token_version: 1 }, { where: { id } });
+  const user = await User.findByPk(id, { attributes: ['token_version'] });
+  return user?.token_version;
+}
+
+async function deleteUser(id) {
+  const count = await User.destroy({ where: { id } });
+  return count > 0;
 }
 
 module.exports = {
@@ -49,4 +41,5 @@ module.exports = {
   findUserById,
   updateLastLogin,
   incrementTokenVersion,
+  deleteUser,
 };

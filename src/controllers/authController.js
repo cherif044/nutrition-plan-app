@@ -1,5 +1,5 @@
 const { createUser, verifyPassword } = require('../services/userService');
-const { findUserByUsername, updateLastLogin, incrementTokenVersion } = require('../repositories/userRepository');
+const { findUserByUsername, updateLastLogin, incrementTokenVersion, deleteUser } = require('../repositories/userRepository');
 const { signToken } = require('../middleware/auth');
 
 const COOKIE_OPTS = {
@@ -69,20 +69,20 @@ async function logout(req, res, next) {
   }
 }
 
-async function revokeAllSessions(req, res, next) {
-  try {
-    await incrementTokenVersion(req.user.id);
-    console.log(`[auth] All sessions revoked for: ${req.user.username}`);
-    res.clearCookie('token');
-    res.json({ message: 'All sessions revoked.' });
-  } catch (err) {
-    next(err);
-  }
-}
-
 function getMe(req, res) {
   const { id, username, firstname, lastname } = req.user;
   res.json({ user: { id, username, firstname, lastname } });
 }
 
-module.exports = { register, login, logout, revokeAllSessions, getMe };
+async function deleteUserHandler(req, res, next) {
+  try {
+    const ok = await deleteUser(req.user.id);
+    if (!ok) return res.status(404).json({ error: 'User not found.' });
+    res.clearCookie('token');
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { register, login, logout, getMe, deleteUserHandler };

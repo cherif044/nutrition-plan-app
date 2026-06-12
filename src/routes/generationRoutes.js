@@ -9,7 +9,7 @@ const {
   checkSwapHandler,
   autoBalanceMealHandler,
   computeSensitivityHandler,
-} = require('../controllers/plannerController');
+} = require('../controllers/generationController');
 
 const router = express.Router();
 
