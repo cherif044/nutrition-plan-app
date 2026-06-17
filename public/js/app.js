@@ -200,7 +200,6 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       name: meal.name,
       tag: meal.tag,
       target: { ...meal.target },
-      targetLocked: meal.targetLocked || false,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
@@ -208,9 +207,10 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       items: meal.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
-        locked: item.locked || false,
         alternatives: item.alternatives || [],
       })),
+      chatHistory: [],
+      chatTurnCount: 0,
       cardEl: null,
     };
     mealStates.push(state);
@@ -247,8 +247,6 @@ function renderSummary(targets) {
     metrics.append(metric);
   }
 
-  summary.querySelector('.redistribute-btn')?.addEventListener('click', handleRedistribute);
-
   return summary;
 }
 
@@ -260,7 +258,6 @@ function refreshRedFlags() {
   if (!summaryEl) return;
 
   const actual = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
-  const mealTargetSum = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
 
   for (const state of mealStates) {
     const t = computeTotals(state.items);
@@ -268,11 +265,6 @@ function refreshRedFlags() {
     actual.proteinG += t.proteinG;
     actual.carbG += t.carbG;
     actual.fatG += t.fatG;
-
-    mealTargetSum.calories += state.target.calories;
-    mealTargetSum.proteinG += state.target.proteinG;
-    mealTargetSum.carbG += state.target.carbG;
-    mealTargetSum.fatG += state.target.fatG;
   }
 
   const THRESH = 0.10;
@@ -301,69 +293,6 @@ function refreshRedFlags() {
     }
   }
 
-  // Check meal target sum vs daily goal
-  const targetSumFlagged = ['calories', 'proteinG', 'carbG', 'fatG'].some((key) => {
-    return Math.abs(mealTargetSum[key] - dailyTargets[key]) / Math.max(1, dailyTargets[key]) > THRESH;
-  });
-
-  const redistEl = summaryEl.querySelector('.meal-target-sum-warning');
-  if (redistEl) {
-    redistEl.hidden = !targetSumFlagged;
-    if (targetSumFlagged) {
-      const calGap = Math.round(mealTargetSum.calories - dailyTargets.calories);
-      const msgEl = redistEl.querySelector('.meal-target-sum-msg');
-      if (msgEl) {
-        msgEl.textContent = calGap > 0
-          ? `Meal targets exceed daily goal by ${calGap} kcal.`
-          : `Meal targets are ${Math.abs(calGap)} kcal short of daily goal.`;
-      }
-    }
-  }
-}
-
-// ── Auto-redistribute ────────────────────────────────────────────────────────
-
-function handleRedistribute() {
-  const unlockedStates = mealStates.filter((s) => !s.targetLocked);
-  if (unlockedStates.length === 0) return;
-
-  const unlockedSum = unlockedStates.reduce(
-    (acc, s) => {
-      acc.calories += s.target.calories;
-      acc.proteinG += s.target.proteinG;
-      acc.carbG += s.target.carbG;
-      acc.fatG += s.target.fatG;
-      return acc;
-    },
-    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-  );
-
-  const mealTargetSum = mealStates.reduce(
-    (acc, s) => {
-      acc.calories += s.target.calories;
-      acc.proteinG += s.target.proteinG;
-      acc.carbG += s.target.carbG;
-      acc.fatG += s.target.fatG;
-      return acc;
-    },
-    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-  );
-
-  for (const state of unlockedStates) {
-    for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-      const gap = dailyTargets[key] - mealTargetSum[key];
-      const total = unlockedSum[key];
-      if (total > 0) {
-        state.target[key] = Math.max(0, state.target[key] + gap * (state.target[key] / total));
-      } else {
-        state.target[key] = Math.max(0, state.target[key] + gap / unlockedStates.length);
-      }
-    }
-    refreshMealCardHeader(state.cardEl, state);
-    updateTargetEditorValues(state);
-  }
-
-  refreshRedFlags();
 }
 
 // ── Meal card rendering ──────────────────────────────────────────────────────
@@ -386,11 +315,7 @@ function renderMealCard(state) {
   // Add food button
   card.querySelector('.add-food-btn').addEventListener('click', () => toggleAddFoodPanel(state, card));
 
-  // Meal target: click to edit
-  card.querySelector('.meal-target').addEventListener('click', () => toggleTargetEditor(state, card));
-
-  // Lock target button
-  card.querySelector('.lock-target-btn').addEventListener('click', () => toggleTargetLock(state, card));
+  initMealChatbox(state, card);
 
   return card;
 }
@@ -403,86 +328,6 @@ function refreshMealCardHeader(card, state) {
   card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
   card.querySelector('.meal-macros').textContent =
     `P ${formatNumber(totals.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}g ${separator} F ${formatNumber(totals.fatG)}g`;
-
-  const lockBtn = card.querySelector('.lock-target-btn');
-  if (lockBtn) {
-    lockBtn.innerHTML = state.targetLocked ? '&#128274;' : '&#128275;';
-    lockBtn.title = state.targetLocked ? 'Unlock meal target' : 'Lock meal target';
-    lockBtn.classList.toggle('lock-btn--locked', state.targetLocked);
-  }
-}
-
-// ── Meal target editor ───────────────────────────────────────────────────────
-
-function toggleTargetEditor(state, card) {
-  const editorEl = card.querySelector('.meal-target-editor');
-  if (!editorEl) return;
-
-  if (!editorEl.hidden) {
-    editorEl.hidden = true;
-    return;
-  }
-
-  if (!editorEl.dataset.built) {
-    editorEl.innerHTML = `
-      <div class="target-field-grid">
-        <label class="target-input-label"><span>kcal</span><input type="number" class="target-input target-cal" min="0" step="1" /></label>
-        <label class="target-input-label"><span>Protein g</span><input type="number" class="target-input target-protein" min="0" step="0.1" /></label>
-        <label class="target-input-label"><span>Carbs g</span><input type="number" class="target-input target-carbs" min="0" step="0.1" /></label>
-        <label class="target-input-label"><span>Fat g</span><input type="number" class="target-input target-fat" min="0" step="0.1" /></label>
-      </div>
-      <button class="btn btn-primary save-target-btn" type="button" style="margin-top:8px;min-height:32px;font-size:.82rem;padding:0 12px;">Done</button>
-    `;
-    editorEl.dataset.built = '1';
-
-    // Save button closes editor
-    editorEl.querySelector('.save-target-btn').addEventListener('click', () => {
-      applyTargetEdits(state, editorEl);
-      editorEl.hidden = true;
-    });
-
-    // Live update on input
-    for (const input of editorEl.querySelectorAll('.target-input')) {
-      input.addEventListener('input', () => applyTargetEdits(state, editorEl));
-    }
-  }
-
-  // Fill current values
-  editorEl.querySelector('.target-cal').value = formatNumber(state.target.calories, 0);
-  editorEl.querySelector('.target-protein').value = formatNumber(state.target.proteinG, 1);
-  editorEl.querySelector('.target-carbs').value = formatNumber(state.target.carbG, 1);
-  editorEl.querySelector('.target-fat').value = formatNumber(state.target.fatG, 1);
-
-  editorEl.hidden = false;
-}
-
-function applyTargetEdits(state, editorEl) {
-  const cal = parseFloat(editorEl.querySelector('.target-cal').value);
-  const prot = parseFloat(editorEl.querySelector('.target-protein').value);
-  const carb = parseFloat(editorEl.querySelector('.target-carbs').value);
-  const fat = parseFloat(editorEl.querySelector('.target-fat').value);
-
-  if (Number.isFinite(cal)) state.target.calories = Math.max(0, cal);
-  if (Number.isFinite(prot)) state.target.proteinG = Math.max(0, prot);
-  if (Number.isFinite(carb)) state.target.carbG = Math.max(0, carb);
-  if (Number.isFinite(fat)) state.target.fatG = Math.max(0, fat);
-
-  refreshMealCardHeader(state.cardEl, state);
-  refreshRedFlags();
-}
-
-function updateTargetEditorValues(state) {
-  const editorEl = state.cardEl?.querySelector('.meal-target-editor');
-  if (!editorEl || editorEl.hidden || !editorEl.dataset.built) return;
-  editorEl.querySelector('.target-cal').value = formatNumber(state.target.calories, 0);
-  editorEl.querySelector('.target-protein').value = formatNumber(state.target.proteinG, 1);
-  editorEl.querySelector('.target-carbs').value = formatNumber(state.target.carbG, 1);
-  editorEl.querySelector('.target-fat').value = formatNumber(state.target.fatG, 1);
-}
-
-function toggleTargetLock(state, card) {
-  state.targetLocked = !state.targetLocked;
-  refreshMealCardHeader(card, state);
 }
 
 // ── Food item rendering ──────────────────────────────────────────────────────
@@ -493,7 +338,7 @@ function renderFoodItem(state, itemIndex) {
   const totals = itemTotals(food, item.quantityG);
 
   const row = document.createElement('div');
-  row.className = `food-item${item.locked ? ' food-item--locked' : ''}`;
+  row.className = 'food-item';
   row.dataset.itemIndex = itemIndex;
 
   row.innerHTML = `
@@ -523,7 +368,6 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
       <div class="food-actions">
-        <button class="icon-btn lock-btn${item.locked ? ' lock-btn--locked' : ''}" type="button" title="${item.locked ? 'Unlock food' : 'Lock food'}" aria-label="${item.locked ? 'Unlock' : 'Lock'} ${escapeHtml(food.name)}">${item.locked ? '&#128274;' : '&#128275;'}</button>
         <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">&#8652;</button>
       </div>
     </div>
@@ -557,17 +401,6 @@ function renderFoodItem(state, itemIndex) {
     state.items[itemIndex].quantityG = newQ;
     refreshMealDOM(state);
     refreshRedFlags();
-  });
-
-  // Lock button
-  row.querySelector('.lock-btn').addEventListener('click', () => {
-    state.items[itemIndex].locked = !state.items[itemIndex].locked;
-    const btn = row.querySelector('.lock-btn');
-    const locked = state.items[itemIndex].locked;
-    btn.innerHTML = locked ? '&#128274;' : '&#128275;';
-    btn.title = locked ? 'Unlock food' : 'Lock food';
-    btn.classList.toggle('lock-btn--locked', locked);
-    row.classList.toggle('food-item--locked', locked);
   });
 
   // Swap button
@@ -689,7 +522,6 @@ function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
   state.items[itemIndex] = {
     food: newFood,
     quantityG: gramAmount,
-    locked: false,
     alternatives: getAlternatives(newFood, state.tag),
   };
   const oldRow = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
@@ -754,7 +586,6 @@ function toggleAddFoodPanel(state, card) {
         const newItem = {
           food,
           quantityG: clampGrams(food, food.defaultServingG),
-          locked: false,
           alternatives: getAlternatives(food, state.tag),
         };
         state.items.push(newItem);
@@ -800,7 +631,6 @@ async function handleAutoBalance(state) {
         items: state.items.map((item) => ({
           foodId: item.food.id,
           quantityG: item.quantityG,
-          locked: item.locked || false,
         })),
         originalItems: state.originalItems.map((item) => ({
           foodId: item.food.id,
@@ -876,7 +706,6 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions) {
         const newItem = {
           food: s.food,
           quantityG: s.gramAmount,
-          locked: false,
           alternatives: getAlternatives(s.food, state.tag),
         };
         state.items.push(newItem);
@@ -1032,7 +861,6 @@ function buildPlanData() {
       name: state.name,
       tag: state.tag,
       target: state.target,
-      targetLocked: state.targetLocked || false,
       originalItems: state.originalItems.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
@@ -1040,12 +868,244 @@ function buildPlanData() {
       items: state.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
-        locked: item.locked || false,
         alternatives: item.alternatives || [],
         totals: itemTotals(item.food, item.quantityG),
       })),
       totals: computeTotals(state.items),
     })),
+  };
+}
+
+// ── AI Chatbox ───────────────────────────────────────────────────────────────
+
+function initMealChatbox(state, card) {
+  const messagesEl = card.querySelector('.meal-chatbox__messages');
+  const previewEl = card.querySelector('.meal-chatbox__preview-card');
+  const inputEl = card.querySelector('.meal-chatbox__input');
+  const sendBtn = card.querySelector('.meal-chatbox__send-btn');
+  const statusEl = card.querySelector('.meal-chatbox__status');
+
+  async function sendMessage() {
+    const userText = inputEl.value.trim();
+    if (!userText) return;
+
+    if (state.chatTurnCount >= 8) {
+      appendMessage(messagesEl, 'assistant',
+        'Having trouble finding a solution? Try using the manual controls or the Auto-balance button.');
+      return;
+    }
+
+    inputEl.value = '';
+    inputEl.disabled = true;
+    sendBtn.disabled = true;
+    previewEl.hidden = true;
+
+    appendMessage(messagesEl, 'user', userText);
+
+    statusEl.textContent = 'AI is thinking…';
+    statusEl.hidden = false;
+
+    const currentItems = state.items.map((item) => ({
+      name: item.food.name,
+      grams: item.quantityG,
+      foodId: item.food.id,
+      calories: parseFloat((item.food.caloriesPer100g * item.quantityG / 100).toFixed(1)),
+      proteinG: parseFloat((item.food.proteinGPer100g * item.quantityG / 100).toFixed(1)),
+      carbG: parseFloat((item.food.carbGPer100g * item.quantityG / 100).toFixed(1)),
+      fatG: parseFloat((item.food.fatGPer100g * item.quantityG / 100).toFixed(1)),
+    }));
+
+    const currentTotals = computeTotals(state.items);
+
+    state.chatHistory.push({ role: 'user', content: userText });
+    state.chatTurnCount += 1;
+
+    try {
+      const res = await fetch('/api/meal-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealTag: state.tag,
+          mealTarget: state.target,
+          currentItems,
+          currentTotals,
+          userPreferences: getUserPreferences(),
+          conversationHistory: state.chatHistory.slice(0, -1),
+          userMessage: userText,
+        }),
+        signal: AbortSignal.timeout(50_000),
+      });
+
+      const payload = await res.json();
+
+      if (!res.ok) throw new Error(payload.error || 'AI request failed');
+
+      state.chatHistory.push({ role: 'assistant', content: JSON.stringify(payload) });
+
+      if (payload.status === 'negotiating') {
+        appendMessage(messagesEl, 'assistant', payload.message);
+      } else if (payload.status === 'ready') {
+        appendMessage(messagesEl, 'assistant', payload.message);
+        await validateAndShowPreview(payload.changes, state, previewEl, currentItems);
+      }
+
+    } catch (err) {
+      console.error('[meal-chat error]', err);
+      appendMessage(messagesEl, 'assistant',
+        'Sorry, I had trouble processing that. Please try again.');
+    } finally {
+      statusEl.hidden = true;
+      inputEl.disabled = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+}
+
+async function validateAndShowPreview(changes, state, previewEl, currentItems) {
+  try {
+    const res = await fetch('/api/validate-meal-changes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mealTarget: state.target,
+        currentItems,
+        changes,
+      }),
+    });
+    const result = await res.json();
+
+    if (!result.valid) {
+      const errorContext = `[SYSTEM: Your last suggestion failed validation. Reason: ${result.reason}.${result.food_name ? ' Food: ' + result.food_name : ''}${result.details ? ' ' + JSON.stringify(result.details) : ''}. Please suggest a different solution.]`;
+      state.chatHistory.push({ role: 'user', content: errorContext });
+
+      const retryRes = await fetch('/api/meal-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealTag: state.tag,
+          mealTarget: state.target,
+          currentItems,
+          currentTotals: computeTotals(state.items),
+          userPreferences: getUserPreferences(),
+          conversationHistory: state.chatHistory.slice(0, -1),
+          userMessage: errorContext,
+        }),
+        signal: AbortSignal.timeout(50_000),
+      });
+      const retryPayload = await retryRes.json();
+      state.chatHistory.push({ role: 'assistant', content: JSON.stringify(retryPayload) });
+
+      const messagesEl = state.cardEl.querySelector('.meal-chatbox__messages');
+      if (retryPayload.status === 'ready') {
+        appendMessage(messagesEl, 'assistant', retryPayload.message);
+        await validateAndShowPreview(retryPayload.changes, state, previewEl, currentItems);
+      } else {
+        appendMessage(messagesEl, 'assistant', retryPayload.message);
+      }
+      return;
+    }
+
+    showPreviewCard(previewEl, result, state, changes);
+
+  } catch {
+    // Silently ignore — let user try again
+  }
+}
+
+function showPreviewCard(previewEl, validationResult, state, changes) {
+  previewEl.innerHTML = '';
+  previewEl.hidden = false;
+
+  const title = document.createElement('p');
+  title.className = 'chatbox-preview__title';
+  title.textContent = 'Proposed changes:';
+  previewEl.append(title);
+
+  const changesList = document.createElement('ul');
+  changesList.className = 'chatbox-preview__changes';
+  for (const change of changes) {
+    const li = document.createElement('li');
+    if (change.action === 'add') li.textContent = `+ Add ${change.food_name} — ${change.grams}g`;
+    if (change.action === 'remove') li.textContent = `− Remove ${change.food_name}`;
+    if (change.action === 'modify') li.textContent = `↕ ${change.food_name} → ${change.grams}g`;
+    changesList.append(li);
+  }
+  previewEl.append(changesList);
+
+  const totalsEl = document.createElement('div');
+  totalsEl.className = 'chatbox-preview__totals';
+  const t = validationResult.proposedTotals;
+  totalsEl.textContent = `Result: ${formatNumber(t.calories)}kcal | P:${formatNumber(t.proteinG)}g C:${formatNumber(t.carbG)}g F:${formatNumber(t.fatG)}g`;
+  previewEl.append(totalsEl);
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'chatbox-preview__actions';
+
+  const applyBtn = document.createElement('button');
+  applyBtn.type = 'button';
+  applyBtn.className = 'btn btn-primary';
+  applyBtn.textContent = 'Apply';
+
+  const discardBtn = document.createElement('button');
+  discardBtn.type = 'button';
+  discardBtn.className = 'btn btn-ghost';
+  discardBtn.textContent = 'Discard';
+
+  applyBtn.addEventListener('click', () => {
+    applyValidatedChanges(validationResult.proposedItems, state);
+    previewEl.hidden = true;
+    state.chatHistory = [];
+    state.chatTurnCount = 0;
+    const messagesEl = state.cardEl.querySelector('.meal-chatbox__messages');
+    messagesEl.innerHTML = '';
+  });
+
+  discardBtn.addEventListener('click', () => {
+    previewEl.hidden = true;
+  });
+
+  btnRow.append(applyBtn, discardBtn);
+  previewEl.append(btnRow);
+}
+
+function applyValidatedChanges(proposedItems, state) {
+  state.items = proposedItems.map((pi) => {
+    const food = foodsById.get(pi.foodId);
+    return {
+      food,
+      quantityG: pi.grams,
+      alternatives: getAlternatives(food, state.tag),
+    };
+  });
+
+  const foodList = state.cardEl.querySelector('.food-list');
+  foodList.innerHTML = '';
+  state.items.forEach((_, itemIndex) => {
+    foodList.append(renderFoodItem(state, itemIndex));
+  });
+
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function appendMessage(messagesEl, role, text) {
+  const bubble = document.createElement('div');
+  bubble.className = `chatbox-msg chatbox-msg--${role}`;
+  bubble.textContent = text;
+  messagesEl.append(bubble);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function getUserPreferences() {
+  return {
+    dietType: form.elements.dietType?.value || 'standard',
+    avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
   };
 }
 

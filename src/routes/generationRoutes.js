@@ -9,6 +9,8 @@ const {
   checkSwapHandler,
   autoBalanceMealHandler,
   computeSensitivityHandler,
+  mealChatHandler,
+  validateMealChangesHandler,
 } = require('../controllers/generationController');
 
 const router = express.Router();
@@ -21,5 +23,7 @@ router.post('/rebalance-meal', requireAuth, rebalanceMealHandler);
 router.post('/check-swap', requireAuth, checkSwapHandler);
 router.post('/auto-balance-meal', requireAuth, autoBalanceMealHandler);
 router.post('/compute-sensitivity', requireAuth, computeSensitivityHandler);
+router.post('/meal-chat', requireAuth, mealChatHandler);
+router.post('/validate-meal-changes', requireAuth, validateMealChangesHandler);
 
 module.exports = router;

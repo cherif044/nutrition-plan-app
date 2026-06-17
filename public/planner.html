@@ -173,10 +173,6 @@
       <section class="summary panel">
         <h2>Daily totals</h2>
         <div class="metrics"></div>
-        <div class="meal-target-sum-warning" hidden>
-          <span class="meal-target-sum-msg"></span>
-          <button class="btn btn-ghost redistribute-btn" type="button">Auto-redistribute</button>
-        </div>
       </section>
     </template>
 
@@ -194,9 +190,8 @@
         </div>
         <div class="meal-card__totals">
           <div class="meal-target-cell">
-            <span class="meal-target-label">Target <button class="lock-target-btn icon-btn" type="button" title="Lock target">&#128275;</button></span>
-            <strong class="meal-target" title="Click to edit target"></strong>
-            <div class="meal-target-editor" hidden></div>
+            <span class="meal-target-label">Target</span>
+            <strong class="meal-target"></strong>
           </div>
           <div>
             <span>Actual</span>
@@ -215,6 +210,20 @@
         <div class="food-list"></div>
         <div class="auto-balance-suggestions" hidden></div>
         <div class="add-food-panel" hidden></div>
+        <div class="meal-chatbox">
+          <div class="meal-chatbox__messages"></div>
+          <div class="meal-chatbox__preview-card" hidden></div>
+          <div class="meal-chatbox__input-row">
+            <input
+              type="text"
+              class="meal-chatbox__input"
+              placeholder="Ask AI to help balance this meal…"
+              autocomplete="off"
+            />
+            <button type="button" class="btn meal-chatbox__send-btn">Send</button>
+          </div>
+          <div class="meal-chatbox__status" hidden></div>
+        </div>
       </article>
     </template>
 

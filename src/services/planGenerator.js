@@ -533,7 +533,6 @@ function nudgeIntoBounds(items, bounds) {
     let bestIdx = -1;
     let bestRate = 0;
     current.forEach((item, i) => {
-      if (item.locked) return;
       const rate = item.food[field] / 100;
       if (rate <= 0) return;
       const minQ = item.food.minServingG ?? 20;
@@ -570,7 +569,6 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds }) {
     return {
       food,
       quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),
-      locked: Boolean(item.locked),
     };
   });
 
@@ -605,7 +603,6 @@ function checkRebalanceFeasibility({ mealTarget, items: rawItems, mealBounds }) 
       return {
         food,
         quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),
-        locked: Boolean(item.locked),
       };
     });
 
@@ -641,10 +638,10 @@ function adjustPortionsWithLocks(initialItems, target, bounds) {
     const carbDiff = target.carbG - totals.carbG;
     const calorieDiff = target.calories - totals.calories;
     const proteinIndex =
-      firstAdjustableIndexForRole(items, 'protein') ?? firstAdjustableIndexForRole(items, 'mixed');
-    const fatIndex = firstAdjustableIndexForRole(items, 'fat');
+      firstIndexForRole(items, 'protein') ?? firstIndexForRole(items, 'mixed');
+    const fatIndex = firstIndexForRole(items, 'fat');
     const carbIndex =
-      firstAdjustableIndexForRole(items, 'carb') ?? firstAdjustableIndexForRole(items, 'mixed');
+      firstIndexForRole(items, 'carb') ?? firstIndexForRole(items, 'mixed');
 
     if (proteinIndex !== null && Math.abs(proteinDiff) > proteinThresh) {
       const updated = adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g);
@@ -677,11 +674,6 @@ function adjustPortionsWithLocks(initialItems, target, bounds) {
   }
 
   return items.map((item) => ({ ...item, quantityG: roundToNearest(item.quantityG, 5) }));
-}
-
-function firstAdjustableIndexForRole(items, role) {
-  const index = items.findIndex((item) => !item.locked && item.food.macroRole === role);
-  return index === -1 ? null : index;
 }
 
 // Pre-compute how other foods should change when a given food increases by 10g.
@@ -729,7 +721,6 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
     return {
       food,
       quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),
-      locked: Boolean(item.locked),
     };
   });
 
@@ -756,8 +747,8 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
     // Priority 1: protein
     if (Math.abs(proteinDiff) > 2) {
       const idx =
-        firstAdjustableIndexForRole(current, 'protein') ??
-        firstAdjustableIndexForRole(current, 'mixed');
+        firstIndexForRole(current, 'protein') ??
+        firstIndexForRole(current, 'mixed');
       if (idx !== null) {
         const u = adjustByMacro(current[idx], proteinDiff, current[idx].food.proteinGPer100g);
         if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
@@ -767,8 +758,8 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
     // Priority 2: carbs
     if (Math.abs(carbDiff) > 2) {
       const idx =
-        firstAdjustableIndexForRole(current, 'carb') ??
-        firstAdjustableIndexForRole(current, 'mixed');
+        firstIndexForRole(current, 'carb') ??
+        firstIndexForRole(current, 'mixed');
       if (idx !== null) {
         const u = adjustByMacro(current[idx], carbDiff, current[idx].food.carbGPer100g);
         if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
@@ -777,11 +768,11 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
 
     // Priority 3: calories
     if (Math.abs(calDiff) > 15) {
-      const anyUnlocked = current.findIndex((i) => !i.locked);
+      const anyIdx = current.findIndex(() => true);
       const idx =
-        firstAdjustableIndexForRole(current, 'carb') ??
-        firstAdjustableIndexForRole(current, 'mixed') ??
-        (anyUnlocked === -1 ? null : anyUnlocked);
+        firstIndexForRole(current, 'carb') ??
+        firstIndexForRole(current, 'mixed') ??
+        (anyIdx === -1 ? null : anyIdx);
       if (idx !== null) {
         const u = adjustByCalories(current[idx], calDiff);
         if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
@@ -790,7 +781,7 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
 
     // Priority 4: fats
     if (Math.abs(fatDiff) > 2) {
-      const idx = firstAdjustableIndexForRole(current, 'fat');
+      const idx = firstIndexForRole(current, 'fat');
       if (idx !== null) {
         const u = adjustByMacro(current[idx], fatDiff, current[idx].food.fatGPer100g);
         if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
@@ -859,7 +850,6 @@ function findMostProblematicFood(items, origTotals) {
   let bestScore = -1;
 
   for (const item of items) {
-    if (item.locked) continue;
     const rate = item.food[fieldPer100] / 100;
     if (rate <= 0) continue;
     const minQ = item.food.minServingG ?? 20;
@@ -869,7 +859,7 @@ function findMostProblematicFood(items, origTotals) {
     if (score > bestScore) { bestScore = score; bestItem = item; }
   }
 
-  return bestItem ?? items.find((i) => !i.locked) ?? null;
+  return bestItem ?? items[0] ?? null;
 }
 
 function suggestReplacementsForFood({ problematicFood, items, origTotals, mealTag, foods }) {
@@ -918,6 +908,46 @@ function suggestReplacementsForFood({ problematicFood, items, origTotals, mealTa
   }));
 }
 
+function filterFoodsForChatbox({ foods, mealTag, userInput }) {
+  let filtered = foods.filter((f) => f.mealTags.includes(mealTag));
+
+  try {
+    const safeInput = {
+      dietType: userInput.dietType || 'standard',
+      avoidFoods: Array.isArray(userInput.avoidFoods) ? userInput.avoidFoods : [],
+      allergies: [],
+      dislikes: [],
+    };
+    filtered = filterFoods(filtered, safeInput);
+  } catch {
+    // If filter fails (e.g. unknown term), use unfiltered by-tag results
+  }
+
+  const byRole = { protein: [], carb: [], fat: [], mixed: [] };
+  for (const f of filtered) {
+    byRole[f.macroRole]?.push(f);
+  }
+
+  const balanced = [
+    ...byRole.protein.slice(0, 12),
+    ...byRole.carb.slice(0, 12),
+    ...byRole.fat.slice(0, 8),
+    ...byRole.mixed.slice(0, 8),
+  ];
+
+  return balanced.map((f) => ({
+    id: f.id,
+    name: f.name,
+    macroRole: f.macroRole,
+    minServingG: f.minServingG,
+    maxServingG: f.maxServingG,
+    caloriesPer100g: f.caloriesPer100g,
+    proteinGPer100g: f.proteinGPer100g,
+    carbGPer100g: f.carbGPer100g,
+    fatGPer100g: f.fatGPer100g,
+  }));
+}
+
 module.exports = {
   generatePlan,
   getFoods,
@@ -927,4 +957,5 @@ module.exports = {
   computeSensitivityMatrix,
   checkRebalanceFeasibility,
   computeMealBounds,
+  filterFoodsForChatbox,
 };

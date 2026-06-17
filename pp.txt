@@ -1,35 +1,21 @@
-Problem 1 — Daily totals off on initial generate
-Root cause: nutritionConstants.js reveals the tolerance constants are loose and mixed — calorieTolerancePercent is 15%, proteinToleranceG is an absolute 10g, carbToleranceG is absolute 15g, fatToleranceG is absolute 10g. This means isWithinTolerance in planGenerator.js accepts a meal as "good enough" even when it's significantly off. For example if protein target is 160g, 10g absolute tolerance is only 6% — but for a small meal targeting 40g protein, 10g absolute tolerance is 25% error. These per-meal errors compound across all meals. Additionally adjustPortions breaks out of its loop the moment a food hits its serving clamp without redistributing the unmet deficit to another food. There is zero day-level reconciliation after all meals are generated.
-Solution — all changes in planGenerator.js:
-
-In generatePlan, after the meals array is fully built, add a reconciliation step: sum all meal.totals across all meals and compare to dailyTargets. For each macro, if the sum deviates more than 5% from the daily target, identify the meal with the largest individual deviation for that macro and call rebalanceMeal on it passing tighter mealBounds of 5% instead of 10%, absorbing the gap.
-In adjustPortions, when the primary role food (protein/fat/carb) hits its clamp and can't move further, instead of breaking, loop through all other unlocked foods regardless of role and try adjustByMacro or adjustByCalories on each until one moves. Only break when truly no food can move.
-
-
-Problem 2 — Macro targets not shown per meal in UI
-Root cause: The meal object returned by generatePlan already contains meal.target.proteinG, meal.target.carbG, meal.target.fatG alongside meal.target.calories. The frontend meal card is reading meal.target.calories and meal.totals.calories to show actual vs target for calories, but for macros it only reads meal.totals.proteinG, meal.totals.carbG, meal.totals.fatG without rendering the corresponding target values.
-Solution — frontend only, in public/js/app.js:
-Find where each meal's macro row is rendered. For each of protein, carbs, fat — next to the actual value already displayed, add the target value pulled from meal.target.proteinG, meal.target.carbG, meal.target.fatG respectively. Exact same pattern already implemented for calories.
-
-Problem 3 — Swap suggestion doesn't guarantee fix
-Root cause: In planGenerator.js, suggestReplacementsForFood computes a gramAmount for each candidate food that it estimates will close the macro gap. It filters out candidates where gramAmount falls outside minServingG/maxServingG. But it never actually simulates the full meal totals with that candidate substituted in and verifies the result passes findBoundsViolation. So it can suggest a food+gramAmount that looks mathematically correct in isolation but still leaves the meal outside bounds because other macro interactions weren't accounted for.
-Solution — planGenerator.js only, inside suggestReplacementsForFood:
-After computing gramAmount for a candidate and confirming it's within serving bounds, before pushing to results, do the following: build a temporary items array that is a copy of the current meal items with the problematic food replaced by this candidate at gramAmount. Call totalsForItems on that temporary array. Call findBoundsViolation on those totals using computeMealBounds(mealTarget). Only push to results if findBoundsViolation returns null. This makes every suggestion a guaranteed fix. The function already receives items and has access to computeMealBounds and findBoundsViolation so no new dependencies are needed. Note: suggestReplacementsForFood currently does not receive mealTarget — you need to pass it in from autoBalanceMeal where it is called, since autoBalanceMeal has access to origTotals which can serve as the target.
-
-Problem 4 — Can't edit target macros per meal
-Root cause: The backend rebalanceMeal in planGenerator.js already accepts a full mealTarget object with all four macros and handles it correctly. rebalanceMealHandler in generationController.js already passes mealTarget through. The gap is entirely in the frontend — only calorie target editing is exposed in the UI, with cross-meal compensation only implemented for calories.
-Solution — frontend only, in public/js/app.js:
-In the meal target editor section where calorie editing is implemented, add three additional editable fields for protein, carbs, and fat targets. Each field when edited should: update that meal's target for that macro, calculate the delta (new value minus old value), distribute that delta in opposite sign across all other meals proportionally by their current target share of that macro, then re-render all affected meal targets. When the user confirms, send the updated mealTarget (with all four macros) to the existing /rebalance endpoint. This is the exact same compensation pattern already used for calories, just replicated for the three macro fields.
-
-Problem 5 — Auto-balance not trying hard enough after swap
-Root cause: In planGenerator.js, autoBalanceMeal iterates up to 40 times with priority protein → carbs → calories → fats. Each pass calls firstAdjustableIndexForRole which finds only the first unlocked food matching that specific role. If that food is clamped at its serving limit, the function falls through to the next macro priority instead of trying other unlocked foods that might also carry that macro. For example if protein is under-target and the protein-role food is at maxServingG, it gives up on protein entirely for that pass even if a mixed-role food could contribute. After the loop, there is no nudge pass to catch small remaining violations.
-Solution — planGenerator.js only, inside autoBalanceMeal:
-
-Replace firstAdjustableIndexForRole calls with a fallback chain: first try the matching role food, if it's clamped try mixed role, if still clamped try any unlocked food that has a meaningful per-100g value for that macro (greater than 5g per 100g for protein/carbs/fat).
-After the main 40-iteration loop ends, add a nudgeIntoBounds pass using computeMealBounds built from origTotals as the target, passing the current items state. This catches any residual small violations that the main loop couldn't reach.
-
-
-Problem 6 — Auto-redistribute correctness
-Root cause: Looking at generationController.js, there is no dedicated redistribute endpoint or handler — redistribution is handled entirely in the frontend in public/js/app.js. splitMeals in nutritionService.js uses fixed proportion factors from MEAL_SPLITS in nutritionConstants.js. When a user edits one meal's calorie target and triggers redistribute, the frontend is likely recalculating other meals' targets using the original MEAL_SPLITS proportions applied to the full daily target, completely ignoring the user-edited meal's new value. This means the redistributed meals don't actually sum to the daily target correctly.
-Solution — frontend only, in public/js/app.js:
-The redistribute logic must work as follows: maintain a list of which meals have been manually edited by the user (locked meals). When redistribute is triggered, take the daily target for each macro. Subtract the sum of all locked meals' targets from the daily target to get the remaining budget for each macro. Take the original MEAL_SPLITS proportions for only the unlocked meals, renormalize them so they sum to 1.0, then multiply each by the remaining budget to get each unlocked meal's new target. This guarantees all meal targets always sum exactly to the daily target regardless of how many meals have been manually edited.
+Fixes to make the system prompt more forceful:
+1. Add an explicit commit trigger
+Add this rule to your system prompt:
+IMPORTANT: If the user gives you a list of specific foods they want, 
+DO NOT ask questions. Immediately calculate the best quantities and 
+respond with status "ready". Only use status "negotiating" if you 
+genuinely need the user to make a choice between options.
+2. Add a turn limit enforcement in the prompt itself
+If this is your 3rd or more response in this conversation, 
+you MUST respond with status "ready" — stop negotiating and commit 
+to your best solution now.
+3. Make the JSON examples more explicit
+The 7B model sometimes ignores abstract instructions but follows concrete examples. Add a few-shot example directly in the system prompt:
+EXAMPLE — when user says "add gouda and pasta":
+WRONG: { "status": "negotiating", "message": "Great choice! How much gouda would you like?" }
+RIGHT: { "status": "ready", "message": "Adding gouda 60g and pasta 120g to balance your protein and carbs.", "changes": [...] }
+4. Force it to calculate before responding
+Add at the end of the system prompt:
+Before responding, silently calculate what quantities of the requested 
+foods would hit the meal target within 5% tolerance. Then respond with 
+status "ready" and those quantities. Do the math first, commit second.
