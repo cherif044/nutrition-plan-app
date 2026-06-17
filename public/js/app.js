@@ -211,6 +211,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       })),
       chatHistory: [],
       chatTurnCount: 0,
+      chatWorkingItems: null,
       cardEl: null,
     };
     mealStates.push(state);
@@ -905,7 +906,11 @@ function initMealChatbox(state, card) {
     statusEl.textContent = 'AI is thinking…';
     statusEl.hidden = false;
 
-    const currentItems = state.items.map((item) => ({
+    const sourceItems = state.chatWorkingItems
+      ? state.chatWorkingItems.map((pi) => ({ food: foodsById.get(pi.foodId), quantityG: pi.grams }))
+      : state.items;
+
+    const currentItems = sourceItems.map((item) => ({
       name: item.food.name,
       grams: item.quantityG,
       foodId: item.food.id,
@@ -917,7 +922,7 @@ function initMealChatbox(state, card) {
       fatG: parseFloat((item.food.fatGPer100g * item.quantityG / 100).toFixed(1)),
     }));
 
-    const currentTotals = computeTotals(state.items);
+    const currentTotals = computeTotals(sourceItems);
 
     state.chatHistory.push({ role: 'user', content: userText });
     state.chatTurnCount += 1;
@@ -944,10 +949,11 @@ function initMealChatbox(state, card) {
 
       state.chatHistory.push({ role: 'assistant', content: JSON.stringify(payload) });
 
+      const snapshotOpts = { snapshot: payload.meal_snapshot, snapshotTotals: payload.meal_snapshot_totals, mealTarget: state.target };
       if (payload.status === 'negotiating') {
-        appendMessage(messagesEl, 'assistant', payload.message);
+        appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
       } else if (payload.status === 'ready') {
-        appendMessage(messagesEl, 'assistant', payload.message);
+        appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
         await validateAndShowPreview(payload.changes, state, previewEl, currentItems);
       }
 
@@ -992,35 +998,14 @@ async function validateAndShowPreview(changes, state, previewEl, currentItems) {
       } else {
         errorContext = `[SYSTEM: Your last suggestion failed validation. Reason: ${result.reason}.${result.food_name ? ' Food: ' + result.food_name : ''}${result.details ? ' ' + JSON.stringify(result.details) : ''}. Please suggest a different solution.]`;
       }
+      // Inject failure into history so next user message triggers a better AI response
       state.chatHistory.push({ role: 'user', content: errorContext });
-
-      const retryRes = await fetch('/api/meal-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mealTag: state.tag,
-          mealTarget: state.target,
-          currentItems,
-          currentTotals: computeTotals(state.items),
-          userPreferences: getUserPreferences(),
-          conversationHistory: state.chatHistory.slice(0, -1),
-          userMessage: errorContext,
-        }),
-        signal: AbortSignal.timeout(50_000),
-      });
-      const retryPayload = await retryRes.json();
-      state.chatHistory.push({ role: 'assistant', content: JSON.stringify(retryPayload) });
-
       const messagesEl = state.cardEl.querySelector('.meal-chatbox__messages');
-      if (retryPayload.status === 'ready') {
-        appendMessage(messagesEl, 'assistant', retryPayload.message);
-        await validateAndShowPreview(retryPayload.changes, state, previewEl, currentItems);
-      } else {
-        appendMessage(messagesEl, 'assistant', retryPayload.message);
-      }
+      appendMessage(messagesEl, 'assistant', "That suggestion didn't quite hit the targets. Try rephrasing or ask me to try again.");
       return;
     }
 
+    state.chatWorkingItems = result.proposedItems;
     showPreviewCard(previewEl, result, state, changes);
 
   } catch {
@@ -1068,7 +1053,8 @@ function showPreviewCard(previewEl, validationResult, state, changes) {
   discardBtn.textContent = 'Discard';
 
   applyBtn.addEventListener('click', () => {
-    applyValidatedChanges(validationResult.proposedItems, state);
+    applyValidatedChanges(state.chatWorkingItems || validationResult.proposedItems, state);
+    state.chatWorkingItems = null;
     previewEl.hidden = true;
     state.chatHistory = [];
     state.chatTurnCount = 0;
@@ -1077,6 +1063,7 @@ function showPreviewCard(previewEl, validationResult, state, changes) {
   });
 
   discardBtn.addEventListener('click', () => {
+    state.chatWorkingItems = null;
     previewEl.hidden = true;
   });
 
@@ -1104,12 +1091,48 @@ function applyValidatedChanges(proposedItems, state) {
   refreshRedFlags();
 }
 
-function appendMessage(messagesEl, role, text) {
+function appendMessage(messagesEl, role, text, opts = {}) {
   const bubble = document.createElement('div');
   bubble.className = `chatbox-msg chatbox-msg--${role}`;
   bubble.textContent = text;
   messagesEl.append(bubble);
+  if (role === 'assistant' && opts.snapshot?.length && opts.mealTarget) {
+    messagesEl.append(buildSnapshotTable(opts.snapshot, opts.snapshotTotals, opts.mealTarget));
+  }
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function buildSnapshotTable(snapshot, totals, mealTarget) {
+  const tol = 0.05;
+  const ok = totals && ['calories', 'proteinG', 'carbG', 'fatG'].every(
+    (k) => Math.abs((totals[k] - mealTarget[k]) / Math.max(1, mealTarget[k])) <= tol,
+  );
+
+  const table = document.createElement('table');
+  table.className = 'chatbox-snapshot';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Food</th><th>g</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr>';
+  table.append(thead);
+
+  const tbody = document.createElement('tbody');
+  for (const row of snapshot) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.name}</td><td>${row.grams}</td><td>${formatNumber(row.calories)}</td><td>${formatNumber(row.proteinG)}</td><td>${formatNumber(row.carbG)}</td><td>${formatNumber(row.fatG)}</td>`;
+    tbody.append(tr);
+  }
+  table.append(tbody);
+
+  if (totals) {
+    const tfoot = document.createElement('tfoot');
+    const tr = document.createElement('tr');
+    tr.className = ok ? 'snapshot-ok' : 'snapshot-off';
+    tr.innerHTML = `<td>Total</td><td>—</td><td>${formatNumber(totals.calories)}</td><td>${formatNumber(totals.proteinG)}</td><td>${formatNumber(totals.carbG)}</td><td>${formatNumber(totals.fatG)}</td>`;
+    tfoot.append(tr);
+    table.append(tfoot);
+  }
+
+  return table;
 }
 
 function getUserPreferences() {

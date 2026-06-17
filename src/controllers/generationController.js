@@ -117,6 +117,15 @@ async function mealChatHandler(req, res, next) {
         mealBounds,
       });
 
+      console.log('TIER1 RESULT:', JSON.stringify(tier1Result));
+      console.log('MEAL BOUNDS:', JSON.stringify(computeMealBounds(mealTarget, 0.05)));
+      console.log('REBALANCE INPUT:', JSON.stringify(rebalanceInput.map((r) => ({
+        name: r.food.name,
+        quantityG: r.quantityG,
+        maxServingG: r.food.maxServingG,
+        minServingG: r.food.minServingG,
+      }))));
+
       if (tier1Result.success) {
         const changes = tier1Result.items
           .map((resultItem) => {
@@ -137,7 +146,95 @@ async function mealChatHandler(req, res, next) {
         });
       }
 
-      // Tier 1 failed — record constrained foods and remaining gap for Tier 2 context
+      // TIER 1.5 — smart sequential scaling (handles foods already at max like oil)
+      if (tier1Result.violatedMacro === 'calories') {
+        const totalMaxCal = rebalanceInput.reduce(
+          (sum, item) => sum + (item.food.maxServingG * item.food.caloriesPer100g / 100), 0,
+        );
+
+        if (totalMaxCal >= mealTarget.calories) {
+          let remaining = mealTarget.calories;
+          const result = [];
+
+          // First pass: lock foods already at max, bank their calories
+          for (const item of rebalanceInput) {
+            const currentCal = item.quantityG * item.food.caloriesPer100g / 100;
+            if (item.quantityG >= item.food.maxServingG * 0.99) {
+              result.push({ ...item });
+              remaining -= currentCal;
+            } else {
+              result.push({ ...item, _needsScale: true });
+            }
+          }
+
+          // Second pass: distribute remaining calories among scalable foods
+          // proportionally by their max calorie capacity
+          const scalableMaxCal = result
+            .filter((i) => i._needsScale)
+            .reduce((sum, item) => sum + (item.food.maxServingG * item.food.caloriesPer100g / 100), 0);
+
+          for (const item of result) {
+            if (!item._needsScale) continue;
+            const itemMaxCal = item.food.maxServingG * item.food.caloriesPer100g / 100;
+            const share = remaining * (itemMaxCal / scalableMaxCal);
+            const newQ = share / (item.food.caloriesPer100g / 100);
+            item.quantityG = Math.min(
+              item.food.maxServingG,
+              Math.max(item.food.minServingG, Math.round(newQ / 5) * 5),
+            );
+            delete item._needsScale;
+          }
+
+          const scaledCal = result.reduce(
+            (sum, item) => sum + (item.quantityG * item.food.caloriesPer100g / 100), 0,
+          );
+
+          if (Math.abs(scaledCal - mealTarget.calories) / mealTarget.calories <= 0.10) {
+            const changes = result
+              .map((item, i) => {
+                if (Math.abs(item.quantityG - rebalanceInput[i].quantityG) < 5) return null;
+                return { action: 'modify', food_name: item.food.name, grams: item.quantityG };
+              })
+              .filter(Boolean);
+
+            if (changes.length > 0) {
+              const snapshotItems = result.map((item) => {
+                const factor = item.quantityG / 100;
+                return {
+                  name: item.food.name,
+                  grams: item.quantityG,
+                  calories: parseFloat((item.food.caloriesPer100g * factor).toFixed(1)),
+                  proteinG: parseFloat((item.food.proteinGPer100g * factor).toFixed(1)),
+                  carbG: parseFloat((item.food.carbGPer100g * factor).toFixed(1)),
+                  fatG: parseFloat((item.food.fatGPer100g * factor).toFixed(1)),
+                };
+              });
+              const snapshotTotals = snapshotItems.reduce(
+                (acc, r) => ({
+                  calories: acc.calories + r.calories,
+                  proteinG: acc.proteinG + r.proteinG,
+                  carbG: acc.carbG + r.carbG,
+                  fatG: acc.fatG + r.fatG,
+                }),
+                { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+              );
+              for (const k of ['calories', 'proteinG', 'carbG', 'fatG']) {
+                snapshotTotals[k] = parseFloat(snapshotTotals[k].toFixed(1));
+              }
+
+              return res.json({
+                status: 'ready',
+                message: `Scaled up portions to reach your calorie target: ${changes.map((c) => `${c.food_name} → ${c.grams}g`).join(', ')}.`,
+                changes,
+                meal_snapshot: snapshotItems,
+                meal_snapshot_totals: snapshotTotals,
+              });
+            }
+          }
+        }
+      }
+
+      // Tier 1 and 1.5 failed — record constrained foods and remaining gap for Tier 2 context
       atLimitFoods = rebalanceInput.filter(
         (item) => item.quantityG >= item.food.maxServingG * 0.95 || item.quantityG <= item.food.minServingG * 1.05,
       );
@@ -154,12 +251,15 @@ async function mealChatHandler(req, res, next) {
     const turnCount = Array.isArray(conversationHistory) ? Math.ceil(conversationHistory.length / 2) : 0;
     const existingCategories = [...new Set(currentItems.flatMap((i) => i.categories || []))];
 
-    const tier1Section = atLimitFoods.length > 0
+    const tier1Section = atLimitFoods.length > 0 || remainingGap
       ? `TIER 1 FAILURE CONTEXT:
-JS balancing already tried modifying existing food grams.
-It failed because these foods hit their serving limits:
-${atLimitFoods.map((f) => `- ${f.food.name} (${f.food.macroRole}) at max ${f.food.maxServingG}g`).join('\n')}
-Remaining gap: Calories ${remainingGap.calories}kcal | P:${remainingGap.proteinG}g | C:${remainingGap.carbG}g | F:${remainingGap.fatG}g
+JS balancing already tried modifying existing food grams but could not reach the target.
+${atLimitFoods.length > 0 ? `These foods hit their serving limits:\n${atLimitFoods.map((f) => `- ${f.food.name} (${f.food.macroRole}) at max ${f.food.maxServingG}g`).join('\n')}` : 'No single food hit its limit, but the combination could not reach the target.'}
+Remaining gap: Calories ${remainingGap?.calories ?? 0}kcal | P:${remainingGap?.proteinG ?? 0}g | C:${remainingGap?.carbG ?? 0}g | F:${remainingGap?.fatG ?? 0}g
+
+SWAP CONTEXT:
+The user recently swapped foods in this meal. The meal target is ${mealTarget.calories} kcal but the current foods at current portions only reach ${currentTotals?.calories ?? 0} kcal. The gap is large because the new foods have different calorie densities than the originals.
+To close this gap you will likely need to significantly increase existing food portions toward their maxServingG limits AND possibly add one complementary food. Do not be surprised by large gram increases.
 
 `
       : '';
@@ -194,6 +294,12 @@ MEAL TYPE: ${mealTag} — only suggest foods whose mealTags includes '${mealTag}
 AVAILABLE FOODS (already filtered for this meal type and user preferences — you MUST only suggest foods from this list):
 ${availableFoods.map((f) => `- ${f.name} | role:${f.macroRole} | min:${f.minServingG}g max:${f.maxServingG}g | per100g: ${f.caloriesPer100g}kcal P:${f.proteinGPer100g}g C:${f.carbGPer100g}g F:${f.fatGPer100g}g`).join('\n')}
 
+NUTRITION CALCULATION RULES:
+You MUST calculate all macros using ONLY the per100g values from AVAILABLE FOODS and CURRENT MEAL FOODS listed above.
+NEVER use your own training knowledge of nutrition values — our database is the only source of truth.
+Formula: value = (valuePer100g / 100) * grams
+Before proposing any change, calculate the full resulting meal totals using these formulas and verify they land within 5% of MEAL TARGET. Only then respond with status ready.
+
 RULES:
 1. You may ONLY suggest foods from the AVAILABLE FOODS list above. Never invent food names.
 2. All quantities must be within each food's minServingG and maxServingG.
@@ -203,8 +309,9 @@ RULES:
 6. If the user says something unrelated to nutrition or this meal, politely redirect them.
 7. Never suggest removing all foods from a meal.
 8. IMPORTANT: If the user gives you a list of specific foods they want, DO NOT ask questions. Immediately calculate the best quantities and respond with status "ready". Only use status "negotiating" if you genuinely need the user to make a choice between options.
-9. ${turnCount >= 2 ? 'MANDATORY: This is your 3rd or later response. You MUST respond with status "ready" — stop negotiating and commit to your best solution now.' : 'If this is your 3rd or more response in this conversation, you MUST respond with status "ready" — stop negotiating and commit to your best solution now.'}
-10. You MUST always respond in this exact JSON format — no exceptions, no extra text outside the JSON object:
+
+TURN LIMIT: You have ${8 - turnCount} responses remaining.
+${turnCount >= 2 ? 'MANDATORY: You MUST respond with status "ready" right now. No more negotiating.' : ''}${turnCount === 1 ? 'WARNING: This is your second response. Next one must be status "ready".' : ''}
 
 AI DECISION PRIORITY (when a new food is needed):
 1. First try: add one food from AVAILABLE FOODS that fills the remaining gap, has a unique macroRole not already in the meal, shares NO categories with existing meal foods, and has mealTag '${mealTag}'
@@ -225,23 +332,16 @@ CURRENT GAP TO TARGET:
 - Carbs missing: ${Math.round(mealTarget.carbG - (currentTotals?.carbG ?? 0))}g
 - Fat missing: ${Math.round(mealTarget.fatG - (currentTotals?.fatG ?? 0))}g
 
-EXAMPLE — when user says "add gouda and pasta":
-WRONG: { "status": "negotiating", "message": "Great choice! How much gouda would you like?" }
-RIGHT: { "status": "ready", "message": "Adding gouda 60g and pasta 120g to balance your protein and carbs.", "changes": [{ "action": "add", "food_name": "Gouda", "grams": 60 }, { "action": "add", "food_name": "Pasta", "grams": 120 }] }
+You MUST always respond in this exact JSON format — no exceptions, no extra text outside the JSON object:
 
-When still discussing or presenting options to the user:
-{ "status": "negotiating", "message": "your conversational message here" }
+When negotiating:
+{ "status": "negotiating", "message": "your message here", "meal_snapshot": [{ "name": "food name", "grams": 150, "calories": 247, "proteinG": 35, "carbG": 0, "fatG": 6 }], "meal_snapshot_totals": { "calories": 580, "proteinG": 50, "carbG": 60, "fatG": 15 } }
 
-When you have a complete final solution ready to apply:
-{
-  "status": "ready",
-  "message": "brief summary of what you are proposing",
-  "changes": [
-    { "action": "add", "food_name": "exact name from AVAILABLE FOODS", "grams": 120 },
-    { "action": "remove", "food_name": "exact name from CURRENT MEAL FOODS" },
-    { "action": "modify", "food_name": "exact name from CURRENT MEAL FOODS", "grams": 90 }
-  ]
-}
+When ready:
+{ "status": "ready", "message": "brief summary", "meal_snapshot": [ { "name": "...", "grams": 0, "calories": 0, "proteinG": 0, "carbG": 0, "fatG": 0 } ], "meal_snapshot_totals": { "calories": 0, "proteinG": 0, "carbG": 0, "fatG": 0 }, "changes": [ { "action": "add", "food_name": "exact name from AVAILABLE FOODS", "grams": 120 }, { "action": "remove", "food_name": "exact name from CURRENT MEAL FOODS" }, { "action": "modify", "food_name": "exact name from CURRENT MEAL FOODS", "grams": 90 } ] }
+
+For negotiating with no changes yet: meal_snapshot shows current meal unchanged.
+For ready: meal_snapshot shows the full meal AFTER applying all changes, with calories/proteinG/carbG/fatG calculated from database per100g values.
 
 Before responding, silently calculate what quantities of the requested foods would hit the meal target within 5% tolerance. Then respond with status "ready" and those quantities. Do the math first, commit second.`;
 
@@ -349,8 +449,9 @@ async function validateMealChangesHandler(req, res, next) {
       proposedTotals[key] = parseFloat(proposedTotals[key].toFixed(1));
     }
 
-    // Check macros within ±5% of target
-    const TOLERANCE = 0.05;
+    // Check macros within tolerance of target
+    console.log('VALIDATION - target:', mealTarget, 'proposed:', proposedTotals);
+    const TOLERANCE = 0.10;
     for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
       const tgt = mealTarget[key];
       const actual = proposedTotals[key];

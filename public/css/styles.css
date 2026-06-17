@@ -1997,3 +1997,48 @@ select:focus {
   display: flex;
   gap: 8px;
 }
+
+/* ── Chatbox snapshot table ──────────────────────────────────────────────────── */
+
+.chatbox-snapshot {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  margin-top: 6px;
+  color: var(--text-primary);
+}
+
+.chatbox-snapshot th,
+.chatbox-snapshot td {
+  padding: 2px 5px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.chatbox-snapshot th:first-child,
+.chatbox-snapshot td:first-child {
+  text-align: left;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatbox-snapshot thead th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chatbox-snapshot tfoot tr.snapshot-ok td {
+  font-weight: 600;
+  color: var(--success, #22c55e);
+  border-top: 2px solid var(--success, #22c55e);
+  border-bottom: none;
+}
+
+.chatbox-snapshot tfoot tr.snapshot-off td {
+  font-weight: 600;
+  color: var(--danger, #ef4444);
+  border-top: 2px solid var(--danger, #ef4444);
+  border-bottom: none;
+}
