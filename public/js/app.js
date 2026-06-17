@@ -909,6 +909,8 @@ function initMealChatbox(state, card) {
       name: item.food.name,
       grams: item.quantityG,
       foodId: item.food.id,
+      macroRole: item.food.macroRole,
+      categories: item.food.categories || [],
       calories: parseFloat((item.food.caloriesPer100g * item.quantityG / 100).toFixed(1)),
       proteinG: parseFloat((item.food.proteinGPer100g * item.quantityG / 100).toFixed(1)),
       carbG: parseFloat((item.food.carbGPer100g * item.quantityG / 100).toFixed(1)),
@@ -974,6 +976,7 @@ async function validateAndShowPreview(changes, state, previewEl, currentItems) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mealTarget: state.target,
+        mealTag: state.tag,
         currentItems,
         changes,
       }),
@@ -981,7 +984,14 @@ async function validateAndShowPreview(changes, state, previewEl, currentItems) {
     const result = await res.json();
 
     if (!result.valid) {
-      const errorContext = `[SYSTEM: Your last suggestion failed validation. Reason: ${result.reason}.${result.food_name ? ' Food: ' + result.food_name : ''}${result.details ? ' ' + JSON.stringify(result.details) : ''}. Please suggest a different solution.]`;
+      let errorContext;
+      if (result.reason === 'category_overlap') {
+        errorContext = `[SYSTEM: ${result.food_name} rejected — shares category '${result.duplicateCategory}' with existing meal food. Suggest a different food with no category overlap.]`;
+      } else if (result.reason === 'wrong_meal_type') {
+        errorContext = `[SYSTEM: ${result.food_name} rejected — not a valid ${result.mealTag} food. Suggest a food whose mealTags includes '${result.mealTag}'.]`;
+      } else {
+        errorContext = `[SYSTEM: Your last suggestion failed validation. Reason: ${result.reason}.${result.food_name ? ' Food: ' + result.food_name : ''}${result.details ? ' ' + JSON.stringify(result.details) : ''}. Please suggest a different solution.]`;
+      }
       state.chatHistory.push({ role: 'user', content: errorContext });
 
       const retryRes = await fetch('/api/meal-chat', {

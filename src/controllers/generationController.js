@@ -1,5 +1,5 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
-const { generatePlan, getFoods, rebalanceMeal, autoBalanceMeal, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox } = require('../services/planGenerator');
+const { generatePlan, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox } = require('../services/planGenerator');
 const { loadFoods } = require('../repositories/foodRepository');
 const { chatWithLLM } = require('../services/llmService');
 
@@ -94,13 +94,79 @@ async function mealChatHandler(req, res, next) {
     }
 
     const foods = getFoods();
-    const availableFoods = filterFoodsForChatbox({ foods, mealTag, userInput: userPreferences || {} });
+    const foodById = new Map(foods.map((f) => [f.id, f]));
+    const foodByName = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
 
+    // TIER 1: Pure JS balancing — try to hit mealTarget by adjusting existing food grams only
+    // rebalanceMeal expects { foodId, quantityG } and does its own food lookup internally
+    const rebalanceInput = currentItems
+      .map((ci) => {
+        const food = (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase());
+        return food ? { foodId: food.id, quantityG: Number(ci.grams), food } : null;
+      })
+      .filter(Boolean);
+
+    let atLimitFoods = [];
+    let remainingGap = null;
+
+    if (rebalanceInput.length > 0) {
+      const mealBounds = computeMealBounds(mealTarget, 0.05);
+      const tier1Result = rebalanceMeal({
+        mealTarget,
+        items: rebalanceInput.map(({ foodId, quantityG }) => ({ foodId, quantityG })),
+        mealBounds,
+      });
+
+      if (tier1Result.success) {
+        const changes = tier1Result.items
+          .map((resultItem) => {
+            const orig = rebalanceInput.find((r) => r.food.id === resultItem.foodId);
+            if (!orig || Math.abs(resultItem.quantityG - orig.quantityG) < 0.5) return null;
+            return { action: 'modify', food_name: orig.food.name, grams: Math.round(resultItem.quantityG) };
+          })
+          .filter(Boolean);
+
+        if (changes.length === 0) {
+          return res.json({ status: 'negotiating', message: 'Your meal is already well-balanced — no changes needed!' });
+        }
+
+        return res.json({
+          status: 'ready',
+          message: `Adjusted portions to hit your targets: ${changes.map((c) => `${c.food_name} → ${c.grams}g`).join(', ')}.`,
+          changes,
+        });
+      }
+
+      // Tier 1 failed — record constrained foods and remaining gap for Tier 2 context
+      atLimitFoods = rebalanceInput.filter(
+        (item) => item.quantityG >= item.food.maxServingG * 0.95 || item.quantityG <= item.food.minServingG * 1.05,
+      );
+      remainingGap = {
+        calories: Math.round(mealTarget.calories - (currentTotals?.calories || 0)),
+        proteinG: Math.round(mealTarget.proteinG - (currentTotals?.proteinG || 0)),
+        carbG: Math.round(mealTarget.carbG - (currentTotals?.carbG || 0)),
+        fatG: Math.round(mealTarget.fatG - (currentTotals?.fatG || 0)),
+      };
+    }
+
+    // TIER 2: AI call
+    const availableFoods = filterFoodsForChatbox({ foods, mealTag, userInput: userPreferences || {} });
     const turnCount = Array.isArray(conversationHistory) ? Math.ceil(conversationHistory.length / 2) : 0;
+    const existingCategories = [...new Set(currentItems.flatMap((i) => i.categories || []))];
+
+    const tier1Section = atLimitFoods.length > 0
+      ? `TIER 1 FAILURE CONTEXT:
+JS balancing already tried modifying existing food grams.
+It failed because these foods hit their serving limits:
+${atLimitFoods.map((f) => `- ${f.food.name} (${f.food.macroRole}) at max ${f.food.maxServingG}g`).join('\n')}
+Remaining gap: Calories ${remainingGap.calories}kcal | P:${remainingGap.proteinG}g | C:${remainingGap.carbG}g | F:${remainingGap.fatG}g
+
+`
+      : '';
 
     const systemContent = `You are a nutrition assistant helping a user modify a single meal to reach its macro targets.
 
-MEAL TARGET:
+${tier1Section}MEAL TARGET:
 - Calories: ${mealTarget.calories} kcal
 - Protein: ${mealTarget.proteinG}g
 - Carbs: ${mealTarget.carbG}g
@@ -110,12 +176,20 @@ CURRENT MEAL FOODS:
 ${currentItems.map((i) => `- ${i.name}: ${i.grams}g | ${i.calories}kcal | P:${i.proteinG}g C:${i.carbG}g F:${i.fatG}g`).join('\n')}
 
 CURRENT MEAL TOTALS:
-- Calories: ${currentTotals.calories} kcal
-- Protein: ${currentTotals.proteinG}g
-- Carbs: ${currentTotals.carbG}g
-- Fat: ${currentTotals.fatG}g
+- Calories: ${currentTotals?.calories ?? 0} kcal
+- Protein: ${currentTotals?.proteinG ?? 0}g
+- Carbs: ${currentTotals?.carbG ?? 0}g
+- Fat: ${currentTotals?.fatG ?? 0}g
+
+CURRENT MEAL MACRO ROLES:
+${currentItems.map((i) => `- ${i.name}: ${i.macroRole}`).join('\n')}
 
 USER DIET: ${userPreferences?.dietType || 'standard'}
+
+EXISTING MEAL CATEGORIES (do not add any food that shares a category with these):
+${existingCategories.join(', ')}
+
+MEAL TYPE: ${mealTag} — only suggest foods whose mealTags includes '${mealTag}'
 
 AVAILABLE FOODS (already filtered for this meal type and user preferences — you MUST only suggest foods from this list):
 ${availableFoods.map((f) => `- ${f.name} | role:${f.macroRole} | min:${f.minServingG}g max:${f.maxServingG}g | per100g: ${f.caloriesPer100g}kcal P:${f.proteinGPer100g}g C:${f.carbGPer100g}g F:${f.fatGPer100g}g`).join('\n')}
@@ -124,14 +198,32 @@ RULES:
 1. You may ONLY suggest foods from the AVAILABLE FOODS list above. Never invent food names.
 2. All quantities must be within each food's minServingG and maxServingG.
 3. Your goal is to help the user reach the MEAL TARGET macros within 5% tolerance on all four values.
-4. You may suggest adding a food, removing a food, swapping a food, or modifying grams of existing foods.
-5. If a change creates a trade-off (e.g. adding food X pushes calories over), explain the trade-off and ask the user to choose between options.
-6. Keep messages concise and conversational.
-7. If the user says something unrelated to nutrition or this meal, politely redirect them.
-8. Never suggest removing all foods from a meal.
-9. IMPORTANT: If the user gives you a list of specific foods they want, DO NOT ask questions. Immediately calculate the best quantities and respond with status "ready". Only use status "negotiating" if you genuinely need the user to make a choice between options.
-10. ${turnCount >= 2 ? 'MANDATORY: This is your 3rd or later response. You MUST respond with status "ready" — stop negotiating and commit to your best solution now.' : 'If this is your 3rd or more response in this conversation, you MUST respond with status "ready" — stop negotiating and commit to your best solution now.'}
-11. You MUST always respond in this exact JSON format — no exceptions, no extra text outside the JSON object:
+4. You may suggest adding a food, removing a food, or modifying grams of existing foods.
+5. Keep messages concise and conversational.
+6. If the user says something unrelated to nutrition or this meal, politely redirect them.
+7. Never suggest removing all foods from a meal.
+8. IMPORTANT: If the user gives you a list of specific foods they want, DO NOT ask questions. Immediately calculate the best quantities and respond with status "ready". Only use status "negotiating" if you genuinely need the user to make a choice between options.
+9. ${turnCount >= 2 ? 'MANDATORY: This is your 3rd or later response. You MUST respond with status "ready" — stop negotiating and commit to your best solution now.' : 'If this is your 3rd or more response in this conversation, you MUST respond with status "ready" — stop negotiating and commit to your best solution now.'}
+10. You MUST always respond in this exact JSON format — no exceptions, no extra text outside the JSON object:
+
+AI DECISION PRIORITY (when a new food is needed):
+1. First try: add one food from AVAILABLE FOODS that fills the remaining gap, has a unique macroRole not already in the meal, shares NO categories with existing meal foods, and has mealTag '${mealTag}'
+2. If no single food can fill the gap: suggest swapping the most problematic existing food (furthest from its macro role contribution) with a better alternative from AVAILABLE FOODS
+3. Last resort: suggest both adding one food AND swapping one existing food
+Respond with status "ready" immediately. No questions.
+
+BALANCING LOGIC:
+- To fix a calorie/macro gap, FIRST try increasing grams of existing foods before adding anything new
+- Only suggest adding a NEW food if ALL existing foods of the relevant macro role are already at their maxServingG limit
+- NEVER add a food with the same macroRole as an existing meal food unless the user explicitly requests it
+- NEVER add a food that shares any category with an existing meal food
+- NEVER ask the user to confirm quantities — calculate them yourself and commit
+
+CURRENT GAP TO TARGET:
+- Calories missing: ${Math.round(mealTarget.calories - (currentTotals?.calories ?? 0))} kcal
+- Protein missing: ${Math.round(mealTarget.proteinG - (currentTotals?.proteinG ?? 0))}g
+- Carbs missing: ${Math.round(mealTarget.carbG - (currentTotals?.carbG ?? 0))}g
+- Fat missing: ${Math.round(mealTarget.fatG - (currentTotals?.fatG ?? 0))}g
 
 EXAMPLE — when user says "add gouda and pasta":
 WRONG: { "status": "negotiating", "message": "Great choice! How much gouda would you like?" }
@@ -151,28 +243,7 @@ When you have a complete final solution ready to apply:
   ]
 }
 
-Before responding, silently calculate what quantities of the requested foods would hit the meal target within 5% tolerance. Then respond with status "ready" and those quantities. Do the math first, commit second.
-CURRENT MEAL MACRO ROLES:
-{list each food with its macroRole}
-- Chicken breast: protein
-- Whole-wheat pasta: carb  
-- Sunflower oil: fat
-
-BALANCING LOGIC:
-- The meal is SHORT on calories ({gap} kcal missing)
-- To fix a calorie gap, FIRST try increasing grams of existing foods
-- Only suggest adding a NEW food if increasing existing food grams 
-  hits their maxServingG limit AND the gap still isn't closed
-- NEVER add a food with the same macroRole as an existing food 
-  unless the user explicitly asks for it
-- Protein gap → increase the existing protein food's grams first
-- Carb gap → increase the existing carb food's grams first  
-- Fat gap → increase the existing fat food's grams first
-CURRENT GAP TO TARGET:
-- Calories missing: {target.calories - current.calories} kcal
-- Protein missing: {target.proteinG - current.proteinG}g
-- Carbs missing: {target.carbG - current.carbG}g
-- Fat missing: {target.fatG - current.fatG}g`;
+Before responding, silently calculate what quantities of the requested foods would hit the meal target within 5% tolerance. Then respond with status "ready" and those quantities. Do the math first, commit second.`;
 
     const messages = [
       { role: 'system', content: systemContent },
@@ -189,7 +260,7 @@ CURRENT GAP TO TARGET:
 
 async function validateMealChangesHandler(req, res, next) {
   try {
-    const { mealTarget, currentItems, changes } = req.body;
+    const { mealTarget, mealTag, currentItems, changes } = req.body;
     if (!mealTarget || !Array.isArray(currentItems) || !Array.isArray(changes)) {
       return res.status(400).json({ error: 'mealTarget, currentItems, and changes are required.' });
     }
@@ -205,6 +276,28 @@ async function validateMealChangesHandler(req, res, next) {
         if (!found) {
           return res.json({ valid: false, reason: 'food_not_found', food_name: change.food_name });
         }
+      }
+    }
+
+    // Build existing item categories for overlap checks
+    const existingFoods = currentItems
+      .map((ci) => (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase()))
+      .filter(Boolean);
+    const existingCategories = new Set(existingFoods.flatMap((f) => f.categories || []));
+
+    // Extra validation for 'add' actions: mealTag and category overlap
+    for (const change of changes) {
+      if (change.action !== 'add') continue;
+      const food = foodByName.get(change.food_name?.toLowerCase());
+      if (!food) continue;
+
+      if (mealTag && !food.mealTags?.includes(mealTag)) {
+        return res.json({ valid: false, reason: 'wrong_meal_type', food_name: food.name, mealTag });
+      }
+
+      const overlap = (food.categories || []).find((c) => existingCategories.has(c));
+      if (overlap) {
+        return res.json({ valid: false, reason: 'category_overlap', food_name: food.name, duplicateCategory: overlap });
       }
     }
 
