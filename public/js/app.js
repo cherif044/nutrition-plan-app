@@ -906,28 +906,28 @@ function initMealChatbox(state, card) {
     statusEl.textContent = 'AI is thinking…';
     statusEl.hidden = false;
 
-    const sourceItems = state.chatWorkingItems
-      ? state.chatWorkingItems.map((pi) => ({ food: foodsById.get(pi.foodId), quantityG: pi.grams }))
-      : state.items;
-
-    const currentItems = sourceItems.map((item) => ({
-      name: item.food.name,
-      grams: item.quantityG,
-      foodId: item.food.id,
-      macroRole: item.food.macroRole,
-      categories: item.food.categories || [],
-      calories: parseFloat((item.food.caloriesPer100g * item.quantityG / 100).toFixed(1)),
-      proteinG: parseFloat((item.food.proteinGPer100g * item.quantityG / 100).toFixed(1)),
-      carbG: parseFloat((item.food.carbGPer100g * item.quantityG / 100).toFixed(1)),
-      fatG: parseFloat((item.food.fatGPer100g * item.quantityG / 100).toFixed(1)),
-    }));
-
-    const currentTotals = computeTotals(sourceItems);
-
-    state.chatHistory.push({ role: 'user', content: userText });
-    state.chatTurnCount += 1;
-
     try {
+      const sourceItems = state.chatWorkingItems
+        ? state.chatWorkingItems.map((pi) => ({ food: foodsById.get(pi.foodId), quantityG: pi.grams }))
+        : state.items;
+
+      const currentItems = sourceItems.map((item) => ({
+        name: item.food.name,
+        grams: item.quantityG,
+        foodId: item.food.id,
+        macroRole: item.food.macroRole,
+        categories: item.food.categories || [],
+        calories: parseFloat((item.food.caloriesPer100g * item.quantityG / 100).toFixed(1)),
+        proteinG: parseFloat((item.food.proteinGPer100g * item.quantityG / 100).toFixed(1)),
+        carbG: parseFloat((item.food.carbGPer100g * item.quantityG / 100).toFixed(1)),
+        fatG: parseFloat((item.food.fatGPer100g * item.quantityG / 100).toFixed(1)),
+      }));
+
+      const currentTotals = computeTotals(sourceItems);
+
+      state.chatHistory.push({ role: 'user', content: userText });
+      state.chatTurnCount += 1;
+
       const res = await fetch('/api/meal-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -954,7 +954,8 @@ function initMealChatbox(state, card) {
         appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
       } else if (payload.status === 'ready') {
         appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
-        await validateAndShowPreview(payload.changes, state, previewEl, currentItems);
+      } else {
+        appendMessage(messagesEl, 'assistant', payload.message || "I couldn't process that. Please try again.");
       }
 
     } catch (err) {

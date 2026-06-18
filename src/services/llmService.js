@@ -26,7 +26,7 @@ async function chatWithLLM(messages) {
       response_format: { type: 'json_object' },
       options: {
         temperature: 0.2,
-        num_predict: 400,
+        num_predict: 1200,
       },
     }),
     signal: AbortSignal.timeout(45_000),

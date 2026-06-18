@@ -929,10 +929,10 @@ function filterFoodsForChatbox({ foods, mealTag, userInput }) {
   }
 
   const balanced = [
-    ...byRole.protein.slice(0, 12),
-    ...byRole.carb.slice(0, 12),
-    ...byRole.fat.slice(0, 8),
-    ...byRole.mixed.slice(0, 8),
+    ...byRole.protein.slice(0, 8),
+    ...byRole.carb.slice(0, 8),
+    ...byRole.fat.slice(0, 5),
+    ...byRole.mixed.slice(0, 4),
   ];
 
   return balanced.map((f) => ({
