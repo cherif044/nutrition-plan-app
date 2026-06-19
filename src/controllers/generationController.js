@@ -118,11 +118,11 @@ async function mealChatHandler(req, res, next) {
 
     const systemContent = `You are a friendly meal assistant. Always respond in valid JSON only.
 
-STEP 1 — Is the user explicitly asking you to CHANGE the meal (add a food, remove a food, adjust grams, swap an ingredient)?
-- If YES → use the meal context below, respond with status "ready" and include "changes" and "meal_snapshot".
-- If NO (asking a question, checking if targets are hit, just chatting) → reply conversationally with status "negotiating". Do NOT include "changes". Do NOT modify the meal.
+STEP 1 — Is the user asking you to CHANGE this meal (add/remove a food, adjust grams, swap an ingredient)?
+- If YES → respond with status "ready". Include "changes" and "meal_snapshot".
+- If NO → respond with status "negotiating". Use the MEAL CONTEXT below to answer any meal questions accurately. Do NOT include "changes".
 
-MEAL CONTEXT (use only if the user is asking about the meal):
+MEAL CONTEXT:
 TARGET: ${mealTarget.calories}kcal P${mealTarget.proteinG}g C${mealTarget.carbG}g F${mealTarget.fatG}g
 CURRENT: ${currentTotals?.calories ?? 0}kcal P${currentTotals?.proteinG ?? 0}g C${currentTotals?.carbG ?? 0}g F${currentTotals?.fatG ?? 0}g
 GAP: ${calGap}kcal P${pGap}g C${cGap}g F${fGap}g

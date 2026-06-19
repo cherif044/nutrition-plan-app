@@ -1109,7 +1109,7 @@ const chatPanel = (() => {
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.error || 'AI request failed');
 
-      state.chatHistory.push({ role: 'assistant', content: JSON.stringify(payload) });
+      state.chatHistory.push({ role: 'assistant', content: payload.message || '' });
 
       if (payload.status === 'negotiating') {
         pushMessage('assistant', payload.message);
