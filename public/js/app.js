@@ -212,6 +212,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       chatHistory: [],
       chatTurnCount: 0,
       chatWorkingItems: null,
+      chatPrevWorkingItems: null,
+      chatMessages: [],
       cardEl: null,
     };
     mealStates.push(state);
@@ -316,7 +318,8 @@ function renderMealCard(state) {
   // Add food button
   card.querySelector('.add-food-btn').addEventListener('click', () => toggleAddFoodPanel(state, card));
 
-  initMealChatbox(state, card);
+  // Chat with AI button
+  card.querySelector('.chat-ai-btn').addEventListener('click', () => chatPanel.open(state));
 
   return card;
 }
@@ -383,6 +386,7 @@ function renderFoodItem(state, itemIndex) {
       const newGrams = clampGrams(food, Number(gramInput.value));
       gramInput.value = newGrams;
       state.items[itemIndex].quantityG = newGrams;
+      if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
       refreshMealDOM(state);
       refreshRedFlags();
     }, 400);
@@ -392,6 +396,7 @@ function renderFoodItem(state, itemIndex) {
     const newQ = clampGrams(food, item.quantityG - 10);
     if (newQ === item.quantityG) return;
     state.items[itemIndex].quantityG = newQ;
+    if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
     refreshMealDOM(state);
     refreshRedFlags();
   });
@@ -400,6 +405,7 @@ function renderFoodItem(state, itemIndex) {
     const newQ = clampGrams(food, item.quantityG + 10);
     if (newQ === item.quantityG) return;
     state.items[itemIndex].quantityG = newQ;
+    if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
     refreshMealDOM(state);
     refreshRedFlags();
   });
@@ -525,6 +531,7 @@ function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
     quantityG: gramAmount,
     alternatives: getAlternatives(newFood, state.tag),
   };
+  if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
   const oldRow = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
   const newRow = renderFoodItem(state, itemIndex);
   oldRow.replaceWith(newRow);
@@ -590,6 +597,7 @@ function toggleAddFoodPanel(state, card) {
           alternatives: getAlternatives(food, state.tag),
         };
         state.items.push(newItem);
+        if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
         const foodList = card.querySelector('.food-list');
         foodList.append(renderFoodItem(state, state.items.length - 1));
         refreshMealCardHeader(card, state);
@@ -647,6 +655,7 @@ async function handleAutoBalance(state) {
         const stateItem = state.items.find((it) => it.food.id === update.foodId);
         if (stateItem) stateItem.quantityG = update.quantityG;
       }
+      if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
       refreshMealDOM(state);
       refreshRedFlags();
     } else {
@@ -879,31 +888,185 @@ function buildPlanData() {
 
 // ── AI Chatbox ───────────────────────────────────────────────────────────────
 
-function initMealChatbox(state, card) {
-  const messagesEl = card.querySelector('.meal-chatbox__messages');
-  const previewEl = card.querySelector('.meal-chatbox__preview-card');
-  const inputEl = card.querySelector('.meal-chatbox__input');
-  const sendBtn = card.querySelector('.meal-chatbox__send-btn');
-  const statusEl = card.querySelector('.meal-chatbox__status');
+function resetChat(state, notify = false) {
+  state.chatWorkingItems = null;
+  state.chatPrevWorkingItems = null;
+  state.chatHistory = [];
+  state.chatTurnCount = 0;
+  state.chatMessages = [];
+  if (notify) {
+    const node = buildMessageNode('assistant', 'Meal updated — chat restarted.');
+    state.chatMessages.push(node);
+  }
+  if (chatPanel.currentState === state) chatPanel.syncFromState();
+}
+
+// ── AI Chat Panel singleton ───────────────────────────────────────────────────
+
+function buildMessageNode(role, text, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'chatbox-message-group';
+  const bubble = document.createElement('div');
+  bubble.className = `chatbox-msg chatbox-msg--${role}`;
+  bubble.textContent = text;
+  wrap.append(bubble);
+  if (role === 'assistant' && opts.snapshot?.length && opts.mealTarget) {
+    wrap.append(buildSnapshotTable(opts.snapshot, opts.snapshotTotals, opts.mealTarget));
+  }
+  return wrap;
+}
+
+function buildDraftTable(state) {
+  const workingItems = state.chatWorkingItems;
+  const displayItems = workingItems || state.items.map((i) => ({
+    foodId: i.food.id,
+    name: i.food.name,
+    grams: i.quantityG,
+    calories: parseFloat((i.food.caloriesPer100g * i.quantityG / 100).toFixed(1)),
+    proteinG: parseFloat((i.food.proteinGPer100g * i.quantityG / 100).toFixed(1)),
+    carbG: parseFloat((i.food.carbGPer100g * i.quantityG / 100).toFixed(1)),
+    fatG: parseFloat((i.food.fatGPer100g * i.quantityG / 100).toFixed(1)),
+  }));
+
+  const prevItems = state.chatPrevWorkingItems || (workingItems
+    ? state.items.map((i) => ({ foodId: i.food.id, grams: i.quantityG }))
+    : null);
+  const prevMap = prevItems ? new Map(prevItems.map((i) => [i.foodId, i])) : null;
+
+  const table = document.createElement('table');
+  table.className = 'chatbox-snapshot';
+  table.innerHTML = '<thead><tr><th>Food</th><th>g</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr></thead>';
+
+  const tbody = document.createElement('tbody');
+  let totals = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+
+  for (const item of displayItems) {
+    const tr = document.createElement('tr');
+    let diff = 'unchanged';
+    let prevGrams = null;
+    if (prevMap) {
+      const prev = prevMap.get(item.foodId);
+      if (!prev) {
+        diff = 'added';
+      } else if (Math.abs(item.grams - prev.grams) > 0.5) {
+        diff = 'modified';
+        prevGrams = prev.grams;
+      }
+    }
+    if (diff === 'added') tr.className = 'draft-row--added';
+    if (diff === 'modified') tr.className = 'draft-row--modified';
+    const gramsCell = diff === 'modified' ? `${prevGrams}→${item.grams}` : item.grams;
+    tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${gramsCell}</td><td>${formatNumber(item.calories)}</td><td>${formatNumber(item.proteinG)}</td><td>${formatNumber(item.carbG)}</td><td>${formatNumber(item.fatG)}</td>`;
+    tbody.append(tr);
+    totals.calories += item.calories;
+    totals.proteinG += item.proteinG;
+    totals.carbG += item.carbG;
+    totals.fatG += item.fatG;
+  }
+  table.append(tbody);
+
+  const tfoot = document.createElement('tfoot');
+  const target = state.target;
+  const allOk = target && ['calories', 'proteinG', 'carbG', 'fatG'].every(
+    (k) => Math.abs((totals[k] - target[k]) / Math.max(1, target[k])) <= 0.05,
+  );
+  const tfootr = document.createElement('tr');
+  tfootr.className = allOk ? 'snapshot-ok' : 'snapshot-off';
+  tfootr.innerHTML = `<td>Total</td><td>—</td><td>${formatNumber(totals.calories)}</td><td>${formatNumber(totals.proteinG)}</td><td>${formatNumber(totals.carbG)}</td><td>${formatNumber(totals.fatG)}</td>`;
+  tfoot.append(tfootr);
+  table.append(tfoot);
+  return table;
+}
+
+const chatPanel = (() => {
+  let currentState = null;
+  const panelEl = document.getElementById('ai-chat-panel');
+  const titleEl = panelEl.querySelector('.ai-chat-panel__title');
+  const messagesEl = panelEl.querySelector('.ai-chat-panel__messages');
+  const statusEl = panelEl.querySelector('.ai-chat-panel__status');
+  const inputEl = panelEl.querySelector('.ai-chat-panel__input');
+  const sendBtn = panelEl.querySelector('.ai-chat-panel__send-btn');
+  const draftTableEl = panelEl.querySelector('.ai-chat-panel__draft-table');
+  const revertBtn = panelEl.querySelector('.ai-chat-panel__revert-btn');
+  const applyBtn = panelEl.querySelector('.ai-chat-panel__apply-btn');
+  const closeBtn = panelEl.querySelector('.ai-chat-panel__close');
+
+  function open(state) {
+    currentState = state;
+    titleEl.textContent = `${state.name}`;
+    syncFromState();
+    panelEl.hidden = false;
+    inputEl.focus();
+  }
+
+  function close() {
+    panelEl.hidden = true;
+  }
+
+  function syncFromState() {
+    if (!currentState) return;
+    messagesEl.innerHTML = '';
+    for (const node of currentState.chatMessages) {
+      messagesEl.append(node.cloneNode(true));
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    refreshDraftTable();
+  }
+
+  function refreshDraftTable() {
+    if (!currentState) return;
+    draftTableEl.innerHTML = '';
+    draftTableEl.append(buildDraftTable(currentState));
+    applyBtn.hidden = !currentState.chatWorkingItems;
+  }
+
+  function removeRevertButton() {
+    messagesEl.querySelector('.chat-revert-btn')?.remove();
+    if (currentState) {
+      const stored = currentState.chatMessages.find((n) => n.querySelector?.('.chat-revert-btn'));
+      stored?.querySelector('.chat-revert-btn')?.remove();
+    }
+  }
+
+  function addRevertButton() {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost chat-revert-btn';
+    btn.textContent = '↩ Revert last changes';
+    btn.addEventListener('click', () => {
+      if (!currentState?.chatPrevWorkingItems) return;
+      const isOriginal = !currentState.chatPrevWorkingItems[0]?.calories;
+      currentState.chatWorkingItems = isOriginal ? null : currentState.chatPrevWorkingItems;
+      currentState.chatPrevWorkingItems = null;
+      btn.remove();
+      refreshDraftTable();
+    });
+    // Add to live DOM and stored node
+    messagesEl.append(btn);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    const lastStored = currentState.chatMessages[currentState.chatMessages.length - 1];
+    if (lastStored) lastStored.append(btn.cloneNode(true));
+  }
+
+  function pushMessage(role, text, opts = {}) {
+    const node = buildMessageNode(role, text, opts);
+    currentState.chatMessages.push(node);
+    messagesEl.append(node.cloneNode(true));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 
   async function sendMessage() {
+    if (!currentState) return;
+    const state = currentState;
     const userText = inputEl.value.trim();
     if (!userText) return;
 
-    if (state.chatTurnCount >= 8) {
-      appendMessage(messagesEl, 'assistant',
-        'Having trouble finding a solution? Try using the manual controls or the Auto-balance button.');
-      return;
-    }
-
+    removeRevertButton();
     inputEl.value = '';
     inputEl.disabled = true;
     sendBtn.disabled = true;
-    previewEl.hidden = true;
 
-    appendMessage(messagesEl, 'user', userText);
-
-    statusEl.textContent = 'AI is thinking…';
+    pushMessage('user', userText);
     statusEl.hidden = false;
 
     try {
@@ -944,24 +1107,30 @@ function initMealChatbox(state, card) {
       });
 
       const payload = await res.json();
-
       if (!res.ok) throw new Error(payload.error || 'AI request failed');
 
       state.chatHistory.push({ role: 'assistant', content: JSON.stringify(payload) });
 
-      const snapshotOpts = { snapshot: payload.meal_snapshot, snapshotTotals: payload.meal_snapshot_totals, mealTarget: state.target };
       if (payload.status === 'negotiating') {
-        appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
+        pushMessage('assistant', payload.message);
       } else if (payload.status === 'ready') {
-        appendMessage(messagesEl, 'assistant', payload.message, snapshotOpts);
+        const madeChanges = Array.isArray(payload.proposedItems) && payload.proposedItems.length > 0;
+        if (madeChanges) {
+          state.chatPrevWorkingItems = state.chatWorkingItems
+            ? [...state.chatWorkingItems]
+            : state.items.map((i) => ({ foodId: i.food.id, name: i.food.name, grams: i.quantityG }));
+          state.chatWorkingItems = payload.proposedItems;
+          refreshDraftTable();
+        }
+        pushMessage('assistant', payload.message);
+        if (madeChanges) addRevertButton();
       } else {
-        appendMessage(messagesEl, 'assistant', payload.message || "I couldn't process that. Please try again.");
+        pushMessage('assistant', payload.message || "I couldn't process that. Please try again.");
       }
 
     } catch (err) {
       console.error('[meal-chat error]', err);
-      appendMessage(messagesEl, 'assistant',
-        'Sorry, I had trouble processing that. Please try again.');
+      pushMessage('assistant', 'Sorry, I had trouble processing that. Please try again.');
     } finally {
       statusEl.hidden = true;
       inputEl.disabled = false;
@@ -970,136 +1139,33 @@ function initMealChatbox(state, card) {
     }
   }
 
+  closeBtn.addEventListener('click', close);
   sendBtn.addEventListener('click', sendMessage);
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendMessage();
-  });
-}
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-async function validateAndShowPreview(changes, state, previewEl, currentItems) {
-  try {
-    const res = await fetch('/api/validate-meal-changes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mealTarget: state.target,
-        mealTag: state.tag,
-        currentItems,
-        changes,
-      }),
-    });
-    const result = await res.json();
-
-    if (!result.valid) {
-      let errorContext;
-      if (result.reason === 'category_overlap') {
-        errorContext = `[SYSTEM: ${result.food_name} rejected — shares category '${result.duplicateCategory}' with existing meal food. Suggest a different food with no category overlap.]`;
-      } else if (result.reason === 'wrong_meal_type') {
-        errorContext = `[SYSTEM: ${result.food_name} rejected — not a valid ${result.mealTag} food. Suggest a food whose mealTags includes '${result.mealTag}'.]`;
-      } else {
-        errorContext = `[SYSTEM: Your last suggestion failed validation. Reason: ${result.reason}.${result.food_name ? ' Food: ' + result.food_name : ''}${result.details ? ' ' + JSON.stringify(result.details) : ''}. Please suggest a different solution.]`;
-      }
-      // Inject failure into history so next user message triggers a better AI response
-      state.chatHistory.push({ role: 'user', content: errorContext });
-      const messagesEl = state.cardEl.querySelector('.meal-chatbox__messages');
-      appendMessage(messagesEl, 'assistant', "That suggestion didn't quite hit the targets. Try rephrasing or ask me to try again.");
-      return;
-    }
-
-    state.chatWorkingItems = result.proposedItems;
-    showPreviewCard(previewEl, result, state, changes);
-
-  } catch {
-    // Silently ignore — let user try again
-  }
-}
-
-function showPreviewCard(previewEl, validationResult, state, changes) {
-  previewEl.innerHTML = '';
-  previewEl.hidden = false;
-
-  const title = document.createElement('p');
-  title.className = 'chatbox-preview__title';
-  title.textContent = 'Proposed changes:';
-  previewEl.append(title);
-
-  const changesList = document.createElement('ul');
-  changesList.className = 'chatbox-preview__changes';
-  for (const change of changes) {
-    const li = document.createElement('li');
-    if (change.action === 'add') li.textContent = `+ Add ${change.food_name} — ${change.grams}g`;
-    if (change.action === 'remove') li.textContent = `− Remove ${change.food_name}`;
-    if (change.action === 'modify') li.textContent = `↕ ${change.food_name} → ${change.grams}g`;
-    changesList.append(li);
-  }
-  previewEl.append(changesList);
-
-  const totalsEl = document.createElement('div');
-  totalsEl.className = 'chatbox-preview__totals';
-  const t = validationResult.proposedTotals;
-  totalsEl.textContent = `Result: ${formatNumber(t.calories)}kcal | P:${formatNumber(t.proteinG)}g C:${formatNumber(t.carbG)}g F:${formatNumber(t.fatG)}g`;
-  previewEl.append(totalsEl);
-
-  const btnRow = document.createElement('div');
-  btnRow.className = 'chatbox-preview__actions';
-
-  const applyBtn = document.createElement('button');
-  applyBtn.type = 'button';
-  applyBtn.className = 'btn btn-primary';
-  applyBtn.textContent = 'Apply';
-
-  const discardBtn = document.createElement('button');
-  discardBtn.type = 'button';
-  discardBtn.className = 'btn btn-ghost';
-  discardBtn.textContent = 'Discard';
 
   applyBtn.addEventListener('click', () => {
-    applyValidatedChanges(state.chatWorkingItems || validationResult.proposedItems, state);
-    state.chatWorkingItems = null;
-    previewEl.hidden = true;
-    state.chatHistory = [];
-    state.chatTurnCount = 0;
-    const messagesEl = state.cardEl.querySelector('.meal-chatbox__messages');
-    messagesEl.innerHTML = '';
+    if (!currentState?.chatWorkingItems) return;
+    const state = currentState;
+    state.items = state.chatWorkingItems.map((pi) => {
+      const food = foodsById.get(pi.foodId);
+      return { food, quantityG: pi.grams, alternatives: getAlternatives(food, state.tag) };
+    }).filter((i) => i.food);
+    const foodList = state.cardEl.querySelector('.food-list');
+    foodList.innerHTML = '';
+    state.items.forEach((_, i) => foodList.append(renderFoodItem(state, i)));
+    refreshMealCardHeader(state.cardEl, state);
+    refreshRedFlags();
+    resetChat(state);
+    close();
   });
 
-  discardBtn.addEventListener('click', () => {
-    state.chatWorkingItems = null;
-    previewEl.hidden = true;
-  });
-
-  btnRow.append(applyBtn, discardBtn);
-  previewEl.append(btnRow);
-}
-
-function applyValidatedChanges(proposedItems, state) {
-  state.items = proposedItems.map((pi) => {
-    const food = foodsById.get(pi.foodId);
-    return {
-      food,
-      quantityG: pi.grams,
-      alternatives: getAlternatives(food, state.tag),
-    };
-  });
-
-  const foodList = state.cardEl.querySelector('.food-list');
-  foodList.innerHTML = '';
-  state.items.forEach((_, itemIndex) => {
-    foodList.append(renderFoodItem(state, itemIndex));
-  });
-
-  refreshMealCardHeader(state.cardEl, state);
-  refreshRedFlags();
-}
+  return { open, close, syncFromState, refreshDraftTable, get currentState() { return currentState; } };
+})();
 
 function appendMessage(messagesEl, role, text, opts = {}) {
-  const bubble = document.createElement('div');
-  bubble.className = `chatbox-msg chatbox-msg--${role}`;
-  bubble.textContent = text;
-  messagesEl.append(bubble);
-  if (role === 'assistant' && opts.snapshot?.length && opts.mealTarget) {
-    messagesEl.append(buildSnapshotTable(opts.snapshot, opts.snapshotTotals, opts.mealTarget));
-  }
+  const node = buildMessageNode(role, text, opts);
+  messagesEl.append(node);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 

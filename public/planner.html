@@ -186,6 +186,7 @@
           <div class="meal-card__actions">
             <button class="btn btn-ghost auto-balance-btn" type="button">Auto-balance</button>
             <button class="btn btn-ghost add-food-btn" type="button">+ Add food</button>
+            <button class="btn btn-ghost chat-ai-btn" type="button">Chat with AI</button>
           </div>
         </div>
         <div class="meal-card__totals">
@@ -210,22 +211,28 @@
         <div class="food-list"></div>
         <div class="auto-balance-suggestions" hidden></div>
         <div class="add-food-panel" hidden></div>
-        <div class="meal-chatbox">
-          <div class="meal-chatbox__messages"></div>
-          <div class="meal-chatbox__preview-card" hidden></div>
-          <div class="meal-chatbox__input-row">
-            <input
-              type="text"
-              class="meal-chatbox__input"
-              placeholder="Ask AI to help balance this meal…"
-              autocomplete="off"
-            />
-            <button type="button" class="btn meal-chatbox__send-btn">Send</button>
-          </div>
-          <div class="meal-chatbox__status" hidden></div>
-        </div>
       </article>
     </template>
+
+    <div id="ai-chat-panel" class="ai-chat-panel" hidden>
+      <div class="ai-chat-panel__header">
+        <span class="ai-chat-panel__title"></span>
+        <button type="button" class="ai-chat-panel__close">✕</button>
+      </div>
+      <div class="ai-chat-panel__messages"></div>
+      <div class="ai-chat-panel__status" hidden>AI is thinking…</div>
+      <div class="ai-chat-panel__input-row">
+        <input type="text" class="ai-chat-panel__input" placeholder="Ask about this meal…" autocomplete="off" />
+        <button type="button" class="btn btn-primary ai-chat-panel__send-btn">Send</button>
+      </div>
+      <div class="ai-chat-panel__draft">
+        <div class="ai-chat-panel__draft-header">
+          <span>Chat Meal</span>
+        </div>
+        <div class="ai-chat-panel__draft-table"></div>
+        <button type="button" class="btn btn-primary ai-chat-panel__apply-btn" hidden>Apply to Meal</button>
+      </div>
+    </div>
 
     <script src="/js/app.js" defer></script>
   </body>

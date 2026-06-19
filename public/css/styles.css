@@ -1876,7 +1876,142 @@ select:focus {
   color: var(--accent-strong);
 }
 
-/* ── Meal chatbox ────────────────────────────────────────────────────────────── */
+/* ── AI Chat Panel ───────────────────────────────────────────────────────────── */
+
+.ai-chat-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 26vw;
+  min-width: 320px;
+  max-width: 480px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: -6px 0 24px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+}
+
+.ai-chat-panel[hidden] { display: none; }
+
+.ai-chat-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.ai-chat-panel__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.ai-chat-panel__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.ai-chat-panel__close:hover { background: var(--subtle); color: var(--ink); }
+
+.ai-chat-panel__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-chat-panel__status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  padding: 0 14px 6px;
+  flex-shrink: 0;
+}
+
+.ai-chat-panel__input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.ai-chat-panel__input {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  height: 34px;
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+}
+
+.ai-chat-panel__input:focus { border-color: var(--accent); }
+
+.ai-chat-panel__draft {
+  border-top: 2px solid var(--line);
+  padding: 10px 14px 14px;
+  flex-shrink: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+.ai-chat-panel__draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ai-chat-panel__draft-header > span {
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.ai-chat-panel__revert-btn {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  height: auto;
+}
+
+.ai-chat-panel__apply-btn {
+  width: 100%;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.chat-revert-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  height: auto;
+  margin-top: 6px;
+  display: block;
+}
+
+.draft-row--added td:first-child::before { content: '+ '; color: #22a722; font-weight: 600; }
+.draft-row--added { background: rgba(34,167,34,0.07); }
+.draft-row--modified td:first-child::before { content: '↕ '; color: #b07a00; font-weight: 600; }
+.draft-row--modified { background: rgba(255,180,0,0.08); }
+
+/* ── Meal chatbox (legacy — kept for shared bubble/snapshot styles) ───────────── */
 
 .meal-chatbox {
   border-top: 1px solid var(--line);

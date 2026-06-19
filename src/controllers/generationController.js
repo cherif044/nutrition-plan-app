@@ -144,8 +144,8 @@ MEAL ADJUSTMENT RULES (only apply when making meal changes):
 
 Always respond in valid JSON only — no text outside the JSON object.
 WHEN CHATTING (no changes): {"status":"negotiating","message":"<write your actual response here>","meal_snapshot":[{"name":"<food name>","grams":0,"calories":0,"proteinG":0,"carbG":0,"fatG":0}],"meal_snapshot_totals":{"calories":0,"proteinG":0,"carbG":0,"fatG":0}}
-WHEN MAKING CHANGES: {"status":"ready","message":"<write your actual response here>","meal_snapshot":[{"name":"<food name>","grams":0,"calories":0,"proteinG":0,"carbG":0,"fatG":0}],"meal_snapshot_totals":{"calories":0,"proteinG":0,"carbG":0,"fatG":0},"changes":[{"action":"add","food_name":"<exact name from AVAILABLE FOODS>","grams":0}]}
-meal_snapshot must show the full meal after all changes with macros recalculated from database values.`;
+WHEN MAKING CHANGES: {"status":"ready","message":"<write your actual response here>","meal_snapshot":[{"name":"<food name>","grams":0,"calories":0,"proteinG":0,"carbG":0,"fatG":0}],"meal_snapshot_totals":{"calories":0,"proteinG":0,"carbG":0,"fatG":0},"changes":[{"action":"modify","food_name":"<exact name from CURRENT FOODS>","grams":0},{"action":"add","food_name":"<exact name from AVAILABLE FOODS>","grams":0},{"action":"remove","food_name":"<exact name from CURRENT FOODS>"}]}
+meal_snapshot must list ALL foods in the final meal (including unchanged ones) using exact names from CURRENT FOODS or AVAILABLE FOODS.`;
 
     const messages = [
       { role: 'system', content: systemContent },
@@ -154,6 +154,85 @@ meal_snapshot must show the full meal after all changes with macros recalculated
     ];
 
     const payload = await chatWithLLM(messages);
+
+    // Rebuild proposed meal from DB values (never trust LLM math)
+    if (payload.status === 'ready') {
+      const foodByName = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
+      const foodById = new Map(foods.map((f) => [f.id, f]));
+
+      let workingItems = currentItems
+        .map((ci) => {
+          const food = (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase());
+          return food ? { food, grams: Number(ci.grams) } : null;
+        })
+        .filter(Boolean);
+
+      // Primary: use meal_snapshot (the model's full view of the meal after changes).
+      // This is more reliable than `changes` because small models often forget to include
+      // the changes array or use the wrong action type, but always fill in meal_snapshot.
+      if (Array.isArray(payload.meal_snapshot) && payload.meal_snapshot.length > 0) {
+        const snapshotItems = payload.meal_snapshot
+          .map((snap) => {
+            const food = foodByName.get(snap.name?.toLowerCase());
+            const grams = Math.max(1, Number(snap.grams) || 0);
+            return food ? { food, grams } : null;
+          })
+          .filter(Boolean);
+        if (snapshotItems.length > 0) workingItems = snapshotItems;
+      } else if (Array.isArray(payload.changes) && payload.changes.length > 0) {
+        // Fallback: apply changes action list
+        for (const change of payload.changes) {
+          const food = foodByName.get(change.food_name?.toLowerCase());
+          if (!food) continue;
+          if (change.action === 'remove') {
+            workingItems = workingItems.filter((i) => i.food.name.toLowerCase() !== change.food_name.toLowerCase());
+          } else if (change.action === 'add') {
+            if (!workingItems.some((i) => i.food.name.toLowerCase() === change.food_name.toLowerCase())) {
+              workingItems.push({ food, grams: Number(change.grams) });
+            }
+          } else if (change.action === 'modify') {
+            const existing = workingItems.find((i) => i.food.name.toLowerCase() === change.food_name.toLowerCase());
+            if (existing) existing.grams = Number(change.grams);
+          }
+        }
+      }
+
+      const proposedItems = workingItems.map(({ food, grams }) => {
+        const factor = grams / 100;
+        return {
+          foodId: food.id,
+          name: food.name,
+          grams,
+          calories: parseFloat((food.caloriesPer100g * factor).toFixed(1)),
+          proteinG: parseFloat((food.proteinGPer100g * factor).toFixed(1)),
+          carbG: parseFloat((food.carbGPer100g * factor).toFixed(1)),
+          fatG: parseFloat((food.fatGPer100g * factor).toFixed(1)),
+        };
+      });
+
+      // Only attach proposedItems if something actually changed
+      const somethingChanged = proposedItems.some((pi) => {
+        const orig = currentItems.find((ci) => {
+          const food = (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase());
+          return food?.id === pi.foodId;
+        });
+        return !orig || Math.abs(Number(orig.grams) - pi.grams) > 0.5;
+      }) || proposedItems.length !== currentItems.length;
+
+      if (somethingChanged) {
+        payload.proposedItems = proposedItems;
+        payload.proposedTotals = proposedItems.reduce(
+          (acc, item) => ({
+            calories: parseFloat((acc.calories + item.calories).toFixed(1)),
+            proteinG: parseFloat((acc.proteinG + item.proteinG).toFixed(1)),
+            carbG: parseFloat((acc.carbG + item.carbG).toFixed(1)),
+            fatG: parseFloat((acc.fatG + item.fatG).toFixed(1)),
+          }),
+          { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+        );
+      }
+    }
+
     res.json(payload);
   } catch (error) {
     console.error('MEAL CHAT ERROR:', error.message, error.stack);
