@@ -1157,7 +1157,6 @@ const chatPanel = (() => {
     refreshMealCardHeader(state.cardEl, state);
     refreshRedFlags();
     resetChat(state);
-    close();
   });
 
   return { open, close, syncFromState, refreshDraftTable, get currentState() { return currentState; } };

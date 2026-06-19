@@ -118,9 +118,9 @@ async function mealChatHandler(req, res, next) {
 
     const systemContent = `You are a friendly meal assistant. Always respond in valid JSON only.
 
-STEP 1 — Is the user's message about adjusting this meal (food, nutrition, macros, calories, grams, swapping or adding foods)?
-- If YES → use the meal context below, respond with status "ready" and include "changes".
-- If NO → reply conversationally, status "negotiating", do NOT include "changes" or touch the meal.
+STEP 1 — Is the user explicitly asking you to CHANGE the meal (add a food, remove a food, adjust grams, swap an ingredient)?
+- If YES → use the meal context below, respond with status "ready" and include "changes" and "meal_snapshot".
+- If NO (asking a question, checking if targets are hit, just chatting) → reply conversationally with status "negotiating". Do NOT include "changes". Do NOT modify the meal.
 
 MEAL CONTEXT (use only if the user is asking about the meal):
 TARGET: ${mealTarget.calories}kcal P${mealTarget.proteinG}g C${mealTarget.carbG}g F${mealTarget.fatG}g
@@ -203,12 +203,13 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
           foodId: food.id,
           name: food.name,
           grams,
-          calories: parseFloat((food.caloriesPer100g * factor).toFixed(1)),
-          proteinG: parseFloat((food.proteinGPer100g * factor).toFixed(1)),
-          carbG: parseFloat((food.carbGPer100g * factor).toFixed(1)),
-          fatG: parseFloat((food.fatGPer100g * factor).toFixed(1)),
+          calories: parseFloat(((food.caloriesPer100g ?? 0) * factor).toFixed(1)),
+          proteinG: parseFloat(((food.proteinGPer100g ?? 0) * factor).toFixed(1)),
+          carbG: parseFloat(((food.carbGPer100g ?? 0) * factor).toFixed(1)),
+          fatG: parseFloat(((food.fatGPer100g ?? 0) * factor).toFixed(1)),
         };
       });
+      console.log('[meal-chat] proposedItems:', JSON.stringify(proposedItems));
 
       // Only attach proposedItems if something actually changed
       const somethingChanged = proposedItems.some((pi) => {
