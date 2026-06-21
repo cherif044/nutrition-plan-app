@@ -1,4 +1,5 @@
 const { loadFoods } = require('../repositories/foodRepository');
+const { loadTemplates } = require('../repositories/templateRepository');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const {
   NUTRITION,
@@ -19,6 +20,14 @@ function getFoods() {
 }
 
 function generatePlan(rawInput) {
+  return _generatePlanInternal(rawInput, true);
+}
+
+function generatePlanFreeform(rawInput) {
+  return _generatePlanInternal(rawInput, false);
+}
+
+function _generatePlanInternal(rawInput, useTemplates) {
   const input = normalizeInput(rawInput);
   const dailyTargets = calculateDailyTargets(input);
   const mealTargets = splitMeals(dailyTargets, input);
@@ -36,7 +45,7 @@ function generatePlan(rawInput) {
       const filtered = allowedFoods.filter((f) => !usedSnackFoodIds.has(f.id));
       if (filtered.length > 0) foodPool = filtered;
     }
-    const meal = generateMeal({ target, allowedFoods: foodPool, mealIndex: index });
+    const meal = generateMeal({ target, allowedFoods: foodPool, mealIndex: index, input, useTemplates });
     if (target.tag === 'snack') {
       meal.items.forEach((item) => usedSnackFoodIds.add(item.food.id));
     }
@@ -207,16 +216,79 @@ function hasSemanticMatch(foodTerms, selectedTerms) {
   return false;
 }
 
-function generateMeal({ target, allowedFoods, mealIndex }) {
+function selectTemplateForMeal({ mealTag, allowedFoods, input, target, seed }) {
+  const templates = loadTemplates();
+  const allowedFoodMap = new Map(allowedFoods.map((f) => [f.id, f]));
+  const allFoodMap = new Map(loadFoods().map((f) => [f.id, f]));
+
+  let filtered = templates.filter((t) => t.mealType === mealTag);
+
+  // All component foods must be in the already-filtered allowed pool
+  filtered = filtered.filter((t) =>
+    t.components.every((c) => allowedFoodMap.has(c.foodId)),
+  );
+
+  // Diet compatibility
+  if (input.dietType === 'vegan') {
+    filtered = filtered.filter((t) => t.dietTags && t.dietTags.includes('vegan'));
+  } else if (input.dietType === 'vegetarian') {
+    filtered = filtered.filter(
+      (t) => t.dietTags && (t.dietTags.includes('vegetarian') || t.dietTags.includes('vegan')),
+    );
+  }
+
+  if (filtered.length === 0) return null;
+
+  // Feasibility check: keep only templates whose foods can reach the macro target
+  // Store solved items so we can return them directly (avoids re-solving and avoids
+  // adjustPortions starting from default quantities which may violate serving bounds).
+  const feasible = [];
+  for (const t of filtered) {
+    const items = t.components.map((c) => {
+      const food = allowedFoodMap.get(c.foodId) ?? allFoodMap.get(c.foodId);
+      return food ? { food, quantityG: food.defaultServingG } : null;
+    }).filter(Boolean);
+
+    if (items.length === 0) continue;
+
+    const solved = solvePortionsLeastSquares(items, {
+      proteinG: target.proteinG,
+      carbG: target.carbG,
+      fatG: target.fatG,
+    });
+
+    if (isWithinTolerance(solved, target)) {
+      feasible.push(solved);
+    }
+  }
+
+  if (feasible.length === 0) return null;
+
+  return pick(feasible, seed);
+}
+
+function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {
   let bestMeal = null;
   let bestScore = Infinity;
 
   for (let attempt = 0; attempt < NUTRITION.maxMealAttempts; attempt += 1) {
-    const items = selectInitialItems({
-      target,
-      allowedFoods,
-      seed: mealIndex + attempt,
-    });
+    let items;
+    if (useTemplates && target.tag !== 'snack' && attempt === 0 && input) {
+      const templateItems = selectTemplateForMeal({
+        mealTag: target.tag,
+        allowedFoods,
+        input,
+        target: target.targets,
+        seed: mealIndex,
+      });
+      items = templateItems ?? selectInitialItems({ target, allowedFoods, seed: mealIndex + attempt });
+    } else {
+      items = selectInitialItems({
+        target,
+        allowedFoods,
+        seed: mealIndex + attempt,
+      });
+    }
     const adjusted = adjustPortions(items, target.targets);
     const approximate = !isWithinTolerance(adjusted, target.targets);
     const score = mealScore(adjusted, target.targets);
@@ -559,6 +631,56 @@ function nudgeIntoBounds(items, bounds) {
   return current;
 }
 
+function solvePortionsLeastSquares(items, target, options = {}) {
+  const weights = { protein: 1, carb: 1, fat: 1, ...(options.weights ?? {}) };
+  const maxIterations = options.maxIterations ?? NUTRITION.maxPortionAdjustmentIterations;
+  const learningRate = options.learningRate ?? 0.3;
+
+  const meta = items.map((item) => ({
+    p: item.food.proteinGPer100g / 100,
+    c: item.food.carbGPer100g / 100,
+    f: item.food.fatGPer100g / 100,
+    min: Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20,
+    max: Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500,
+  }));
+
+  // Raw floats during iteration — rounding only applied to final output
+  let x = meta.map((m, i) => clamp(items[i].quantityG, m.min, m.max));
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let P = 0;
+    let C = 0;
+    let F = 0;
+    for (let i = 0; i < x.length; i++) {
+      P += x[i] * meta[i].p;
+      C += x[i] * meta[i].c;
+      F += x[i] * meta[i].f;
+    }
+
+    const errP = P - target.proteinG;
+    const errC = C - target.carbG;
+    const errF = F - target.fatG;
+
+    let gradNormSq = 0;
+    const next = x.map((xi, i) => {
+      const grad =
+        2 * weights.protein * meta[i].p * errP +
+        2 * weights.carb   * meta[i].c * errC +
+        2 * weights.fat    * meta[i].f * errF;
+      gradNormSq += grad * grad;
+      return clamp(xi - learningRate * grad, meta[i].min, meta[i].max);
+    });
+
+    x = next;
+    if (gradNormSq < 1e-6) break;
+  }
+
+  return items.map((item, i) => ({
+    ...item,
+    quantityG: roundToNearest(clamp(x[i], meta[i].min, meta[i].max), 5),
+  }));
+}
+
 function rebalanceMeal({ mealTarget, items: rawItems, mealBounds }) {
   const foods = loadFoods();
   const foodMap = new Map(foods.map((f) => [f.id, f]));
@@ -606,74 +728,46 @@ function checkRebalanceFeasibility({ mealTarget, items: rawItems, mealBounds }) 
       };
     });
 
-    const bounds = mealBounds ?? computeMealBounds(mealTarget);
-    const adjusted = adjustPortionsWithLocks(items, mealTarget, bounds);
+    const solved = solvePortionsLeastSquares(items, {
+      proteinG: mealTarget.proteinG,
+      carbG: mealTarget.carbG,
+      fatG: mealTarget.fatG,
+    });
 
-    const finalItems = findBoundsViolation(totalsForItems(adjusted), bounds)
-      ? nudgeIntoBounds(adjusted, bounds)
-      : adjusted;
+    const finalTotals = totalsForItems(solved);
 
-    const totals = totalsForItems(finalItems);
-    const violation = findBoundsViolation(totals, bounds);
+    const absErrP = Math.abs(finalTotals.proteinG - mealTarget.proteinG);
+    const absErrC = Math.abs(finalTotals.carbG - mealTarget.carbG);
+    const absErrF = Math.abs(finalTotals.fatG - mealTarget.fatG);
 
-    return { feasible: !violation, violatedMacro: violation ?? null };
+    if (
+      absErrP <= NUTRITION.proteinToleranceG &&
+      absErrC <= NUTRITION.carbToleranceG &&
+      absErrF <= NUTRITION.fatToleranceG
+    ) {
+      return { feasible: true, violatedMacro: null };
+    }
+
+    const relP = absErrP / Math.max(1, mealTarget.proteinG);
+    const relC = absErrC / Math.max(1, mealTarget.carbG);
+    const relF = absErrF / Math.max(1, mealTarget.fatG);
+
+    let violatedMacro = 'protein';
+    if (relC >= relP && relC >= relF) violatedMacro = 'carbs';
+    else if (relF >= relP && relF >= relC) violatedMacro = 'fat';
+
+    return { feasible: false, violatedMacro };
   } catch {
     return { feasible: false, violatedMacro: null };
   }
 }
 
 function adjustPortionsWithLocks(initialItems, target, bounds) {
-  let items = initialItems.map((item) => ({ ...item }));
-
-  // When 10% bounds are provided use tighter per-macro thresholds (5% of target)
-  // so that drifts within NUTRITION tolerances but outside bounds still get corrected.
-  const proteinThresh = bounds ? target.proteinG * 0.05 : NUTRITION.proteinToleranceG / 2;
-  const fatThresh     = bounds ? target.fatG     * 0.05 : NUTRITION.fatToleranceG     / 2;
-  const carbThresh    = bounds ? target.carbG    * 0.05 : NUTRITION.carbToleranceG    / 2;
-
-  for (let i = 0; i < NUTRITION.maxPortionAdjustmentIterations; i += 1) {
-    const totals = totalsForItems(items);
-    const proteinDiff = target.proteinG - totals.proteinG;
-    const fatDiff = target.fatG - totals.fatG;
-    const carbDiff = target.carbG - totals.carbG;
-    const calorieDiff = target.calories - totals.calories;
-    const proteinIndex =
-      firstIndexForRole(items, 'protein') ?? firstIndexForRole(items, 'mixed');
-    const fatIndex = firstIndexForRole(items, 'fat');
-    const carbIndex =
-      firstIndexForRole(items, 'carb') ?? firstIndexForRole(items, 'mixed');
-
-    if (proteinIndex !== null && Math.abs(proteinDiff) > proteinThresh) {
-      const updated = adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g);
-      if (updated.quantityG !== items[proteinIndex].quantityG) {
-        items = replaceAt(items, proteinIndex, updated);
-        continue;
-      }
-    }
-    if (fatIndex !== null && Math.abs(fatDiff) > fatThresh) {
-      const updated = adjustByMacro(items[fatIndex], fatDiff, items[fatIndex].food.fatGPer100g);
-      if (updated.quantityG !== items[fatIndex].quantityG) {
-        items = replaceAt(items, fatIndex, updated);
-        continue;
-      }
-    }
-    if (carbIndex !== null && Math.abs(carbDiff) > carbThresh) {
-      const updated = adjustByMacro(items[carbIndex], carbDiff, items[carbIndex].food.carbGPer100g);
-      if (updated.quantityG !== items[carbIndex].quantityG) {
-        items = replaceAt(items, carbIndex, updated);
-        continue;
-      }
-    }
-    if (carbIndex !== null && Math.abs(calorieDiff) > 15) {
-      const updated = adjustByCalories(items[carbIndex], calorieDiff);
-      if (updated.quantityG === items[carbIndex].quantityG) break;
-      items = replaceAt(items, carbIndex, updated);
-      continue;
-    }
-    break;
-  }
-
-  return items.map((item) => ({ ...item, quantityG: roundToNearest(item.quantityG, 5) }));
+  return solvePortionsLeastSquares(initialItems, {
+    proteinG: target.proteinG,
+    carbG: target.carbG,
+    fatG: target.fatG,
+  });
 }
 
 // Pre-compute how other foods should change when a given food increases by 10g.
@@ -734,70 +828,18 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
     }),
   );
 
-  // Iterative optimization with priority: protein → carbs → calories → fats
-  let current = items.map((i) => ({ ...i }));
-
-  for (let iter = 0; iter < 40; iter++) {
-    const totals = totalsForItems(current);
-    const proteinDiff = origTotals.proteinG - totals.proteinG;
-    const carbDiff = origTotals.carbG - totals.carbG;
-    const calDiff = origTotals.calories - totals.calories;
-    const fatDiff = origTotals.fatG - totals.fatG;
-
-    // Priority 1: protein
-    if (Math.abs(proteinDiff) > 2) {
-      const idx =
-        firstIndexForRole(current, 'protein') ??
-        firstIndexForRole(current, 'mixed');
-      if (idx !== null) {
-        const u = adjustByMacro(current[idx], proteinDiff, current[idx].food.proteinGPer100g);
-        if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
-      }
-    }
-
-    // Priority 2: carbs
-    if (Math.abs(carbDiff) > 2) {
-      const idx =
-        firstIndexForRole(current, 'carb') ??
-        firstIndexForRole(current, 'mixed');
-      if (idx !== null) {
-        const u = adjustByMacro(current[idx], carbDiff, current[idx].food.carbGPer100g);
-        if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
-      }
-    }
-
-    // Priority 3: calories
-    if (Math.abs(calDiff) > 15) {
-      const anyIdx = current.findIndex(() => true);
-      const idx =
-        firstIndexForRole(current, 'carb') ??
-        firstIndexForRole(current, 'mixed') ??
-        (anyIdx === -1 ? null : anyIdx);
-      if (idx !== null) {
-        const u = adjustByCalories(current[idx], calDiff);
-        if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
-      }
-    }
-
-    // Priority 4: fats
-    if (Math.abs(fatDiff) > 2) {
-      const idx = firstIndexForRole(current, 'fat');
-      if (idx !== null) {
-        const u = adjustByMacro(current[idx], fatDiff, current[idx].food.fatGPer100g);
-        if (u.quantityG !== current[idx].quantityG) { current = replaceAt(current, idx, u); continue; }
-      }
-    }
-
-    break;
-  }
-
-  current = current.map((item) => ({ ...item, quantityG: roundToNearest(item.quantityG, 5) }));
+  let current = solvePortionsLeastSquares(items.map((i) => ({ ...i })), {
+    proteinG: origTotals.proteinG,
+    carbG: origTotals.carbG,
+    fatG: origTotals.fatG,
+  });
 
   const finalTotals = totalsForItems(current);
   const THRESH = 0.10;
   const acceptable =
     Math.abs(finalTotals.proteinG - origTotals.proteinG) / Math.max(1, origTotals.proteinG) <= THRESH &&
     Math.abs(finalTotals.carbG - origTotals.carbG) / Math.max(1, origTotals.carbG) <= THRESH &&
+    Math.abs(finalTotals.fatG - origTotals.fatG) / Math.max(1, origTotals.fatG) <= THRESH &&
     Math.abs(finalTotals.calories - origTotals.calories) / Math.max(1, origTotals.calories) <= THRESH;
 
   if (acceptable) {
@@ -823,6 +865,11 @@ function autoBalanceMeal({ items: rawItems, originalItems: rawOriginals, mealTag
     success: false,
     problematicFoodId: problematic?.food.id ?? null,
     suggestions,
+    deviations: {
+      proteinPct: Math.abs(finalTotals.proteinG - origTotals.proteinG) / Math.max(1, origTotals.proteinG),
+      carbPct: Math.abs(finalTotals.carbG - origTotals.carbG) / Math.max(1, origTotals.carbG),
+      fatPct: Math.abs(finalTotals.fatG - origTotals.fatG) / Math.max(1, origTotals.fatG),
+    },
   };
 }
 
@@ -950,6 +997,7 @@ function filterFoodsForChatbox({ foods, mealTag, userInput }) {
 
 module.exports = {
   generatePlan,
+  generatePlanFreeform,
   getFoods,
   normalizeInput,
   rebalanceMeal,
@@ -958,4 +1006,5 @@ module.exports = {
   checkRebalanceFeasibility,
   computeMealBounds,
   filterFoodsForChatbox,
+  solvePortionsLeastSquares,
 };

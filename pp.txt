@@ -1,21 +1,30 @@
-Fixes to make the system prompt more forceful:
-1. Add an explicit commit trigger
-Add this rule to your system prompt:
-IMPORTANT: If the user gives you a list of specific foods they want, 
-DO NOT ask questions. Immediately calculate the best quantities and 
-respond with status "ready". Only use status "negotiating" if you 
-genuinely need the user to make a choice between options.
-2. Add a turn limit enforcement in the prompt itself
-If this is your 3rd or more response in this conversation, 
-you MUST respond with status "ready" — stop negotiating and commit 
-to your best solution now.
-3. Make the JSON examples more explicit
-The 7B model sometimes ignores abstract instructions but follows concrete examples. Add a few-shot example directly in the system prompt:
-EXAMPLE — when user says "add gouda and pasta":
-WRONG: { "status": "negotiating", "message": "Great choice! How much gouda would you like?" }
-RIGHT: { "status": "ready", "message": "Adding gouda 60g and pasta 120g to balance your protein and carbs.", "changes": [...] }
-4. Force it to calculate before responding
-Add at the end of the system prompt:
-Before responding, silently calculate what quantities of the requested 
-foods would hit the meal target within 5% tolerance. Then respond with 
-status "ready" and those quantities. Do the math first, commit second.
+# Fix prompt — feasibility pre-check in selectTemplateForMeal (do NOT touch scoring/retry loop)
+
+Stop — do not modify the retry loop, mealScore, or how selectInitialItems competes with template results. That comparison is correct and must stay.
+
+The actual problem: selectTemplateForMeal picks a template without checking if its components can realistically reach the meal's target macros within their maxServingG/minServingG bounds. Fix this by adding a feasibility check inside selectTemplateForMeal itself, before returning a template.
+
+## Fix
+
+In `selectTemplateForMeal`, after filtering templates by mealType/allowedFoods/dietTags (existing logic, keep as-is), add one more filter step before picking:
+
+For each surviving template, check feasibility against the meal's target:
+1. Build the candidate item list (same mapping you already do: each component's foodId → food, quantityG: food.defaultServingG).
+2. Call the existing `solvePortionsLeastSquares(items, { proteinG: target.proteinG, carbG: target.carbG, fatG: target.fatG })` (already in this file) to get the best achievable result for this template's foods.
+3. Check if the result is within tolerance using the same logic `checkRebalanceFeasibility` already uses (NUTRITION.proteinToleranceG / carbToleranceG / fatToleranceG against the solved totals).
+4. Keep only templates that pass this feasibility check. Discard the rest.
+
+If zero templates remain after this feasibility filter, return `null` (existing fallback to selectInitialItems triggers, unchanged).
+
+If one or more templates remain, pick one at random from the feasible list (same `pick()` helper, same seed approach as before).
+
+## Constraints
+- Do not change mealScore, the attempt/retry loop in generateMeal, or anything in generatePlanFreeform.
+- Do not change mealTemplates.json or foods.json.
+- Reuse solvePortionsLeastSquares and the tolerance constants already in this file — do not write new solving logic.
+
+## Report back (required before we proceed to anything else)
+Run generatePlan once for a standard-diet user. Report:
+1. How many of the 341 breakfast templates now pass the feasibility check for a ~734 kcal breakfast target (just the count).
+2. Whether a template was actually selected and used in the final output for at least one meal, or whether it still fell back to selectInitialItems — and if it fell back, confirm that's because zero templates were feasible (not a bug).
+3. Confirm no changes were made outside selectTemplateForMeal.

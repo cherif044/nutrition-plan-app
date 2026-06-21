@@ -51,6 +51,7 @@ const emptyState = document.querySelector('#empty-state');
 const summaryTemplate = document.querySelector('#summary-template');
 const mealTemplate = document.querySelector('#meal-template');
 const submitButton = form.querySelector('button[type="submit"]');
+const freeformButton = document.querySelector('#freeform-btn');
 const ramadanToggle = form.elements.ramadanMode;
 const mealsSelect = form.elements.numberOfMeals;
 const snacksSelect = form.elements.numberOfSnacks;
@@ -83,29 +84,34 @@ const plannerCtx = (() => {
 
 // ── Form submit ──────────────────────────────────────────────────────────────
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
+async function generateAndRender(apiUrl) {
   message.textContent = '';
   setLoading(true);
-
   try {
-    const response = await fetch('/api/generate-plan', {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(readForm()),
     });
     const payload = await response.json();
-
     if (!response.ok) {
       throw new Error(payload.error || 'Unable to generate a nutrition plan.');
     }
-
     renderPlan(payload);
   } catch (error) {
     message.textContent = error.message;
   } finally {
     setLoading(false);
   }
+}
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  generateAndRender('/api/generate-plan');
+});
+
+freeformButton.addEventListener('click', () => {
+  generateAndRender('/api/generate-plan-freeform');
 });
 
 ramadanToggle.addEventListener('change', syncRamadanControls);
@@ -659,7 +665,7 @@ async function handleAutoBalance(state) {
       refreshMealDOM(state);
       refreshRedFlags();
     } else {
-      showAutoBalanceSuggestions(state, payload.problematicFoodId, payload.suggestions || []);
+      showAutoBalanceSuggestions(state, payload.problematicFoodId, payload.suggestions || [], payload.deviations);
     }
   } catch {
     // Network error — silently ignore
@@ -669,7 +675,7 @@ async function handleAutoBalance(state) {
   }
 }
 
-function showAutoBalanceSuggestions(state, problematicFoodId, suggestions) {
+function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, deviations) {
   const card = state.cardEl;
 
   const probIdx = state.items.findIndex((i) => i.food.id === problematicFoodId);
@@ -730,6 +736,17 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions) {
     }
 
     panel.append(list);
+  }
+
+  if (deviations && (deviations.proteinPct > 0.05 || deviations.carbPct > 0.05 || deviations.fatPct > 0.05)) {
+    const askAiBtn = document.createElement('button');
+    askAiBtn.type = 'button';
+    askAiBtn.className = 'btn btn-secondary ask-ai-btn';
+    askAiBtn.textContent = 'Ask AI for help';
+    askAiBtn.addEventListener('click', () => {
+      chatPanel.openAndSend(state, "Auto-balance couldn't fully hit the targets for this meal. Can you suggest a change?");
+    });
+    panel.append(askAiBtn);
   }
 }
 
@@ -1139,6 +1156,12 @@ const chatPanel = (() => {
     }
   }
 
+  async function openAndSend(state, text) {
+    open(state);
+    inputEl.value = text;
+    await sendMessage();
+  }
+
   closeBtn.addEventListener('click', close);
   sendBtn.addEventListener('click', sendMessage);
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
@@ -1159,7 +1182,7 @@ const chatPanel = (() => {
     resetChat(state);
   });
 
-  return { open, close, syncFromState, refreshDraftTable, get currentState() { return currentState; } };
+  return { open, close, openAndSend, syncFromState, refreshDraftTable, get currentState() { return currentState; } };
 })();
 
 function appendMessage(messagesEl, role, text, opts = {}) {
@@ -1411,7 +1434,9 @@ function normalizeText(value) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
+  freeformButton.disabled = isLoading;
   submitButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Generate plan';
+  freeformButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Build your own meals instead';
 }
 
 function syncRamadanControls() {

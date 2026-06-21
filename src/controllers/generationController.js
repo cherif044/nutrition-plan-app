@@ -1,5 +1,5 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
-const { generatePlan, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox } = require('../services/planGenerator');
+const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox } = require('../services/planGenerator');
 const { loadFoods } = require('../repositories/foodRepository');
 const { chatWithLLM } = require('../services/llmService');
 
@@ -26,6 +26,14 @@ function getPreferences(_req, res, next) {
 function generatePlanHandler(req, res, next) {
   try {
     res.json(generatePlan(req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
+function generatePlanFreeformHandler(req, res, next) {
+  try {
+    res.json(generatePlanFreeform(req.body));
   } catch (error) {
     next(error);
   }
@@ -376,6 +384,7 @@ module.exports = {
   getFoodsHandler,
   getPreferences,
   generatePlanHandler,
+  generatePlanFreeformHandler,
   rebalanceMealHandler,
   checkSwapHandler,
   autoBalanceMealHandler,

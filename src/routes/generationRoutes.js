@@ -5,6 +5,7 @@ const {
   getFoodsHandler,
   getPreferences,
   generatePlanHandler,
+  generatePlanFreeformHandler,
   rebalanceMealHandler,
   checkSwapHandler,
   autoBalanceMealHandler,
@@ -19,6 +20,7 @@ router.get('/health', health);
 router.get('/foods', getFoodsHandler);
 router.get('/preferences', getPreferences);
 router.post('/generate-plan', requireAuth, generatePlanHandler);
+router.post('/generate-plan-freeform', requireAuth, generatePlanFreeformHandler);
 router.post('/rebalance-meal', requireAuth, rebalanceMealHandler);
 router.post('/check-swap', requireAuth, checkSwapHandler);
 router.post('/auto-balance-meal', requireAuth, autoBalanceMealHandler);

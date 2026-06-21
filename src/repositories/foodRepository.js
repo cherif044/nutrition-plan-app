@@ -26,7 +26,7 @@ function normalizeFood(food) {
     'id', 'name', 'macro_role', 'calories_per_100g', 'protein_g_per_100g',
     'carb_g_per_100g', 'fat_g_per_100g', 'is_vegan', 'is_vegetarian',
     'allergens', 'categories', 'meal_tags', 'default_serving_g',
-    'min_serving_g', 'max_serving_g',
+    'min_serving_g', 'max_serving_g', 'cuisine_tag',
   ];
 
   for (const field of requiredFields) {
@@ -55,6 +55,14 @@ function normalizeFood(food) {
     minServingG: Number(food.min_serving_g),
     maxServingG: Number(food.max_serving_g),
     fdcId: food.fdc_id ? Number(food.fdc_id) : null,
+    // sub_category vocab by macro_role:
+    //   carb    → bread | grain | pasta | starchy_veg | non_starchy_veg | fruit | legume
+    //   protein → poultry | red_meat | fish_seafood | egg | dairy_protein | legume
+    //   fat     → oil_fat | nuts_seeds | dairy_fat
+    //   mixed   → null
+    subCategory: food.sub_category ?? null,
+    cuisineTag: String(food.cuisine_tag),
+    dietTags: Array.isArray(food.diet_tags) ? food.diet_tags.map(String) : [],
   };
 }
 

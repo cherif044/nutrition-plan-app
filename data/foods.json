@@ -28,7 +28,14 @@
     "default_serving_g": 28.4,
     "min_serving_g": 14.2,
     "max_serving_g": 150,
-    "fdc_id": 168013
+    "fdc_id": 168013,
+    "sub_category": "bread",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "bread_brown_whole_grain",
@@ -59,7 +66,14 @@
     "default_serving_g": 30,
     "min_serving_g": 15,
     "max_serving_g": 150,
-    "fdc_id": 90006
+    "fdc_id": 90006,
+    "sub_category": "bread",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "bread_white",
@@ -90,7 +104,14 @@
     "default_serving_g": 29,
     "min_serving_g": 14.5,
     "max_serving_g": 150,
-    "fdc_id": 174924
+    "fdc_id": 174924,
+    "sub_category": "bread",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "bread_egyptian_baladi_eish_baladi",
@@ -121,7 +142,14 @@
     "default_serving_g": 90,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 90005
+    "fdc_id": 90005,
+    "sub_category": "bread",
+    "cuisine_tag": "egyptian",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "beef_ground_80_lean_cooked_broiled",
@@ -150,7 +178,10 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 250,
-    "fdc_id": 171797
+    "fdc_id": 171797,
+    "sub_category": "red_meat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
   },
   {
     "id": "beef_ground_95_lean_cooked_broiled",
@@ -179,7 +210,10 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 250,
-    "fdc_id": 171791
+    "fdc_id": 171791,
+    "sub_category": "red_meat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
   },
   {
     "id": "oats_raw",
@@ -209,7 +243,14 @@
     "default_serving_g": 100,
     "min_serving_g": 30,
     "max_serving_g": 150,
-    "fdc_id": 169705
+    "fdc_id": 169705,
+    "sub_category": "grain",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "pasta_whole_wheat_cooked",
@@ -240,7 +281,14 @@
     "default_serving_g": 124,
     "min_serving_g": 62,
     "max_serving_g": 350,
-    "fdc_id": 168910
+    "fdc_id": 168910,
+    "sub_category": "pasta",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "quinoa_cooked",
@@ -270,7 +318,14 @@
     "default_serving_g": 185,
     "min_serving_g": 92.5,
     "max_serving_g": 350,
-    "fdc_id": 168917
+    "fdc_id": 168917,
+    "sub_category": "grain",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "rice_basmati_cooked",
@@ -301,7 +356,14 @@
     "default_serving_g": 185,
     "min_serving_g": 92.5,
     "max_serving_g": 400,
-    "fdc_id": 90003
+    "fdc_id": 90003,
+    "sub_category": "grain",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "rice_white_long_grain_cooked",
@@ -332,7 +394,14 @@
     "default_serving_g": 158,
     "min_serving_g": 79,
     "max_serving_g": 400,
-    "fdc_id": 168878
+    "fdc_id": 168878,
+    "sub_category": "grain",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_gluten"
+    ]
   },
   {
     "id": "butter_without_salt",
@@ -364,7 +433,13 @@
     "default_serving_g": 5,
     "min_serving_g": 2.5,
     "max_serving_g": 10,
-    "fdc_id": 173430
+    "fdc_id": 173430,
+    "sub_category": "dairy_fat",
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "cheese_cheddar",
@@ -395,7 +470,13 @@
     "default_serving_g": 60,
     "min_serving_g": 18,
     "max_serving_g": 60,
-    "fdc_id": 173414
+    "fdc_id": 173414,
+    "sub_category": "dairy_fat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "cheese_cottage_creamed",
@@ -425,7 +506,13 @@
     "default_serving_g": 113,
     "min_serving_g": 56.5,
     "max_serving_g": 150,
-    "fdc_id": 172179
+    "fdc_id": 172179,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "cheese_feta",
@@ -456,7 +543,13 @@
     "default_serving_g": 40,
     "min_serving_g": 12,
     "max_serving_g": 40,
-    "fdc_id": 173420
+    "fdc_id": 173420,
+    "sub_category": "dairy_fat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "cheese_gouda",
@@ -487,7 +580,13 @@
     "default_serving_g": 28.4,
     "min_serving_g": 14.2,
     "max_serving_g": 60,
-    "fdc_id": 171241
+    "fdc_id": 171241,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "cheese_mozzarella_whole_milk",
@@ -517,7 +616,13 @@
     "default_serving_g": 40,
     "min_serving_g": 12,
     "max_serving_g": 40,
-    "fdc_id": 170845
+    "fdc_id": 170845,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "egg_white_raw_fresh",
@@ -548,7 +653,12 @@
     "default_serving_g": 33,
     "min_serving_g": 16.5,
     "max_serving_g": 100,
-    "fdc_id": 172183
+    "fdc_id": 172183,
+    "sub_category": "egg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian"
+    ]
   },
   {
     "id": "egg_whole_cooked_hard_boiled",
@@ -579,7 +689,12 @@
     "default_serving_g": 136,
     "min_serving_g": 68,
     "max_serving_g": 250,
-    "fdc_id": 173424
+    "fdc_id": 173424,
+    "sub_category": "egg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian"
+    ]
   },
   {
     "id": "egg_whole_cooked_scrambled",
@@ -609,7 +724,12 @@
     "default_serving_g": 61,
     "min_serving_g": 30.5,
     "max_serving_g": 250,
-    "fdc_id": 172187
+    "fdc_id": 172187,
+    "sub_category": "egg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian"
+    ]
   },
   {
     "id": "skimmed_milk_fat_free",
@@ -640,7 +760,13 @@
     "default_serving_g": 244,
     "min_serving_g": 122,
     "max_serving_g": 400,
-    "fdc_id": 171269
+    "fdc_id": 171269,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "milk_whole_3_25_milkfat",
@@ -671,7 +797,13 @@
     "default_serving_g": 244,
     "min_serving_g": 122,
     "max_serving_g": 400,
-    "fdc_id": 171265
+    "fdc_id": 171265,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "yogurt_greek_plain_whole_milk",
@@ -702,7 +834,13 @@
     "default_serving_g": 170,
     "min_serving_g": 85,
     "max_serving_g": 250,
-    "fdc_id": 170894
+    "fdc_id": 170894,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "greek_yogurt_5_fat_whole_milk",
@@ -733,7 +871,13 @@
     "default_serving_g": 170,
     "min_serving_g": 85,
     "max_serving_g": 250,
-    "fdc_id": 171304
+    "fdc_id": 171304,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "whey_protein_isolate_unflavored",
@@ -764,7 +908,13 @@
     "default_serving_g": 30,
     "min_serving_g": 15,
     "max_serving_g": 50,
-    "fdc_id": 90001
+    "fdc_id": 90001,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "whey_protein_concentrate_unflavored",
@@ -795,7 +945,13 @@
     "default_serving_g": 30,
     "min_serving_g": 15,
     "max_serving_g": 50,
-    "fdc_id": 90002
+    "fdc_id": 90002,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
   },
   {
     "id": "oil_olive_salad_or_cooking",
@@ -822,7 +978,13 @@
     "default_serving_g": 10,
     "min_serving_g": 5,
     "max_serving_g": 10,
-    "fdc_id": 171413
+    "fdc_id": 171413,
+    "sub_category": "oil_fat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "oil_sunflower_linoleic",
@@ -849,7 +1011,13 @@
     "default_serving_g": 10,
     "min_serving_g": 5,
     "max_serving_g": 10,
-    "fdc_id": 171025
+    "fdc_id": 171025,
+    "sub_category": "oil_fat",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "fish_salmon_atlantic_farmed_cooked",
@@ -877,7 +1045,12 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 250,
-    "fdc_id": 175168
+    "fdc_id": 175168,
+    "sub_category": "fish_seafood",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "contains_seafood"
+    ]
   },
   {
     "id": "fish_tilapia_cooked",
@@ -905,7 +1078,12 @@
     "default_serving_g": 87,
     "min_serving_g": 43.5,
     "max_serving_g": 250,
-    "fdc_id": 175177
+    "fdc_id": 175177,
+    "sub_category": "fish_seafood",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "contains_seafood"
+    ]
   },
   {
     "id": "fish_tuna_light_canned_in_water",
@@ -934,7 +1112,12 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 150,
-    "fdc_id": 171986
+    "fdc_id": 171986,
+    "sub_category": "fish_seafood",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "contains_seafood"
+    ]
   },
   {
     "id": "fish_tuna_white_canned_in_oil",
@@ -962,7 +1145,12 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 150,
-    "fdc_id": 171987
+    "fdc_id": 171987,
+    "sub_category": "fish_seafood",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "contains_seafood"
+    ]
   },
   {
     "id": "shrimp_cooked",
@@ -991,7 +1179,12 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 200,
-    "fdc_id": 175180
+    "fdc_id": 175180,
+    "sub_category": "fish_seafood",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "contains_seafood"
+    ]
   },
   {
     "id": "apples_raw_with_skin",
@@ -1018,7 +1211,13 @@
     "default_serving_g": 125,
     "min_serving_g": 62.5,
     "max_serving_g": 150,
-    "fdc_id": 171688
+    "fdc_id": 171688,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "apricots_raw",
@@ -1045,7 +1244,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 171697
+    "fdc_id": 171697,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "avocados_raw",
@@ -1071,7 +1276,13 @@
     "default_serving_g": 100,
     "min_serving_g": 30,
     "max_serving_g": 100,
-    "fdc_id": 171705
+    "fdc_id": 171705,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "bananas_raw",
@@ -1098,7 +1309,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 173944
+    "fdc_id": 173944,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "blueberries_raw",
@@ -1125,7 +1342,13 @@
     "default_serving_g": 148,
     "min_serving_g": 74,
     "max_serving_g": 150,
-    "fdc_id": 171711
+    "fdc_id": 171711,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "cherries_sweet_raw",
@@ -1152,7 +1375,13 @@
     "default_serving_g": 138,
     "min_serving_g": 69,
     "max_serving_g": 150,
-    "fdc_id": 171719
+    "fdc_id": 171719,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "dates_medjool",
@@ -1179,7 +1408,13 @@
     "default_serving_g": 24,
     "min_serving_g": 12,
     "max_serving_g": 40,
-    "fdc_id": 168191
+    "fdc_id": 168191,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "grapes_red_or_green_raw",
@@ -1206,7 +1441,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 174683
+    "fdc_id": 174683,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "kiwifruit_green_raw",
@@ -1233,7 +1474,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 168153
+    "fdc_id": 168153,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "mangos_raw",
@@ -1260,7 +1507,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 169910
+    "fdc_id": 169910,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "oranges_raw",
@@ -1287,7 +1540,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 169097
+    "fdc_id": 169097,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peaches_raw",
@@ -1314,7 +1573,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 169928
+    "fdc_id": 169928,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "pears_raw",
@@ -1341,7 +1606,13 @@
     "default_serving_g": 140,
     "min_serving_g": 70,
     "max_serving_g": 150,
-    "fdc_id": 169118
+    "fdc_id": 169118,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "pineapple_raw",
@@ -1368,7 +1639,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 169124
+    "fdc_id": 169124,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "plums_raw",
@@ -1395,7 +1672,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 169949
+    "fdc_id": 169949,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "pomegranates_raw",
@@ -1422,7 +1705,13 @@
     "default_serving_g": 87,
     "min_serving_g": 43.5,
     "max_serving_g": 150,
-    "fdc_id": 169134
+    "fdc_id": 169134,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "strawberries_raw",
@@ -1449,7 +1738,13 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 167762
+    "fdc_id": 167762,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "watermelon_raw",
@@ -1476,12 +1771,18 @@
     "default_serving_g": 150,
     "min_serving_g": 45,
     "max_serving_g": 150,
-    "fdc_id": 167765
+    "fdc_id": 167765,
+    "sub_category": "fruit",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "beans_kidney_cooked_boiled",
     "name": "Beans, kidney, cooked, boiled",
-    "macro_role": "protein",
+    "macro_role": "carb",
     "calories_per_100g": 127,
     "protein_g_per_100g": 8.67,
     "carb_g_per_100g": 22.8,
@@ -1503,12 +1804,18 @@
     "default_serving_g": 177,
     "min_serving_g": 88.5,
     "max_serving_g": 300,
-    "fdc_id": 173740
+    "fdc_id": 173740,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "broadbeans_fava_beans_cooked",
     "name": "Broadbeans (fava beans), cooked",
-    "macro_role": "protein",
+    "macro_role": "carb",
     "calories_per_100g": 110,
     "protein_g_per_100g": 7.6,
     "carb_g_per_100g": 19.65,
@@ -1530,12 +1837,18 @@
     "default_serving_g": 170,
     "min_serving_g": 85,
     "max_serving_g": 300,
-    "fdc_id": 173753
+    "fdc_id": 173753,
+    "sub_category": "legume",
+    "cuisine_tag": "egyptian",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "chickpeas_cooked_boiled",
     "name": "Chickpeas, cooked, boiled",
-    "macro_role": "protein",
+    "macro_role": "carb",
     "calories_per_100g": 164,
     "protein_g_per_100g": 8.86,
     "carb_g_per_100g": 27.42,
@@ -1557,12 +1870,18 @@
     "default_serving_g": 164,
     "min_serving_g": 82,
     "max_serving_g": 300,
-    "fdc_id": 173757
+    "fdc_id": 173757,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "lentils_cooked_boiled",
     "name": "Lentils, cooked, boiled",
-    "macro_role": "protein",
+    "macro_role": "carb",
     "calories_per_100g": 116,
     "protein_g_per_100g": 9.02,
     "carb_g_per_100g": 20.13,
@@ -1584,7 +1903,13 @@
     "default_serving_g": 198,
     "min_serving_g": 99,
     "max_serving_g": 300,
-    "fdc_id": 172421
+    "fdc_id": 172421,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peanut_butter_smooth_without_salt",
@@ -1613,7 +1938,13 @@
     "default_serving_g": 32,
     "min_serving_g": 16,
     "max_serving_g": 32,
-    "fdc_id": 172470
+    "fdc_id": 172470,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peanuts_dry_roasted_without_salt",
@@ -1640,7 +1971,13 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 173806
+    "fdc_id": 173806,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "soy_sauce_from_soy_and_wheat_shoyu",
@@ -1669,7 +2006,13 @@
     "default_serving_g": 15,
     "min_serving_g": 5,
     "max_serving_g": 15,
-    "fdc_id": 174277
+    "fdc_id": 174277,
+    "sub_category": "legume",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "nuts_almond_butter_without_salt",
@@ -1699,7 +2042,14 @@
     "default_serving_g": 16,
     "min_serving_g": 8,
     "max_serving_g": 32,
-    "fdc_id": 168588
+    "fdc_id": 168588,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_almonds",
@@ -1728,7 +2078,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170567
+    "fdc_id": 170567,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_cashew_nuts_raw",
@@ -1757,7 +2114,14 @@
     "default_serving_g": 28.4,
     "min_serving_g": 14.2,
     "max_serving_g": 30,
-    "fdc_id": 170162
+    "fdc_id": 170162,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_hazelnuts",
@@ -1786,7 +2150,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170581
+    "fdc_id": 170581,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_pecans",
@@ -1815,7 +2186,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170182
+    "fdc_id": 170182,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_pistachio_nuts_raw",
@@ -1844,7 +2222,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170184
+    "fdc_id": 170184,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "nuts_walnuts_english",
@@ -1873,7 +2258,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170187
+    "fdc_id": 170187,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "seeds_chia_seeds_dried",
@@ -1902,7 +2294,14 @@
     "default_serving_g": 20,
     "min_serving_g": 6,
     "max_serving_g": 20,
-    "fdc_id": 170554
+    "fdc_id": 170554,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "seeds_flaxseed",
@@ -1931,7 +2330,14 @@
     "default_serving_g": 10.3,
     "min_serving_g": 5.2,
     "max_serving_g": 20,
-    "fdc_id": 169414
+    "fdc_id": 169414,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "seeds_pumpkin_roasted_no_salt",
@@ -1960,7 +2366,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170188
+    "fdc_id": 170188,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "seeds_sunflower_dry_roasted_no_salt",
@@ -1989,7 +2402,14 @@
     "default_serving_g": 30,
     "min_serving_g": 9,
     "max_serving_g": 30,
-    "fdc_id": 170563
+    "fdc_id": 170563,
+    "sub_category": "nuts_seeds",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan",
+      "contains_nuts"
+    ]
   },
   {
     "id": "chicken_breast_skinless_boneless_grilled",
@@ -2017,7 +2437,10 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 250,
-    "fdc_id": 171534
+    "fdc_id": 171534,
+    "sub_category": "poultry",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
   },
   {
     "id": "turkey_breast_deli_slices",
@@ -2046,7 +2469,10 @@
     "default_serving_g": 56,
     "min_serving_g": 28,
     "max_serving_g": 80,
-    "fdc_id": 90007
+    "fdc_id": 90007,
+    "sub_category": "poultry",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
   },
   {
     "id": "chicken_thighs_meat_only_cooked_roasted",
@@ -2074,12 +2500,15 @@
     "default_serving_g": 85,
     "min_serving_g": 42.5,
     "max_serving_g": 250,
-    "fdc_id": 172388
+    "fdc_id": 172388,
+    "sub_category": "poultry",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
   },
   {
     "id": "sauce_teriyaki_ready_to_serve",
     "name": "Sauce, teriyaki, ready-to-serve",
-    "macro_role": "misc",
+    "macro_role": "mixed",
     "calories_per_100g": 89,
     "protein_g_per_100g": 5.93,
     "carb_g_per_100g": 15.56,
@@ -2100,12 +2529,18 @@
     "default_serving_g": 18,
     "min_serving_g": 9,
     "max_serving_g": 20,
-    "fdc_id": 171167
+    "fdc_id": 171167,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "mustard_prepared_yellow",
     "name": "Mustard, prepared, yellow",
-    "macro_role": "misc",
+    "macro_role": "mixed",
     "calories_per_100g": 60,
     "protein_g_per_100g": 3.74,
     "carb_g_per_100g": 5.83,
@@ -2127,7 +2562,13 @@
     "default_serving_g": 5,
     "min_serving_g": 2.5,
     "max_serving_g": 20,
-    "fdc_id": 172234
+    "fdc_id": 172234,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "beans_snap_green_cooked",
@@ -2153,7 +2594,13 @@
     "default_serving_g": 125,
     "min_serving_g": 62.5,
     "max_serving_g": 200,
-    "fdc_id": 169141
+    "fdc_id": 169141,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "broccoli_cooked_boiled",
@@ -2179,7 +2626,13 @@
     "default_serving_g": 78,
     "min_serving_g": 39,
     "max_serving_g": 200,
-    "fdc_id": 169967
+    "fdc_id": 169967,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "cabbage_cooked_boiled",
@@ -2205,7 +2658,13 @@
     "default_serving_g": 75,
     "min_serving_g": 37.5,
     "max_serving_g": 200,
-    "fdc_id": 169976
+    "fdc_id": 169976,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "carrots_cooked_boiled",
@@ -2231,7 +2690,13 @@
     "default_serving_g": 9.7,
     "min_serving_g": 4.8,
     "max_serving_g": 200,
-    "fdc_id": 170394
+    "fdc_id": 170394,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "cauliflower_cooked_boiled",
@@ -2257,7 +2722,13 @@
     "default_serving_g": 62,
     "min_serving_g": 31,
     "max_serving_g": 200,
-    "fdc_id": 170397
+    "fdc_id": 170397,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "corn_sweet_yellow_cooked_boiled",
@@ -2283,7 +2754,13 @@
     "default_serving_g": 89,
     "min_serving_g": 44.5,
     "max_serving_g": 200,
-    "fdc_id": 169999
+    "fdc_id": 169999,
+    "sub_category": "starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "cucumber_with_peel_raw",
@@ -2310,7 +2787,13 @@
     "default_serving_g": 52,
     "min_serving_g": 26,
     "max_serving_g": 200,
-    "fdc_id": 168409
+    "fdc_id": 168409,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "eggplant_cooked_boiled",
@@ -2336,7 +2819,13 @@
     "default_serving_g": 99,
     "min_serving_g": 49.5,
     "max_serving_g": 200,
-    "fdc_id": 169229
+    "fdc_id": 169229,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "lettuce_romaine_raw",
@@ -2363,7 +2852,13 @@
     "default_serving_g": 47,
     "min_serving_g": 23.5,
     "max_serving_g": 100,
-    "fdc_id": 169247
+    "fdc_id": 169247,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "mushrooms_white_cooked_boiled",
@@ -2390,7 +2885,13 @@
     "default_serving_g": 156,
     "min_serving_g": 78,
     "max_serving_g": 200,
-    "fdc_id": 169252
+    "fdc_id": 169252,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "onions_raw",
@@ -2416,7 +2917,13 @@
     "default_serving_g": 100,
     "min_serving_g": 30,
     "max_serving_g": 100,
-    "fdc_id": 170000
+    "fdc_id": 170000,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peas_green_cooked_boiled",
@@ -2442,7 +2949,13 @@
     "default_serving_g": 160,
     "min_serving_g": 80,
     "max_serving_g": 200,
-    "fdc_id": 170420
+    "fdc_id": 170420,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peppers_sweet_green_raw",
@@ -2468,7 +2981,13 @@
     "default_serving_g": 149,
     "min_serving_g": 74.5,
     "max_serving_g": 200,
-    "fdc_id": 170427
+    "fdc_id": 170427,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "peppers_sweet_red_raw",
@@ -2494,7 +3013,13 @@
     "default_serving_g": 149,
     "min_serving_g": 74.5,
     "max_serving_g": 200,
-    "fdc_id": 170108
+    "fdc_id": 170108,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "potatoes_boiled_without_skin",
@@ -2521,7 +3046,13 @@
     "default_serving_g": 78,
     "min_serving_g": 39,
     "max_serving_g": 300,
-    "fdc_id": 170440
+    "fdc_id": 170440,
+    "sub_category": "starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "spinach_cooked_boiled",
@@ -2547,7 +3078,13 @@
     "default_serving_g": 180,
     "min_serving_g": 90,
     "max_serving_g": 200,
-    "fdc_id": 168463
+    "fdc_id": 168463,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "sweet_potato_baked_in_skin",
@@ -2575,7 +3112,13 @@
     "default_serving_g": 200,
     "min_serving_g": 100,
     "max_serving_g": 300,
-    "fdc_id": 168483
+    "fdc_id": 168483,
+    "sub_category": "starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "tomatoes_red_raw",
@@ -2602,7 +3145,13 @@
     "default_serving_g": 149,
     "min_serving_g": 74.5,
     "max_serving_g": 200,
-    "fdc_id": 170457
+    "fdc_id": 170457,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "zucchini_cooked_boiled",
@@ -2628,12 +3177,18 @@
     "default_serving_g": 200,
     "min_serving_g": 60,
     "max_serving_g": 200,
-    "fdc_id": 168470
+    "fdc_id": 168470,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "protein_bar_average",
     "name": "Protein bar, average",
-    "macro_role": "misc",
+    "macro_role": "mixed",
     "calories_per_100g": 374,
     "protein_g_per_100g": 23,
     "carb_g_per_100g": 44,
@@ -2652,12 +3207,18 @@
     "default_serving_g": 60,
     "min_serving_g": 30,
     "max_serving_g": 70,
-    "fdc_id": 90008
+    "fdc_id": 90008,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   },
   {
     "id": "sauce_bbq_regular",
     "name": "Sauce, BBQ, regular",
-    "macro_role": "misc",
+    "macro_role": "mixed",
     "calories_per_100g": 172,
     "protein_g_per_100g": 0.8,
     "carb_g_per_100g": 41.5,
@@ -2678,6 +3239,12 @@
     "default_serving_g": 20,
     "min_serving_g": 6,
     "max_serving_g": 20,
-    "fdc_id": 90009
+    "fdc_id": 90009,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   }
 ]
