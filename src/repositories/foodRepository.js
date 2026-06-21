@@ -56,8 +56,8 @@ function normalizeFood(food) {
     maxServingG: Number(food.max_serving_g),
     fdcId: food.fdc_id ? Number(food.fdc_id) : null,
     // sub_category vocab by macro_role:
-    //   carb    → bread | grain | pasta | starchy_veg | non_starchy_veg | fruit | legume
-    //   protein → poultry | red_meat | fish_seafood | egg | dairy_protein | legume
+    //   carb    → starch | bread | non_starchy_veg | fruit | legume
+    //   protein → animal_protein | egg | dairy_protein | legume
     //   fat     → oil_fat | nuts_seeds | dairy_fat
     //   mixed   → null
     subCategory: food.sub_category ?? null,

@@ -528,16 +528,21 @@ function mealScore(items, target) {
 }
 
 function alternativesFor({ original, allowedFoods, mealTag, limit = 4 }) {
-  // MOD-11: prefer foods sharing a category (same semantic type), fall back to same role only
+  // MOD-11: prefer same subCategory, then category overlap, then same role only
   const byRole = (food) =>
     food.id !== original.id &&
     food.macroRole === original.macroRole &&
     food.mealTags.includes(mealTag);
 
+  const withSubCategory = original.subCategory
+    ? allowedFoods.filter((food) => byRole(food) && food.subCategory === original.subCategory)
+    : [];
   const withCategory = allowedFoods.filter(
     (food) => byRole(food) && food.categories.some((c) => original.categories.includes(c)),
   );
-  const pool = withCategory.length > 0 ? withCategory : allowedFoods.filter(byRole);
+  const pool = withSubCategory.length > 0
+    ? withSubCategory
+    : (withCategory.length > 0 ? withCategory : allowedFoods.filter(byRole));
 
   const unique = new Map();
   pool
@@ -920,8 +925,11 @@ function suggestReplacementsForFood({ problematicFood, items, origTotals, mealTa
 
   const results = [];
 
-  for (const food of foods) {
-    if (food.id === problematicFood.id) continue;
+  const currentFoodIds = new Set(items.map((i) => i.food.id));
+
+for (const food of foods) {
+  if (food.id === problematicFood.id) continue;
+  if (currentFoodIds.has(food.id)) continue;
 
     let gramAmount;
     if (food.proteinGPer100g > 1 && budget.proteinG > 5) {
@@ -939,11 +947,13 @@ function suggestReplacementsForFood({ problematicFood, items, origTotals, mealTa
     const maxG = food.maxServingG ?? 500;
     if (gramAmount < minG || gramAmount > maxG) continue;
 
-    const sameCategory = problematicFood.categories.some((c) => food.categories.includes(c));
-    results.push({ food, gramAmount, sameCategory });
+    const sameSubCategory = problematicFood.subCategory != null && food.subCategory === problematicFood.subCategory;
+    const sameCategory = sameSubCategory || problematicFood.categories.some((c) => food.categories.includes(c));
+    results.push({ food, gramAmount, sameCategory, sameSubCategory });
   }
 
   results.sort((a, b) => {
+    if (a.sameSubCategory !== b.sameSubCategory) return a.sameSubCategory ? -1 : 1;
     if (a.sameCategory !== b.sameCategory) return a.sameCategory ? -1 : 1;
     return macroDistance(problematicFood, a.food) - macroDistance(problematicFood, b.food);
   });

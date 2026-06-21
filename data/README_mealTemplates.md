@@ -19,8 +19,8 @@ Currently an empty array. Each entry will have the following shape once populate
 
 | macro_role | valid sub_category values |
 |---|---|
-| carb | `bread`, `grain`, `pasta`, `starchy_veg`, `non_starchy_veg`, `fruit`, `legume` |
-| protein | `poultry`, `red_meat`, `fish_seafood`, `egg`, `dairy_protein`, `legume` |
+| carb | `starch`, `bread`, `non_starchy_veg`, `fruit`, `legume` |
+| protein | `animal_protein`, `egg`, `dairy_protein`, `legume` |
 | fat | `oil_fat`, `nuts_seeds`, `dairy_fat` |
 | mixed | `null` |
 ```
