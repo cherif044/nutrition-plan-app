@@ -1,4 +1,4 @@
-const { MEAL_SPLITS, NUTRITION } = require('../config/nutritionConstants');
+const { MEAL_SPLITS, NUTRITION, SLOT_MACRO_PROFILES } = require('../config/nutritionConstants');
 
 function calculateDailyTargets(input) {
   const maintenance = maintenanceCalories(input);
@@ -60,6 +60,65 @@ function splitMeals(dailyTargets, input) {
   }
 
   return targets;
+}
+
+function getMealSlotProfile(numberOfMeals, numberOfSnacks, ramadanSplit = false) {
+  if (ramadanSplit) {
+    return MEAL_SPLITS.ramadanTags.map((tag, index) =>
+      buildSlotProfile({
+        name: MEAL_SPLITS.ramadanNames[index],
+        tag,
+        idealCaloriePercent: MEAL_SPLITS.ramadanSplits[index],
+      }),
+    );
+  }
+
+  const snackTotalFactor = MEAL_SPLITS.snacks[numberOfSnacks] ?? 0;
+  const mealTags = Array.from({ length: numberOfMeals }, (_, index) =>
+    mealTagFor(index, numberOfMeals),
+  );
+  const mealNames = Array.from({ length: numberOfMeals }, (_, index) =>
+    mealNameFor(index, numberOfMeals),
+  );
+  const mealProfileWeights = mealTags.map((tag) =>
+    SLOT_MACRO_PROFILES[tag]?.calorieWeight ?? SLOT_MACRO_PROFILES.lunch.calorieWeight,
+  );
+  const mealWeightTotal = mealProfileWeights.reduce((sum, weight) => sum + weight, 0) || 1;
+  const mealTotalFactor = 1 - snackTotalFactor;
+
+  const slots = mealTags.map((tag, index) =>
+    buildSlotProfile({
+      name: mealNames[index],
+      tag,
+      idealCaloriePercent: mealTotalFactor * (mealProfileWeights[index] / mealWeightTotal),
+    }),
+  );
+
+  const snackFactor = numberOfSnacks === 0 ? 0 : snackTotalFactor / numberOfSnacks;
+  for (let index = 0; index < numberOfSnacks; index += 1) {
+    slots.push(
+      buildSlotProfile({
+        name: numberOfSnacks === 1 ? 'Snack' : `Snack ${index + 1}`,
+        tag: 'snack',
+        idealCaloriePercent: snackFactor,
+      }),
+    );
+  }
+
+  return slots;
+}
+
+function buildSlotProfile({ name, tag, idealCaloriePercent }) {
+  const profile = SLOT_MACRO_PROFILES[tag] ?? SLOT_MACRO_PROFILES.lunch;
+  return {
+    name,
+    tag,
+    idealCaloriePercent,
+    minCaloriePercent: Math.max(0.01, idealCaloriePercent - profile.minOffset),
+    maxCaloriePercent: Math.min(1, idealCaloriePercent + profile.maxOffset),
+    hardMaxCaloriePercent: Math.min(1, idealCaloriePercent + profile.hardMaxOffset),
+    macroCalorieRatio: { ...profile.macroCalorieRatio },
+  };
 }
 
 function mealNameFor(index, total) {
@@ -134,6 +193,7 @@ module.exports = {
   NUTRITION,
   calculateDailyTargets,
   splitMeals,
+  getMealSlotProfile,
   macrosForFoodPortion,
   sumTargets,
   roundToNearest,

@@ -5,6 +5,7 @@ const {
   NUTRITION,
   calculateDailyTargets,
   splitMeals,
+  getMealSlotProfile,
   macrosForFoodPortion,
   sumTargets,
   roundToNearest,
@@ -14,6 +15,7 @@ const {
 const ACTIVITY_LEVELS = new Set(['sedentary', 'light', 'moderate', 'very_active', 'athlete']);
 const GOALS = new Set(['maintain', 'lose_weight', 'lose_weight_aggressive', 'gain_weight']);
 const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
+const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 
 function getFoods() {
   return loadFoods();
@@ -30,7 +32,15 @@ function generatePlanFreeform(rawInput) {
 function _generatePlanInternal(rawInput, useTemplates) {
   const input = normalizeInput(rawInput);
   const dailyTargets = calculateDailyTargets(input);
-  const mealTargets = splitMeals(dailyTargets, input);
+  const mealTargets = useTemplates
+    ? getMealSlotProfile(input.numberOfMeals, input.numberOfSnacks, input.ramadanMode)
+      .map((profile) => ({
+        name: profile.name,
+        tag: profile.tag,
+        targets: targetsForSlotProfile(dailyTargets, profile),
+        slotProfile: profile,
+      }))
+    : splitMeals(dailyTargets, input);
   const allowedFoods = filterFoods(loadFoods(), input);
 
   if (allowedFoods.length === 0) {
@@ -38,7 +48,7 @@ function _generatePlanInternal(rawInput, useTemplates) {
   }
 
   const usedSnackFoodIds = new Set();
-  const meals = mealTargets.map((target, index) => {
+  const generatedMeals = mealTargets.map((target, index) => {
     // MOD-7: exclude foods already used in a previous snack
     let foodPool = allowedFoods;
     if (target.tag === 'snack' && usedSnackFoodIds.size > 0) {
@@ -49,10 +59,24 @@ function _generatePlanInternal(rawInput, useTemplates) {
     if (target.tag === 'snack') {
       meal.items.forEach((item) => usedSnackFoodIds.add(item.food.id));
     }
+    return meal;
+  });
+
+  const optimization = useTemplates
+    ? optimizeTemplateDay(generatedMeals, dailyTargets)
+    : { meals: generatedMeals, warnings: [] };
+
+  const meals = optimization.meals.map((meal) => {
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
+    const seedTarget = meal.seedTarget ?? meal.target;
+    const displayTarget = useTemplates ? mealTotals : meal.target;
     return {
       ...meal,
+      seedTarget,
+      target: displayTarget,
+      totals: mealTotals,
+      isApproximate: useTemplates ? !isWithinTolerance(plainItems, seedTarget) : !isWithinTolerance(plainItems, meal.target),
       sensitivityMatrix: computeSensitivityMatrix(plainItems, mealTotals),
       originalItems: plainItems.map((item) => ({ food: item.food, quantityG: item.quantityG })),
     };
@@ -62,7 +86,449 @@ function _generatePlanInternal(rawInput, useTemplates) {
     input,
     dailyTargets,
     meals,
+    ...(optimization.diagnostics ? { diagnostics: optimization.diagnostics } : {}),
+    ...(optimization.warnings.length > 0 ? { warnings: optimization.warnings } : {}),
+    ...(optimization.errors?.length > 0 ? {
+      errors: optimization.errors,
+      status: 'error',
+      isImpossible: true,
+    } : {}),
   };
+}
+
+function targetsForSlotProfile(dailyTargets, profile) {
+  const calories = dailyTargets.calories * profile.idealCaloriePercent;
+  const ratio = profile.macroCalorieRatio;
+  return {
+    calories,
+    proteinG: (calories * ratio.protein) / NUTRITION.proteinKcalPerGram,
+    carbG: (calories * ratio.carb) / NUTRITION.carbKcalPerGram,
+    fatG: (calories * ratio.fat) / NUTRITION.fatKcalPerGram,
+  };
+}
+
+function debugOptimizer(message, payload = undefined) {
+  if (!DEBUG_OPTIMIZER) return;
+  if (payload === undefined) {
+    console.log(`[nutrition-optimizer] ${message}`);
+  } else {
+    console.log(`[nutrition-optimizer] ${message}`, JSON.stringify(payload));
+  }
+}
+
+function optimizeTemplateDay(meals, dailyTargets) {
+  debugOptimizer('daily target', dailyTargets);
+  meals.forEach((meal) => {
+    debugOptimizer('slot solved before repair', {
+      name: meal.name,
+      tag: meal.tag,
+      profile: meal.slotProfile,
+      template: meal.templateName,
+      totals: meal.totals,
+      alternateCount: meal.templateAlternates?.length ?? 0,
+    });
+  });
+
+  let currentMeals = repairTemplateDay(meals, dailyTargets);
+  currentMeals = escalateTemplateDay(currentMeals, dailyTargets);
+  const finalTotals = totalsForMeals(currentMeals);
+  const diagnostics = buildPlanDiagnostics(finalTotals, dailyTargets, currentMeals);
+
+  debugOptimizer('final total macros vs daily target', { totals: finalTotals, dailyTargets, diagnostics });
+
+  return {
+    meals: currentMeals,
+    warnings: diagnostics.warnings,
+    errors: diagnostics.errors,
+    diagnostics,
+  };
+}
+
+function repairTemplateDay(meals, dailyTargets) {
+  let currentMeals = cloneMeals(meals);
+  const tolerances = residualTolerances(dailyTargets);
+  let currentTotals = totalsForMeals(currentMeals);
+  let currentScore = calculateResidualScore(currentTotals, dailyTargets, tolerances);
+
+  debugOptimizer('day-level residual before repair', calculateResidual(currentTotals, dailyTargets));
+  debugOptimizer('residual score before repair', { score: currentScore });
+
+  for (let pass = 1; pass <= 2; pass += 1) {
+    if (residualWithinTolerance(currentTotals, dailyTargets, tolerances)) break;
+
+    const residual = calculateResidual(currentTotals, dailyTargets);
+    const repairSlots = chooseRepairSlots(currentMeals, residual, dailyTargets, 2);
+    debugOptimizer('repair slot candidates', repairSlots.map((slot) => ({
+      pass,
+      meal: currentMeals[slot.mealIndex]?.name,
+      macro: slot.macro,
+      score: slot.score,
+      reasoning: slot.reasoning,
+    })));
+
+    if (repairSlots.length === 0) break;
+
+    const totalRepairScore = repairSlots.reduce((sum, slot) => sum + slot.score, 0) || 1;
+    let passMeals = cloneMeals(currentMeals);
+
+    for (const slot of repairSlots) {
+      const meal = passMeals[slot.mealIndex];
+      const share = slot.score / totalRepairScore;
+      const adjustedTarget = targetWithResidualShare(meal, residual, share);
+      const solvedItems = solvePortionsLeastSquares(meal.items, adjustedTarget, {
+        maxIterations: NUTRITION.maxPortionAdjustmentIterations * 2,
+      });
+      const solvedTotals = totalsForItems(solvedItems);
+      const hardMaxCalories = (meal.slotProfile?.hardMaxCaloriePercent ?? 1) * dailyTargets.calories;
+
+      if (solvedTotals.calories > hardMaxCalories) {
+        debugOptimizer('repair rejected hard max calories', {
+          meal: meal.name,
+          calories: solvedTotals.calories,
+          hardMaxCalories,
+        });
+        continue;
+      }
+
+      passMeals[slot.mealIndex] = mealWithSolvedItems(meal, solvedItems);
+    }
+
+    const passTotals = totalsForMeals(passMeals);
+    const passScore = calculateResidualScore(passTotals, dailyTargets, tolerances);
+    debugOptimizer('day-level residual after repair pass', {
+      pass,
+      residual: calculateResidual(passTotals, dailyTargets),
+      score: passScore,
+    });
+
+    if (passScore < currentScore) {
+      currentMeals = passMeals;
+      currentTotals = passTotals;
+      currentScore = passScore;
+    } else {
+      break;
+    }
+  }
+
+  return currentMeals;
+}
+
+function escalateTemplateDay(meals, dailyTargets) {
+  let currentMeals = cloneMeals(meals);
+  const tolerances = residualTolerances(dailyTargets);
+  let currentTotals = totalsForMeals(currentMeals);
+  let currentScore = calculateResidualScore(currentTotals, dailyTargets, tolerances);
+
+  if (residualWithinTolerance(currentTotals, dailyTargets, tolerances)) return currentMeals;
+
+  const residual = calculateResidual(currentTotals, dailyTargets);
+  const escalationSlots = chooseRepairSlots(currentMeals, residual, dailyTargets, 2);
+
+  for (const slot of escalationSlots) {
+    const meal = currentMeals[slot.mealIndex];
+    const alternates = meal.templateAlternates ?? [];
+    for (const alternate of alternates.slice(0, 2)) {
+      const solvedItems = solvePortionsLeastSquares(alternate.items, {
+        proteinG: meal.target.proteinG,
+        carbG: meal.target.carbG,
+        fatG: meal.target.fatG,
+      });
+      const candidateMeals = cloneMeals(currentMeals);
+      candidateMeals[slot.mealIndex] = mealWithSolvedItems(
+        {
+          ...meal,
+          templateName: alternate.template.name,
+          templateAlternates: alternates.filter((candidate) => candidate.template !== alternate.template),
+        },
+        solvedItems,
+      );
+
+      const candidateTotals = totalsForMeals(candidateMeals);
+      const candidateScore = calculateResidualScore(candidateTotals, dailyTargets, tolerances);
+      const improvedEnough =
+        candidateScore <= currentScore * (1 - NUTRITION.residualScoreImprovementThreshold);
+      const pushesMacroOut = pushesMacroOutsideTolerance(currentTotals, candidateTotals, dailyTargets, tolerances);
+
+      debugOptimizer('escalation attempt', {
+        meal: meal.name,
+        alternate: alternate.template.name,
+        currentScore,
+        candidateScore,
+        improvedEnough,
+        pushesMacroOut,
+      });
+
+      if (improvedEnough && !pushesMacroOut) {
+        currentMeals = candidateMeals;
+        currentTotals = candidateTotals;
+        currentScore = candidateScore;
+        break;
+      }
+    }
+  }
+
+  return repairTemplateDay(currentMeals, dailyTargets);
+}
+
+function cloneMeals(meals) {
+  return meals.map((meal) => ({
+    ...meal,
+    items: meal.items.map((item) => ({ ...item })),
+    templateAlternates: [...(meal.templateAlternates ?? [])],
+  }));
+}
+
+function mealWithSolvedItems(meal, solvedItems) {
+  const items = solvedItems.map((item, index) => ({
+    ...meal.items[index],
+    ...item,
+    alternatives: meal.items[index]?.alternatives ?? [],
+    totals: macrosForFoodPortion(item.food, item.quantityG),
+  }));
+  return {
+    ...meal,
+    items,
+    totals: sumTargets(items.map((item) => item.totals)),
+  };
+}
+
+function targetWithResidualShare(meal, residual, share) {
+  const currentTotals = totalsForItems(meal.items);
+  return {
+    calories: currentTotals.calories + residual.calories * share,
+    proteinG: Math.max(0, currentTotals.proteinG + residual.proteinG * share),
+    carbG: Math.max(0, currentTotals.carbG + residual.carbG * share),
+    fatG: Math.max(0, currentTotals.fatG + residual.fatG * share),
+  };
+}
+
+function chooseRepairSlots(meals, residual, dailyTargets, limit) {
+  const macro = worstResidualMacro(residual, dailyTargets);
+  return meals
+    .map((meal, mealIndex) => ({
+      mealIndex,
+      macro,
+      ...repairHeadroomScore(meal, macro, residual[macro], dailyTargets),
+    }))
+    .filter((slot) => slot.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function repairHeadroomScore(meal, macro, residualValue, dailyTargets) {
+  if (meal.locked || meal.manuallyEdited || meal.items.length === 0) {
+    return { score: 0, reasoning: 'slot locked, manually edited, or empty' };
+  }
+
+  const field = macroFieldForKey(macro);
+  const increasing = residualValue > 0;
+  const mealTotals = totalsForItems(meal.items);
+  const hardMaxCalories = (meal.slotProfile?.hardMaxCaloriePercent ?? 1) * dailyTargets.calories;
+  let bestDensity = 0;
+  let totalPotential = 0;
+  let bestFood = null;
+
+  meal.items.forEach((item) => {
+    const density = item.food[field] / 100;
+    if (density <= 0) return;
+    const min = Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20;
+    const max = Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500;
+    const gramHeadroom = increasing ? max - item.quantityG : item.quantityG - min;
+    if (gramHeadroom <= 0) return;
+    const calorieHeadroom = increasing
+      ? Math.max(0, hardMaxCalories - mealTotals.calories)
+      : mealTotals.calories;
+    if (increasing && calorieHeadroom <= 0) return;
+    const calorieLimitedHeadroom = increasing && item.food.caloriesPer100g > 0
+      ? Math.min(gramHeadroom, calorieHeadroom / (item.food.caloriesPer100g / 100))
+      : gramHeadroom;
+    const potential = density * calorieLimitedHeadroom;
+    totalPotential += potential;
+    if (density > bestDensity) {
+      bestDensity = density;
+      bestFood = item.food.id;
+    }
+  });
+
+  return {
+    score: totalPotential,
+    reasoning: `${macro} ${increasing ? 'deficit' : 'surplus'}; best density food ${bestFood ?? 'none'}; potential ${roundToNearest(totalPotential, 0.1)}`,
+  };
+}
+
+function totalsForMeals(meals) {
+  return sumTargets(meals.map((meal) => meal.totals ?? totalsForItems(meal.items)));
+}
+
+function calculateResidual(dayTotals, dailyTarget) {
+  return {
+    calories: dailyTarget.calories - dayTotals.calories,
+    proteinG: dailyTarget.proteinG - dayTotals.proteinG,
+    carbG: dailyTarget.carbG - dayTotals.carbG,
+    fatG: dailyTarget.fatG - dayTotals.fatG,
+  };
+}
+
+function residualTolerances(dailyTarget) {
+  return {
+    calories: dailyTarget.calories * NUTRITION.calorieTolerancePercent,
+    proteinG: NUTRITION.proteinToleranceG,
+    carbG: NUTRITION.carbToleranceG,
+    fatG: NUTRITION.fatToleranceG,
+  };
+}
+
+function calculateResidualScore(dayTotals, dailyTarget, tolerances = residualTolerances(dailyTarget)) {
+  const residual = calculateResidual(dayTotals, dailyTarget);
+  return (
+    Math.abs(residual.calories) / Math.max(1, tolerances.calories) +
+    Math.abs(residual.proteinG) / Math.max(1, tolerances.proteinG) +
+    Math.abs(residual.carbG) / Math.max(1, tolerances.carbG) +
+    Math.abs(residual.fatG) / Math.max(1, tolerances.fatG)
+  );
+}
+
+function residualWithinTolerance(dayTotals, dailyTarget, tolerances = residualTolerances(dailyTarget)) {
+  const residual = calculateResidual(dayTotals, dailyTarget);
+  return Object.entries(residual).every(([key, value]) => Math.abs(value) <= tolerances[key]);
+}
+
+function worstResidualMacro(residual, dailyTarget) {
+  const tolerances = residualTolerances(dailyTarget);
+  return ['proteinG', 'carbG', 'fatG', 'calories']
+    .sort((a, b) => Math.abs(residual[b]) / tolerances[b] - Math.abs(residual[a]) / tolerances[a])[0];
+}
+
+function macroFieldForKey(key) {
+  return {
+    calories: 'caloriesPer100g',
+    proteinG: 'proteinGPer100g',
+    carbG: 'carbGPer100g',
+    fatG: 'fatGPer100g',
+  }[key] ?? 'caloriesPer100g';
+}
+
+function pushesMacroOutsideTolerance(currentTotals, candidateTotals, dailyTarget, tolerances) {
+  return ['calories', 'proteinG', 'carbG', 'fatG'].some((key) => {
+    const currentInside = Math.abs(currentTotals[key] - dailyTarget[key]) <= tolerances[key];
+    const candidateInside = Math.abs(candidateTotals[key] - dailyTarget[key]) <= tolerances[key];
+    return currentInside && !candidateInside;
+  });
+}
+
+function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
+  const tolerances = residualTolerances(dailyTarget);
+  const residual = calculateResidual(dayTotals, dailyTarget);
+  const residualPct = calculateResidualPercent(dayTotals, dailyTarget);
+  const warnings = [];
+  const errors = [];
+  const missingSlots = meals
+    .filter((meal) => isRequiredMainSlot(meal) && meal.items.length === 0)
+    .map((meal) => meal.name);
+
+  const calorieRatio = dayTotals.calories / Math.max(1, dailyTarget.calories);
+  const proteinShortfall = Math.max(0, residual.proteinG);
+  const proteinShortfallThreshold = Math.max(
+    NUTRITION.hardErrorProteinShortfallG,
+    dailyTarget.proteinG * NUTRITION.hardErrorProteinShortfallPercent,
+  );
+  const onlyNonMainCalories =
+    meals.some((meal) => !isRequiredMainSlot(meal) && meal.items.length > 0) &&
+    meals.filter(isRequiredMainSlot).every((meal) => meal.items.length === 0);
+
+  if (missingSlots.length > 0) {
+    errors.push(
+      `Impossible with current templates: no feasible ready templates for ${missingSlots.join(', ')}.`,
+    );
+  }
+  if (calorieRatio < NUTRITION.hardErrorCalorieFloorPercent) {
+    errors.push(
+      `Calories remain far below target: ${Math.round(dayTotals.calories)} of ${Math.round(dailyTarget.calories)} kcal.`,
+    );
+  }
+  if (proteinShortfall > proteinShortfallThreshold) {
+    errors.push(
+      `Protein remains short by ${Math.round(proteinShortfall)}g because the current templates do not include enough high-protein main meals within serving limits.`,
+    );
+  }
+  if (onlyNonMainCalories) {
+    errors.push('Impossible with current templates: only snack/non-main calories were generated while required main meals are missing.');
+  }
+  for (const key of ['carbG', 'fatG']) {
+    if (Math.abs(residual[key]) > tolerances[key] * NUTRITION.hardErrorMacroToleranceMultiplier) {
+      const label = key === 'carbG' ? 'Carbs' : 'Fat';
+      const direction = residual[key] > 0 ? 'short' : 'high';
+      errors.push(
+        `${label} remains ${direction} by ${Math.round(Math.abs(residual[key]))}g because selected templates hit serving or macro-density limits.`,
+      );
+    }
+  }
+
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    if (Math.abs(residual[key]) <= tolerances[key]) continue;
+    const label = {
+      calories: 'Calories',
+      proteinG: 'Protein',
+      carbG: 'Carbs',
+      fatG: 'Fat',
+    }[key];
+    const unit = key === 'calories' ? 'kcal' : 'g';
+    const direction = residual[key] > 0 ? 'short' : 'high';
+    const amount = Math.abs(residual[key]);
+    const message =
+      `${label} remains ${direction} by ${Math.round(amount)}${unit}. ${structuralCauseFor(key, residual[key], meals)}`;
+    if (errors.length === 0) {
+      warnings.push(message);
+    }
+  }
+
+  if (errors.length > 0 || warnings.length > 0) {
+    debugOptimizer('fallback reason', { errors, warnings });
+  }
+
+  const status = errors.length > 0
+    ? 'error'
+    : (warnings.length > 0 ? 'warning' : 'pass');
+
+  return {
+    status,
+    warnings,
+    errors,
+    missingSlots,
+    residual,
+    residualPct,
+    totals: dayTotals,
+    target: dailyTarget,
+  };
+}
+
+function isRequiredMainSlot(meal) {
+  return !['snack'].includes(meal.tag);
+}
+
+function calculateResidualPercent(dayTotals, dailyTarget) {
+  return Object.fromEntries(
+    ['calories', 'proteinG', 'carbG', 'fatG'].map((key) => {
+      const target = dailyTarget[key];
+      if (Math.abs(target) < NUTRITION.residualPercentNearZeroTarget) {
+        return [key, null];
+      }
+      return [key, Math.abs(dayTotals[key] - target) / Math.abs(target) * 100];
+    }),
+  );
+}
+
+function structuralCauseFor(key, residualValue, meals) {
+  const emptyMeals = meals.filter((meal) => meal.items.length === 0);
+  if (emptyMeals.length > 0) {
+    return `No feasible ready templates were found for ${emptyMeals.map((meal) => meal.name).join(', ')}.`;
+  }
+
+  const direction = residualValue > 0 ? 'too few' : 'too many';
+  if (key === 'proteinG') return `The selected templates contain ${direction} high-protein adjustable foods within serving limits.`;
+  if (key === 'carbG') return `The selected templates contain ${direction} carb-dense adjustable foods within serving limits.`;
+  if (key === 'fatG') return `The selected templates contain ${direction} fat-dense adjustable foods within serving limits.`;
+  return 'The selected templates hit macro serving bounds before calories could be fully corrected.';
 }
 
 function normalizeInput(input = {}) {
@@ -216,12 +682,31 @@ function hasSemanticMatch(foodTerms, selectedTerms) {
   return false;
 }
 
-function selectTemplateForMeal({ mealTag, allowedFoods, input, target, seed }) {
+function selectTemplateForMeal({ mealTag, allowedFoods, input, target }) {
+  const candidates = rankedTemplateCandidates({ mealTag, allowedFoods, input, target });
+  const primary = candidates[0];
+  if (!primary) return null;
+
+  const solved = solvePortionsLeastSquares(primary.items, {
+    proteinG: target.proteinG,
+    carbG: target.carbG,
+    fatG: target.fatG,
+  });
+
+  return {
+    items: solved,
+    template: primary.template,
+    alternates: candidates.slice(1),
+    filteredCount: candidates.length,
+  };
+}
+
+function rankedTemplateCandidates({ mealTag, allowedFoods, input, target }) {
   const templates = loadTemplates();
   const allowedFoodMap = new Map(allowedFoods.map((f) => [f.id, f]));
-  const allFoodMap = new Map(loadFoods().map((f) => [f.id, f]));
 
-  let filtered = templates.filter((t) => t.mealType === mealTag);
+  const templateMealTags = templateTagsForMealTag(mealTag);
+  let filtered = templates.filter((t) => templateMealTags.includes(t.mealType));
 
   // All component foods must be in the already-filtered allowed pool
   filtered = filtered.filter((t) =>
@@ -237,65 +722,52 @@ function selectTemplateForMeal({ mealTag, allowedFoods, input, target, seed }) {
     );
   }
 
-  if (filtered.length === 0) return null;
+  const candidates = filtered.map((template) => {
+    const items = template.components.map((c) => ({
+      food: allowedFoodMap.get(c.foodId),
+      quantityG: allowedFoodMap.get(c.foodId)?.defaultServingG,
+    }));
+    const totals = totalsForItems(items);
+    return {
+      template,
+      items,
+      rankScore: templateSeedScore(totals, target),
+    };
+  });
 
-  // Feasibility check: keep only templates whose foods can reach the macro target
-  // Store solved items so we can return them directly (avoids re-solving and avoids
-  // adjustPortions starting from default quantities which may violate serving bounds).
-  const feasible = [];
-  let bestSolved = null;
-  let bestScore = Infinity;
-  for (const t of filtered) {
-    const items = t.components.map((c) => {
-      const food = allowedFoodMap.get(c.foodId) ?? allFoodMap.get(c.foodId);
-      return food ? { food, quantityG: food.defaultServingG } : null;
-    }).filter(Boolean);
-
-    if (items.length === 0) continue;
-
-    const solved = solvePortionsLeastSquares(items, {
-      proteinG: target.proteinG,
-      carbG: target.carbG,
-      fatG: target.fatG,
-    });
-
-    const score = mealScore(solved, target);
-    if (score < bestScore) {
-      bestScore = score;
-      bestSolved = solved;
-    }
-
-    if (isWithinTolerance(solved, target)) {
-      feasible.push(solved);
-    }
-  }
-
-  if (feasible.length === 0) return bestSolved;
-
-  return pick(feasible, seed);
+  candidates.sort((a, b) => a.rankScore - b.rankScore);
+  return candidates;
 }
 
 function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {
   if (useTemplates && input) {
-    const templateItems = selectTemplateForMeal({
+    const selection = selectTemplateForMeal({
       mealTag: target.tag,
       allowedFoods,
       input,
       target: target.targets,
-      seed: mealIndex,
     });
 
-    if (!templateItems) {
+    if (!selection) {
       return emptyMeal(
         target,
         `No ready meal template matched ${target.name} with the current targets and restrictions.`,
       );
     }
 
+    debugOptimizer('primary template selected', {
+      slot: target.name,
+      template: selection.template.name,
+      filteredTemplateCount: selection.filteredCount,
+      rankedAlternateCount: selection.alternates.length,
+    });
+
     return buildMeal({
       target,
-      items: templateItems,
+      items: selection.items,
       allowedFoods,
+      template: selection.template,
+      templateAlternates: selection.alternates,
     });
   }
 
@@ -327,7 +799,7 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
   );
 }
 
-function buildMeal({ target, items, allowedFoods }) {
+function buildMeal({ target, items, allowedFoods, template = null, templateAlternates = [] }) {
   const withAlternatives = items.map((item) => ({
     ...item,
     alternatives: alternativesFor({
@@ -342,6 +814,9 @@ function buildMeal({ target, items, allowedFoods }) {
     name: target.name,
     tag: target.tag,
     target: target.targets,
+    slotProfile: target.slotProfile ?? null,
+    templateName: template?.name ?? null,
+    templateAlternates,
     items: withAlternatives,
     totals: sumTargets(withAlternatives.map((item) => item.totals)),
     isApproximate: !isWithinTolerance(items, target.targets),
@@ -415,7 +890,14 @@ function selectInitialItems({ target, allowedFoods, seed }) {
 }
 
 function foodsForRole(foods, role, mealTag) {
-  return foods.filter((food) => food.macroRole === role && food.mealTags.includes(mealTag));
+  const mealTags = templateTagsForMealTag(mealTag);
+  return foods.filter((food) => food.macroRole === role && mealTags.some((tag) => food.mealTags.includes(tag)));
+}
+
+function templateTagsForMealTag(mealTag) {
+  if (mealTag === 'iftar') return ['dinner', 'lunch'];
+  if (mealTag === 'suhoor') return ['breakfast', 'dinner'];
+  return [mealTag];
 }
 
 function pick(foods, seed) {
@@ -474,7 +956,7 @@ function adjustPortions(initialItems, target) {
 
   return items.map((item) => ({
     ...item,
-    quantityG: roundToNearest(item.quantityG, 5),
+    quantityG: clampServing(item.food, item.quantityG),
   }));
 }
 
@@ -497,7 +979,15 @@ function adjustByCalories(item, calorieDiff) {
 function clampServing(food, quantityG) {
   const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
   const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
-  return roundToNearest(clamp(quantityG, min, max), 5);
+  return roundServingWithinBounds(quantityG, min, max);
+}
+
+function roundServingWithinBounds(quantityG, min, max, step = 5) {
+  const clamped = clamp(quantityG, min, max);
+  let rounded = roundToNearest(clamped, step);
+  if (rounded < min) rounded = Math.ceil(min / step) * step;
+  if (rounded > max) rounded = Math.floor(max / step) * step;
+  return clamp(rounded, min, max);
 }
 
 function replaceAt(items, index, item) {
@@ -554,12 +1044,36 @@ function mealScore(items, target) {
   return calorieScore + proteinScore + carbScore + fatScore;
 }
 
+function templateSeedScore(totals, target) {
+  const totalMacroCalories =
+    totals.proteinG * NUTRITION.proteinKcalPerGram +
+    totals.carbG * NUTRITION.carbKcalPerGram +
+    totals.fatG * NUTRITION.fatKcalPerGram;
+  const targetMacroCalories =
+    target.proteinG * NUTRITION.proteinKcalPerGram +
+    target.carbG * NUTRITION.carbKcalPerGram +
+    target.fatG * NUTRITION.fatKcalPerGram;
+
+  const ratioScore = totalMacroCalories > 0 && targetMacroCalories > 0
+    ? Math.abs((totals.proteinG * NUTRITION.proteinKcalPerGram) / totalMacroCalories -
+        (target.proteinG * NUTRITION.proteinKcalPerGram) / targetMacroCalories) +
+      Math.abs((totals.carbG * NUTRITION.carbKcalPerGram) / totalMacroCalories -
+        (target.carbG * NUTRITION.carbKcalPerGram) / targetMacroCalories) +
+      Math.abs((totals.fatG * NUTRITION.fatKcalPerGram) / totalMacroCalories -
+        (target.fatG * NUTRITION.fatKcalPerGram) / targetMacroCalories)
+    : 10;
+
+  const calorieScore = Math.abs(totals.calories - target.calories) / Math.max(1, target.calories);
+  return ratioScore + calorieScore * 0.25;
+}
+
 function alternativesFor({ original, allowedFoods, mealTag, limit = 4 }) {
   // MOD-11: prefer same subCategory, then category overlap, then same role only
+  const mealTags = templateTagsForMealTag(mealTag);
   const byRole = (food) =>
     food.id !== original.id &&
     food.macroRole === original.macroRole &&
-    food.mealTags.includes(mealTag);
+    mealTags.some((tag) => food.mealTags.includes(tag));
 
   const withSubCategory = original.subCategory
     ? allowedFoods.filter((food) => byRole(food) && food.subCategory === original.subCategory)
@@ -709,7 +1223,7 @@ function solvePortionsLeastSquares(items, target, options = {}) {
 
   return items.map((item, i) => ({
     ...item,
-    quantityG: roundToNearest(clamp(x[i], meta[i].min, meta[i].max), 5),
+    quantityG: roundServingWithinBounds(x[i], meta[i].min, meta[i].max),
   }));
 }
 

@@ -1,30 +1,255 @@
-# Fix prompt — feasibility pre-check in selectTemplateForMeal (do NOT touch scoring/retry loop)
+We already implemented the per-slot macro profiles + day-level residual repair optimizer. Now we need to fix the remaining non-data issues.
 
-Stop — do not modify the retry loop, mealScore, or how selectInitialItems competes with template results. That comparison is correct and must stay.
+Important:
+Do NOT solve this by adding more meal templates or expanding mealTemplates.json. The current template library is intentionally demo-sized. Your task is to improve code behavior, fallback classification, diagnostics, test metrics, and edge-case handling when templates are missing or insufficient.
 
-The actual problem: selectTemplateForMeal picks a template without checking if its components can realistically reach the meal's target macros within their maxServingG/minServingG bounds. Fix this by adding a feasibility check inside selectTemplateForMeal itself, before returning a template.
+Current test result:
+npm run test:optimizer produced:
 
-## Fix
+* total cases run: 106
+* passed cases: 14
+* warning cases: 92
+* failed cases: 0
+* worst calorie residual: 100.0%
+* worst protein residual: 100.0%
+* worst carb residual: 16674.2%
+* worst fat residual: 100.0%
 
-In `selectTemplateForMeal`, after filtering templates by mealType/allowedFoods/dietTags (existing logic, keep as-is), add one more filter step before picking:
+Warning examples show severe infeasibility being treated as warnings:
 
-For each surviving template, check feasibility against the meal's target:
-1. Build the candidate item list (same mapping you already do: each component's foodId → food, quantityG: food.defaultServingG).
-2. Call the existing `solvePortionsLeastSquares(items, { proteinG: target.proteinG, carbG: target.carbG, fatG: target.fatG })` (already in this file) to get the best achievable result for this template's foods.
-3. Check if the result is within tolerance using the same logic `checkRebalanceFeasibility` already uses (NUTRITION.proteinToleranceG / carbToleranceG / fatToleranceG against the solved totals).
-4. Keep only templates that pass this feasibility check. Discard the rest.
+* Target 2409 kcal, actual 262 kcal
+* Protein short by ~144g
+* Cause: no feasible vegan ready templates for Breakfast/Lunch/Dinner
+* Verdict should be hard impossible-plan error, not a normal warning.
 
-If zero templates remain after this feasibility filter, return `null` (existing fallback to selectInitialItems triggers, unchanged).
+Goal:
+Keep the optimizer architecture, but fix these issues:
 
-If one or more templates remain, pick one at random from the feasible list (same `pick()` helper, same seed approach as before).
+1. Add warning/error severity classification.
 
-## Constraints
-- Do not change mealScore, the attempt/retry loop in generateMeal, or anything in generatePlanFreeform.
-- Do not change mealTemplates.json or foods.json.
-- Reuse solvePortionsLeastSquares and the tolerance constants already in this file — do not write new solving logic.
+Currently huge failures are being reported as warnings. That is wrong.
 
-## Report back (required before we proceed to anything else)
-Run generatePlan once for a standard-diet user. Report:
-1. How many of the 341 breakfast templates now pass the feasibility check for a ~734 kcal breakfast target (just the count).
-2. Whether a template was actually selected and used in the final output for at least one meal, or whether it still fell back to selectInitialItems — and if it fell back, confirm that's because zero templates were feasible (not a bug).
-3. Confirm no changes were made outside selectTemplateForMeal.
+Implement a clear severity system:
+
+A. PASS:
+The generated plan is within tolerances.
+
+B. WARNING:
+The plan is close enough to be usable but approximate.
+Examples:
+
+* calories off by a small amount
+* protein short by a small amount
+* fat/carbs slightly outside tolerance
+* selected templates hit serving bounds but final output is still reasonably close
+
+C. HARD ERROR / IMPOSSIBLE:
+The plan is structurally infeasible with the current templates and restrictions.
+Examples:
+
+* required main meal slots have no feasible templates
+* actual calories are far below target
+* protein is far below target
+* the plan only contains snack/coffee/milk calories while meals are missing
+* vegan/avoid-food restrictions remove all useful templates
+* 2-meal/Ramadan targets cannot be reached because templates hit serving bounds badly
+
+Suggested thresholds:
+
+* If actual calories < 80% of target calories, mark as hard error.
+* If actual calories < 70% of target calories, definitely hard error.
+* If protein is short by more than max(25g, 20% of target protein), hard error.
+* If any required main meal slot has no feasible template, hard error.
+* If more than one required main meal slot is missing, hard error.
+* If the plan has fewer generated meals than requested because no feasible templates exist, hard error.
+* If only snack/coffee/milk calories exist and main meals are missing, hard error.
+* Small deviations remain warnings, not errors.
+
+Use named constants in nutritionConstants.js for these thresholds so they are tunable.
+
+2. Return useful impossible-plan diagnostics.
+
+When hard error happens, the response should clearly explain:
+
+* which macro(s) are badly short/over
+* which meal slots had no feasible templates
+* whether the issue is template coverage, serving bounds, or restrictions
+* which restrictions likely caused the failure
+
+Examples:
+
+* "Impossible with current templates: no feasible vegan templates for Breakfast, Lunch, Dinner."
+* "Protein remains short by 144g because current vegan templates do not include enough high-protein main meals."
+* "2-meal layout cannot reach 2400 kcal because selected templates hit serving bounds."
+* "Avoiding chicken, dairy, and nuts removes too many high-protein/high-calorie templates."
+
+Do not blame calorie slot ranges if the real issue is missing templates or macro-density.
+
+3. Fix the suspicious carb residual percentage.
+
+The test summary reported:
+worst carb residual: 16674.2%
+
+Investigate this. It may be caused by:
+
+* dividing by a tiny or zero carb target
+* using wrong denominator
+* treating grams as percent incorrectly
+* using residual percentage where normalized score should be used
+
+Fix the reporting so residual percentages are meaningful.
+
+Rules:
+
+* residual percent should be abs(actual - target) / target * 100
+* if target is zero or near-zero, do not produce absurd percentages; report as N/A or use an absolute residual instead
+* do not let this affect plan scoring incorrectly
+
+Add tests for this calculation.
+
+4. Improve 2-meal and Ramadan edge handling without adding templates.
+
+Do not add templates.
+
+But improve diagnosis and behavior when selected templates hit bounds.
+
+For 2-meal layouts:
+
+* each meal has a larger calorie requirement
+* if templates cannot scale enough due to min/max serving bounds, classify correctly
+* if close enough, warning is okay
+* if far below target, hard error with serving-bounds diagnosis
+
+For Ramadan split:
+
+* preserve existing Ramadan behavior
+* if iftar/suhoor-style slots cannot reach targets due to serving bounds or missing templates, diagnose clearly
+* do not silently return a very low-calorie plan as warning
+
+5. Missing slot handling.
+
+If a required slot has no feasible templates after filtering:
+
+* record the missing slot
+* do not pretend the plan is valid
+* include missing slot names in warnings/errors
+* hard error if missing required main slots cause major macro/calorie shortfall
+
+Coffee/milk/snacks should not hide the fact that main meals are missing.
+
+6. Re-check fallback output shape.
+
+Preserve current frontend response shape as much as possible.
+
+If the frontend expects a plan object:
+
+* return a structured error/warning field instead of crashing
+* include best approximate plan only when it is safe/useful
+* for hard impossible cases, include clear user-facing message and debug metadata if existing format supports it
+
+Do not break:
+
+* generatePlan(rawInput)
+* generatePlanFreeform(rawInput)
+* existing frontend display shape
+* coffee/milk handling
+* snack count handling
+* Ramadan split handling
+* allergy/dislike filtering
+* vegan/vegetarian filtering
+* template-only invariant
+
+7. Strengthen optimizer tests.
+
+Update scripts/testNutritionOptimizer.js so it distinguishes:
+
+* passed
+* warning
+* hard error / impossible
+* unexpected failure/crash
+
+A hard error for impossible constraints should count as EXPECTED, not failed, if the test case is intentionally impossible.
+
+But a hard error for normal/default standard cases should fail.
+
+Test categories:
+
+A. Normal feasible cases should pass or only mild-warning:
+
+* standard diet, 3 meals + 1 snack
+* standard diet, 4 meals + 1 snack
+* vegetarian if templates exist
+* no avoid foods
+
+B. Known demo-data-limited cases may produce expected hard errors:
+
+* vegan with no vegan main templates
+* chicken + dairy + nuts avoided
+* vegan + nut-free + dairy-free + high target
+* impossible 2-meal high-calorie target if serving bounds prevent it
+
+C. Edge cases:
+
+* 0 snacks
+* 2 meals
+* 6 meals + 3 snacks
+* Ramadan split
+* very active / athlete activity
+* gain weight
+* aggressive loss
+
+D. Assertions:
+For every generated result:
+
+* no crash
+* no NaN
+* no undefined macros
+* residual percent calculations are sane
+* no absurd 16674% residual unless mathematically justified, and if target near zero, report N/A instead
+* severe infeasibility is hard error, not warning
+* mild drift is warning, not hard error
+* impossible cases include useful reasons
+* missing feasible slots are reported by name
+* no outside-template foods appear
+* allergies/dislikes/avoid foods are respected
+* vegetarian/vegan filters are respected
+* breakfast/snack hard max calorie percentages are respected when a plan is returned
+* serving bounds are respected after rounding
+* solved templates are not passed through old adjustPortions
+
+8. Test report requirements.
+
+After changes, run:
+
+npm run check
+npm run test:optimizer
+
+Then report back with:
+
+* exact commands run
+* whether they passed
+* total cases run
+* passed cases
+* warning cases
+* expected hard-error/impossible cases
+* unexpected failed cases
+* worst calorie residual among returned usable plans only
+* worst protein residual among returned usable plans only
+* worst carb residual among returned usable plans only
+* worst fat residual among returned usable plans only
+* top warning reasons
+* top hard-error reasons
+* 3 examples of mild warnings
+* 3 examples of hard errors
+* confirmation that impossible cases are no longer counted as normal warnings
+* confirmation that the carb residual percentage bug is fixed or explanation if it was not a bug
+
+Important:
+Do not claim the optimizer is bad just because the demo template database is small. The purpose of this task is to make the code correctly distinguish:
+
+* feasible plans
+* approximate but usable plans
+* structurally impossible plans due to missing templates or restrictions
+
+Expected result:
+The optimizer should no longer report terrible partial plans as warnings. Severe cases like target 2409 kcal but actual 262 kcal should become hard impossible-plan errors with clear reasons. Mild approximate plans can remain warnings. Test reporting should be accurate and should not show absurd residual percentages caused by denominator/reporting bugs.

@@ -30,6 +30,13 @@ const NUTRITION = {
   proteinToleranceG: 10,
   carbToleranceG: 15,
   fatToleranceG: 10,
+  residualScoreImprovementThreshold: 0.10,
+  hardErrorCalorieFloorPercent: 0.80,
+  severeCalorieFloorPercent: 0.70,
+  hardErrorProteinShortfallG: 25,
+  hardErrorProteinShortfallPercent: 0.20,
+  hardErrorMacroToleranceMultiplier: 3,
+  residualPercentNearZeroTarget: 25,
   maxPortionAdjustmentIterations: 20,
   maxMealAttempts: 8,
 };
@@ -53,7 +60,55 @@ const MEAL_SPLITS = {
   ramadanTags: ['iftar', 'snack', 'suhoor'],
 };
 
+// Hardcoded per-slot macro profiles for template seeding. These should eventually
+// be informed by actual template composition once the ready-meal library is larger.
+const SLOT_MACRO_PROFILES = {
+  breakfast: {
+    calorieWeight: 0.28,
+    minOffset: 0.05,
+    maxOffset: 0.05,
+    hardMaxOffset: 0.10,
+    macroCalorieRatio: { protein: 0.22, carb: 0.48, fat: 0.30 },
+  },
+  lunch: {
+    calorieWeight: 0.39,
+    minOffset: 0.05,
+    maxOffset: 0.05,
+    hardMaxOffset: 0.10,
+    macroCalorieRatio: { protein: 0.35, carb: 0.40, fat: 0.25 },
+  },
+  dinner: {
+    calorieWeight: 0.33,
+    minOffset: 0.05,
+    maxOffset: 0.05,
+    hardMaxOffset: 0.10,
+    macroCalorieRatio: { protein: 0.35, carb: 0.30, fat: 0.35 },
+  },
+  snack: {
+    calorieWeight: 0.16,
+    minOffset: 0.05,
+    maxOffset: 0.05,
+    hardMaxOffset: 0.10,
+    macroCalorieRatio: { protein: 0.22, carb: 0.48, fat: 0.30 },
+  },
+  iftar: {
+    calorieWeight: 0.50,
+    minOffset: 0.08,
+    maxOffset: 0.08,
+    hardMaxOffset: 0.12,
+    macroCalorieRatio: { protein: 0.32, carb: 0.43, fat: 0.25 },
+  },
+  suhoor: {
+    calorieWeight: 0.34,
+    minOffset: 0.08,
+    maxOffset: 0.08,
+    hardMaxOffset: 0.12,
+    macroCalorieRatio: { protein: 0.28, carb: 0.42, fat: 0.30 },
+  },
+};
+
 module.exports = {
   MEAL_SPLITS,
   NUTRITION,
+  SLOT_MACRO_PROFILES,
 };

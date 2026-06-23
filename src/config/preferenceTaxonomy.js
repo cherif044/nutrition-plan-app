@@ -363,6 +363,13 @@ function resolvePreferenceTerms(terms) {
       continue;
     }
 
+    const matched = findTaxonomyEntry(normalized);
+    if (matched) {
+      matched.expandsTo.forEach((tag) => semanticTags.add(tag));
+      semanticTags.add(matched.id);
+      continue;
+    }
+
     unknownTerms.add(String(term || '').trim());
   }
 

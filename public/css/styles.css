@@ -137,12 +137,14 @@ h1 {
 
 form .panel,
 .summary,
+.plan-notice,
 .meal-card,
 .empty-state {
   padding: 18px;
 }
 
 .panel h2,
+.plan-notice h2,
 .empty-state h2 {
   display: flex;
   align-items: center;
@@ -425,6 +427,39 @@ select:focus {
 .message {
   min-height: 20px;
   color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.plan-notice {
+  display: grid;
+  gap: 10px;
+  border-left-width: 4px;
+}
+
+.plan-notice--error {
+  border-color: color-mix(in srgb, var(--danger) 72%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+}
+
+.plan-notice--warning {
+  border-color: color-mix(in srgb, var(--warn) 72%, var(--line));
+  background: color-mix(in srgb, var(--warn) 10%, var(--panel));
+}
+
+.plan-notice ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.plan-notice__detail {
+  margin: 0;
+  color: var(--muted);
   font-size: 0.88rem;
   font-weight: 700;
 }

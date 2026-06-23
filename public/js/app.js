@@ -192,6 +192,25 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
   output.hidden = false;
   emptyState.hidden = true;
 
+  if (isImpossiblePlan(plan)) {
+    output.append(renderPlanNotice({
+      tone: 'error',
+      title: 'Plan cannot be generated with the current templates',
+      messages: plan.errors || plan.diagnostics?.errors || ['No feasible nutrition plan was found.'],
+      diagnostics: plan.diagnostics,
+    }));
+    return;
+  }
+
+  if (plan.warnings?.length || plan.diagnostics?.warnings?.length) {
+    output.append(renderPlanNotice({
+      tone: 'warning',
+      title: 'Plan is approximate',
+      messages: plan.warnings || plan.diagnostics?.warnings || [],
+      diagnostics: plan.diagnostics,
+    }));
+  }
+
   output.append(renderSummary(plan.dailyTargets));
 
   if (editMode) {
@@ -230,6 +249,42 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
   });
 
   refreshRedFlags();
+}
+
+function isImpossiblePlan(plan) {
+  return plan?.status === 'error' || plan?.isImpossible === true || plan?.diagnostics?.status === 'error';
+}
+
+function renderPlanNotice({ tone, title, messages, diagnostics }) {
+  const panel = document.createElement('section');
+  panel.className = `plan-notice plan-notice--${tone} panel`;
+  panel.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  panel.append(heading);
+
+  const uniqueMessages = [...new Set((messages || []).filter(Boolean))];
+  const list = document.createElement('ul');
+  const visibleMessages = uniqueMessages.length > 0
+    ? uniqueMessages
+    : ['The generated plan needs review before use.'];
+  visibleMessages.slice(0, 5).forEach((text) => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    list.append(item);
+  });
+  panel.append(list);
+
+  const missingSlots = diagnostics?.missingSlots || [];
+  if (missingSlots.length > 0) {
+    const detail = document.createElement('p');
+    detail.className = 'plan-notice__detail';
+    detail.textContent = `Missing slots: ${missingSlots.join(', ')}`;
+    panel.append(detail);
+  }
+
+  return panel;
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
@@ -337,7 +392,7 @@ function refreshMealCardHeader(card, state) {
   card.querySelector('.meal-target').textContent = `${formatNumber(state.target.calories)} kcal`;
   card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
   card.querySelector('.meal-macros').textContent =
-    `P ${formatNumber(totals.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}g ${separator} F ${formatNumber(totals.fatG)}g`;
+    `P ${formatNumber(totals.proteinG)}/${formatNumber(state.target.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}/${formatNumber(state.target.carbG)}g ${separator} F ${formatNumber(totals.fatG)}/${formatNumber(state.target.fatG)}g`;
 }
 
 // ── Food item rendering ──────────────────────────────────────────────────────
