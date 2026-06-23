@@ -243,6 +243,8 @@ function selectTemplateForMeal({ mealTag, allowedFoods, input, target, seed }) {
   // Store solved items so we can return them directly (avoids re-solving and avoids
   // adjustPortions starting from default quantities which may violate serving bounds).
   const feasible = [];
+  let bestSolved = null;
+  let bestScore = Infinity;
   for (const t of filtered) {
     const items = t.components.map((c) => {
       const food = allowedFoodMap.get(c.foodId) ?? allFoodMap.get(c.foodId);
@@ -257,61 +259,60 @@ function selectTemplateForMeal({ mealTag, allowedFoods, input, target, seed }) {
       fatG: target.fatG,
     });
 
+    const score = mealScore(solved, target);
+    if (score < bestScore) {
+      bestScore = score;
+      bestSolved = solved;
+    }
+
     if (isWithinTolerance(solved, target)) {
       feasible.push(solved);
     }
   }
 
-  if (feasible.length === 0) return null;
+  if (feasible.length === 0) return bestSolved;
 
   return pick(feasible, seed);
 }
 
 function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {
+  if (useTemplates && input) {
+    const templateItems = selectTemplateForMeal({
+      mealTag: target.tag,
+      allowedFoods,
+      input,
+      target: target.targets,
+      seed: mealIndex,
+    });
+
+    if (!templateItems) {
+      return emptyMeal(
+        target,
+        `No ready meal template matched ${target.name} with the current targets and restrictions.`,
+      );
+    }
+
+    return buildMeal({
+      target,
+      items: templateItems,
+      allowedFoods,
+    });
+  }
+
   let bestMeal = null;
   let bestScore = Infinity;
 
   for (let attempt = 0; attempt < NUTRITION.maxMealAttempts; attempt += 1) {
-    let items;
-    if (useTemplates && target.tag !== 'snack' && attempt === 0 && input) {
-      const templateItems = selectTemplateForMeal({
-        mealTag: target.tag,
-        allowedFoods,
-        input,
-        target: target.targets,
-        seed: mealIndex,
-      });
-      items = templateItems ?? selectInitialItems({ target, allowedFoods, seed: mealIndex + attempt });
-    } else {
-      items = selectInitialItems({
-        target,
-        allowedFoods,
-        seed: mealIndex + attempt,
-      });
-    }
+    const items = selectInitialItems({
+      target,
+      allowedFoods,
+      seed: mealIndex + attempt,
+    });
     const adjusted = adjustPortions(items, target.targets);
-    const approximate = !isWithinTolerance(adjusted, target.targets);
+    const meal = buildMeal({ target, items: adjusted, allowedFoods });
     const score = mealScore(adjusted, target.targets);
-    const withAlternatives = adjusted.map((item) => ({
-      ...item,
-      alternatives: alternativesFor({
-        original: item.food,
-        allowedFoods,
-        mealTag: target.tag,
-      }),
-      totals: macrosForFoodPortion(item.food, item.quantityG),
-    }));
 
-    const meal = {
-      name: target.name,
-      tag: target.tag,
-      target: target.targets,
-      items: withAlternatives,
-      totals: sumTargets(withAlternatives.map((item) => item.totals)),
-      isApproximate: approximate,
-    };
-
-    if (!approximate) {
+    if (!meal.isApproximate) {
       return meal;
     }
 
@@ -322,15 +323,41 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
   }
 
   return (
-    bestMeal || {
-      name: target.name,
-      tag: target.tag,
-      target: target.targets,
-      items: [],
-      totals: { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-      isApproximate: true,
-    }
+    bestMeal || emptyMeal(target)
   );
+}
+
+function buildMeal({ target, items, allowedFoods }) {
+  const withAlternatives = items.map((item) => ({
+    ...item,
+    alternatives: alternativesFor({
+      original: item.food,
+      allowedFoods,
+      mealTag: target.tag,
+    }),
+    totals: macrosForFoodPortion(item.food, item.quantityG),
+  }));
+
+  return {
+    name: target.name,
+    tag: target.tag,
+    target: target.targets,
+    items: withAlternatives,
+    totals: sumTargets(withAlternatives.map((item) => item.totals)),
+    isApproximate: !isWithinTolerance(items, target.targets),
+  };
+}
+
+function emptyMeal(target, reason = null) {
+  return {
+    name: target.name,
+    tag: target.tag,
+    target: target.targets,
+    items: [],
+    totals: { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+    isApproximate: true,
+    ...(reason ? { unavailableReason: reason } : {}),
+  };
 }
 
 function selectInitialItems({ target, allowedFoods, seed }) {
