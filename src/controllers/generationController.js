@@ -3,6 +3,9 @@ const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, autoBalance
 const { loadFoods } = require('../repositories/foodRepository');
 const { chatWithLLM } = require('../services/llmService');
 
+const STRICT_TARGET_TOLERANCE = 0.10;
+const CONSTRAINED_REQUEST_TOLERANCE = 0.20;
+
 function health(_req, res) {
   res.json({ status: 'ok' });
 }
@@ -120,7 +123,7 @@ function regressesSatisfiedMacro(currentTotals, proposedTotals, target) {
   });
 }
 
-function missesTargetBadly(totals, target) {
+function missesTargetBadly(totals, target, tolerance = STRICT_TARGET_TOLERANCE) {
   const macros = [
     ['calories', target.calories],
     ['proteinG', target.proteinG],
@@ -129,7 +132,7 @@ function missesTargetBadly(totals, target) {
   ];
 
   return macros.some(([key, desired]) => (
-    Math.abs((Number(totals[key]) || 0) - desired) / Math.max(1, Number(desired) || 0) > 0.10
+    Math.abs((Number(totals[key]) || 0) - desired) / Math.max(1, Number(desired) || 0) > tolerance
   ));
 }
 
@@ -203,9 +206,13 @@ function scoreWorkingItems(items, target, options = {}) {
   }
 
   for (const item of items) {
+    const conveniencePenalty = foodConveniencePenalty(item.food);
+    if (conveniencePenalty >= 0.18) {
+      score += conveniencePenalty;
+    }
     if (!originalIds.has(item.food.id)) {
       score += 0.025;
-      score += foodConveniencePenalty(item.food);
+      if (conveniencePenalty < 0.18) score += conveniencePenalty;
     }
   }
 
@@ -294,12 +301,23 @@ function buildChangesFromProposal(currentItems, proposedItems) {
   return changes;
 }
 
-function buildDeterministicMealSuggestion({ currentItems, currentTotals, availableFoods, foodById, foodByName, mealTarget }) {
+function buildDeterministicMealSuggestion({
+  currentItems,
+  currentTotals,
+  availableFoods,
+  foodById,
+  foodByName,
+  mealTarget,
+  blockedFoodIds = new Set(),
+  protectedFoodIds = new Set(),
+  targetTolerance = STRICT_TARGET_TOLERANCE,
+}) {
   const currentWorking = currentItems
     .map((item) => {
       const food = (item.foodId ? foodById.get(String(item.foodId)) : null) || foodByName.get(item.name?.toLowerCase());
       return food ? { food, grams: Number(item.grams) || food.defaultServingG } : null;
     })
+    .filter((item) => !blockedFoodIds.has(item.food.id) || protectedFoodIds.has(item.food.id))
     .filter(Boolean);
 
   if (currentWorking.length === 0) return null;
@@ -318,6 +336,7 @@ function buildDeterministicMealSuggestion({ currentItems, currentTotals, availab
     .map((food) => foodById.get(food.id) || foodByName.get(food.name.toLowerCase()))
     .filter(Boolean)
     .filter((food) => !existingIds.has(food.id))
+    .filter((food) => !blockedFoodIds.has(food.id))
     .filter((food) => {
       if (!food.subCategory || !existingSubCategories.has(food.subCategory)) return true;
       if (food.macroRole !== 'protein') return false;
@@ -351,6 +370,7 @@ function buildDeterministicMealSuggestion({ currentItems, currentTotals, availab
     const current = currentWorking[i];
     if (current.food.macroRole !== 'protein' || !current.food.subCategory) continue;
     const currentFatPerProtein = (current.food.fatGPer100g || 0) / Math.max(1, current.food.proteinGPer100g || 0);
+    const currentConveniencePenalty = foodConveniencePenalty(current.food);
 
     for (const food of availableFoods
       .map((candidate) => foodById.get(candidate.id) || foodByName.get(candidate.name.toLowerCase()))
@@ -359,7 +379,10 @@ function buildDeterministicMealSuggestion({ currentItems, currentTotals, availab
       if (food.macroRole !== 'protein') continue;
 
       const candidateFatPerProtein = (food.fatGPer100g || 0) / Math.max(1, food.proteinGPer100g || 0);
-      if (candidateFatPerProtein + 0.15 >= currentFatPerProtein) continue;
+      const candidateConveniencePenalty = foodConveniencePenalty(food);
+      const isLeanerSwap = candidateFatPerProtein + 0.15 < currentFatPerProtein;
+      const isMoreConvenientSwap = candidateConveniencePenalty + 0.05 < currentConveniencePenalty;
+      if (!isLeanerSwap && !isMoreConvenientSwap) continue;
 
       const seed = currentWorking.map((item, index) => (
         index === i ? { food, grams: clampQuantity(food, current.grams) } : { ...item }
@@ -371,7 +394,7 @@ function buildDeterministicMealSuggestion({ currentItems, currentTotals, availab
   const proposedItems = toProposedItems(bestWorking);
   const proposedTotals = totalsFromProposedItems(proposedItems);
 
-  if (bestScore >= currentScore || missesTargetBadly(proposedTotals, mealTarget)) {
+  if (bestScore >= currentScore || missesTargetBadly(proposedTotals, mealTarget, targetTolerance)) {
     return null;
   }
 
@@ -379,12 +402,35 @@ function buildDeterministicMealSuggestion({ currentItems, currentTotals, availab
 }
 
 function tokenizeFoodQuery(text) {
+  const stopWords = new Set([
+    'i', 'u', 'me', 'my', 'am', 'bro',
+    'want', 'need', 'telling', 'tell',
+    'the', 'a', 'an', 'to', 'with', 'for', 'of', 'instead',
+    'please', 'pls', 'can', 'you',
+    'make', 'any', 'change', 'balance', 'balanced', 'rebalance',
+    'meal', 'food', 'foods', 'it', 'this', 'that', 'as',
+  ]);
+
   return String(text || '')
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
-    .filter((token) => !new Set(['i', 'want', 'need', 'the', 'a', 'an', 'to', 'with', 'for', 'of', 'instead', 'please', 'can', 'you']).has(token));
+    .filter((token) => token.length >= 3)
+    .filter((token) => !stopWords.has(token));
+}
+
+function normalToken(token) {
+  return String(token || '').toLowerCase().replace(/s$/, '');
+}
+
+function normalizedWordsFrom(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(normalToken);
 }
 
 function searchableFoodText(food) {
@@ -397,6 +443,39 @@ function searchableFoodText(food) {
   ].join(' ').toLowerCase();
 }
 
+function foodSearchScore(food, tokens) {
+  const normalizedTokens = tokens.map(normalToken).filter(Boolean);
+  const idWords = normalizedWordsFrom(food.id);
+  const nameWords = normalizedWordsFrom(food.name);
+  const subCategoryWords = normalizedWordsFrom(food.subCategory);
+  const categoryWords = (food.categories || []).flatMap(normalizedWordsFrom);
+  const allergenWords = (food.allergens || []).flatMap(normalizedWordsFrom);
+  const allWords = [...idWords, ...nameWords, ...subCategoryWords, ...categoryWords, ...allergenWords];
+
+  let score = 0;
+  for (const token of normalizedTokens) {
+    if (idWords.includes(token)) score += 40;
+    if (nameWords.includes(token)) score += 40;
+    if (subCategoryWords.includes(token)) score += 18;
+    if (categoryWords.includes(token)) score += 8;
+    if (allergenWords.includes(token)) score += 8;
+    if (!allWords.includes(token) && searchableFoodText(food).includes(token)) score += token.length;
+  }
+
+  if (normalizedTokens.includes('toast') && food.id === 'bread_white') score += 40;
+  if (normalizedTokens.includes('baladi') && food.id.includes('baladi')) score += 40;
+  if (normalizedTokens.includes('white') && food.id === 'bread_white') score += 20;
+  if (normalizedTokens.includes('egg')) {
+    if (nameWords.includes('egg')) score += 100;
+    if (food.id === 'egg_whole_cooked_hard_boiled') score += 30;
+    if (food.id === 'egg_whole_cooked_scrambled') score += 25;
+    if (String(food.name || '').toLowerCase().includes('raw')) score -= 100;
+  }
+
+  score -= foodConveniencePenalty(food) * 100;
+  return score;
+}
+
 function findBestFoodMatch(query, foods) {
   const tokens = tokenizeFoodQuery(query);
   if (tokens.length === 0) return null;
@@ -405,16 +484,7 @@ function findBestFoodMatch(query, foods) {
   let bestScore = 0;
 
   for (const food of foods) {
-    const searchText = searchableFoodText(food);
-    let score = 0;
-
-    for (const token of tokens) {
-      if (searchText.includes(token)) score += token.length;
-    }
-
-    if (tokens.includes('toast') && food.id === 'bread_white') score += 40;
-    if (tokens.includes('baladi') && food.id.includes('baladi')) score += 40;
-    if (tokens.includes('white') && food.id === 'bread_white') score += 20;
+    const score = foodSearchScore(food, tokens);
 
     if (score > bestScore) {
       best = food;
@@ -423,6 +493,284 @@ function findBestFoodMatch(query, foods) {
   }
 
   return bestScore >= 4 ? best : null;
+}
+
+function foodMatchesTokens(food, tokens) {
+  const normalizedTokens = tokens.map(normalToken).filter(Boolean);
+  if (normalizedTokens.length === 0) return false;
+
+  const fields = [
+    food.id,
+    food.name,
+    food.subCategory,
+    food.macroRole,
+    ...(food.categories || []),
+    ...(food.allergens || []),
+  ].map((value) => String(value || '').toLowerCase());
+  const normalizedFields = fields.map((field) => field.replace(/s\b/g, ''));
+
+  return normalizedTokens.some((token) => (
+    normalizedFields.some((field) => field.includes(token))
+  ));
+}
+
+function foodDirectlyMatchesTokens(food, tokens) {
+  const normalizedTokens = tokens.map(normalToken).filter(Boolean);
+  if (normalizedTokens.length === 0) return false;
+
+  const directWords = [
+    ...normalizedWordsFrom(food.id),
+    ...normalizedWordsFrom(food.name),
+    ...normalizedWordsFrom(food.nameAr),
+  ];
+  const directText = [food.id, food.name, food.nameAr].join(' ').toLowerCase().replace(/s\b/g, '');
+
+  return normalizedTokens.some((token) => directWords.includes(token) || directText.includes(token));
+}
+
+function foodMatchesCategoryConstraint(food, constraint) {
+  if (!constraint?.tokens?.length) return false;
+  const fields = [
+    food.id,
+    food.name,
+    food.macroRole,
+    food.subCategory,
+    ...(food.categories || []),
+    ...(food.allergens || []),
+  ].join(' ').toLowerCase();
+  const normalizedFields = fields.replace(/s\b/g, '');
+
+  return constraint.tokens.some((token) => normalizedFields.includes(token));
+}
+
+function parseSingleCategoryConstraint(message) {
+  const text = String(message || '').toLowerCase();
+  const matches = [
+    text.match(/\b(?:only\s+|just\s+)?(?:one|1|single)\s+([a-z][a-z\s_-]{1,40}?)(?:\s+(?:item|items|food|foods))?(?:\b|$)/),
+    text.match(/\b(?:not|no|dont|don't)\s+(?:want\s+)?(?:two|2|multiple|more\s+than\s+one)\s+([a-z][a-z\s_-]{1,40}?)(?:\b|$)/),
+  ].filter(Boolean);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const rawLabel = matches[0][1]
+    .replace(/\b(?:just|only|anymore|again|please|pls)\b.*$/i, '')
+    .trim();
+  const tokens = tokenizeFoodQuery(rawLabel)
+    .map(normalToken)
+    .filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  return { label: tokens.join(' '), tokens, maxCount: 1 };
+}
+
+function buildSingleCategorySuggestion({ userMessage, currentItems, availableFoods, foodById, foodByName, mealTarget }) {
+  const constraint = parseSingleCategoryConstraint(userMessage);
+  if (!constraint) return null;
+
+  const working = currentItems
+    .map((item) => {
+      const food = (item.foodId ? foodById.get(String(item.foodId)) : null) || foodByName.get(item.name?.toLowerCase());
+      return food ? { food, grams: Number(item.grams) || food.defaultServingG } : null;
+    })
+    .filter(Boolean);
+  const constrainedItems = working.filter((item) => foodMatchesCategoryConstraint(item.food, constraint));
+  if (constrainedItems.length <= constraint.maxCount) {
+    return {
+      status: 'negotiating',
+      message: `This draft already has only one ${constraint.label} item.`,
+    };
+  }
+
+  let best = null;
+  let bestScore = Infinity;
+  for (const keptItem of constrainedItems) {
+    const blockedFoodIds = new Set(
+      availableFoods
+        .map((food) => foodById.get(food.id) || foodByName.get(food.name.toLowerCase()))
+        .filter(Boolean)
+        .filter((food) => foodMatchesCategoryConstraint(food, constraint))
+        .filter((food) => food.id !== keptItem.food.id)
+        .map((food) => food.id),
+    );
+
+    const fallback = buildDeterministicMealSuggestion({
+      currentItems,
+      currentTotals: null,
+      availableFoods,
+      foodById,
+      foodByName,
+      mealTarget,
+      blockedFoodIds,
+    });
+    if (!fallback) continue;
+
+    const proposedCount = fallback.proposedItems.filter((item) => {
+      const food = foodById.get(String(item.foodId));
+      return food && foodMatchesCategoryConstraint(food, constraint);
+    }).length;
+    if (proposedCount > constraint.maxCount) continue;
+
+    const score = macroGapScore(fallback.proposedTotals, mealTarget);
+    if (score < bestScore) {
+      best = { keptItem, fallback };
+      bestScore = score;
+    }
+  }
+
+  if (!best) {
+    return buildConstraintFailureResponse(
+      `I could not find a meal that stays close to the targets while keeping only one ${constraint.label} item. I did not apply a different combination because that would ignore your request.`,
+    );
+  }
+
+  return {
+    status: 'ready',
+    message: `Kept one ${constraint.label} item (${best.keptItem.food.name}) and rebalanced the meal without the extra ${constraint.label}.`,
+    meal_snapshot: best.fallback.proposedItems.map((item) => ({
+      name: item.name,
+      grams: item.grams,
+      calories: item.calories,
+      proteinG: item.proteinG,
+      carbG: item.carbG,
+      fatG: item.fatG,
+    })),
+    meal_snapshot_totals: best.fallback.proposedTotals,
+    changes: buildChangesFromProposal(currentItems, best.fallback.proposedItems),
+    proposedItems: best.fallback.proposedItems,
+    proposedTotals: best.fallback.proposedTotals,
+  };
+}
+
+function buildConstraintFailureResponse(message) {
+  return {
+    status: 'negotiating',
+    message,
+  };
+}
+
+function buildBackendRebalanceResponse(currentItems, fallback, message = 'I rebuilt the draft with backend macro math: keeping the current foods, adjusting portions, and only adding a food if it improves the target fit.') {
+  return {
+    status: 'ready',
+    message,
+    meal_snapshot: fallback.proposedItems.map((item) => ({
+      name: item.name,
+      grams: item.grams,
+      calories: item.calories,
+      proteinG: item.proteinG,
+      carbG: item.carbG,
+      fatG: item.fatG,
+    })),
+    meal_snapshot_totals: fallback.proposedTotals,
+    changes: buildChangesFromProposal(currentItems, fallback.proposedItems),
+    proposedItems: fallback.proposedItems,
+    proposedTotals: fallback.proposedTotals,
+  };
+}
+
+function isMealChangeRequest(message) {
+  return /\b(auto-?balance|balance|rebalance|fix|adjust|change|closer|target|add|remove|swap|replace|instead|without|avoid|no|don't|dont|cannot|can't)\b/i
+    .test(String(message || ''));
+}
+
+function parseExplicitRemovalRequest(message) {
+  const text = String(message || '').toLowerCase();
+  const patterns = [
+    /\bremove\s+(.+?)(?:\s+and\b|$)/,
+    /\btake\s+out\s+(.+?)(?:\s+and\b|$)/,
+    /\bdelete\s+(.+?)(?:\s+and\b|$)/,
+    /\b(?:do\s+not|don't|dont|not)\s+want\s+(.+?)(?:\s+and\b|$)/,
+    /\b(?:can't|cant|cannot)\s+(?:have|eat)\s+(.+?)(?:\s+and\b|$)/,
+    /\bwithout\s+(.+?)(?:\s+and\b|$)/,
+    /\b(?:do\s+not|don't|dont|not)\s+like\s+(.+?)(?:\s+and\b|$)/,
+    /\bdislike\s+(.+?)(?:\s+and\b|$)/,
+    /\bavoid\s+(.+?)(?:\s+and\b|$)/,
+    /\bno\s+(.+?)(?:\s+and\b|$)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const tokens = tokenizeFoodQuery(match[1]);
+      if (tokens.length > 0) return { query: match[1], tokens };
+    }
+  }
+
+  return null;
+}
+
+function buildExplicitRemovalSuggestion({ userMessage, currentItems, availableFoods, foodById, foodByName, mealTarget }) {
+  const parsed = parseExplicitRemovalRequest(userMessage);
+  if (!parsed) return null;
+
+  const currentFoods = currentItems
+    .map((item) => (item.foodId ? foodById.get(String(item.foodId)) : null) || foodByName.get(item.name?.toLowerCase()))
+    .filter(Boolean);
+  const directRemovedFoods = currentFoods.filter((food) => foodDirectlyMatchesTokens(food, parsed.tokens));
+  const removedFoods = directRemovedFoods.length > 0
+    ? directRemovedFoods
+    : currentFoods.filter((food) => foodMatchesTokens(food, parsed.tokens));
+  if (removedFoods.length === 0) return null;
+  const isDirectRemoval = directRemovedFoods.length > 0;
+  const removalMatcher = isDirectRemoval ? foodDirectlyMatchesTokens : foodMatchesTokens;
+
+  const blockedFoodIds = new Set(
+    availableFoods
+      .map((food) => foodById.get(food.id) || foodByName.get(food.name.toLowerCase()))
+      .filter(Boolean)
+      .filter((food) => (isDirectRemoval ? foodMatchesTokens(food, parsed.tokens) : removalMatcher(food, parsed.tokens)))
+      .map((food) => food.id),
+  );
+  for (const food of removedFoods) blockedFoodIds.add(food.id);
+  const convenienceBlockedFoods = currentFoods.filter((food) => foodConveniencePenalty(food) >= 0.18);
+  for (const food of convenienceBlockedFoods) blockedFoodIds.add(food.id);
+  const removedFoodIds = new Set(removedFoods.map((food) => food.id));
+  const convenienceBlockedFoodIds = new Set(convenienceBlockedFoods.map((food) => food.id));
+  const protectedFoodIds = new Set(
+    currentFoods
+      .filter((food) => !removedFoodIds.has(food.id) && !convenienceBlockedFoodIds.has(food.id))
+      .map((food) => food.id),
+  );
+
+  const fallback = buildDeterministicMealSuggestion({
+    currentItems,
+    currentTotals: null,
+    availableFoods,
+    foodById,
+    foodByName,
+    mealTarget,
+    blockedFoodIds,
+    protectedFoodIds,
+    targetTolerance: CONSTRAINED_REQUEST_TOLERANCE,
+  });
+
+  if (!fallback) {
+    return buildConstraintFailureResponse(
+      `I could not find a meal that stays close to the targets after removing ${removedFoods.map((food) => food.name).join(', ')}. I did not apply a different combination because that would ignore your request.`,
+    );
+  }
+
+  return {
+    status: 'ready',
+    message: [
+      `Removed ${removedFoods.map((food) => food.name).join(', ')} and rebalanced the meal without that ${isDirectRemoval ? 'food' : 'food group'}.`,
+      convenienceBlockedFoods.length
+        ? `I also replaced ${convenienceBlockedFoods.map((food) => food.name).join(', ')} with a more practical option.`
+        : '',
+    ].filter(Boolean).join(' '),
+    meal_snapshot: fallback.proposedItems.map((item) => ({
+      name: item.name,
+      grams: item.grams,
+      calories: item.calories,
+      proteinG: item.proteinG,
+      carbG: item.carbG,
+      fatG: item.fatG,
+    })),
+    meal_snapshot_totals: fallback.proposedTotals,
+    changes: buildChangesFromProposal(currentItems, fallback.proposedItems),
+    proposedItems: fallback.proposedItems,
+    proposedTotals: fallback.proposedTotals,
+  };
 }
 
 function parseExplicitSwapRequest(message) {
@@ -493,6 +841,12 @@ function buildExplicitSwapSuggestion({ userMessage, currentItems, availableFoods
   const proposedItems = toProposedItems(optimized);
   const proposedTotals = totalsFromProposedItems(proposedItems);
 
+  if (missesTargetBadly(proposedTotals, mealTarget, CONSTRAINED_REQUEST_TOLERANCE)) {
+    return buildConstraintFailureResponse(
+      `I found the requested swap from ${sourceFood.name} to ${targetFood.name}, but I could not keep the meal close to the targets with that swap. I did not apply a different swap because that would ignore your request.`,
+    );
+  }
+
   return {
     status: 'ready',
     message: `Swapped ${sourceFood.name} for ${targetFood.name} and adjusted portions to keep the meal close to target.`,
@@ -539,6 +893,30 @@ async function mealChatHandler(req, res, next) {
     });
     if (explicitSwap) {
       return res.json(explicitSwap);
+    }
+
+    const singleCategory = buildSingleCategorySuggestion({
+      userMessage,
+      currentItems,
+      availableFoods,
+      foodById,
+      foodByName,
+      mealTarget,
+    });
+    if (singleCategory) {
+      return res.json(singleCategory);
+    }
+
+    const explicitRemoval = buildExplicitRemovalSuggestion({
+      userMessage,
+      currentItems,
+      availableFoods,
+      foodById,
+      foodByName,
+      mealTarget,
+    });
+    if (explicitRemoval) {
+      return res.json(explicitRemoval);
     }
 
     const turnCount = Array.isArray(conversationHistory) ? Math.ceil(conversationHistory.length / 2) : 0;
@@ -601,7 +979,30 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
       { role: 'user', content: userMessage },
     ];
 
-    const payload = await chatWithLLM(messages);
+    let payload;
+    try {
+      payload = await chatWithLLM(messages);
+    } catch (llmError) {
+      console.error('MEAL CHAT LLM ERROR:', llmError.message);
+      const fallback = isMealChangeRequest(userMessage)
+        ? buildDeterministicMealSuggestion({
+          currentItems,
+          currentTotals,
+          availableFoods,
+          foodById,
+          foodByName,
+          mealTarget,
+        })
+        : null;
+
+      if (fallback) {
+        return res.json(buildBackendRebalanceResponse(currentItems, fallback));
+      }
+
+      return res.json(buildConstraintFailureResponse(
+        'I could not get a reliable AI response, and the backend solver could not find a valid meal draft. I did not apply any changes.',
+      ));
+    }
 
     // Rebuild proposed meal from DB values (never trust LLM math)
     if (payload.status === 'ready') {
@@ -695,20 +1096,7 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
           });
 
           if (fallback) {
-            payload.status = 'ready';
-            payload.message = 'I rebuilt the draft with backend macro math: keeping the current foods, adjusting portions, and only adding a food if it improves the target fit.';
-            payload.proposedItems = fallback.proposedItems;
-            payload.proposedTotals = fallback.proposedTotals;
-            payload.meal_snapshot = fallback.proposedItems.map((item) => ({
-              name: item.name,
-              grams: item.grams,
-              calories: item.calories,
-              proteinG: item.proteinG,
-              carbG: item.carbG,
-              fatG: item.fatG,
-            }));
-            payload.meal_snapshot_totals = fallback.proposedTotals;
-            payload.changes = buildChangesFromProposal(currentItems, fallback.proposedItems);
+            Object.assign(payload, buildBackendRebalanceResponse(currentItems, fallback));
           } else {
             payload.status = 'negotiating';
             payload.message = 'That draft was not close enough to the meal targets, so I did not apply it. For this meal, keep the current foods and adjust the main carb/protein portions first instead of adding high-fat foods.';

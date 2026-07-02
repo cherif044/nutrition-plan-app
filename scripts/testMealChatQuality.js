@@ -7,6 +7,7 @@ const { loadFoods } = require('../src/repositories/foodRepository');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const TEST_PASSWORD = 'StrongPass123!';
+const REPEAT = Number(process.env.MEAL_CHAT_TEST_REPEAT) || 1;
 
 const foods = loadFoods();
 const foodById = new Map(foods.map((food) => [food.id, food]));
@@ -94,6 +95,20 @@ function removedCurrentFood(currentItems, proposedItems) {
   return currentItems.filter((current) => !proposedIds.has(current.foodId));
 }
 
+function isFoodGroupItem(proposed, query) {
+  const food = foodById.get(proposed.foodId);
+  const token = String(query || '').toLowerCase().replace(/s$/, '');
+  const fields = [
+    food?.id,
+    food?.name,
+    food?.macroRole,
+    food?.subCategory,
+    ...(food?.categories || []),
+    ...(food?.allergens || []),
+  ].join(' ').toLowerCase().replace(/s\b/g, '');
+  return fields.includes(token);
+}
+
 async function registerTestUser() {
   const username = `mealchat_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const response = await fetch(`${BASE_URL}/api/auth/register`, {
@@ -117,6 +132,7 @@ async function registerTestUser() {
 
 async function runCase(cookie, testCase) {
   const currentTotals = totals(testCase.currentItems);
+  const startedAt = Date.now();
   const response = await fetch(`${BASE_URL}/api/meal-chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
@@ -133,10 +149,12 @@ async function runCase(cookie, testCase) {
   });
 
   const payload = await response.json();
+  const durationMs = Date.now() - startedAt;
   const result = {
     name: testCase.name,
     status: response.status,
     payloadStatus: payload.status,
+    durationMs,
     message: payload.message,
     proposedTotals: payload.proposedTotals,
     proposedItems: payload.proposedItems || [],
@@ -145,6 +163,17 @@ async function runCase(cookie, testCase) {
 
   if (!response.ok) result.failures.push(`HTTP ${response.status}`);
   if (testCase.expectDraft && payload.status !== 'ready') result.failures.push('expected ready draft');
+  if (testCase.expectStatus && payload.status !== testCase.expectStatus) {
+    result.failures.push(`expected status ${testCase.expectStatus}`);
+  }
+  if (testCase.expectNoDraft && payload.proposedItems?.length) {
+    result.failures.push('expected no proposed draft');
+  }
+  for (const text of testCase.messageIncludes || []) {
+    if (!String(payload.message || '').toLowerCase().includes(text.toLowerCase())) {
+      result.failures.push(`message missing: ${text}`);
+    }
+  }
 
   if (payload.proposedItems?.length) {
     const gaps = targetReport(payload.proposedTotals, testCase.target);
@@ -174,6 +203,20 @@ async function runCase(cookie, testCase) {
     for (const required of testCase.mustInclude || []) {
       if (!payload.proposedItems.some((proposed) => proposed.name.toLowerCase().includes(required.toLowerCase()))) {
         result.failures.push(`missing required food text: ${required}`);
+      }
+    }
+
+    if (Number.isFinite(testCase.maxCheeseCount)) {
+      const cheeseCount = payload.proposedItems.filter((proposed) => isFoodGroupItem(proposed, 'cheese')).length;
+      if (cheeseCount > testCase.maxCheeseCount) {
+        result.failures.push(`too many cheese items: ${cheeseCount}`);
+      }
+    }
+
+    for (const [query, maxCount] of Object.entries(testCase.maxGroupCounts || {})) {
+      const count = payload.proposedItems.filter((proposed) => isFoodGroupItem(proposed, query)).length;
+      if (count > maxCount) {
+        result.failures.push(`too many ${query} items: ${count}`);
       }
     }
   }
@@ -220,6 +263,38 @@ const cases = [
     allowRemoveCurrent: true,
   },
   {
+    name: 'lunch only one cheese after butter removal',
+    mealTag: 'lunch',
+    target: { calories: 776, proteinG: 64, carbG: 73, fatG: 26 },
+    currentItems: [
+      item('rice_basmati_cooked', 254.3),
+      item('beef_ground_95_lean_cooked_broiled', 149),
+      item('cheese_mozzarella_whole_milk', 39),
+      item('cheese_cheddar', 18),
+    ],
+    message: 'i not want two cheeses just one',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    maxCheeseCount: 1,
+    maxGap: 0.15,
+  },
+  {
+    name: 'generic only one bread constraint',
+    mealTag: 'breakfast',
+    target: { calories: 620, proteinG: 30, carbG: 70, fatG: 22 },
+    currentItems: [
+      item('bread_brown_whole_grain', 60),
+      item('bread_white', 80),
+      item('egg_whole_cooked_hard_boiled', 100),
+      item('cheese_cheddar', 30),
+    ],
+    message: 'i just want one bread',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    maxGroupCounts: { bread: 1 },
+    maxGap: 0.20,
+  },
+  {
     name: 'explicit bread swap baladi to toast',
     mealTag: 'dinner',
     target: { calories: 761, proteinG: 53, carbG: 81, fatG: 25 },
@@ -235,6 +310,110 @@ const cases = [
     mustNotInclude: ['Bread, Egyptian baladi'],
   },
   {
+    name: 'explicit swap skimmed milk to eggs',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('skimmed_milk_fat_free', 250),
+      item('cheese_cheddar', 45),
+    ],
+    message: 'i want eggs instead of skimmed milk',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustInclude: ['Egg'],
+    mustNotInclude: ['Skimmed milk', 'Cheese, cottage'],
+    maxGap: 0.20,
+  },
+  {
+    name: 'specific milk removal does not remove cheese category',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('skimmed_milk_fat_free', 250),
+      item('cheese_cheddar', 45),
+    ],
+    message: 'i not want milk bruv',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustInclude: ['Cheese, cheddar'],
+    mustNotInclude: ['Skimmed milk'],
+    maxGap: 0.20,
+  },
+  {
+    name: 'explicit remove nuts screenshot case',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('egg_white_raw_fresh', 97),
+      item('cheese_feta', 35),
+      item('nuts_almonds', 15),
+    ],
+    message: 'REMOVE NUTS',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustNotInclude: ['nuts', 'almond', 'cashew', 'hazelnut', 'pecan', 'peanut'],
+  },
+  {
+    name: 'explicit dislike nuts wording',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('egg_white_raw_fresh', 97),
+      item('cheese_feta', 35),
+      item('nuts_almonds', 15),
+    ],
+    message: 'i not like nuts',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustNotInclude: ['nuts', 'almond', 'cashew', 'hazelnut', 'pecan', 'peanut'],
+  },
+  {
+    name: 'explicit remove nuts and rebalance wording',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('egg_white_raw_fresh', 97),
+      item('cheese_feta', 35),
+      item('nuts_almonds', 15),
+    ],
+    message: 'bro i am telling u remove nuts and make any change to balance the meal as i not like nuts',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustNotInclude: ['nuts', 'almond', 'cashew', 'hazelnut', 'pecan', 'peanut'],
+  },
+  {
+    name: 'explicit remove almonds exact wording',
+    mealTag: 'breakfast',
+    target: { calories: 652, proteinG: 34, carbG: 93, fatG: 17 },
+    currentItems: [
+      item('bread_egyptian_baladi_eish_baladi', 150),
+      item('egg_white_raw_fresh', 97),
+      item('cheese_feta', 35),
+      item('nuts_almonds', 15),
+    ],
+    message: 'remove almonds',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustNotInclude: ['nuts', 'almond', 'cashew', 'hazelnut', 'pecan', 'peanut'],
+  },
+  {
+    name: 'impossible hard removal explains instead of drafting',
+    mealTag: 'snack',
+    target: { calories: 500, proteinG: 30, carbG: 50, fatG: 15 },
+    currentItems: [
+      item('nuts_almonds', 15),
+    ],
+    message: 'remove almonds and balance it',
+    expectStatus: 'negotiating',
+    expectNoDraft: true,
+    messageIncludes: ['could not find', 'did not apply a different combination'],
+  },
+  {
     name: 'snack avoid nuts',
     mealTag: 'snack',
     target: { calories: 380, proteinG: 25, carbG: 40, fatG: 10 },
@@ -246,6 +425,21 @@ const cases = [
     message: 'Balance this snack, but no nuts.',
     expectDraft: true,
     mustNotInclude: ['nuts', 'almond', 'cashew', 'hazelnut', 'pecan'],
+  },
+  {
+    name: 'snack no peanut butter',
+    mealTag: 'snack',
+    target: { calories: 380, proteinG: 25, carbG: 40, fatG: 10 },
+    currentItems: [
+      item('yogurt_greek_plain_whole_milk', 100),
+      item('bananas_raw', 100),
+      item('peanut_butter_smooth_without_salt', 16),
+    ],
+    message: 'no peanut butter please, balance it',
+    expectDraft: true,
+    allowRemoveCurrent: true,
+    mustNotInclude: ['peanut'],
+    maxGap: 0.15,
   },
   {
     name: 'question no change',
@@ -266,8 +460,12 @@ const cases = [
   const results = [];
 
   try {
-    for (const testCase of cases) {
-      results.push(await runCase(cookie, testCase));
+    for (let run = 1; run <= REPEAT; run++) {
+      for (const testCase of cases) {
+        const result = await runCase(cookie, testCase);
+        result.name = REPEAT > 1 ? `${testCase.name} #${run}` : testCase.name;
+        results.push(result);
+      }
     }
   } finally {
     await User.destroy({ where: { username: { [Op.like]: 'mealchat_%' } } });
@@ -277,7 +475,7 @@ const cases = [
   for (const result of results) {
     const verdict = result.failures.length ? 'FAIL' : 'PASS';
     console.log(`\n[${verdict}] ${result.name}`);
-    console.log(`status=${result.status} payload=${result.payloadStatus}`);
+    console.log(`status=${result.status} payload=${result.payloadStatus} duration=${result.durationMs}ms`);
     console.log(`message=${result.message}`);
     if (result.proposedTotals) console.log(`totals=${JSON.stringify(result.proposedTotals)}`);
     if (result.proposedItems.length) {
@@ -287,6 +485,10 @@ const cases = [
   }
 
   const failed = results.filter((result) => result.failures.length);
+  const durations = results.map((result) => result.durationMs).sort((a, b) => a - b);
+  const avg = durations.reduce((sum, duration) => sum + duration, 0) / Math.max(1, durations.length);
+  const p95 = durations[Math.max(0, Math.ceil(durations.length * 0.95) - 1)] || 0;
+  console.log(`\nSummary: ${results.length - failed.length}/${results.length} passed, avg=${avg.toFixed(0)}ms, p95=${p95}ms, max=${durations.at(-1) || 0}ms`);
   if (failed.length) process.exit(1);
 })().catch(async (error) => {
   console.error(error);
