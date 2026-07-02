@@ -19,6 +19,7 @@ const GOALS = new Set(['maintain', 'lose_weight', 'lose_weight_aggressive', 'gai
 const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
+const NEAREST_ALTERNATIVE_LIMIT = 4;
 
 function getFoods() {
   return loadFoods();
@@ -97,6 +98,7 @@ function _generatePlanInternal(rawInput, useTemplates) {
         quantityG: item.quantityG,
         alternatives: item.alternatives ?? [],
         broaderAlternatives: item.broaderAlternatives ?? [],
+        nearestAlternatives: item.nearestAlternatives ?? [],
         component: item.component ?? null,
         totals: item.totals,
       })),
@@ -1226,6 +1228,9 @@ function roundedMacros(macros) {
 }
 
 function alternativesForItem({ item, template, allowedFoods, target, input }) {
+  let alternatives = [];
+  let broaderAlternatives = [];
+
   if (template && item.component && input) {
     const { candidates } = getSwapCandidates(
       template,
@@ -1233,19 +1238,73 @@ function alternativesForItem({ item, template, allowedFoods, target, input }) {
       { ...input, mealTag: target.tag },
       allowedFoods,
     );
-    return {
-      alternatives: candidates
-        .filter((candidate) => candidate.source === 'same_swap_group')
-        .slice(0, 4)
-        .map((candidate) => candidate.food),
-      broaderAlternatives: candidates
-        .filter((candidate) => candidate.source === 'same_family_slot')
-        .slice(0, 4)
-        .map((candidate) => candidate.food),
-    };
+    alternatives = candidates
+      .filter((candidate) => candidate.source === 'same_swap_group')
+      .slice(0, 4)
+      .map((candidate) => candidate.food);
+    broaderAlternatives = candidates
+      .filter((candidate) => candidate.source === 'same_family_slot')
+      .slice(0, 4)
+      .map((candidate) => candidate.food);
   }
 
-  return { alternatives: [], broaderAlternatives: [] };
+  const excludedIds = new Set([
+    item.food.id,
+    ...alternatives.map((food) => food.id),
+    ...broaderAlternatives.map((food) => food.id),
+  ]);
+
+  return {
+    alternatives,
+    broaderAlternatives,
+    nearestAlternatives: nearestAlternativesForFood({
+      food: item.food,
+      allowedFoods,
+      mealTag: target.tag,
+      excludedIds,
+    }),
+  };
+}
+
+function nearestAlternativesForFood({ food, allowedFoods, mealTag, excludedIds }) {
+  const mealTags = templateTagsForMealTag(mealTag);
+  const candidates = allowedFoods.filter((candidate) => (
+    !excludedIds.has(candidate.id) &&
+    candidate.macroRole === food.macroRole
+  ));
+  const mealCompatible = candidates.filter((candidate) =>
+    mealTags.some((tag) => candidate.mealTags.includes(tag))
+  );
+  const pool = mealCompatible.length >= NEAREST_ALTERNATIVE_LIMIT ? mealCompatible : candidates;
+  const originalCuisine = getCuisineGroup(food);
+
+  return pool
+    .map((candidate) => ({
+      food: candidate,
+      score: nearestAlternativeScore(food, candidate, originalCuisine, mealTags),
+    }))
+    .sort((a, b) => a.score - b.score || a.food.name.localeCompare(b.food.name))
+    .slice(0, NEAREST_ALTERNATIVE_LIMIT)
+    .map((entry) => entry.food);
+}
+
+function nearestAlternativeScore(original, candidate, originalCuisine, mealTags) {
+  const originalCategories = new Set(original.categories || []);
+  const candidateCategories = new Set(candidate.categories || []);
+  const categoryOverlap = [...candidateCategories].filter((category) => originalCategories.has(category)).length;
+  const mealTagPenalty = mealTags.some((tag) => candidate.mealTags.includes(tag)) ? 0 : 25;
+  const subCategoryPenalty = original.subCategory && candidate.subCategory && original.subCategory !== candidate.subCategory ? 35 : 0;
+  const cuisinePenalty = cuisineCompatible(originalCuisine, getCuisineGroup(candidate)) ? 0 : 40;
+  const allergenPenalty = (candidate.allergens || []).filter((allergen) => !(original.allergens || []).includes(allergen)).length * 8;
+
+  return (
+    macroDistance(original, candidate) +
+    mealTagPenalty +
+    subCategoryPenalty +
+    cuisinePenalty +
+    allergenPenalty -
+    Math.min(categoryOverlap, 4) * 10
+  );
 }
 
 function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {

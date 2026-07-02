@@ -241,6 +241,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         quantityG: item.quantityG,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
+        nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
       })),
       chatHistory: [],
@@ -519,6 +520,11 @@ function buildSwapPanel(panelEl, state, itemIndex) {
   const broaderAlts = (item.broaderAlternatives || []).filter((alt) =>
     alt.id !== item.food.id && !alts.some((exact) => exact.id === alt.id)
   );
+  const nearestAlts = (item.nearestAlternatives || []).filter((alt) =>
+    alt.id !== item.food.id &&
+    !alts.some((exact) => exact.id === alt.id) &&
+    !broaderAlts.some((broader) => broader.id === alt.id)
+  );
   if (alts.length > 0) {
     const label = document.createElement('div');
     label.className = 'swap-section-label';
@@ -541,11 +547,6 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       altRow.append(btn);
     }
     panelEl.append(altRow);
-  } else if (broaderAlts.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'suggestion-empty';
-    empty.textContent = 'No approved swaps available.';
-    panelEl.append(empty);
   }
 
   if (broaderAlts.length > 0) {
@@ -579,6 +580,37 @@ function buildSwapPanel(panelEl, state, itemIndex) {
     });
     panelEl.append(broaderBtn);
   }
+
+  if (nearestAlts.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'swap-section-label';
+    label.textContent = 'Nearest alternatives';
+    panelEl.append(label);
+
+    const nearestRow = document.createElement('div');
+    nearestRow.className = 'swap-alternatives';
+    for (const alt of nearestAlts) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'swap-alt-btn';
+      btn.dataset.altFoodId = alt.id;
+      btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
+      btn.addEventListener('click', () => {
+        panelEl.hidden = true;
+        panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
+        applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
+      });
+      nearestRow.append(btn);
+    }
+    panelEl.append(nearestRow);
+  }
+
+  if (alts.length === 0 && broaderAlts.length === 0 && nearestAlts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.textContent = 'No approved swaps available.';
+    panelEl.append(empty);
+  }
 }
 
 // ── Food swap ────────────────────────────────────────────────────────────────
@@ -590,6 +622,7 @@ function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
     quantityG: gramAmount,
     alternatives: (previous.alternatives || []).filter((food) => food.id !== newFood.id),
     broaderAlternatives: (previous.broaderAlternatives || []).filter((food) => food.id !== newFood.id),
+    nearestAlternatives: (previous.nearestAlternatives || []).filter((food) => food.id !== newFood.id),
     component: previous.component || null,
   };
   state.isOriginalTemplate = false;
@@ -660,6 +693,7 @@ function toggleAddFoodPanel(state, card) {
           quantityG: clampGrams(food, food.defaultServingG),
           alternatives: [],
           broaderAlternatives: [],
+          nearestAlternatives: [],
           component: null,
         };
         state.items.push(newItem);
@@ -784,6 +818,7 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, devia
           quantityG: s.gramAmount,
           alternatives: [],
           broaderAlternatives: [],
+          nearestAlternatives: [],
           component: null,
         };
         state.items.push(newItem);
@@ -1241,7 +1276,7 @@ const chatPanel = (() => {
     const state = currentState;
     state.items = state.chatWorkingItems.map((pi) => {
       const food = foodsById.get(pi.foodId);
-      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], component: null };
+      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], nearestAlternatives: [], component: null };
     }).filter((i) => i.food);
     const foodList = state.cardEl.querySelector('.food-list');
     foodList.innerHTML = '';
@@ -1337,6 +1372,7 @@ function deepCopyItems(items) {
     ...item,
     alternatives: [...(item.alternatives || [])],
     broaderAlternatives: [...(item.broaderAlternatives || [])],
+    nearestAlternatives: [...(item.nearestAlternatives || [])],
   }));
 }
 
