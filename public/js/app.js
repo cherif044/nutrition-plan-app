@@ -64,6 +64,13 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
+const SWAP_GRAM_STEP = 5;
+const SWAP_GRAM_SCORE_WEIGHTS = {
+  calories: 0.35,
+  proteinG: 1,
+  carbG: 1,
+  fatG: 1,
+};
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -525,10 +532,14 @@ function buildSwapPanel(panelEl, state, itemIndex) {
     !alts.some((exact) => exact.id === alt.id) &&
     !broaderAlts.some((broader) => broader.id === alt.id)
   );
+  let suggestionLevel = 1;
+
   if (alts.length > 0) {
+    const exactLevel = suggestionLevel;
+    suggestionLevel += 1;
     const label = document.createElement('div');
     label.className = 'swap-section-label';
-    label.textContent = 'Suggestions';
+    label.textContent = `Level ${exactLevel} suggestions`;
     panelEl.append(label);
 
     const altRow = document.createElement('div');
@@ -542,7 +553,7 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       btn.addEventListener('click', () => {
         panelEl.hidden = true;
         panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
+        applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
       });
       altRow.append(btn);
     }
@@ -550,15 +561,17 @@ function buildSwapPanel(panelEl, state, itemIndex) {
   }
 
   if (broaderAlts.length > 0) {
+    const broaderLevel = suggestionLevel;
+    suggestionLevel += 1;
     const broaderBtn = document.createElement('button');
     broaderBtn.type = 'button';
     broaderBtn.className = 'swap-alt-btn';
-    broaderBtn.textContent = 'Show broader alternatives';
+    broaderBtn.textContent = `Show level ${broaderLevel} suggestions`;
     broaderBtn.addEventListener('click', () => {
       broaderBtn.remove();
       const label = document.createElement('div');
       label.className = 'swap-section-label';
-      label.textContent = 'Broader alternatives';
+      label.textContent = `Level ${broaderLevel} suggestions`;
       panelEl.append(label);
 
       const broaderRow = document.createElement('div');
@@ -572,7 +585,7 @@ function buildSwapPanel(panelEl, state, itemIndex) {
         btn.addEventListener('click', () => {
           panelEl.hidden = true;
           panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-          applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
+          applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
         });
         broaderRow.append(btn);
       }
@@ -582,9 +595,10 @@ function buildSwapPanel(panelEl, state, itemIndex) {
   }
 
   if (nearestAlts.length > 0) {
+    const nearestLevel = suggestionLevel;
     const label = document.createElement('div');
     label.className = 'swap-section-label';
-    label.textContent = 'Nearest alternatives';
+    label.textContent = `Level ${nearestLevel} suggestions`;
     panelEl.append(label);
 
     const nearestRow = document.createElement('div');
@@ -598,7 +612,7 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       btn.addEventListener('click', () => {
         panelEl.hidden = true;
         panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
+        applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
       });
       nearestRow.append(btn);
     }
@@ -1361,10 +1375,95 @@ function itemTotals(food, quantityG) {
   };
 }
 
-function clampGrams(food, grams) {
+function bestSwapGramsForMeal(state, itemIndex, newFood) {
+  const fixedItems = state.items.filter((_, index) => index !== itemIndex);
+  const currentItem = state.items[itemIndex];
+  return bestSingleFoodGramsForTarget({
+    food: newFood,
+    fixedTotals: computeTotals(fixedItems),
+    target: state.target,
+    preferredGrams: currentItem?.quantityG ?? newFood.defaultServingG,
+  });
+}
+
+function bestSingleFoodGramsForTarget({ food, fixedTotals, target, preferredGrams }) {
+  const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
+  const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
+  const perGram = {
+    calories: (Number(food.caloriesPer100g) || 0) / 100,
+    proteinG: (Number(food.proteinGPer100g) || 0) / 100,
+    carbG: (Number(food.carbGPer100g) || 0) / 100,
+    fatG: (Number(food.fatGPer100g) || 0) / 100,
+  };
+
+  let numerator = 0;
+  let denominator = 0;
+  for (const key of Object.keys(SWAP_GRAM_SCORE_WEIGHTS)) {
+    const desired = Number(target?.[key]) || 0;
+    const fixed = Number(fixedTotals?.[key]) || 0;
+    const rate = perGram[key];
+    const normalizer = Math.max(1, Math.abs(desired));
+    const weight = SWAP_GRAM_SCORE_WEIGHTS[key];
+    numerator += weight * rate * (desired - fixed) / (normalizer * normalizer);
+    denominator += weight * rate * rate / (normalizer * normalizer);
+  }
+
+  const analyticGrams = denominator > 0 ? numerator / denominator : food.defaultServingG;
+  const fallbackGrams = Number.isFinite(preferredGrams) ? preferredGrams : food.defaultServingG;
+  const candidates = new Set([
+    min,
+    max,
+    clampGrams(food, food.defaultServingG, SWAP_GRAM_STEP),
+    clampGrams(food, fallbackGrams, SWAP_GRAM_STEP),
+  ]);
+
+  if (Number.isFinite(analyticGrams)) {
+    const clamped = Math.min(Math.max(analyticGrams, min), max);
+    const lower = Math.floor(clamped / SWAP_GRAM_STEP) * SWAP_GRAM_STEP;
+    const upper = Math.ceil(clamped / SWAP_GRAM_STEP) * SWAP_GRAM_STEP;
+    [lower, upper, clamped].forEach((grams) => {
+      candidates.add(clampGrams(food, grams, SWAP_GRAM_STEP));
+    });
+  }
+
+  return [...candidates].sort((a, b) => {
+    const aTotals = totalsWithSingleFood(fixedTotals, food, a);
+    const bTotals = totalsWithSingleFood(fixedTotals, food, b);
+    const scoreDiff = macroErrorScoreForTotals(aTotals, target) - macroErrorScoreForTotals(bTotals, target);
+    if (Math.abs(scoreDiff) > 1e-9) return scoreDiff;
+    return Math.abs(a - fallbackGrams) - Math.abs(b - fallbackGrams);
+  })[0];
+}
+
+function totalsWithSingleFood(fixedTotals, food, quantityG) {
+  const totals = itemTotals(food, quantityG);
+  return {
+    calories: (Number(fixedTotals?.calories) || 0) + totals.calories,
+    proteinG: (Number(fixedTotals?.proteinG) || 0) + totals.proteinG,
+    carbG: (Number(fixedTotals?.carbG) || 0) + totals.carbG,
+    fatG: (Number(fixedTotals?.fatG) || 0) + totals.fatG,
+  };
+}
+
+function macroErrorScoreForTotals(totals, target) {
+  return Object.entries(SWAP_GRAM_SCORE_WEIGHTS).reduce((sum, [key, weight]) => {
+    const desired = Number(target?.[key]) || 0;
+    const actual = Number(totals?.[key]) || 0;
+    const normalizer = Math.max(1, Math.abs(desired));
+    const error = (actual - desired) / normalizer;
+    return sum + weight * error * error;
+  }, 0);
+}
+
+function clampGrams(food, grams, step = 10) {
   const min = food.minServingG ?? 20;
   const max = food.maxServingG ?? 500;
-  return Math.round(Math.min(Math.max(grams, min), max) / 10) * 10;
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 10;
+  const clamped = Math.min(Math.max(grams, min), max);
+  let rounded = Math.round(clamped / safeStep) * safeStep;
+  if (rounded < min) rounded = Math.ceil(min / safeStep) * safeStep;
+  if (rounded > max) rounded = Math.floor(max / safeStep) * safeStep;
+  return Math.min(Math.max(rounded, min), max);
 }
 
 function deepCopyItems(items) {
