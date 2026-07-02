@@ -1,5 +1,7 @@
 const { loadFoods } = require('../repositories/foodRepository');
 const { loadTemplates } = require('../repositories/templateRepository');
+const { loadSwapSystem } = require('../repositories/swapSystemRepository');
+const { getSwapCandidates, applySwapToTemplate } = require('./mealSwapService');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const {
   NUTRITION,
@@ -16,6 +18,7 @@ const ACTIVITY_LEVELS = new Set(['sedentary', 'light', 'moderate', 'very_active'
 const GOALS = new Set(['maintain', 'lose_weight', 'lose_weight_aggressive', 'gain_weight']);
 const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
+const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
 
 function getFoods() {
   return loadFoods();
@@ -26,7 +29,7 @@ function generatePlan(rawInput) {
 }
 
 function generatePlanFreeform(rawInput) {
-  return _generatePlanInternal(rawInput, false);
+  return _generatePlanInternal(rawInput, true);
 }
 
 function _generatePlanInternal(rawInput, useTemplates) {
@@ -71,13 +74,32 @@ function _generatePlanInternal(rawInput, useTemplates) {
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
     const seedTarget = meal.seedTarget ?? meal.target;
     const displayTarget = useTemplates ? mealTotals : meal.target;
+    const numberOfSwaps = Number.isFinite(meal.numberOfSwaps)
+      ? meal.numberOfSwaps
+      : (meal.swapsApplied?.length ?? 0);
     return {
-      ...meal,
+      name: meal.name,
+      tag: meal.tag,
+      slotProfile: meal.slotProfile ?? null,
+      templateId: meal.templateId ?? null,
+      templateName: meal.templateName ?? null,
+      isOriginalTemplate: meal.items.length > 0 && numberOfSwaps === 0 && Boolean(meal.templateId),
+      numberOfSwaps,
+      candidateSource: meal.candidateSource ?? meal.generationSource ?? null,
+      unavailableReason: meal.unavailableReason,
       seedTarget,
       target: displayTarget,
       totals: mealTotals,
       isApproximate: useTemplates ? !isWithinTolerance(plainItems, seedTarget) : !isWithinTolerance(plainItems, meal.target),
       sensitivityMatrix: computeSensitivityMatrix(plainItems, mealTotals),
+      items: meal.items.map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+        alternatives: item.alternatives ?? [],
+        broaderAlternatives: item.broaderAlternatives ?? [],
+        component: item.component ?? null,
+        totals: item.totals,
+      })),
       originalItems: plainItems.map((item) => ({ food: item.food, quantityG: item.quantityG })),
     };
   });
@@ -684,21 +706,121 @@ function hasSemanticMatch(foodTerms, selectedTerms) {
 
 function selectTemplateForMeal({ mealTag, allowedFoods, input, target }) {
   const candidates = rankedTemplateCandidates({ mealTag, allowedFoods, input, target });
-  const primary = candidates[0];
-  if (!primary) return null;
+  if (candidates.length === 0) return null;
 
-  const solved = solvePortionsLeastSquares(primary.items, {
-    proteinG: target.proteinG,
-    carbG: target.carbG,
-    fatG: target.fatG,
-  });
-
-  return {
-    items: solved,
-    template: primary.template,
-    alternates: candidates.slice(1),
-    filteredCount: candidates.length,
+  const allowedFoodMap = new Map(allowedFoods.map((food) => [food.id, food]));
+  const generationState = {
+    mealType: mealTag,
+    targetMacros: target,
+    candidatesTriedBySwapCount: { 0: 0, 1: 0, 2: 0 },
+    rejectedSwaps: [],
   };
+  const allTriedCandidates = [];
+
+  for (const candidate of candidates) {
+    const original = solveTemplateCandidate({
+      template: candidate.template,
+      allowedFoodMap,
+      target,
+      swaps: [],
+      source: 'original_template',
+      templateRankScore: candidate.rankScore,
+    });
+    if (!original) continue;
+    generationState.candidatesTriedBySwapCount[0] += 1;
+    allTriedCandidates.push(original);
+  }
+
+  const acceptableOriginal = chooseBestCandidate(
+    allTriedCandidates.filter((candidate) => candidate.swapCount === 0 && candidate.acceptable),
+  );
+  if (acceptableOriginal) {
+    return withGenerationDebug(selectionForCandidate({
+      candidate: acceptableOriginal,
+      candidates,
+      generationState,
+      reason: acceptableOriginal.fit.withinTolerance ? 'original_template_exact_fit' : 'original_template_safe_approximate',
+    }));
+  }
+
+  if (process.env.DISABLE_MEAL_TEMPLATE_SWAPS === 'true') {
+    const bestZero = chooseBestCandidate(allTriedCandidates.filter((candidate) => candidate.swapCount === 0));
+    return bestZero
+      ? withGenerationDebug(selectionForCandidate({
+          candidate: bestZero,
+          candidates,
+          generationState,
+          reason: 'swap_search_disabled_best_original_approximate',
+        }))
+      : null;
+  }
+
+  for (const candidate of candidates) {
+    const oneSwapCandidates = solveSwapCountCandidates({
+      template: candidate.template,
+      allowedFoodMap,
+      allowedFoods,
+      input: { ...input, mealTag },
+      target,
+      swapCount: 1,
+      templateRankScore: candidate.rankScore,
+      generationState,
+    });
+    allTriedCandidates.push(...oneSwapCandidates);
+  }
+
+  const acceptableOneSwap = chooseBestCandidate(
+    allTriedCandidates.filter((candidate) => candidate.swapCount === 1 && candidate.acceptable),
+  );
+  if (acceptableOneSwap) {
+    return withGenerationDebug(selectionForCandidate({
+      candidate: acceptableOneSwap,
+      candidates,
+      generationState,
+      reason: acceptableOneSwap.fit.withinTolerance ? 'one_swap_exact_fit' : 'one_swap_safe_approximate',
+    }));
+  }
+
+  const maxSwapCount = maxSwapCountFromPolicy();
+  if (maxSwapCount >= 2) {
+    for (const candidate of candidates) {
+      const twoSwapCandidates = solveSwapCountCandidates({
+        template: candidate.template,
+        allowedFoodMap,
+        allowedFoods,
+        input: { ...input, mealTag },
+        target,
+        swapCount: 2,
+        templateRankScore: candidate.rankScore,
+        generationState,
+      });
+      allTriedCandidates.push(...twoSwapCandidates);
+    }
+  }
+
+  const acceptableTwoSwap = chooseBestCandidate(
+    allTriedCandidates.filter((candidate) => candidate.swapCount === 2 && candidate.acceptable),
+  );
+  if (acceptableTwoSwap) {
+    return withGenerationDebug(selectionForCandidate({
+      candidate: acceptableTwoSwap,
+      candidates,
+      generationState,
+      reason: acceptableTwoSwap.fit.withinTolerance ? 'two_swap_exact_fit' : 'two_swap_safe_approximate',
+    }));
+  }
+
+  const best = chooseBestCandidate(allTriedCandidates);
+  if (!best) return null;
+
+  return withGenerationDebug(selectionForCandidate({
+    candidate: best,
+    candidates,
+    generationState,
+    reason: best.swapCount === 0
+      ? 'best_original_approximate_after_swap_search'
+      : 'best_swap_approximate_after_exhausting_lower_swap_counts',
+  }));
 }
 
 function rankedTemplateCandidates({ mealTag, allowedFoods, input, target }) {
@@ -706,37 +828,424 @@ function rankedTemplateCandidates({ mealTag, allowedFoods, input, target }) {
   const allowedFoodMap = new Map(allowedFoods.map((f) => [f.id, f]));
 
   const templateMealTags = templateTagsForMealTag(mealTag);
-  let filtered = templates.filter((t) => templateMealTags.includes(t.mealType));
-
-  // All component foods must be in the already-filtered allowed pool
-  filtered = filtered.filter((t) =>
-    t.components.every((c) => allowedFoodMap.has(c.foodId)),
+  let filtered = templates.filter((t) =>
+    t.generationEnabled !== false &&
+    ['production_ready', 'safe_partial_swaps'].includes(t.coherenceStatus) &&
+    templateMealTags.includes(t.mealType),
   );
 
-  // Diet compatibility
-  if (input.dietType === 'vegan') {
-    filtered = filtered.filter((t) => t.dietTags && t.dietTags.includes('vegan'));
-  } else if (input.dietType === 'vegetarian') {
-    filtered = filtered.filter(
-      (t) => t.dietTags && (t.dietTags.includes('vegetarian') || t.dietTags.includes('vegan')),
-    );
-  }
+  // A template can enter swap fallback only if blocked components are explicitly swappable.
+  filtered = filtered.filter((t) =>
+    t.components.every((c) => allowedFoodMap.has(c.foodId) || (t.swapEnabled !== false && c.swapEnabled === true)),
+  );
 
   const candidates = filtered.map((template) => {
-    const items = template.components.map((c) => ({
-      food: allowedFoodMap.get(c.foodId),
-      quantityG: allowedFoodMap.get(c.foodId)?.defaultServingG,
-    }));
-    const totals = totalsForItems(items);
+    const items = templateItemsFromAllowedFoods(template, allowedFoodMap);
+    const totals = items ? totalsForItems(items) : null;
     return {
       template,
       items,
-      rankScore: templateSeedScore(totals, target),
+      rankScore: templateRankScore({ template, items, totals, target, input }),
     };
   });
 
   candidates.sort((a, b) => a.rankScore - b.rankScore);
   return candidates;
+}
+
+function templateItemsFromAllowedFoods(template, allowedFoodMap) {
+  const items = [];
+  for (const component of template.components) {
+    const food = allowedFoodMap.get(component.foodId);
+    if (!food) return null;
+    items.push({
+      food,
+      quantityG: clampServing(food, food.defaultServingG),
+      component,
+    });
+  }
+  return items;
+}
+
+function templateRankScore({ template, items, totals, target, input }) {
+  const missingAllowedFoods = items ? 0 : template.components.length;
+  const dietPenalty = dietCompatibilityPenalty(template, input);
+  const coherencePenalty = template.coherenceStatus === 'production_ready' ? 0 : 0.1;
+  const swapPenalty = template.swapEnabled === false ? 0.5 : 0;
+  const seedScore = totals ? templateSeedScore(totals, target) : 20 + missingAllowedFoods;
+
+  return seedScore + dietPenalty + coherencePenalty + swapPenalty;
+}
+
+function dietCompatibilityPenalty(template, input) {
+  const tags = new Set(template.dietTags ?? []);
+  if (input.dietType === 'vegan') return tags.has('vegan') ? 0 : 4;
+  if (input.dietType === 'vegetarian') return tags.has('vegetarian') || tags.has('vegan') ? 0 : 2;
+  return 0;
+}
+
+function solveSwapCountCandidates({
+  template,
+  allowedFoodMap,
+  allowedFoods,
+  input,
+  target,
+  swapCount,
+  templateRankScore,
+  generationState,
+}) {
+  const results = [];
+  const plans = swapPlansForCount({ template, allowedFoodMap, allowedFoods, input, target, swapCount, generationState });
+
+  for (const plan of plans) {
+    const solved = solveTemplateCandidate({
+      template,
+      allowedFoodMap,
+      target,
+      swaps: plan.steps,
+      source: sourceForSwaps(plan.steps),
+      templateRankScore,
+    });
+    if (!solved) continue;
+    generationState.candidatesTriedBySwapCount[swapCount] =
+      (generationState.candidatesTriedBySwapCount[swapCount] ?? 0) + 1;
+    results.push(solved);
+  }
+
+  return results;
+}
+
+function swapPlansForCount({ template, allowedFoodMap, allowedFoods, input, target, swapCount, generationState }) {
+  if (swapCount <= 0) return [{ steps: [] }];
+
+  const orderedComponents = orderedComponentsForSwaps({ template, allowedFoodMap, target });
+  const candidateByFoodId = new Map();
+
+  for (const component of orderedComponents) {
+    const { candidates, rejected } = getSwapCandidates(template, component, input, allowedFoods);
+    generationState.rejectedSwaps.push(...rejected.slice(0, 10));
+    if (candidates.length > 0) {
+      candidateByFoodId.set(component.foodId, candidates.slice(0, swapCount === 1 ? 8 : 4));
+    }
+  }
+
+  if (swapCount === 1) {
+    return orderedComponents.flatMap((component) =>
+      (candidateByFoodId.get(component.foodId) ?? []).map((candidate) => ({
+        steps: [swapStepFor(component, candidate)],
+      })),
+    );
+  }
+
+  const plans = [];
+  for (let first = 0; first < orderedComponents.length; first += 1) {
+    for (let second = first + 1; second < orderedComponents.length; second += 1) {
+      const firstCandidates = candidateByFoodId.get(orderedComponents[first].foodId) ?? [];
+      const secondCandidates = candidateByFoodId.get(orderedComponents[second].foodId) ?? [];
+      for (const firstCandidate of firstCandidates) {
+        for (const secondCandidate of secondCandidates) {
+          plans.push({
+            steps: [
+              swapStepFor(orderedComponents[first], firstCandidate),
+              swapStepFor(orderedComponents[second], secondCandidate),
+            ],
+          });
+          if (plans.length >= 128) return plans;
+        }
+      }
+    }
+  }
+
+  return plans;
+}
+
+function swapStepFor(component, candidate) {
+  return {
+    oldFoodId: component.foodId,
+    newFoodId: candidate.food.id,
+    slot: component.slot,
+    swapGroup: candidate.groupId,
+    source: candidate.source,
+  };
+}
+
+function orderedComponentsForSwaps({ template, allowedFoodMap, target }) {
+  const components = template.components.map((component, index) => ({ component, index }));
+  const originalItems = templateItemsFromAllowedFoods(template, allowedFoodMap);
+  const firstComponent = originalItems
+    ? componentCausingBiggestMacroProblem(originalItems, target)
+    : template.components.find((component) => !allowedFoodMap.has(component.foodId));
+
+  return components
+    .sort((a, b) => (
+      priorityForComponent(a.component, firstComponent) - priorityForComponent(b.component, firstComponent) ||
+      a.index - b.index
+    ))
+    .map((entry) => entry.component);
+}
+
+function priorityForComponent(component, firstComponent) {
+  if (firstComponent && component.foodId === firstComponent.foodId) return 0;
+  const slot = component.slot;
+  if (slot === 'primary_protein') return 1;
+  if (['main_carb', 'fruit_carb', 'legume_base'].includes(slot)) return 2;
+  if (slot === 'fat') return 3;
+  return 4;
+}
+
+function componentCausingBiggestMacroProblem(items, target) {
+  const totals = totalsForItems(items);
+  const residual = {
+    calories: target.calories - totals.calories,
+    proteinG: target.proteinG - totals.proteinG,
+    carbG: target.carbG - totals.carbG,
+    fatG: target.fatG - totals.fatG,
+  };
+  const tolerances = {
+    calories: target.calories * NUTRITION.calorieTolerancePercent,
+    proteinG: NUTRITION.proteinToleranceG,
+    carbG: NUTRITION.carbToleranceG,
+    fatG: NUTRITION.fatToleranceG,
+  };
+  const worstMacro = ['proteinG', 'carbG', 'fatG', 'calories']
+    .sort((a, b) => Math.abs(residual[b]) / Math.max(1, tolerances[b]) -
+      Math.abs(residual[a]) / Math.max(1, tolerances[a]))[0];
+  const field = macroFieldForKey(worstMacro);
+  const isDeficit = residual[worstMacro] > 0;
+
+  return [...items].sort((a, b) => {
+    const aScore = isDeficit ? b.food[field] - a.food[field] : b.food[field] * b.quantityG - a.food[field] * a.quantityG;
+    return aScore;
+  })[0]?.component ?? null;
+}
+
+function solveTemplateCandidate({ template, allowedFoodMap, target, swaps, source, templateRankScore }) {
+  let swappedTemplate = template;
+  for (const step of swaps) {
+    swappedTemplate = applySwapToTemplate(swappedTemplate, step.oldFoodId, step.newFoodId);
+  }
+
+  const items = templateItemsFromAllowedFoods(swappedTemplate, allowedFoodMap);
+  if (!items) return null;
+
+  const solvedItems = solvePortionsLeastSquares(items, {
+    proteinG: target.proteinG,
+    carbG: target.carbG,
+    fatG: target.fatG,
+  });
+  const fit = macroFitDetails(solvedItems, target);
+  const originalFit = swaps.length === 0 ? fit : originalFitForTemplate(template, allowedFoodMap, target);
+  const servingPenalty = servingRealismPenalty(solvedItems);
+
+  return {
+    items: solvedItems,
+    template: swappedTemplate,
+    originalTemplate: template,
+    swaps,
+    source,
+    swapCount: swaps.length,
+    fit,
+    originalFit,
+    acceptable: isAcceptableCandidate(fit, target),
+    servingPenalty,
+    templateRankScore,
+  };
+}
+
+function originalFitForTemplate(template, allowedFoodMap, target) {
+  const originalItems = templateItemsFromAllowedFoods(template, allowedFoodMap);
+  if (!originalItems) return null;
+  const solved = solvePortionsLeastSquares(originalItems, {
+    proteinG: target.proteinG,
+    carbG: target.carbG,
+    fatG: target.fatG,
+  });
+  return macroFitDetails(solved, target);
+}
+
+function isAcceptableCandidate(fit, target) {
+  return fit.withinTolerance || isWithinMacroFitProfile(fit.totals, target, 'approximateButAcceptable');
+}
+
+function isWithinMacroFitProfile(totals, target, profileName) {
+  const profile = loadSwapSystem().solverAndRankingPolicy?.macroFitProfiles?.[profileName];
+  if (!profile) return false;
+  return (
+    Math.abs(totals.calories - target.calories) <= target.calories * Number(profile.caloriesPct ?? 0) &&
+    Math.abs(totals.proteinG - target.proteinG) <= Number(profile.proteinG ?? 0) &&
+    Math.abs(totals.carbG - target.carbG) <= Number(profile.carbsG ?? profile.carbG ?? 0) &&
+    Math.abs(totals.fatG - target.fatG) <= Number(profile.fatG ?? 0)
+  );
+}
+
+function chooseBestCandidate(candidates) {
+  return [...candidates].sort(compareGenerationCandidates)[0] ?? null;
+}
+
+function compareGenerationCandidates(a, b) {
+  return (
+    a.swapCount - b.swapCount ||
+    candidateSourceRank(a.source) - candidateSourceRank(b.source) ||
+    a.fit.score - b.fit.score ||
+    a.servingPenalty - b.servingPenalty ||
+    a.templateRankScore - b.templateRankScore
+  );
+}
+
+function sourceForSwaps(swaps) {
+  if (swaps.length === 0) return 'original_template';
+  return swaps.some((swap) => swap.source === 'same_family_slot') ? 'same_family_slot' : 'same_swap_group';
+}
+
+function candidateSourceRank(source) {
+  if (source === 'original_template') return 0;
+  if (source === 'same_swap_group') return 1;
+  if (source === 'same_family_slot') return 2;
+  return 3;
+}
+
+function maxSwapCountFromPolicy() {
+  const policy = loadSwapSystem().solverAndRankingPolicy ?? {};
+  const configured = Number(policy.maxSwapsPerMeal ?? policy.maxSwapCount ?? 2);
+  return Number.isFinite(configured) ? Math.max(0, configured) : 2;
+}
+
+function servingRealismPenalty(items) {
+  if (items.length === 0) return 1;
+  return items.reduce((sum, item) => {
+    const min = Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20;
+    const max = Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500;
+    const center = (min + max) / 2;
+    const span = Math.max(1, max - min);
+    return sum + Math.abs(item.quantityG - center) / span;
+  }, 0) / items.length;
+}
+
+function selectionForCandidate({ candidate, candidates, generationState, reason }) {
+  const debugPayload = {
+    mealType: generationState.mealType,
+    targetMacros: generationState.targetMacros,
+    selectedTemplate: candidate.template,
+    originalTemplateSolved: candidate.originalFit !== null,
+    originalTemplateMacroFit: candidate.originalFit,
+    swapsTried: generationState.candidatesTriedBySwapCount[1] + generationState.candidatesTriedBySwapCount[2],
+    swapsAccepted: generationState.candidatesTriedBySwapCount[1] + generationState.candidatesTriedBySwapCount[2],
+    bestCandidateSource: candidate.source,
+    finalMacroFit: candidate.fit,
+    failureReason: null,
+    rejectedSwaps: generationState.rejectedSwaps.slice(0, 12),
+    candidatesTriedBySwapCount: generationState.candidatesTriedBySwapCount,
+    selectedCandidateSwapCount: candidate.swapCount,
+    selectedCandidateSource: candidate.source,
+    selectedCandidateReason: reason,
+  };
+
+  return {
+    items: candidate.items,
+    template: candidate.template,
+    alternates: candidates.filter((alternate) => alternate.items),
+    filteredCount: candidates.length,
+    source: candidate.source,
+    swaps: candidate.swaps,
+    score: candidate.fit.score,
+    debugPayload,
+  };
+}
+
+function withGenerationDebug(selection, debug) {
+  if (!debug && selection?.debugPayload) {
+    debug = selection.debugPayload;
+    delete selection.debugPayload;
+  }
+
+  const generationDebug = {
+    mealType: debug.mealType,
+    targetMacros: roundedMacros(debug.targetMacros),
+    selectedTemplateId: debug.selectedTemplate?.templateId ?? null,
+    selectedTemplateName: debug.selectedTemplate?.name ?? null,
+    family: debug.selectedTemplate?.family ?? null,
+    originalTemplateSolved: debug.originalTemplateSolved,
+    originalTemplateMacroFit: debug.originalTemplateMacroFit ? roundedFit(debug.originalTemplateMacroFit) : null,
+    swapsTried: debug.swapsTried,
+    swapsAccepted: debug.swapsAccepted,
+    bestCandidateSource: debug.bestCandidateSource,
+    candidatesTriedBySwapCount: debug.candidatesTriedBySwapCount ?? { 0: 0, 1: 0, 2: 0 },
+    selectedCandidateSwapCount: debug.selectedCandidateSwapCount ?? 0,
+    selectedCandidateSource: debug.selectedCandidateSource ?? debug.bestCandidateSource,
+    selectedCandidateReason: debug.selectedCandidateReason ?? null,
+    numberOfSwaps: debug.selectedCandidateSwapCount ?? 0,
+    candidateSource: debug.selectedCandidateSource ?? debug.bestCandidateSource,
+    finalMacroFit: roundedFit(debug.finalMacroFit),
+    failureReason: debug.failureReason,
+    ...(debug.rejectedSwaps ? { rejectedSwaps: debug.rejectedSwaps } : {}),
+  };
+
+  if (DEBUG_MEAL_GENERATION) {
+    console.log(JSON.stringify(generationDebug));
+  }
+
+  return {
+    ...selection,
+    generationDebug,
+  };
+}
+
+function macroFitDetails(items, target) {
+  const totals = totalsForItems(items);
+  const residual = {
+    calories: totals.calories - target.calories,
+    proteinG: totals.proteinG - target.proteinG,
+    carbG: totals.carbG - target.carbG,
+    fatG: totals.fatG - target.fatG,
+  };
+  return {
+    totals,
+    residual,
+    withinTolerance: isWithinTolerance(items, target),
+    score: mealScore(items, target),
+  };
+}
+
+function roundedFit(fit) {
+  return {
+    withinTolerance: fit.withinTolerance,
+    score: roundToNearest(fit.score, 0.001),
+    totals: roundedMacros(fit.totals),
+    residual: roundedMacros(fit.residual),
+  };
+}
+
+function roundedMacros(macros) {
+  if (!macros) return null;
+  return Object.fromEntries(
+    Object.entries(macros).map(([key, value]) => [
+      key,
+      Number.isFinite(value) ? Number(value.toFixed(key === 'calories' ? 0 : 1)) : value,
+    ]),
+  );
+}
+
+function alternativesForItem({ item, template, allowedFoods, target, input }) {
+  if (template && item.component && input) {
+    const { candidates } = getSwapCandidates(
+      template,
+      item.component,
+      { ...input, mealTag: target.tag },
+      allowedFoods,
+    );
+    return {
+      alternatives: candidates
+        .filter((candidate) => candidate.source === 'same_swap_group')
+        .slice(0, 4)
+        .map((candidate) => candidate.food),
+      broaderAlternatives: candidates
+        .filter((candidate) => candidate.source === 'same_family_slot')
+        .slice(0, 4)
+        .map((candidate) => candidate.food),
+    };
+  }
+
+  return { alternatives: [], broaderAlternatives: [] };
 }
 
 function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {
@@ -749,9 +1258,15 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
     });
 
     if (!selection) {
+      const generationDebug = logMealGenerationFailure({
+        mealType: target.tag,
+        targetMacros: target.targets,
+        failureReason: `No coherent ready template or approved same-family swap candidate matched ${target.name}.`,
+      });
       return emptyMeal(
         target,
         `No ready meal template matched ${target.name} with the current targets and restrictions.`,
+        generationDebug,
       );
     }
 
@@ -768,212 +1283,113 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
       allowedFoods,
       template: selection.template,
       templateAlternates: selection.alternates,
+      swapsApplied: selection.swaps,
+      generationSource: selection.source,
+      generationDebug: selection.generationDebug,
+      input,
     });
   }
 
-  let bestMeal = null;
-  let bestScore = Infinity;
-
-  for (let attempt = 0; attempt < NUTRITION.maxMealAttempts; attempt += 1) {
-    const items = selectInitialItems({
-      target,
-      allowedFoods,
-      seed: mealIndex + attempt,
-    });
-    const adjusted = adjustPortions(items, target.targets);
-    const meal = buildMeal({ target, items: adjusted, allowedFoods });
-    const score = mealScore(adjusted, target.targets);
-
-    if (!meal.isApproximate) {
-      return meal;
-    }
-
-    if (score < bestScore) {
-      bestScore = score;
-      bestMeal = meal;
-    }
-  }
-
-  return (
-    bestMeal || emptyMeal(target)
-  );
+  const generationDebug = logMealGenerationFailure({
+    mealType: target.tag,
+    targetMacros: target.targets,
+    failureReason: 'Template generation is required; random macro-role fallback is disabled.',
+  });
+  return emptyMeal(target, generationDebug.failureReason, generationDebug);
 }
 
-function buildMeal({ target, items, allowedFoods, template = null, templateAlternates = [] }) {
-  const withAlternatives = items.map((item) => ({
-    ...item,
-    alternatives: alternativesFor({
-      original: item.food,
-      allowedFoods,
-      mealTag: target.tag,
-    }),
-    totals: macrosForFoodPortion(item.food, item.quantityG),
-  }));
+function logMealGenerationFailure({ mealType, targetMacros, failureReason }) {
+  const generationDebug = {
+    mealType,
+    targetMacros: roundedMacros(targetMacros),
+    selectedTemplateId: null,
+    selectedTemplateName: null,
+    family: null,
+    originalTemplateSolved: false,
+    originalTemplateMacroFit: null,
+    swapsTried: 0,
+    swapsAccepted: 0,
+    bestCandidateSource: null,
+    candidatesTriedBySwapCount: { 0: 0, 1: 0, 2: 0 },
+    selectedCandidateSwapCount: null,
+    selectedCandidateSource: null,
+    selectedCandidateReason: null,
+    numberOfSwaps: null,
+    candidateSource: null,
+    finalMacroFit: null,
+    failureReason,
+  };
+
+  if (DEBUG_MEAL_GENERATION) {
+    console.log(JSON.stringify(generationDebug));
+  }
+
+  return generationDebug;
+}
+
+function buildMeal({
+  target,
+  items,
+  allowedFoods,
+  template = null,
+  templateAlternates = [],
+  swapsApplied = [],
+  generationSource = null,
+  generationDebug = null,
+  input = null,
+}) {
+  const withAlternatives = items.map((item) => {
+    const swapAlternatives = alternativesForItem({ item, template, allowedFoods, target, input });
+    return {
+      ...item,
+      ...swapAlternatives,
+      totals: macrosForFoodPortion(item.food, item.quantityG),
+    };
+  });
 
   return {
     name: target.name,
     tag: target.tag,
     target: target.targets,
     slotProfile: target.slotProfile ?? null,
+    templateId: template?.templateId ?? null,
     templateName: template?.name ?? null,
+    templateFamily: template?.family ?? null,
     templateAlternates,
+    generationSource,
+    isOriginalTemplate: swapsApplied.length === 0 && Boolean(template?.templateId),
+    numberOfSwaps: swapsApplied.length,
+    candidateSource: generationSource,
+    swapsApplied,
+    generationDebug,
     items: withAlternatives,
     totals: sumTargets(withAlternatives.map((item) => item.totals)),
     isApproximate: !isWithinTolerance(items, target.targets),
   };
 }
 
-function emptyMeal(target, reason = null) {
+function emptyMeal(target, reason = null, generationDebug = null) {
   return {
     name: target.name,
     tag: target.tag,
     target: target.targets,
+    templateId: null,
+    templateName: null,
+    isOriginalTemplate: false,
+    numberOfSwaps: 0,
+    candidateSource: 'failed',
     items: [],
     totals: { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
     isApproximate: true,
     ...(reason ? { unavailableReason: reason } : {}),
+    ...(generationDebug ? { generationDebug } : {}),
   };
-}
-
-function selectInitialItems({ target, allowedFoods, seed }) {
-  const calTarget = target.targets.calories;
-  // Filter out protein/fat foods whose max serving can't meaningfully contribute to this meal's
-  // calorie target (e.g. egg white or olive oil in a 979-kcal lunch). Always falls back to full
-  // list so rare diet combinations still work.
-  function capablePool(foods, fraction) {
-    const minCal = calTarget * fraction;
-    const capable = foods.filter((f) => (f.maxServingG * f.caloriesPer100g) / 100 > minCal);
-    return capable.length > 0 ? capable : foods;
-  }
-
-  const proteinFoods = capablePool(foodsForRole(allowedFoods, 'protein', target.tag), 0.22);
-  const carbFoods    = foodsForRole(allowedFoods, 'carb', target.tag);
-  const fatFoods     = capablePool(foodsForRole(allowedFoods, 'fat', target.tag), 0.10);
-  const mixedFoods = foodsForRole(allowedFoods, 'mixed', target.tag);
-  const items = [];
-
-  const protein = pick(proteinFoods, seed) || pick(mixedFoods, seed);
-  const proteinCuisine = protein ? getCuisineGroup(protein) : 'neutral';
-
-  const compatCarbs = carbFoods.filter((f) => cuisineCompatible(getCuisineGroup(f), proteinCuisine));
-  const compatFats = fatFoods.filter((f) => cuisineCompatible(getCuisineGroup(f), proteinCuisine));
-
-  const carb = pick(compatCarbs.length ? compatCarbs : carbFoods, seed + 1) || pick(mixedFoods, seed + 1);
-  const fat = pick(compatFats.length ? compatFats : fatFoods, seed + 2);
-  const mixed = target.tag === 'snack' ? null : pick(mixedFoods, seed + 3);
-
-  if (protein) items.push(defaultItem(protein));
-  if (carb && carb.id !== protein?.id) items.push(defaultItem(carb));
-  if (fat && fat.id !== protein?.id && fat.id !== carb?.id) items.push(defaultItem(fat));
-  if (mixed && items.every((item) => item.food.id !== mixed.id) && calTarget > 450) {
-    items.push(defaultItem(mixed, 0.55));
-  }
-  if (items.length === 0) {
-    const anyFood = pick(allowedFoods, seed);
-    if (anyFood) items.push(defaultItem(anyFood));
-  }
-
-  // Scale initial portions toward the calorie target so adjustPortions starts close
-  const defaultCal = items.reduce(
-    (sum, item) => sum + (item.food.caloriesPer100g * item.quantityG) / 100,
-    0,
-  );
-  if (defaultCal > 0 && calTarget > defaultCal * 1.2) {
-    const scale = calTarget / defaultCal;
-    return items.map((item) => ({
-      ...item,
-      quantityG: clampServing(item.food, item.quantityG * scale),
-    }));
-  }
-
-  return items;
-}
-
-function foodsForRole(foods, role, mealTag) {
-  const mealTags = templateTagsForMealTag(mealTag);
-  return foods.filter((food) => food.macroRole === role && mealTags.some((tag) => food.mealTags.includes(tag)));
 }
 
 function templateTagsForMealTag(mealTag) {
   if (mealTag === 'iftar') return ['dinner', 'lunch'];
   if (mealTag === 'suhoor') return ['breakfast', 'dinner'];
   return [mealTag];
-}
-
-function pick(foods, seed) {
-  if (foods.length === 0) {
-    return null;
-  }
-  return foods[Math.abs(seed) % foods.length];
-}
-
-function defaultItem(food, scale = 1) {
-  return {
-    food,
-    quantityG: clampServing(food, food.defaultServingG * scale),
-    alternatives: [],
-  };
-}
-
-function adjustPortions(initialItems, target) {
-  let items = initialItems.map((item) => ({ ...item }));
-
-  for (let index = 0; index < NUTRITION.maxPortionAdjustmentIterations; index += 1) {
-    const totals = totalsForItems(items);
-    const proteinDiff = target.proteinG - totals.proteinG;
-    const fatDiff = target.fatG - totals.fatG;
-    const calorieDiff = target.calories - totals.calories;
-    const proteinIndex = firstIndexForRole(items, 'protein') ?? firstIndexForRole(items, 'mixed');
-    const fatIndex = firstIndexForRole(items, 'fat');
-    const carbIndex = firstIndexForRole(items, 'carb') ?? firstIndexForRole(items, 'mixed');
-
-    if (proteinIndex !== null && Math.abs(proteinDiff) > NUTRITION.proteinToleranceG / 2) {
-      const updated = adjustByMacro(items[proteinIndex], proteinDiff, items[proteinIndex].food.proteinGPer100g);
-      if (updated.quantityG !== items[proteinIndex].quantityG) {
-        items = replaceAt(items, proteinIndex, updated);
-        continue;
-      }
-    }
-
-    if (fatIndex !== null && Math.abs(fatDiff) > NUTRITION.fatToleranceG / 2) {
-      const updated = adjustByMacro(items[fatIndex], fatDiff, items[fatIndex].food.fatGPer100g);
-      if (updated.quantityG !== items[fatIndex].quantityG) {
-        items = replaceAt(items, fatIndex, updated);
-        continue;
-      }
-      // Fat food is at its limit — fall through to calorie adjustment
-    }
-
-    if (carbIndex !== null && Math.abs(calorieDiff) > target.calories * 0.05) {
-      const updated = adjustByCalories(items[carbIndex], calorieDiff);
-      if (updated.quantityG === items[carbIndex].quantityG) break; // carb food is at its limit too
-      items = replaceAt(items, carbIndex, updated);
-      continue;
-    }
-
-    break;
-  }
-
-  return items.map((item) => ({
-    ...item,
-    quantityG: clampServing(item.food, item.quantityG),
-  }));
-}
-
-function adjustByMacro(item, macroDiff, per100g) {
-  if (per100g <= 0) {
-    return item;
-  }
-  const deltaG = macroDiff / (per100g / 100);
-  return { ...item, quantityG: clampServing(item.food, item.quantityG + deltaG) };
-}
-
-function adjustByCalories(item, calorieDiff) {
-  if (item.food.caloriesPer100g <= 0) {
-    return item;
-  }
-  const deltaG = calorieDiff / (item.food.caloriesPer100g / 100);
-  return { ...item, quantityG: clampServing(item.food, item.quantityG + deltaG) };
 }
 
 function clampServing(food, quantityG) {
@@ -988,17 +1404,6 @@ function roundServingWithinBounds(quantityG, min, max, step = 5) {
   if (rounded < min) rounded = Math.ceil(min / step) * step;
   if (rounded > max) rounded = Math.floor(max / step) * step;
   return clamp(rounded, min, max);
-}
-
-function replaceAt(items, index, item) {
-  const next = [...items];
-  next[index] = item;
-  return next;
-}
-
-function firstIndexForRole(items, role) {
-  const index = items.findIndex((item) => item.food.macroRole === role);
-  return index === -1 ? null : index;
 }
 
 function totalsForItems(items) {
@@ -1065,34 +1470,6 @@ function templateSeedScore(totals, target) {
 
   const calorieScore = Math.abs(totals.calories - target.calories) / Math.max(1, target.calories);
   return ratioScore + calorieScore * 0.25;
-}
-
-function alternativesFor({ original, allowedFoods, mealTag, limit = 4 }) {
-  // MOD-11: prefer same subCategory, then category overlap, then same role only
-  const mealTags = templateTagsForMealTag(mealTag);
-  const byRole = (food) =>
-    food.id !== original.id &&
-    food.macroRole === original.macroRole &&
-    mealTags.some((tag) => food.mealTags.includes(tag));
-
-  const withSubCategory = original.subCategory
-    ? allowedFoods.filter((food) => byRole(food) && food.subCategory === original.subCategory)
-    : [];
-  const withCategory = allowedFoods.filter(
-    (food) => byRole(food) && food.categories.some((c) => original.categories.includes(c)),
-  );
-  const pool = withSubCategory.length > 0
-    ? withSubCategory
-    : (withCategory.length > 0 ? withCategory : allowedFoods.filter(byRole));
-
-  const unique = new Map();
-  pool
-    .sort((a, b) => macroDistance(original, a) - macroDistance(original, b))
-    .forEach((food) => {
-      if (!unique.has(food.id)) unique.set(food.id, food);
-    });
-
-  return Array.from(unique.values()).slice(0, limit);
 }
 
 function getCuisineGroup(food) {

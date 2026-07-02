@@ -94,6 +94,423 @@ function computeSensitivityHandler(req, res, next) {
   }
 }
 
+function macroGapScore(totals, target) {
+  const scorePart = (actual, desired) => Math.abs((Number(actual) || 0) - (Number(desired) || 0)) / Math.max(1, Number(desired) || 0);
+  return (
+    scorePart(totals.calories, target.calories) +
+    scorePart(totals.proteinG, target.proteinG) +
+    scorePart(totals.carbG, target.carbG) +
+    scorePart(totals.fatG, target.fatG)
+  );
+}
+
+function regressesSatisfiedMacro(currentTotals, proposedTotals, target) {
+  const macros = [
+    ['calories', target.calories],
+    ['proteinG', target.proteinG],
+    ['carbG', target.carbG],
+    ['fatG', target.fatG],
+  ];
+
+  return macros.some(([key, desired]) => {
+    const denominator = Math.max(1, Number(desired) || 0);
+    const currentGap = Math.abs((Number(currentTotals[key]) || 0) - desired) / denominator;
+    const proposedGap = Math.abs((Number(proposedTotals[key]) || 0) - desired) / denominator;
+    return currentGap <= 0.10 && proposedGap > 0.15;
+  });
+}
+
+function missesTargetBadly(totals, target) {
+  const macros = [
+    ['calories', target.calories],
+    ['proteinG', target.proteinG],
+    ['carbG', target.carbG],
+    ['fatG', target.fatG],
+  ];
+
+  return macros.some(([key, desired]) => (
+    Math.abs((Number(totals[key]) || 0) - desired) / Math.max(1, Number(desired) || 0) > 0.10
+  ));
+}
+
+function totalsFromProposedItems(items) {
+  return items.reduce(
+    (acc, item) => ({
+      calories: parseFloat((acc.calories + item.calories).toFixed(1)),
+      proteinG: parseFloat((acc.proteinG + item.proteinG).toFixed(1)),
+      carbG: parseFloat((acc.carbG + item.carbG).toFixed(1)),
+      fatG: parseFloat((acc.fatG + item.fatG).toFixed(1)),
+    }),
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+}
+
+function totalsFromWorkingItems(items) {
+  return items.reduce(
+    (acc, item) => {
+      const factor = item.grams / 100;
+      return {
+        calories: acc.calories + (item.food.caloriesPer100g ?? 0) * factor,
+        proteinG: acc.proteinG + (item.food.proteinGPer100g ?? 0) * factor,
+        carbG: acc.carbG + (item.food.carbGPer100g ?? 0) * factor,
+        fatG: acc.fatG + (item.food.fatGPer100g ?? 0) * factor,
+      };
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+}
+
+function toRoundedTotals(totals) {
+  return {
+    calories: parseFloat(totals.calories.toFixed(1)),
+    proteinG: parseFloat(totals.proteinG.toFixed(1)),
+    carbG: parseFloat(totals.carbG.toFixed(1)),
+    fatG: parseFloat(totals.fatG.toFixed(1)),
+  };
+}
+
+function foodConveniencePenalty(food) {
+  const name = String(food.name || '').toLowerCase();
+  const categories = new Set(food.categories || []);
+  let penalty = 0;
+
+  if (name.includes('raw') && (categories.has('egg') || categories.has('eggs') || name.includes('egg'))) {
+    penalty += 0.18;
+  }
+  if (name.includes('oil') || name.includes('butter')) {
+    penalty += 0.05;
+  }
+  if (name.includes('sauce') || name.includes('mustard')) {
+    penalty += 0.05;
+  }
+
+  return penalty;
+}
+
+function scoreWorkingItems(items, target, options = {}) {
+  const totals = toRoundedTotals(totalsFromWorkingItems(items));
+  let score = macroGapScore(totals, target);
+  const originalIds = options.originalIds || new Set();
+
+  for (const [key, desired] of [
+    ['calories', target.calories],
+    ['proteinG', target.proteinG],
+    ['carbG', target.carbG],
+    ['fatG', target.fatG],
+  ]) {
+    const pct = Math.abs((totals[key] - desired) / Math.max(1, desired));
+    if (pct > 0.10) score += (pct - 0.10) * 5;
+  }
+
+  for (const item of items) {
+    if (!originalIds.has(item.food.id)) {
+      score += 0.025;
+      score += foodConveniencePenalty(item.food);
+    }
+  }
+
+  return score;
+}
+
+function quantityBounds(food) {
+  return {
+    min: Number.isFinite(food.minServingG) ? food.minServingG : 1,
+    max: Number.isFinite(food.maxServingG) ? food.maxServingG : 500,
+  };
+}
+
+function clampQuantity(food, grams) {
+  const { min, max } = quantityBounds(food);
+  return Math.min(max, Math.max(min, grams));
+}
+
+function optimizeWorkingItems(seedItems, target, options = {}) {
+  let best = seedItems.map((item) => ({ ...item, grams: clampQuantity(item.food, item.grams) }));
+  let bestScore = scoreWorkingItems(best, target, options);
+
+  for (const step of [50, 25, 10, 5, 1]) {
+    let improved = true;
+    let passes = 0;
+    while (improved && passes < 60) {
+      improved = false;
+      passes += 1;
+
+      for (let i = 0; i < best.length; i++) {
+        for (const direction of [-1, 1]) {
+          const candidate = best.map((item) => ({ ...item }));
+          candidate[i].grams = clampQuantity(candidate[i].food, candidate[i].grams + direction * step);
+          if (candidate[i].grams === best[i].grams) continue;
+
+          const score = scoreWorkingItems(candidate, target, options);
+          if (score < bestScore - 0.0001) {
+            best = candidate;
+            bestScore = score;
+            improved = true;
+          }
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function toProposedItems(workingItems) {
+  return workingItems.map(({ food, grams }) => {
+    const roundedGrams = parseFloat(grams.toFixed(1));
+    const factor = roundedGrams / 100;
+    return {
+      foodId: food.id,
+      name: food.name,
+      grams: roundedGrams,
+      calories: parseFloat(((food.caloriesPer100g ?? 0) * factor).toFixed(1)),
+      proteinG: parseFloat(((food.proteinGPer100g ?? 0) * factor).toFixed(1)),
+      carbG: parseFloat(((food.carbGPer100g ?? 0) * factor).toFixed(1)),
+      fatG: parseFloat(((food.fatGPer100g ?? 0) * factor).toFixed(1)),
+    };
+  });
+}
+
+function buildChangesFromProposal(currentItems, proposedItems) {
+  const currentById = new Map(currentItems.map((item) => [String(item.foodId), item]));
+  const proposedById = new Map(proposedItems.map((item) => [String(item.foodId), item]));
+  const changes = [];
+
+  for (const proposed of proposedItems) {
+    const current = currentById.get(String(proposed.foodId));
+    if (!current) {
+      changes.push({ action: 'add', food_name: proposed.name, grams: proposed.grams });
+    } else if (Math.abs((Number(current.grams) || 0) - proposed.grams) > 0.5) {
+      changes.push({ action: 'modify', food_name: proposed.name, grams: proposed.grams });
+    }
+  }
+
+  for (const current of currentItems) {
+    if (!proposedById.has(String(current.foodId))) {
+      changes.push({ action: 'remove', food_name: current.name });
+    }
+  }
+
+  return changes;
+}
+
+function buildDeterministicMealSuggestion({ currentItems, currentTotals, availableFoods, foodById, foodByName, mealTarget }) {
+  const currentWorking = currentItems
+    .map((item) => {
+      const food = (item.foodId ? foodById.get(String(item.foodId)) : null) || foodByName.get(item.name?.toLowerCase());
+      return food ? { food, grams: Number(item.grams) || food.defaultServingG } : null;
+    })
+    .filter(Boolean);
+
+  if (currentWorking.length === 0) return null;
+
+  const currentScore = macroGapScore(currentTotals || toRoundedTotals(totalsFromWorkingItems(currentWorking)), mealTarget);
+  const existingIds = new Set(currentWorking.map((item) => item.food.id));
+  const existingSubCategories = new Set(currentWorking.map((item) => item.food.subCategory).filter(Boolean));
+  const existingBySubCategory = currentWorking.reduce((acc, item) => {
+    if (!item.food.subCategory) return acc;
+    if (!acc.has(item.food.subCategory)) acc.set(item.food.subCategory, []);
+    acc.get(item.food.subCategory).push(item.food);
+    return acc;
+  }, new Map());
+  const fatNearTarget = Math.abs(((currentTotals?.fatG ?? 0) - mealTarget.fatG) / Math.max(1, mealTarget.fatG)) <= 0.10;
+  const addCandidates = availableFoods
+    .map((food) => foodById.get(food.id) || foodByName.get(food.name.toLowerCase()))
+    .filter(Boolean)
+    .filter((food) => !existingIds.has(food.id))
+    .filter((food) => {
+      if (!food.subCategory || !existingSubCategories.has(food.subCategory)) return true;
+      if (food.macroRole !== 'protein') return false;
+
+      const candidateFatPerProtein = (food.fatGPer100g || 0) / Math.max(1, food.proteinGPer100g || 0);
+      return (existingBySubCategory.get(food.subCategory) || []).some((existing) => {
+        const existingFatPerProtein = (existing.fatGPer100g || 0) / Math.max(1, existing.proteinGPer100g || 0);
+        return candidateFatPerProtein + 0.15 < existingFatPerProtein;
+      });
+    })
+    .filter((food) => !(fatNearTarget && food.macroRole === 'fat'));
+
+  const scoreOptions = { originalIds: existingIds };
+  let bestWorking = optimizeWorkingItems(currentWorking, mealTarget, scoreOptions);
+  let bestScore = scoreWorkingItems(bestWorking, mealTarget, scoreOptions);
+
+  const evaluateCandidate = (seed) => {
+    const optimized = optimizeWorkingItems(seed, mealTarget, scoreOptions);
+    const score = scoreWorkingItems(optimized, mealTarget, scoreOptions);
+    if (score < bestScore - 0.0001) {
+      bestWorking = optimized;
+      bestScore = score;
+    }
+  };
+
+  for (const food of addCandidates) {
+    evaluateCandidate([...currentWorking, { food, grams: quantityBounds(food).min }]);
+  }
+
+  for (let i = 0; i < currentWorking.length; i++) {
+    const current = currentWorking[i];
+    if (current.food.macroRole !== 'protein' || !current.food.subCategory) continue;
+    const currentFatPerProtein = (current.food.fatGPer100g || 0) / Math.max(1, current.food.proteinGPer100g || 0);
+
+    for (const food of availableFoods
+      .map((candidate) => foodById.get(candidate.id) || foodByName.get(candidate.name.toLowerCase()))
+      .filter(Boolean)) {
+      if (food.id === current.food.id || food.subCategory !== current.food.subCategory) continue;
+      if (food.macroRole !== 'protein') continue;
+
+      const candidateFatPerProtein = (food.fatGPer100g || 0) / Math.max(1, food.proteinGPer100g || 0);
+      if (candidateFatPerProtein + 0.15 >= currentFatPerProtein) continue;
+
+      const seed = currentWorking.map((item, index) => (
+        index === i ? { food, grams: clampQuantity(food, current.grams) } : { ...item }
+      ));
+      evaluateCandidate(seed);
+    }
+  }
+
+  const proposedItems = toProposedItems(bestWorking);
+  const proposedTotals = totalsFromProposedItems(proposedItems);
+
+  if (bestScore >= currentScore || missesTargetBadly(proposedTotals, mealTarget)) {
+    return null;
+  }
+
+  return { proposedItems, proposedTotals };
+}
+
+function tokenizeFoodQuery(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !new Set(['i', 'want', 'need', 'the', 'a', 'an', 'to', 'with', 'for', 'of', 'instead', 'please', 'can', 'you']).has(token));
+}
+
+function searchableFoodText(food) {
+  return [
+    food.id,
+    food.name,
+    food.macroRole,
+    food.subCategory,
+    ...(food.categories || []),
+  ].join(' ').toLowerCase();
+}
+
+function findBestFoodMatch(query, foods) {
+  const tokens = tokenizeFoodQuery(query);
+  if (tokens.length === 0) return null;
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const food of foods) {
+    const searchText = searchableFoodText(food);
+    let score = 0;
+
+    for (const token of tokens) {
+      if (searchText.includes(token)) score += token.length;
+    }
+
+    if (tokens.includes('toast') && food.id === 'bread_white') score += 40;
+    if (tokens.includes('baladi') && food.id.includes('baladi')) score += 40;
+    if (tokens.includes('white') && food.id === 'bread_white') score += 20;
+
+    if (score > bestScore) {
+      best = food;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 4 ? best : null;
+}
+
+function parseExplicitSwapRequest(message) {
+  const text = String(message || '').toLowerCase();
+  if (!/\b(swap|replace|instead of|change)\b/.test(text)) return null;
+
+  let sourceQuery = '';
+  let targetQuery = '';
+
+  let match = text.match(/\bswap\s+(.+?)\s+(?:with|for|to)\s+(.+)$/);
+  if (match) {
+    sourceQuery = match[1];
+    targetQuery = match[2];
+  } else {
+    match = text.match(/\breplace\s+(.+?)\s+(?:with|for|to)\s+(.+)$/);
+    if (match) {
+      sourceQuery = match[1];
+      targetQuery = match[2];
+    }
+  }
+
+  if (!sourceQuery || !targetQuery) {
+    match = text.match(/(.+?)\s+instead of\s+(.+)$/);
+    if (match) {
+      targetQuery = match[1];
+      sourceQuery = match[2];
+    }
+  }
+
+  return sourceQuery && targetQuery ? { sourceQuery, targetQuery } : null;
+}
+
+function buildExplicitSwapSuggestion({ userMessage, currentItems, availableFoods, foodById, foodByName, mealTarget }) {
+  const parsed = parseExplicitSwapRequest(userMessage);
+  if (!parsed) return null;
+
+  const currentWorking = currentItems
+    .map((item) => {
+      const food = (item.foodId ? foodById.get(String(item.foodId)) : null) || foodByName.get(item.name?.toLowerCase());
+      return food ? { food, grams: Number(item.grams) || food.defaultServingG } : null;
+    })
+    .filter(Boolean);
+  const availableFullFoods = availableFoods
+    .map((food) => foodById.get(food.id) || foodByName.get(food.name.toLowerCase()))
+    .filter(Boolean);
+
+  const sourceFood = findBestFoodMatch(parsed.sourceQuery, currentWorking.map((item) => item.food));
+  const targetFood = findBestFoodMatch(parsed.targetQuery, availableFullFoods);
+  if (!sourceFood || !targetFood || sourceFood.id === targetFood.id) return null;
+
+  const sourceItem = currentWorking.find((item) => item.food.id === sourceFood.id);
+  if (!sourceItem) return null;
+
+  const sourceCalories = (sourceFood.caloriesPer100g || 0) * sourceItem.grams / 100;
+  const startingTargetGrams = sourceCalories > 0 && targetFood.caloriesPer100g > 0
+    ? sourceCalories / targetFood.caloriesPer100g * 100
+    : sourceItem.grams;
+
+  const swapped = currentWorking.map((item) => (
+    item.food.id === sourceFood.id
+      ? { food: targetFood, grams: clampQuantity(targetFood, startingTargetGrams) }
+      : { ...item }
+  ));
+
+  const optimized = optimizeWorkingItems(swapped, mealTarget, {
+    originalIds: new Set(swapped.map((item) => item.food.id)),
+  });
+  const proposedItems = toProposedItems(optimized);
+  const proposedTotals = totalsFromProposedItems(proposedItems);
+
+  return {
+    status: 'ready',
+    message: `Swapped ${sourceFood.name} for ${targetFood.name} and adjusted portions to keep the meal close to target.`,
+    meal_snapshot: proposedItems.map((item) => ({
+      name: item.name,
+      grams: item.grams,
+      calories: item.calories,
+      proteinG: item.proteinG,
+      carbG: item.carbG,
+      fatG: item.fatG,
+    })),
+    meal_snapshot_totals: proposedTotals,
+    changes: buildChangesFromProposal(currentItems, proposedItems),
+    proposedItems,
+    proposedTotals,
+  };
+}
+
 async function mealChatHandler(req, res, next) {
   try {
     const { mealTag, mealTarget, currentItems, currentTotals, userPreferences, conversationHistory, userMessage } = req.body;
@@ -107,11 +524,25 @@ async function mealChatHandler(req, res, next) {
     };
 
     const foods = getFoods();
+    const foodByName = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
+    const foodById = new Map(foods.map((f) => [f.id, f]));
 
     // AI call
     const availableFoods = filterFoodsForChatbox({ foods, mealTag, userInput: safePreferences });
+    const explicitSwap = buildExplicitSwapSuggestion({
+      userMessage,
+      currentItems,
+      availableFoods,
+      foodById,
+      foodByName,
+      mealTarget,
+    });
+    if (explicitSwap) {
+      return res.json(explicitSwap);
+    }
+
     const turnCount = Array.isArray(conversationHistory) ? Math.ceil(conversationHistory.length / 2) : 0;
-    const existingCategories = [...new Set(currentItems.flatMap((i) => i.categories || []))];
+    const currentFoodCategories = [...new Set(currentItems.flatMap((i) => i.categories || []))];
 
     const calGap = Math.round(mealTarget.calories - (currentTotals?.calories ?? 0));
     const pGap = Math.round(mealTarget.proteinG - (currentTotals?.proteinG ?? 0));
@@ -134,21 +565,30 @@ MEAL CONTEXT:
 TARGET: ${mealTarget.calories}kcal P${mealTarget.proteinG}g C${mealTarget.carbG}g F${mealTarget.fatG}g
 CURRENT: ${currentTotals?.calories ?? 0}kcal P${currentTotals?.proteinG ?? 0}g C${currentTotals?.carbG ?? 0}g F${currentTotals?.fatG ?? 0}g
 GAP: ${calGap}kcal P${pGap}g C${cGap}g F${fGap}g
-DIET: ${safePreferences.dietType} | MEAL: ${mealTag} | BLOCKED CATEGORIES: ${existingCategories.join(', ') || 'none'}
+DIET: ${safePreferences.dietType} | MEAL: ${mealTag} | USER AVOIDS: ${safePreferences.avoidFoods.join(', ') || 'none'}
+CURRENT FOOD CATEGORIES (not blocked; use for context only): ${currentFoodCategories.join(', ') || 'none'}
 
-CURRENT FOODS (name | grams | kcal | P C F | role):
-${currentItems.map((i) => `${i.name} | ${i.grams}g | ${i.calories}kcal | P${i.proteinG} C${i.carbG} F${i.fatG} | ${i.macroRole}`).join('\n')}
+CURRENT FOODS (name | current grams | allowed min-maxg | kcal | P C F now | role | kcal P C F per100g):
+${currentItems.map((i) => {
+  const food = (i.foodId ? foodById.get(String(i.foodId)) : null) || foodByName.get(i.name?.toLowerCase());
+  return `${i.name} | ${i.grams}g | ${food?.minServingG ?? 1}-${food?.maxServingG ?? 500}g | ${i.calories}kcal | P${i.proteinG} C${i.carbG} F${i.fatG} | ${i.macroRole} | ${food?.caloriesPer100g ?? 0}kcal P${food?.proteinGPer100g ?? 0} C${food?.carbGPer100g ?? 0} F${food?.fatGPer100g ?? 0}`;
+}).join('\n')}
 
 AVAILABLE FOODS — only suggest from this list (name | role | min-maxg | kcal P C F per100g):
 ${availableFoods.map((f) => `${f.name}|${f.macroRole}|${f.minServingG}-${f.maxServingG}g|${f.caloriesPer100g}kcal P${f.proteinGPer100g} C${f.carbGPer100g} F${f.fatGPer100g}`).join('\n')}
 
 MEAL ADJUSTMENT RULES (only apply when making meal changes):
 1. Only use foods from AVAILABLE FOODS. Calculate macros from per100g values (val=per100g/100*grams). Never use training knowledge.
-2. Stay within each food's min-max grams. Never remove all foods.
-3. First increase existing food grams to close the gap; only add a new food if existing foods are at their max.
-4. Never add a food that shares a BLOCKED CATEGORY or is wrong meal type.
-5. ${turnRule}
-6. A meal is ON TARGET if every gap (calories, protein, carbs, fat) is within 5% of its target value. If the user asks whether the meal hits the targets, use this rule to answer accurately.
+2. Preserve every CURRENT FOOD unless the user explicitly asks to remove/swap/replace it. For auto-balance suggestions, keep the meal recognizable.
+3. Stay within each food's min-max grams. Never remove all foods.
+4. First adjust existing food grams to close the gap; only add a new food if existing foods cannot reasonably close the largest remaining gap.
+5. Follow the gap direction: if carbs are short, prioritize carb-role or low-fat mixed foods; if protein is short, prioritize protein-role foods; if fat is already within 10% of target, do not add fat-role foods or high-fat foods such as nuts/oils/cheese.
+6. Do not replace bread with oats, dairy with nuts, or similar broad swaps unless the user specifically asks for a swap.
+7. Never add a food from USER AVOIDS or the wrong meal type.
+8. Before responding with status "ready", recalculate meal_snapshot_totals. Every macro should be within 10% of target, and no macro may be more than 15% over or under target.
+9. If you cannot make a valid draft, respond with status "negotiating" and explain the closest sensible adjustment instead of inventing a bad draft.
+10. ${turnRule}
+11. A meal is ON TARGET if every gap (calories, protein, carbs, fat) is within 5% of its target value. If the user asks whether the meal hits the targets, use this rule to answer accurately.
 
 Always respond in valid JSON only — no text outside the JSON object.
 WHEN CHATTING (no changes): {"status":"negotiating","message":"<write your actual response here>","meal_snapshot":[{"name":"<food name>","grams":0,"calories":0,"proteinG":0,"carbG":0,"fatG":0}],"meal_snapshot_totals":{"calories":0,"proteinG":0,"carbG":0,"fatG":0}}
@@ -165,9 +605,6 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
 
     // Rebuild proposed meal from DB values (never trust LLM math)
     if (payload.status === 'ready') {
-      const foodByName = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
-      const foodById = new Map(foods.map((f) => [f.id, f]));
-
       let workingItems = currentItems
         .map((ci) => {
           const food = (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase());
@@ -179,6 +616,14 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
       // This is more reliable than `changes` because small models often forget to include
       // the changes array or use the wrong action type, but always fill in meal_snapshot.
       if (Array.isArray(payload.meal_snapshot) && payload.meal_snapshot.length > 0) {
+        const explicitRemovals = new Set(
+          (Array.isArray(payload.changes) ? payload.changes : [])
+            .filter((change) => change.action === 'remove')
+            .map((change) => change.food_name?.toLowerCase())
+            .filter(Boolean),
+        );
+        workingItems = workingItems.filter((item) => !explicitRemovals.has(item.food.name.toLowerCase()));
+
         const snapshotItems = payload.meal_snapshot
           .map((snap) => {
             const food = foodByName.get(snap.name?.toLowerCase());
@@ -186,7 +631,11 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
             return food ? { food, grams } : null;
           })
           .filter(Boolean);
-        if (snapshotItems.length > 0) workingItems = snapshotItems;
+        for (const snapshotItem of snapshotItems) {
+          const existing = workingItems.find((item) => item.food.id === snapshotItem.food.id);
+          if (existing) existing.grams = snapshotItem.grams;
+          else workingItems.push(snapshotItem);
+        }
       } else if (Array.isArray(payload.changes) && payload.changes.length > 0) {
         // Fallback: apply changes action list
         for (const change of payload.changes) {
@@ -229,16 +678,47 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
       }) || proposedItems.length !== currentItems.length;
 
       if (somethingChanged) {
-        payload.proposedItems = proposedItems;
-        payload.proposedTotals = proposedItems.reduce(
-          (acc, item) => ({
-            calories: parseFloat((acc.calories + item.calories).toFixed(1)),
-            proteinG: parseFloat((acc.proteinG + item.proteinG).toFixed(1)),
-            carbG: parseFloat((acc.carbG + item.carbG).toFixed(1)),
-            fatG: parseFloat((acc.fatG + item.fatG).toFixed(1)),
-          }),
-          { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-        );
+        const proposedTotals = totalsFromProposedItems(proposedItems);
+        const currentScore = macroGapScore(currentTotals || totalsFromProposedItems(currentItems), mealTarget);
+        const proposedScore = macroGapScore(proposedTotals, mealTarget);
+        const invalidRegression = regressesSatisfiedMacro(currentTotals || totalsFromProposedItems(currentItems), proposedTotals, mealTarget);
+        const invalidTargetMiss = missesTargetBadly(proposedTotals, mealTarget);
+
+        if (invalidRegression || invalidTargetMiss || proposedScore >= currentScore) {
+          const fallback = buildDeterministicMealSuggestion({
+            currentItems,
+            currentTotals,
+            availableFoods,
+            foodById,
+            foodByName,
+            mealTarget,
+          });
+
+          if (fallback) {
+            payload.status = 'ready';
+            payload.message = 'I rebuilt the draft with backend macro math: keeping the current foods, adjusting portions, and only adding a food if it improves the target fit.';
+            payload.proposedItems = fallback.proposedItems;
+            payload.proposedTotals = fallback.proposedTotals;
+            payload.meal_snapshot = fallback.proposedItems.map((item) => ({
+              name: item.name,
+              grams: item.grams,
+              calories: item.calories,
+              proteinG: item.proteinG,
+              carbG: item.carbG,
+              fatG: item.fatG,
+            }));
+            payload.meal_snapshot_totals = fallback.proposedTotals;
+            payload.changes = buildChangesFromProposal(currentItems, fallback.proposedItems);
+          } else {
+            payload.status = 'negotiating';
+            payload.message = 'That draft was not close enough to the meal targets, so I did not apply it. For this meal, keep the current foods and adjust the main carb/protein portions first instead of adding high-fat foods.';
+            delete payload.proposedItems;
+            delete payload.proposedTotals;
+          }
+        } else {
+          payload.proposedItems = proposedItems;
+          payload.proposedTotals = proposedTotals;
+        }
       }
     }
 

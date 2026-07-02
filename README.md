@@ -78,8 +78,17 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env — set DATABASE_URL (or PG_* vars) and JWT_SECRET
+# Edit .env — set database vars, JWT_SECRET, and GEMINI_API_KEY
 ```
+
+For AI meal chat, create a Gemini API key in Google AI Studio and set:
+
+```bash
+GEMINI_API_KEY=your_google_ai_studio_key
+GEMINI_MODEL=gemini-3.1-flash-lite
+```
+
+`gemini-3.1-flash-lite` is the default because it is built for low-latency, high-volume app usage. Use a larger model only if you want higher reasoning quality and are okay with higher cost/latency.
 
 ### 3. Create the database
 

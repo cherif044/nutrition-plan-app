@@ -2,9 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { generatePlan } = require('../src/services/planGenerator');
 const { loadTemplates } = require('../src/repositories/templateRepository');
+const { loadSwapSystem } = require('../src/repositories/swapSystemRepository');
 const { NUTRITION, macrosForFoodPortion, sumTargets } = require('../src/services/nutritionService');
 
 const templateFoodIds = new Set(loadTemplates().flatMap((t) => t.components.map((c) => c.foodId)));
+const swapSystemFoodIds = new Set(
+  Object.values(loadSwapSystem().swapGroups).flatMap((group) => group.foods),
+);
 const avoidSets = [
   [],
   ['chicken'],
@@ -228,7 +232,9 @@ function validatePlan(testCase, plan) {
     }
     for (const item of meal.items) {
       if (!item.food || !item.food.id) failures.push(`${meal.name} contains invalid food`);
-      if (!templateFoodIds.has(item.food.id)) failures.push(`${item.food.id} is outside mealTemplates.json`);
+      if (!templateFoodIds.has(item.food.id) && !swapSystemFoodIds.has(item.food.id)) {
+        failures.push(`${item.food.id} is outside mealTemplates.json and meal_swap_system.production.json`);
+      }
       if (!Number.isFinite(item.quantityG) || item.quantityG <= 0) failures.push(`${meal.name} has invalid grams`);
       if (item.quantityG < item.food.minServingG - 0.01 || item.quantityG > item.food.maxServingG + 0.01) {
         failures.push(`${item.food.id} outside min/max serving`);

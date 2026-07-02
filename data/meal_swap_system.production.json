@@ -1,0 +1,4192 @@
+{
+  "schema": "nutrition_swap_system.v2",
+  "version": "2.0.0-production-starter",
+  "generatedAtUtc": "2026-06-24T14:45:04+00:00",
+  "purpose": "Deterministic meal swap and fallback configuration. Templates define structure; swap groups define allowed replacements; solver adjusts grams. Avoids random macro-role combinations.",
+  "sourceFiles": {
+    "foods": "foods.json",
+    "templates": "mealTemplates(1).json"
+  },
+  "highLevelPolicy": {
+    "corePrinciple": "Never generate meals by macro_role alone.",
+    "normalGenerationOrder": [
+      "select template",
+      "infer or read template family",
+      "solve portions",
+      "if no exact fit, try same-family same-slot swaps",
+      "solve portions again",
+      "return approximate meal if safe and coherent",
+      "fail only if no coherent family candidate exists"
+    ],
+    "userSwapOrder": [
+      "same component exact swapGroup",
+      "same family slotGroups for that slot",
+      "same family alternative group with explicit permission",
+      "reject with explanation"
+    ],
+    "llmUsageRecommendation": "Do not use an LLM at runtime for core meal validity. Use LLM offline only to propose new templates/groups, then validate into this deterministic file."
+  },
+  "badPairingGuards": {
+    "hardRejectRules": [
+      {
+        "rule": "candidate_not_in_same_swap_group_or_family_slot",
+        "message": "Do not replace food with random same macro_role item."
+      },
+      {
+        "rule": "condiment_as_primary_component",
+        "message": "Sauces/mustard/soy sauce cannot be protein/carb/fat core items."
+      },
+      {
+        "rule": "protein_powder_in_lunch_or_dinner_plate",
+        "message": "Protein powder is breakfast/snack only."
+      },
+      {
+        "rule": "fruit_as_lunch_dinner_main_carb_with_meat",
+        "message": "Fruit cannot replace rice/pasta/potatoes in meat plates."
+      },
+      {
+        "rule": "quinoa_in_classic_plate_unless_family_is_grain_bowl",
+        "message": "Quinoa only belongs in grain_bowl or explicit quinoa templates."
+      },
+      {
+        "rule": "vegetable_side_as_main_macro_filler",
+        "message": "Non-starchy vegetables are side items, not main macro fillers."
+      },
+      {
+        "rule": "nuts_or_peanut_butter_as_meat_replacement",
+        "message": "Nuts/peanut butter are fats/snacks, not lunch/dinner primary protein swaps."
+      },
+      {
+        "rule": "avocado_as_main_carb",
+        "message": "Avocado is fat/side, not rice/bread/pasta replacement."
+      },
+      {
+        "rule": "butter_as_default_lunch_dinner_fat",
+        "message": "Use oils for lunch/dinner unless a template explicitly uses butter."
+      }
+    ],
+    "softPenaltyRules": [
+      {
+        "rule": "different_cuisine_tag",
+        "penalty": 0.1
+      },
+      {
+        "rule": "different_sub_category_inside_same_role",
+        "penalty": 0.08
+      },
+      {
+        "rule": "candidate_requires_serving_beyond_default_range",
+        "penalty": 0.15
+      },
+      {
+        "rule": "candidate_adds_major_allergen_compared_to_original",
+        "penalty": 0.25
+      }
+    ]
+  },
+  "solverAndRankingPolicy": {
+    "candidateFiltersMustPass": [
+      "food exists in foods.json",
+      "food is allowed by diet type",
+      "food does not contain user allergy",
+      "food is not in avoidFoods/dislikes",
+      "mealType is compatible, unless template explicitly permits it",
+      "candidate group is allowed by family slot",
+      "serving after solve is between minServingG and maxServingG or allowed relaxation",
+      "candidate does not trigger hardRejectRules"
+    ],
+    "rankingWeights": {
+      "macroFitAfterSolver": 0.42,
+      "sameExactSwapGroup": 0.22,
+      "sameFamilySlot": 0.16,
+      "servingRealism": 0.1,
+      "dietAllergySafety": 0.06,
+      "cuisineAndMealTagFit": 0.04
+    },
+    "macroFitProfiles": {
+      "strict": {
+        "caloriesPct": 0.08,
+        "proteinG": 6,
+        "carbsG": 10,
+        "fatG": 5
+      },
+      "normal": {
+        "caloriesPct": 0.12,
+        "proteinG": 8,
+        "carbsG": 15,
+        "fatG": 7
+      },
+      "approximateButAcceptable": {
+        "caloriesPct": 0.18,
+        "proteinG": 12,
+        "carbsG": 22,
+        "fatG": 10
+      }
+    },
+    "portionRelaxationPolicy": {
+      "firstPass": "respect minServingG and maxServingG",
+      "secondPass": "allow up to 10% above maxServingG for normal foods, never for condiments/oils/nuts",
+      "condimentMaxG": 15,
+      "oilMaxG": 15,
+      "nutsSeedsMaxG": 35,
+      "proteinPowderMaxG": 50
+    }
+  },
+  "integrationInstructions": {
+    "templateFieldsToAdd": {
+      "family": "one key from mealFamilies, e.g. rice_plate",
+      "components[].swapGroup": "one key from swapGroups, e.g. protein.main.animal.lean",
+      "components[].slot": "primary_protein | main_carb | fat | vegetable_side | condiment | fruit_carb | legume_base | standalone"
+    },
+    "templateSelectionFix": "If no exact template solves, do not generate random foods. Try same-family swaps and return best approximate coherent meal. Only fail if no coherent family candidate exists.",
+    "userSwapFix": "For a clicked component, find its swapGroup and family slot. Suggest candidates only from that group/slot, then run portion solver.",
+    "migrationHint": "Use templateInferenceRules plus foodDefaultSwapGroupById to auto-fill family/swapGroup for existing templates; then manually review low-confidence templates."
+  },
+  "foodDefaultSwapGroupById": {
+    "apples_raw_with_skin": "carb.fruit.light",
+    "apricots_raw": "carb.fruit.light",
+    "avocados_raw": "carb.fruit.breakfast_snack",
+    "bananas_raw": "carb.fruit.breakfast_snack",
+    "beans_kidney_cooked_boiled": "plant.legume.bowl_base",
+    "beans_snap_green_cooked": "side.vegetable.cooked",
+    "beef_ground_80_lean_cooked_broiled": "protein.main.beef",
+    "beef_ground_95_lean_cooked_broiled": "protein.main.animal.lean",
+    "blueberries_raw": "carb.fruit.light",
+    "bread_brown_whole_grain": "carb.bread.western",
+    "bread_egyptian_baladi_eish_baladi": "carb.bread.egyptian",
+    "bread_multi_grain": "carb.bread.western",
+    "bread_white": "carb.bread.western",
+    "broadbeans_fava_beans_cooked": "plant.legume.bowl_base",
+    "broccoli_cooked_boiled": "side.vegetable.cooked",
+    "butter_without_salt": "fat.butter.spread",
+    "cabbage_cooked_boiled": "side.vegetable.cooked",
+    "carrots_cooked_boiled": "side.vegetable.cooked",
+    "cauliflower_cooked_boiled": "side.vegetable.cooked",
+    "cheese_cheddar": "fat.cheese",
+    "cheese_cottage_creamed": "protein.breakfast.cheese",
+    "cheese_feta": "fat.cheese",
+    "cheese_gouda": "protein.breakfast.cheese",
+    "cheese_mozzarella_whole_milk": "protein.breakfast.cheese",
+    "cherries_sweet_raw": "carb.fruit.light",
+    "chicken_breast_skinless_boneless_grilled": "protein.main.animal.lean",
+    "chicken_thighs_meat_only_cooked_roasted": "protein.main.poultry",
+    "chickpeas_cooked_boiled": "plant.legume.bowl_base",
+    "corn_sweet_yellow_cooked_boiled": "carb.classic_starch_no_pasta",
+    "cucumber_with_peel_raw": "side.vegetable.salad",
+    "dates_medjool": "carb.fruit.breakfast_snack",
+    "egg_white_raw_fresh": "protein.breakfast.egg",
+    "egg_whole_cooked_hard_boiled": "protein.breakfast.egg",
+    "egg_whole_cooked_scrambled": "protein.breakfast.egg",
+    "eggplant_cooked_boiled": "side.vegetable.cooked",
+    "fish_salmon_atlantic_farmed_cooked": "protein.main.seafood",
+    "fish_tilapia_cooked": "protein.main.animal.lean",
+    "fish_tuna_light_canned_in_water": "protein.main.animal.lean",
+    "fish_tuna_white_canned_in_oil": "protein.main.seafood",
+    "grapes_red_or_green_raw": "carb.fruit.light",
+    "greek_yogurt_5_fat_whole_milk": "protein.breakfast.yogurt",
+    "kiwifruit_green_raw": "carb.fruit.light",
+    "lentils_cooked_boiled": "plant.legume.bowl_base",
+    "lettuce_romaine_raw": "side.vegetable.salad",
+    "mangos_raw": "carb.fruit.breakfast_snack",
+    "milk_whole_3_25_milkfat": "protein.breakfast.yogurt_milk",
+    "mushrooms_white_cooked_boiled": "side.vegetable.cooked",
+    "mustard_prepared_yellow": "condiment.salty",
+    "nuts_almond_butter_without_salt": "fat.nuts_seeds",
+    "nuts_almonds": "fat.nuts_seeds.whole",
+    "nuts_cashew_nuts_raw": "fat.nuts_seeds.whole",
+    "nuts_hazelnuts": "fat.nuts_seeds.whole",
+    "nuts_pecans": "fat.nuts_seeds.whole",
+    "nuts_pistachio_nuts_raw": "fat.nuts_seeds.whole",
+    "nuts_walnuts_english": "fat.nuts_seeds.whole",
+    "oats_raw": "carb.oats.breakfast",
+    "oil_olive_salad_or_cooking": "fat.oil.cooking",
+    "oil_sunflower_linoleic": "fat.oil.cooking",
+    "onions_raw": "side.vegetable.salad",
+    "oranges_raw": "carb.fruit.light",
+    "pasta_whole_wheat_cooked": "carb.pasta",
+    "peaches_raw": "carb.fruit.light",
+    "peanut_butter_smooth_without_salt": "fat.nut_butter",
+    "peanuts_dry_roasted_without_salt": "plant.nut.peanut_snack",
+    "pears_raw": "carb.fruit.light",
+    "peas_green_cooked_boiled": "side.vegetable.cooked",
+    "peppers_sweet_green_raw": "side.vegetable.salad",
+    "peppers_sweet_red_raw": "side.vegetable.salad",
+    "pineapple_raw": "carb.fruit.light",
+    "plums_raw": "carb.fruit.light",
+    "pomegranates_raw": "carb.fruit.light",
+    "potatoes_boiled_without_skin": "carb.classic_starch_no_pasta",
+    "protein_bar_average": "protein.snack.bar",
+    "quinoa_cooked": "carb.grain_bowl",
+    "rice_basmati_cooked": "carb.rice",
+    "rice_white_long_grain_cooked": "carb.rice",
+    "sauce_bbq_regular": "condiment.sweet_sauce",
+    "sauce_teriyaki_ready_to_serve": "condiment.sweet_sauce",
+    "seeds_chia_seeds_dried": "fat.nuts_seeds.whole",
+    "seeds_flaxseed": "fat.nuts_seeds.whole",
+    "seeds_pumpkin_roasted_no_salt": "fat.nuts_seeds.whole",
+    "seeds_sunflower_dry_roasted_no_salt": "fat.nuts_seeds.whole",
+    "shrimp_cooked": "protein.main.animal.lean",
+    "skimmed_milk_fat_free": "protein.breakfast.yogurt_milk",
+    "soy_sauce_from_soy_and_wheat_shoyu": "condiment.salty",
+    "spinach_cooked_boiled": "side.vegetable.cooked",
+    "strawberries_raw": "carb.fruit.light",
+    "sweet_potato_baked_in_skin": "carb.classic_starch_no_pasta",
+    "tomatoes_red_raw": "side.vegetable.salad",
+    "turkey_breast_deli_slices": "protein.main.animal.lean",
+    "watermelon_raw": "carb.fruit.light",
+    "whey_protein_concentrate_unflavored": "protein.breakfast.dairy",
+    "whey_protein_isolate_unflavored": "protein.breakfast.dairy",
+    "yogurt_greek_plain_whole_milk": "protein.breakfast.yogurt",
+    "zucchini_cooked_boiled": "side.vegetable.cooked"
+  },
+  "foodUsageOverrides": {
+    "bread_multi_grain": {
+      "name": "Bread, multi-grain",
+      "sourceMacroRole": "carb",
+      "subCategory": "bread",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "bread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 14.2,
+      "maxServingG": 150
+    },
+    "bread_brown_whole_grain": {
+      "name": "Bread, brown, whole grain",
+      "sourceMacroRole": "carb",
+      "subCategory": "bread",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "bread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 15,
+      "maxServingG": 150
+    },
+    "bread_white": {
+      "name": "Bread, white",
+      "sourceMacroRole": "carb",
+      "subCategory": "bread",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "bread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 14.5,
+      "maxServingG": 150
+    },
+    "bread_egyptian_baladi_eish_baladi": {
+      "name": "Bread, Egyptian baladi (eish baladi)",
+      "sourceMacroRole": "carb",
+      "subCategory": "bread",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "bread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "beef_ground_80_lean_cooked_broiled": {
+      "name": "Beef, ground, 80% lean, cooked, broiled",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 250
+    },
+    "beef_ground_95_lean_cooked_broiled": {
+      "name": "Beef, ground, 95% lean, cooked, broiled",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 250
+    },
+    "oats_raw": {
+      "name": "Oats, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "breakfast_carb",
+      "allowedUses": [
+        "breakfast_carb"
+      ],
+      "mealTags": [
+        "breakfast"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb"
+      ],
+      "minServingG": 30,
+      "maxServingG": 150
+    },
+    "pasta_whole_wheat_cooked": {
+      "name": "Pasta, whole-wheat, cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "pasta"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 62,
+      "maxServingG": 350
+    },
+    "quinoa_cooked": {
+      "name": "Quinoa, cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "grain_bowl_carb"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "classic_plate_carb"
+      ],
+      "minServingG": 92.5,
+      "maxServingG": 350
+    },
+    "rice_basmati_cooked": {
+      "name": "Rice, basmati, cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "rice"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 92.5,
+      "maxServingG": 400
+    },
+    "rice_white_long_grain_cooked": {
+      "name": "Rice, white, long-grain, cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "rice"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 79,
+      "maxServingG": 400
+    },
+    "butter_without_salt": {
+      "name": "Butter, without salt",
+      "sourceMacroRole": "fat",
+      "subCategory": "dairy_fat",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "cheese_or_spread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 2.5,
+      "maxServingG": 10
+    },
+    "cheese_cheddar": {
+      "name": "Cheese, cheddar",
+      "sourceMacroRole": "fat",
+      "subCategory": "dairy_fat",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "cheese_or_spread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 18,
+      "maxServingG": 60
+    },
+    "cheese_cottage_creamed": {
+      "name": "Cheese, cottage, creamed",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "cheese_component",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [],
+      "minServingG": 56.5,
+      "maxServingG": 150
+    },
+    "cheese_feta": {
+      "name": "Cheese, feta",
+      "sourceMacroRole": "fat",
+      "subCategory": "dairy_fat",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "cheese_or_spread"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 12,
+      "maxServingG": 40
+    },
+    "cheese_gouda": {
+      "name": "Cheese, gouda",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "cheese_component",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 14.2,
+      "maxServingG": 60
+    },
+    "cheese_mozzarella_whole_milk": {
+      "name": "Cheese, mozzarella, whole milk",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "cheese_component",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 12,
+      "maxServingG": 40
+    },
+    "egg_white_raw_fresh": {
+      "name": "Egg, white, raw, fresh",
+      "sourceMacroRole": "protein",
+      "subCategory": "egg",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 16.5,
+      "maxServingG": 100
+    },
+    "egg_whole_cooked_hard_boiled": {
+      "name": "Egg, whole, cooked, hard-boiled",
+      "sourceMacroRole": "protein",
+      "subCategory": "egg",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 68,
+      "maxServingG": 250
+    },
+    "egg_whole_cooked_scrambled": {
+      "name": "Egg, whole, cooked, scrambled",
+      "sourceMacroRole": "protein",
+      "subCategory": "egg",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 30.5,
+      "maxServingG": 250
+    },
+    "skimmed_milk_fat_free": {
+      "name": "Skimmed milk (fat free)",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 122,
+      "maxServingG": 400
+    },
+    "milk_whole_3_25_milkfat": {
+      "name": "Milk, whole, 3.25% milkfat",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 122,
+      "maxServingG": 400
+    },
+    "yogurt_greek_plain_whole_milk": {
+      "name": "Yogurt, Greek, plain, whole milk",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 85,
+      "maxServingG": 250
+    },
+    "greek_yogurt_5_fat_whole_milk": {
+      "name": "Greek yogurt, 5% fat (whole milk)",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "breakfast_protein",
+      "allowedUses": [
+        "breakfast_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 85,
+      "maxServingG": 250
+    },
+    "whey_protein_isolate_unflavored": {
+      "name": "Whey protein isolate, unflavored",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "supplement_protein",
+      "allowedUses": [
+        "supplement_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 15,
+      "maxServingG": 50
+    },
+    "whey_protein_concentrate_unflavored": {
+      "name": "Whey protein concentrate, unflavored",
+      "sourceMacroRole": "protein",
+      "subCategory": "dairy_protein",
+      "primaryUse": "supplement_protein",
+      "allowedUses": [
+        "supplement_protein",
+        "snack_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 15,
+      "maxServingG": 50
+    },
+    "oil_olive_salad_or_cooking": {
+      "name": "Oil, olive, salad or cooking",
+      "sourceMacroRole": "fat",
+      "subCategory": "oil_fat",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 5,
+      "maxServingG": 10
+    },
+    "oil_sunflower_linoleic": {
+      "name": "Oil, sunflower, linoleic",
+      "sourceMacroRole": "fat",
+      "subCategory": "oil_fat",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 5,
+      "maxServingG": 10
+    },
+    "fish_salmon_atlantic_farmed_cooked": {
+      "name": "Fish, salmon, Atlantic, farmed, cooked",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 250
+    },
+    "fish_tilapia_cooked": {
+      "name": "Fish, tilapia, cooked",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 43.5,
+      "maxServingG": 250
+    },
+    "fish_tuna_light_canned_in_water": {
+      "name": "Fish, tuna, light, canned in water",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner",
+        "snack"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 150
+    },
+    "fish_tuna_white_canned_in_oil": {
+      "name": "Fish, tuna, white, canned in oil",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 150
+    },
+    "shrimp_cooked": {
+      "name": "Shrimp, cooked",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 200
+    },
+    "apples_raw_with_skin": {
+      "name": "Apples, raw, with skin",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 62.5,
+      "maxServingG": 150
+    },
+    "apricots_raw": {
+      "name": "Apricots, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "avocados_raw": {
+      "name": "Avocados, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fat_or_side",
+      "allowedUses": [
+        "fat_or_side",
+        "fruit_side"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_carb_replacement"
+      ],
+      "minServingG": 30,
+      "maxServingG": 100
+    },
+    "bananas_raw": {
+      "name": "Bananas, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "blueberries_raw": {
+      "name": "Blueberries, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 74,
+      "maxServingG": 150
+    },
+    "cherries_sweet_raw": {
+      "name": "Cherries, sweet, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 69,
+      "maxServingG": 150
+    },
+    "dates_medjool": {
+      "name": "Dates, medjool",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 12,
+      "maxServingG": 40
+    },
+    "grapes_red_or_green_raw": {
+      "name": "Grapes, red or green, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "kiwifruit_green_raw": {
+      "name": "Kiwifruit, green, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "mangos_raw": {
+      "name": "Mangos, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "oranges_raw": {
+      "name": "Oranges, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "peaches_raw": {
+      "name": "Peaches, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "pears_raw": {
+      "name": "Pears, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 70,
+      "maxServingG": 150
+    },
+    "pineapple_raw": {
+      "name": "Pineapple, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "plums_raw": {
+      "name": "Plums, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "pomegranates_raw": {
+      "name": "Pomegranates, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 43.5,
+      "maxServingG": 150
+    },
+    "strawberries_raw": {
+      "name": "Strawberries, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "watermelon_raw": {
+      "name": "Watermelon, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "fruit",
+      "primaryUse": "fruit_carb",
+      "allowedUses": [
+        "fruit_carb",
+        "snack_component",
+        "breakfast_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "dinner_main_carb",
+        "lunch_main_carb",
+        "meat_plate_carb"
+      ],
+      "minServingG": 45,
+      "maxServingG": 150
+    },
+    "beans_kidney_cooked_boiled": {
+      "name": "Beans, kidney, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "legume",
+      "primaryUse": "legume_base",
+      "allowedUses": [
+        "legume_base",
+        "plant_protein",
+        "main_carb"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 88.5,
+      "maxServingG": 300
+    },
+    "broadbeans_fava_beans_cooked": {
+      "name": "Broadbeans (fava beans), cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "legume",
+      "primaryUse": "legume_base",
+      "allowedUses": [
+        "legume_base",
+        "plant_protein",
+        "main_carb"
+      ],
+      "mealTags": [
+        "breakfast",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 85,
+      "maxServingG": 300
+    },
+    "chickpeas_cooked_boiled": {
+      "name": "Chickpeas, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "legume",
+      "primaryUse": "legume_base",
+      "allowedUses": [
+        "legume_base",
+        "plant_protein",
+        "main_carb"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 82,
+      "maxServingG": 300
+    },
+    "lentils_cooked_boiled": {
+      "name": "Lentils, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "legume",
+      "primaryUse": "legume_base",
+      "allowedUses": [
+        "legume_base",
+        "plant_protein",
+        "main_carb"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 99,
+      "maxServingG": 300
+    },
+    "peanut_butter_smooth_without_salt": {
+      "name": "Peanut butter, smooth, without salt",
+      "sourceMacroRole": "protein",
+      "subCategory": "legume",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 16,
+      "maxServingG": 32
+    },
+    "peanuts_dry_roasted_without_salt": {
+      "name": "Peanuts, dry-roasted, without salt",
+      "sourceMacroRole": "protein",
+      "subCategory": "legume",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "soy_sauce_from_soy_and_wheat_shoyu": {
+      "name": "Soy sauce, from soy and wheat (shoyu)",
+      "sourceMacroRole": "protein",
+      "subCategory": "legume",
+      "primaryUse": "condiment",
+      "allowedUses": [
+        "condiment"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "fat_solver_core",
+        "main_carb",
+        "primary_protein"
+      ],
+      "minServingG": 5,
+      "maxServingG": 15
+    },
+    "nuts_almond_butter_without_salt": {
+      "name": "Nuts, almond butter, without salt",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 8,
+      "maxServingG": 32
+    },
+    "nuts_almonds": {
+      "name": "Nuts, almonds",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "nuts_cashew_nuts_raw": {
+      "name": "Nuts, cashew nuts, raw",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 14.2,
+      "maxServingG": 30
+    },
+    "nuts_hazelnuts": {
+      "name": "Nuts, hazelnuts",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "nuts_pecans": {
+      "name": "Nuts, pecans",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "nuts_pistachio_nuts_raw": {
+      "name": "Nuts, pistachio nuts, raw",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "nuts_walnuts_english": {
+      "name": "Nuts, walnuts, english",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "seeds_chia_seeds_dried": {
+      "name": "Seeds, chia seeds, dried",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 6,
+      "maxServingG": 20
+    },
+    "seeds_flaxseed": {
+      "name": "Seeds, flaxseed",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 5.2,
+      "maxServingG": 20
+    },
+    "seeds_pumpkin_roasted_no_salt": {
+      "name": "Seeds, pumpkin, roasted, no salt",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "seeds_sunflower_dry_roasted_no_salt": {
+      "name": "Seeds, sunflower, dry roasted, no salt",
+      "sourceMacroRole": "fat",
+      "subCategory": "nuts_seeds",
+      "primaryUse": "fat",
+      "allowedUses": [
+        "fat",
+        "snack_component"
+      ],
+      "mealTags": [
+        "breakfast",
+        "snack"
+      ],
+      "hardBlocks": [
+        "dinner_primary_protein",
+        "lunch_primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 30
+    },
+    "chicken_breast_skinless_boneless_grilled": {
+      "name": "Chicken breast, skinless, boneless, grilled",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 250
+    },
+    "turkey_breast_deli_slices": {
+      "name": "Turkey breast, deli slices",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "snack"
+      ],
+      "hardBlocks": [],
+      "minServingG": 28,
+      "maxServingG": 80
+    },
+    "chicken_thighs_meat_only_cooked_roasted": {
+      "name": "Chicken thighs, meat only, cooked, roasted",
+      "sourceMacroRole": "protein",
+      "subCategory": "animal_protein",
+      "primaryUse": "primary_protein",
+      "allowedUses": [
+        "primary_protein"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 42.5,
+      "maxServingG": 250
+    },
+    "sauce_teriyaki_ready_to_serve": {
+      "name": "Sauce, teriyaki, ready-to-serve",
+      "sourceMacroRole": "mixed",
+      "subCategory": null,
+      "primaryUse": "condiment",
+      "allowedUses": [
+        "condiment"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "fat_solver_core",
+        "main_carb",
+        "primary_protein"
+      ],
+      "minServingG": 9,
+      "maxServingG": 20
+    },
+    "mustard_prepared_yellow": {
+      "name": "Mustard, prepared, yellow",
+      "sourceMacroRole": "mixed",
+      "subCategory": null,
+      "primaryUse": "condiment",
+      "allowedUses": [
+        "condiment"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "fat_solver_core",
+        "main_carb",
+        "primary_protein"
+      ],
+      "minServingG": 2.5,
+      "maxServingG": 20
+    },
+    "beans_snap_green_cooked": {
+      "name": "Beans, snap, green, cooked",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 62.5,
+      "maxServingG": 200
+    },
+    "broccoli_cooked_boiled": {
+      "name": "Broccoli, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 39,
+      "maxServingG": 200
+    },
+    "cabbage_cooked_boiled": {
+      "name": "Cabbage, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 37.5,
+      "maxServingG": 200
+    },
+    "carrots_cooked_boiled": {
+      "name": "Carrots, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 4.8,
+      "maxServingG": 200
+    },
+    "cauliflower_cooked_boiled": {
+      "name": "Cauliflower, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 31,
+      "maxServingG": 200
+    },
+    "corn_sweet_yellow_cooked_boiled": {
+      "name": "Corn, sweet, yellow, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "starchy_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 44.5,
+      "maxServingG": 200
+    },
+    "cucumber_with_peel_raw": {
+      "name": "Cucumber, with peel, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 26,
+      "maxServingG": 200
+    },
+    "eggplant_cooked_boiled": {
+      "name": "Eggplant, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 49.5,
+      "maxServingG": 200
+    },
+    "lettuce_romaine_raw": {
+      "name": "Lettuce, romaine, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 23.5,
+      "maxServingG": 100
+    },
+    "mushrooms_white_cooked_boiled": {
+      "name": "Mushrooms, white, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 78,
+      "maxServingG": 200
+    },
+    "onions_raw": {
+      "name": "Onions, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 30,
+      "maxServingG": 100
+    },
+    "peas_green_cooked_boiled": {
+      "name": "Peas, green, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 80,
+      "maxServingG": 200
+    },
+    "peppers_sweet_green_raw": {
+      "name": "Peppers, sweet, green, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 74.5,
+      "maxServingG": 200
+    },
+    "peppers_sweet_red_raw": {
+      "name": "Peppers, sweet, red, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 74.5,
+      "maxServingG": 200
+    },
+    "potatoes_boiled_without_skin": {
+      "name": "Potatoes, boiled, without skin",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "starchy_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 39,
+      "maxServingG": 300
+    },
+    "spinach_cooked_boiled": {
+      "name": "Spinach, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 90,
+      "maxServingG": 200
+    },
+    "sweet_potato_baked_in_skin": {
+      "name": "Sweet potato, baked in skin",
+      "sourceMacroRole": "carb",
+      "subCategory": "starch",
+      "primaryUse": "main_carb",
+      "allowedUses": [
+        "main_carb",
+        "starchy_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [],
+      "minServingG": 100,
+      "maxServingG": 300
+    },
+    "tomatoes_red_raw": {
+      "name": "Tomatoes, red, raw",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 74.5,
+      "maxServingG": 200
+    },
+    "zucchini_cooked_boiled": {
+      "name": "Zucchini, cooked, boiled",
+      "sourceMacroRole": "carb",
+      "subCategory": "non_starchy_veg",
+      "primaryUse": "vegetable_side",
+      "allowedUses": [
+        "vegetable_side"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "main_macro_filler"
+      ],
+      "minServingG": 60,
+      "maxServingG": 200
+    },
+    "protein_bar_average": {
+      "name": "Protein bar, average",
+      "sourceMacroRole": "mixed",
+      "subCategory": null,
+      "primaryUse": "snack_standalone",
+      "allowedUses": [
+        "snack_standalone"
+      ],
+      "mealTags": [
+        "snack"
+      ],
+      "hardBlocks": [
+        "breakfast_full_meal_core",
+        "dinner",
+        "lunch"
+      ],
+      "minServingG": 30,
+      "maxServingG": 70
+    },
+    "sauce_bbq_regular": {
+      "name": "Sauce, BBQ, regular",
+      "sourceMacroRole": "mixed",
+      "subCategory": null,
+      "primaryUse": "condiment",
+      "allowedUses": [
+        "condiment"
+      ],
+      "mealTags": [
+        "lunch",
+        "dinner"
+      ],
+      "hardBlocks": [
+        "fat_solver_core",
+        "main_carb",
+        "primary_protein"
+      ],
+      "minServingG": 6,
+      "maxServingG": 20
+    }
+  },
+  "swapGroups": {
+    "protein.main.animal.lean": {
+      "intent": "Lean animal proteins for normal lunch/dinner plates. Chicken can swap with shrimp, lean beef, tuna, tilapia, turkey here.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 100,
+      "foods": [
+        "chicken_breast_skinless_boneless_grilled",
+        "turkey_breast_deli_slices",
+        "beef_ground_95_lean_cooked_broiled",
+        "fish_tilapia_cooked",
+        "fish_tuna_light_canned_in_water",
+        "shrimp_cooked"
+      ],
+      "notes": "Best default group for fast user swaps such as chicken → shrimp or chicken → lean beef."
+    },
+    "protein.main.animal.rich": {
+      "intent": "Higher-fat animal proteins. Use when the original protein is rich/fatty or when targets need more fat.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 75,
+      "foods": [
+        "beef_ground_80_lean_cooked_broiled",
+        "fish_salmon_atlantic_farmed_cooked",
+        "fish_tuna_white_canned_in_oil",
+        "chicken_thighs_meat_only_cooked_roasted"
+      ],
+      "notes": "Do not mix with lean group unless solver needs calories/fat and family permits."
+    },
+    "protein.main.poultry": {
+      "intent": "Poultry-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "chicken_breast_skinless_boneless_grilled",
+        "chicken_thighs_meat_only_cooked_roasted",
+        "turkey_breast_deli_slices"
+      ],
+      "notes": ""
+    },
+    "protein.main.poultry.lean": {
+      "intent": "Lean poultry-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 95,
+      "foods": [
+        "chicken_breast_skinless_boneless_grilled",
+        "turkey_breast_deli_slices"
+      ],
+      "notes": ""
+    },
+    "protein.main.beef": {
+      "intent": "Beef-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "beef_ground_80_lean_cooked_broiled",
+        "beef_ground_95_lean_cooked_broiled"
+      ],
+      "notes": ""
+    },
+    "protein.main.beef.lean": {
+      "intent": "Lean beef-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "beef_ground_95_lean_cooked_broiled"
+      ],
+      "notes": ""
+    },
+    "protein.main.seafood": {
+      "intent": "Seafood protein swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "fish_salmon_atlantic_farmed_cooked",
+        "fish_tilapia_cooked",
+        "fish_tuna_light_canned_in_water",
+        "fish_tuna_white_canned_in_oil",
+        "shrimp_cooked"
+      ],
+      "notes": ""
+    },
+    "protein.main.seafood.lean": {
+      "intent": "Lean seafood swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "fish_tilapia_cooked",
+        "fish_tuna_light_canned_in_water",
+        "shrimp_cooked"
+      ],
+      "notes": ""
+    },
+    "protein.main.fish": {
+      "intent": "Fish-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "fish_salmon_atlantic_farmed_cooked",
+        "fish_tilapia_cooked",
+        "fish_tuna_light_canned_in_water",
+        "fish_tuna_white_canned_in_oil"
+      ],
+      "notes": ""
+    },
+    "protein.main.shellfish": {
+      "intent": "Shellfish-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "shrimp_cooked"
+      ],
+      "notes": ""
+    },
+    "protein.breakfast.egg": {
+      "intent": "Egg breakfast proteins.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 95,
+      "foods": [
+        "egg_white_raw_fresh",
+        "egg_whole_cooked_hard_boiled",
+        "egg_whole_cooked_scrambled"
+      ],
+      "notes": ""
+    },
+    "protein.breakfast.egg.whole": {
+      "intent": "Whole-egg breakfast proteins.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "egg_whole_cooked_hard_boiled",
+        "egg_whole_cooked_scrambled"
+      ],
+      "notes": ""
+    },
+    "protein.breakfast.dairy": {
+      "intent": "Dairy breakfast proteins.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 75,
+      "foods": [
+        "cheese_cottage_creamed",
+        "cheese_gouda",
+        "cheese_mozzarella_whole_milk",
+        "skimmed_milk_fat_free",
+        "milk_whole_3_25_milkfat",
+        "yogurt_greek_plain_whole_milk",
+        "greek_yogurt_5_fat_whole_milk",
+        "whey_protein_isolate_unflavored",
+        "whey_protein_concentrate_unflavored"
+      ],
+      "notes": "Allowed for breakfast/snack; do not use as lunch/dinner primary unless template explicitly has dairy main."
+    },
+    "protein.breakfast.cheese": {
+      "intent": "Cheese protein swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "cheese_cottage_creamed",
+        "cheese_gouda",
+        "cheese_mozzarella_whole_milk"
+      ],
+      "notes": ""
+    },
+    "protein.breakfast.yogurt_milk": {
+      "intent": "Yogurt/milk proteins for bowls/snacks.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "skimmed_milk_fat_free",
+        "milk_whole_3_25_milkfat",
+        "yogurt_greek_plain_whole_milk",
+        "greek_yogurt_5_fat_whole_milk"
+      ],
+      "notes": ""
+    },
+    "protein.breakfast.yogurt": {
+      "intent": "Yogurt-only swaps.",
+      "role": "primary_protein",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "yogurt_greek_plain_whole_milk",
+        "greek_yogurt_5_fat_whole_milk"
+      ],
+      "notes": ""
+    },
+    "protein.supplement.powder": {
+      "intent": "Protein powders. Only for breakfast/snack/shake style families.",
+      "role": "supplement_protein",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 60,
+      "foods": [
+        "whey_protein_isolate_unflavored",
+        "whey_protein_concentrate_unflavored"
+      ],
+      "notes": "Hard-block from normal lunch/dinner plates."
+    },
+    "protein.snack.bar": {
+      "intent": "Standalone protein bar snack.",
+      "role": "snack_standalone",
+      "mealTypes": [
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 60,
+      "foods": [
+        "protein_bar_average"
+      ],
+      "notes": "Do not insert into full lunch/dinner meals."
+    },
+    "plant.legume.bowl_base": {
+      "intent": "Legumes as the base of vegan/vegetarian bowls, not random carb filler for meat plates.",
+      "role": "main_carb_or_plant_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "beans_kidney_cooked_boiled",
+        "broadbeans_fava_beans_cooked",
+        "chickpeas_cooked_boiled",
+        "lentils_cooked_boiled"
+      ],
+      "notes": ""
+    },
+    "plant.legume.beans": {
+      "intent": "Beans/chickpeas/fava swaps.",
+      "role": "main_carb_or_plant_protein",
+      "mealTypes": [
+        "lunch",
+        "dinner",
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "beans_kidney_cooked_boiled",
+        "broadbeans_fava_beans_cooked",
+        "chickpeas_cooked_boiled"
+      ],
+      "notes": ""
+    },
+    "plant.nut.peanut_snack": {
+      "intent": "Peanut/peanut butter snack swaps.",
+      "role": "snack_fat_protein",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 65,
+      "foods": [
+        "peanut_butter_smooth_without_salt",
+        "peanuts_dry_roasted_without_salt"
+      ],
+      "notes": "Do not use peanuts as a chicken/meat replacement in lunch/dinner."
+    },
+    "carb.bread.all": {
+      "intent": "Bread swaps.",
+      "role": "main_carb",
+      "mealTypes": [
+        "breakfast",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "bread_multi_grain",
+        "bread_brown_whole_grain",
+        "bread_white",
+        "bread_egyptian_baladi_eish_baladi"
+      ],
+      "notes": ""
+    },
+    "carb.bread.western": {
+      "intent": "Western bread swaps.",
+      "role": "main_carb",
+      "mealTypes": [
+        "breakfast",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "bread_multi_grain",
+        "bread_brown_whole_grain",
+        "bread_white"
+      ],
+      "notes": ""
+    },
+    "carb.bread.egyptian": {
+      "intent": "Egyptian baladi bread.",
+      "role": "main_carb",
+      "mealTypes": [
+        "breakfast",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "bread_egyptian_baladi_eish_baladi"
+      ],
+      "notes": ""
+    },
+    "carb.rice": {
+      "intent": "Rice swaps only.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 100,
+      "foods": [
+        "rice_basmati_cooked",
+        "rice_white_long_grain_cooked"
+      ],
+      "notes": ""
+    },
+    "carb.pasta": {
+      "intent": "Pasta family.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "pasta_whole_wheat_cooked"
+      ],
+      "notes": ""
+    },
+    "carb.potato": {
+      "intent": "Potato/sweet potato swaps.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "potatoes_boiled_without_skin",
+        "sweet_potato_baked_in_skin"
+      ],
+      "notes": ""
+    },
+    "carb.corn": {
+      "intent": "Corn as a starchy side.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 70,
+      "foods": [
+        "corn_sweet_yellow_cooked_boiled"
+      ],
+      "notes": ""
+    },
+    "carb.classic_starch": {
+      "intent": "Classic plate starches. Quinoa intentionally excluded to avoid quinoa appearing in every normal plate.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 95,
+      "foods": [
+        "rice_basmati_cooked",
+        "rice_white_long_grain_cooked",
+        "pasta_whole_wheat_cooked",
+        "potatoes_boiled_without_skin",
+        "sweet_potato_baked_in_skin",
+        "corn_sweet_yellow_cooked_boiled"
+      ],
+      "notes": ""
+    },
+    "carb.classic_starch_no_pasta": {
+      "intent": "Classic plate starches excluding pasta.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 90,
+      "foods": [
+        "rice_basmati_cooked",
+        "rice_white_long_grain_cooked",
+        "potatoes_boiled_without_skin",
+        "sweet_potato_baked_in_skin",
+        "corn_sweet_yellow_cooked_boiled"
+      ],
+      "notes": ""
+    },
+    "carb.grain_bowl": {
+      "intent": "Grain bowl carbs. Quinoa lives here, not in classic plate fallback.",
+      "role": "main_carb",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "quinoa_cooked",
+        "rice_basmati_cooked",
+        "rice_white_long_grain_cooked"
+      ],
+      "notes": "Use only for grain_bowl family or if template explicitly has quinoa."
+    },
+    "carb.oats.breakfast": {
+      "intent": "Oats breakfast base.",
+      "role": "main_carb",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "oats_raw"
+      ],
+      "notes": ""
+    },
+    "carb.fruit.breakfast_snack": {
+      "intent": "Fruit carbs for breakfast/snack.",
+      "role": "fruit_carb",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 75,
+      "foods": [
+        "apples_raw_with_skin",
+        "apricots_raw",
+        "avocados_raw",
+        "bananas_raw",
+        "blueberries_raw",
+        "cherries_sweet_raw",
+        "dates_medjool",
+        "grapes_red_or_green_raw",
+        "kiwifruit_green_raw",
+        "mangos_raw",
+        "oranges_raw",
+        "peaches_raw",
+        "pears_raw",
+        "pineapple_raw",
+        "plums_raw",
+        "pomegranates_raw",
+        "strawberries_raw",
+        "watermelon_raw"
+      ],
+      "notes": ""
+    },
+    "carb.fruit.light": {
+      "intent": "Lower-calorie fruit swaps.",
+      "role": "fruit_carb",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 78,
+      "foods": [
+        "apples_raw_with_skin",
+        "apricots_raw",
+        "blueberries_raw",
+        "cherries_sweet_raw",
+        "grapes_red_or_green_raw",
+        "kiwifruit_green_raw",
+        "oranges_raw",
+        "peaches_raw",
+        "pears_raw",
+        "pineapple_raw",
+        "plums_raw",
+        "pomegranates_raw",
+        "strawberries_raw",
+        "watermelon_raw"
+      ],
+      "notes": ""
+    },
+    "carb.fruit.energy": {
+      "intent": "Higher-energy fruit swaps.",
+      "role": "fruit_carb",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 65,
+      "foods": [
+        "bananas_raw",
+        "dates_medjool",
+        "mangos_raw",
+        "grapes_red_or_green_raw"
+      ],
+      "notes": ""
+    },
+    "side.vegetable.salad": {
+      "intent": "Raw salad vegetable side, not a main carb source.",
+      "role": "vegetable_side",
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 3,
+      "defaultPriority": 70,
+      "foods": [
+        "cucumber_with_peel_raw",
+        "lettuce_romaine_raw",
+        "tomatoes_red_raw",
+        "peppers_sweet_green_raw",
+        "peppers_sweet_red_raw",
+        "onions_raw"
+      ],
+      "notes": "Never use as main macro filler."
+    },
+    "side.vegetable.cooked": {
+      "intent": "Cooked non-starchy vegetable side.",
+      "role": "vegetable_side",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 2,
+      "defaultPriority": 70,
+      "foods": [
+        "beans_snap_green_cooked",
+        "broccoli_cooked_boiled",
+        "cabbage_cooked_boiled",
+        "carrots_cooked_boiled",
+        "cauliflower_cooked_boiled",
+        "eggplant_cooked_boiled",
+        "mushrooms_white_cooked_boiled",
+        "peas_green_cooked_boiled",
+        "spinach_cooked_boiled",
+        "zucchini_cooked_boiled"
+      ],
+      "notes": "Never use as main macro filler."
+    },
+    "side.vegetable.all": {
+      "intent": "All non-starchy vegetables.",
+      "role": "vegetable_side",
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 3,
+      "defaultPriority": 65,
+      "foods": [
+        "cucumber_with_peel_raw",
+        "lettuce_romaine_raw",
+        "tomatoes_red_raw",
+        "peppers_sweet_green_raw",
+        "peppers_sweet_red_raw",
+        "onions_raw",
+        "beans_snap_green_cooked",
+        "broccoli_cooked_boiled",
+        "cabbage_cooked_boiled",
+        "carrots_cooked_boiled",
+        "cauliflower_cooked_boiled",
+        "eggplant_cooked_boiled",
+        "mushrooms_white_cooked_boiled",
+        "peas_green_cooked_boiled",
+        "spinach_cooked_boiled",
+        "zucchini_cooked_boiled"
+      ],
+      "notes": "Side only, unless a template explicitly makes it primary."
+    },
+    "side.vegetable.breakfast": {
+      "intent": "Breakfast-compatible vegetable sides.",
+      "role": "vegetable_side",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 70,
+      "foods": [
+        "cucumber_with_peel_raw",
+        "lettuce_romaine_raw",
+        "mushrooms_white_cooked_boiled",
+        "tomatoes_red_raw"
+      ],
+      "notes": ""
+    },
+    "fat.oil.cooking": {
+      "intent": "Cooking/salad oils for lunch/dinner plates.",
+      "role": "fat",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 100,
+      "foods": [
+        "oil_olive_salad_or_cooking",
+        "oil_sunflower_linoleic"
+      ],
+      "notes": ""
+    },
+    "fat.butter.spread": {
+      "intent": "Butter as spread, mainly breakfast/bread families.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 75,
+      "foods": [
+        "butter_without_salt"
+      ],
+      "notes": "Do not use as default fat for every lunch/dinner."
+    },
+    "fat.cheese": {
+      "intent": "Cheese fats.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 75,
+      "foods": [
+        "cheese_cheddar",
+        "cheese_feta"
+      ],
+      "notes": ""
+    },
+    "fat.dairy_spread": {
+      "intent": "Dairy fat/spread group.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 70,
+      "foods": [
+        "butter_without_salt",
+        "cheese_cheddar",
+        "cheese_feta"
+      ],
+      "notes": ""
+    },
+    "fat.nuts_seeds": {
+      "intent": "Nuts/seeds fats for breakfast/snacks/bowls.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "nuts_almond_butter_without_salt",
+        "nuts_almonds",
+        "nuts_cashew_nuts_raw",
+        "nuts_hazelnuts",
+        "nuts_pecans",
+        "nuts_pistachio_nuts_raw",
+        "nuts_walnuts_english",
+        "seeds_chia_seeds_dried",
+        "seeds_flaxseed",
+        "seeds_pumpkin_roasted_no_salt",
+        "seeds_sunflower_dry_roasted_no_salt"
+      ],
+      "notes": ""
+    },
+    "fat.nuts_seeds.whole": {
+      "intent": "Whole nuts/seeds only.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 85,
+      "foods": [
+        "nuts_almonds",
+        "nuts_cashew_nuts_raw",
+        "nuts_hazelnuts",
+        "nuts_pecans",
+        "nuts_pistachio_nuts_raw",
+        "nuts_walnuts_english",
+        "seeds_chia_seeds_dried",
+        "seeds_flaxseed",
+        "seeds_pumpkin_roasted_no_salt",
+        "seeds_sunflower_dry_roasted_no_salt"
+      ],
+      "notes": ""
+    },
+    "fat.nut_butter": {
+      "intent": "Nut butters/spreads.",
+      "role": "fat",
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 80,
+      "foods": [
+        "nuts_almond_butter_without_salt",
+        "peanut_butter_smooth_without_salt"
+      ],
+      "notes": ""
+    },
+    "fat.avocado": {
+      "intent": "Avocado as fat/side, not as main carb.",
+      "role": "fat_or_side",
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": null,
+      "defaultPriority": 65,
+      "foods": [
+        "avocados_raw"
+      ],
+      "notes": "Use as fat/side only. Do not replace rice/bread with avocado."
+    },
+    "condiment.salty": {
+      "intent": "Salty condiments. Optional tiny additions only.",
+      "role": "condiment",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 1,
+      "defaultPriority": 20,
+      "foods": [
+        "mustard_prepared_yellow",
+        "soy_sauce_from_soy_and_wheat_shoyu"
+      ],
+      "notes": "Never count as primary protein even if macro_role says protein."
+    },
+    "condiment.sweet_sauce": {
+      "intent": "Sweet sauces. Optional tiny additions only.",
+      "role": "condiment",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 1,
+      "defaultPriority": 15,
+      "foods": [
+        "sauce_bbq_regular",
+        "sauce_teriyaki_ready_to_serve"
+      ],
+      "notes": "Never count as carb source for macro solving."
+    },
+    "condiment.all": {
+      "intent": "All condiments.",
+      "role": "condiment",
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "strictSwapOnly": true,
+      "maxItemsFromGroup": 1,
+      "defaultPriority": 10,
+      "foods": [
+        "mustard_prepared_yellow",
+        "soy_sauce_from_soy_and_wheat_shoyu",
+        "sauce_bbq_regular",
+        "sauce_teriyaki_ready_to_serve"
+      ],
+      "notes": "Optional only, excluded from core solver unless template already contains it."
+    }
+  },
+  "mealFamilies": {
+    "classic_grilled_plate": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Default normal plate: primary protein + classic starch + oil + optional vegetables/condiment. Quinoa intentionally excluded.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.animal.rich"
+        ],
+        "main_carb": [
+          "carb.classic_starch"
+        ],
+        "fat": [
+          "fat.oil.cooking"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad",
+          "side.vegetable.cooked"
+        ],
+        "condiment": [
+          "condiment.all"
+        ]
+      },
+      "forbidGroups": [
+        "protein.supplement.powder",
+        "carb.fruit.breakfast_snack",
+        "fat.butter.spread"
+      ],
+      "candidatePriority": [
+        "protein.main.animal.lean",
+        "carb.classic_starch",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "rice_plate": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Chicken/shrimp/beef/fish with rice. Best family for chicken → shrimp/meat fast suggestions.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.animal.rich"
+        ],
+        "main_carb": [
+          "carb.rice"
+        ],
+        "fat": [
+          "fat.oil.cooking"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad",
+          "side.vegetable.cooked"
+        ],
+        "condiment": [
+          "condiment.all"
+        ]
+      },
+      "forbidGroups": [
+        "carb.grain_bowl",
+        "carb.fruit.breakfast_snack",
+        "protein.supplement.powder"
+      ],
+      "candidatePriority": [
+        "protein.main.animal.lean",
+        "carb.rice",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "pasta_plate": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Protein + pasta + oil/cheese style plate.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.animal.rich",
+          "protein.breakfast.cheese"
+        ],
+        "main_carb": [
+          "carb.pasta"
+        ],
+        "fat": [
+          "fat.oil.cooking",
+          "fat.cheese"
+        ],
+        "vegetable_side": [
+          "side.vegetable.cooked",
+          "side.vegetable.salad"
+        ],
+        "condiment": [
+          "condiment.sweet_sauce"
+        ]
+      },
+      "forbidGroups": [
+        "carb.fruit.breakfast_snack",
+        "protein.supplement.powder"
+      ],
+      "candidatePriority": [
+        "carb.pasta",
+        "protein.main.animal.lean",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "potato_plate": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Protein + potato/sweet potato + oil + vegetables.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.animal.rich"
+        ],
+        "main_carb": [
+          "carb.potato"
+        ],
+        "fat": [
+          "fat.oil.cooking"
+        ],
+        "vegetable_side": [
+          "side.vegetable.cooked",
+          "side.vegetable.salad"
+        ],
+        "condiment": [
+          "condiment.all"
+        ]
+      },
+      "forbidGroups": [
+        "carb.grain_bowl",
+        "carb.fruit.breakfast_snack",
+        "protein.supplement.powder"
+      ],
+      "candidatePriority": [
+        "carb.potato",
+        "protein.main.animal.lean",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "seafood_plate": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Seafood with classic starch and oil.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.seafood",
+          "protein.main.seafood.lean",
+          "protein.main.fish",
+          "protein.main.shellfish"
+        ],
+        "main_carb": [
+          "carb.rice",
+          "carb.potato",
+          "carb.classic_starch_no_pasta"
+        ],
+        "fat": [
+          "fat.oil.cooking"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad",
+          "side.vegetable.cooked"
+        ],
+        "condiment": [
+          "condiment.salty"
+        ]
+      },
+      "forbidGroups": [
+        "carb.fruit.breakfast_snack",
+        "protein.supplement.powder",
+        "fat.butter.spread"
+      ],
+      "candidatePriority": [
+        "protein.main.seafood.lean",
+        "carb.rice",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "grain_bowl": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Health/grain bowl. Quinoa is allowed here; this prevents quinoa leaking into every normal meal.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb",
+        "fat_or_side"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.seafood.lean"
+        ],
+        "main_carb": [
+          "carb.grain_bowl"
+        ],
+        "fat_or_side": [
+          "fat.oil.cooking",
+          "fat.avocado"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad",
+          "side.vegetable.cooked"
+        ],
+        "condiment": [
+          "condiment.salty"
+        ]
+      },
+      "forbidGroups": [
+        "fat.butter.spread",
+        "protein.supplement.powder",
+        "carb.fruit.breakfast_snack"
+      ],
+      "candidatePriority": [
+        "carb.grain_bowl",
+        "protein.main.animal.lean",
+        "side.vegetable.all"
+      ],
+      "maxOptionalItems": 3
+    },
+    "salad_bowl": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Protein salad bowl. Vegetables are side/base, not macro filler; add bread/rice only if calories need it.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "vegetable_side",
+        "fat"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.animal.lean",
+          "protein.main.seafood.lean",
+          "protein.breakfast.cheese"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad"
+        ],
+        "fat": [
+          "fat.oil.cooking",
+          "fat.avocado"
+        ],
+        "optional_carb": [
+          "carb.bread.all",
+          "carb.rice"
+        ],
+        "condiment": [
+          "condiment.salty"
+        ]
+      },
+      "forbidGroups": [
+        "carb.fruit.breakfast_snack",
+        "protein.supplement.powder",
+        "fat.butter.spread"
+      ],
+      "candidatePriority": [
+        "side.vegetable.salad",
+        "protein.main.animal.lean",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 3
+    },
+    "legume_bowl": {
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "Vegan/vegetarian legume bowl. Legumes are the main base, not random side carbs.",
+      "requiredCoreSlots": [
+        "legume_base",
+        "fat"
+      ],
+      "slotGroups": {
+        "legume_base": [
+          "plant.legume.bowl_base"
+        ],
+        "optional_carb": [
+          "carb.bread.all",
+          "carb.rice"
+        ],
+        "fat": [
+          "fat.oil.cooking",
+          "fat.avocado"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad",
+          "side.vegetable.cooked"
+        ],
+        "condiment": [
+          "condiment.salty"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "protein.main.animal.rich",
+        "protein.supplement.powder",
+        "carb.fruit.breakfast_snack"
+      ],
+      "candidatePriority": [
+        "plant.legume.bowl_base",
+        "fat.oil.cooking",
+        "side.vegetable.salad"
+      ],
+      "maxOptionalItems": 3
+    },
+    "egyptian_ful_breakfast": {
+      "mealTypes": [
+        "breakfast"
+      ],
+      "description": "Egyptian fava/ful breakfast style.",
+      "requiredCoreSlots": [
+        "legume_base",
+        "main_carb",
+        "fat"
+      ],
+      "slotGroups": {
+        "legume_base": [
+          "plant.legume.beans"
+        ],
+        "main_carb": [
+          "carb.bread.egyptian"
+        ],
+        "fat": [
+          "fat.oil.cooking"
+        ],
+        "vegetable_side": [
+          "side.vegetable.breakfast"
+        ]
+      },
+      "forbidGroups": [
+        "protein.supplement.powder",
+        "carb.fruit.breakfast_snack"
+      ],
+      "candidatePriority": [
+        "plant.legume.beans",
+        "carb.bread.egyptian",
+        "fat.oil.cooking"
+      ],
+      "maxOptionalItems": 2
+    },
+    "breakfast_bread_egg": {
+      "mealTypes": [
+        "breakfast"
+      ],
+      "description": "Bread + egg + spread/cheese breakfast.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.breakfast.egg"
+        ],
+        "main_carb": [
+          "carb.bread.all"
+        ],
+        "fat": [
+          "fat.butter.spread",
+          "fat.cheese",
+          "fat.avocado"
+        ],
+        "vegetable_side": [
+          "side.vegetable.breakfast"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "carb.rice",
+        "carb.grain_bowl"
+      ],
+      "candidatePriority": [
+        "protein.breakfast.egg",
+        "carb.bread.all",
+        "fat.butter.spread"
+      ],
+      "maxOptionalItems": 2
+    },
+    "breakfast_bread_dairy": {
+      "mealTypes": [
+        "breakfast"
+      ],
+      "description": "Bread + cheese/dairy + spread breakfast.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.breakfast.cheese",
+          "protein.breakfast.dairy"
+        ],
+        "main_carb": [
+          "carb.bread.all"
+        ],
+        "fat": [
+          "fat.butter.spread",
+          "fat.cheese",
+          "fat.nut_butter"
+        ],
+        "vegetable_side": [
+          "side.vegetable.breakfast"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "carb.rice",
+        "carb.grain_bowl"
+      ],
+      "candidatePriority": [
+        "protein.breakfast.cheese",
+        "carb.bread.all",
+        "fat.butter.spread"
+      ],
+      "maxOptionalItems": 2
+    },
+    "breakfast_oats_yogurt_bowl": {
+      "mealTypes": [
+        "breakfast"
+      ],
+      "description": "Oats + yogurt/milk/protein powder + fruit/nuts.",
+      "requiredCoreSlots": [
+        "main_carb",
+        "primary_protein"
+      ],
+      "slotGroups": {
+        "main_carb": [
+          "carb.oats.breakfast"
+        ],
+        "primary_protein": [
+          "protein.breakfast.yogurt_milk",
+          "protein.supplement.powder"
+        ],
+        "fruit_carb": [
+          "carb.fruit.breakfast_snack",
+          "carb.fruit.light",
+          "carb.fruit.energy"
+        ],
+        "fat": [
+          "fat.nuts_seeds",
+          "fat.nut_butter"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "carb.rice",
+        "fat.oil.cooking"
+      ],
+      "candidatePriority": [
+        "carb.oats.breakfast",
+        "protein.breakfast.yogurt_milk",
+        "carb.fruit.light"
+      ],
+      "maxOptionalItems": 2
+    },
+    "snack_fruit_yogurt_nuts": {
+      "mealTypes": [
+        "snack"
+      ],
+      "description": "Fruit + yogurt/protein powder + nuts style snack.",
+      "requiredCoreSlots": [],
+      "slotGroups": {
+        "fruit_carb": [
+          "carb.fruit.breakfast_snack",
+          "carb.fruit.light",
+          "carb.fruit.energy"
+        ],
+        "primary_protein": [
+          "protein.breakfast.yogurt_milk",
+          "protein.supplement.powder"
+        ],
+        "fat": [
+          "fat.nuts_seeds",
+          "fat.nut_butter",
+          "plant.nut.peanut_snack"
+        ],
+        "standalone": [
+          "protein.snack.bar"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "carb.rice",
+        "fat.oil.cooking"
+      ],
+      "candidatePriority": [
+        "carb.fruit.light",
+        "protein.breakfast.yogurt_milk",
+        "fat.nuts_seeds.whole"
+      ],
+      "maxOptionalItems": 2
+    },
+    "snack_tuna_bread": {
+      "mealTypes": [
+        "snack",
+        "lunch"
+      ],
+      "description": "Small tuna/bread snack or light lunch.",
+      "requiredCoreSlots": [
+        "primary_protein",
+        "main_carb"
+      ],
+      "slotGroups": {
+        "primary_protein": [
+          "protein.main.fish"
+        ],
+        "main_carb": [
+          "carb.bread.all"
+        ],
+        "vegetable_side": [
+          "side.vegetable.salad"
+        ],
+        "condiment": [
+          "condiment.salty"
+        ]
+      },
+      "forbidGroups": [
+        "protein.supplement.powder",
+        "carb.fruit.breakfast_snack",
+        "fat.butter.spread"
+      ],
+      "candidatePriority": [
+        "protein.main.fish",
+        "carb.bread.all"
+      ],
+      "maxOptionalItems": 2
+    },
+    "snack_standalone": {
+      "mealTypes": [
+        "snack"
+      ],
+      "description": "Standalone snack fallback when no combined snack fits.",
+      "requiredCoreSlots": [
+        "standalone"
+      ],
+      "slotGroups": {
+        "standalone": [
+          "protein.snack.bar",
+          "plant.nut.peanut_snack",
+          "carb.fruit.breakfast_snack"
+        ]
+      },
+      "forbidGroups": [
+        "protein.main.animal.lean",
+        "fat.oil.cooking"
+      ],
+      "candidatePriority": [
+        "protein.snack.bar",
+        "carb.fruit.light"
+      ],
+      "maxOptionalItems": 1
+    }
+  },
+  "templateInferenceRules": [
+    {
+      "whenAllGroupsPresent": [
+        "protein.main.animal.lean",
+        "carb.rice"
+      ],
+      "family": "rice_plate",
+      "confidence": 0.95
+    },
+    {
+      "whenAnyFoodPresent": [
+        "quinoa_cooked"
+      ],
+      "family": "grain_bowl",
+      "confidence": 0.95
+    },
+    {
+      "whenAllGroupsPresent": [
+        "protein.main.seafood"
+      ],
+      "family": "seafood_plate",
+      "confidence": 0.9
+    },
+    {
+      "whenAllGroupsPresent": [
+        "carb.pasta"
+      ],
+      "family": "pasta_plate",
+      "confidence": 0.9
+    },
+    {
+      "whenAllGroupsPresent": [
+        "carb.potato"
+      ],
+      "family": "potato_plate",
+      "confidence": 0.9
+    },
+    {
+      "whenAllGroupsPresent": [
+        "plant.legume.bowl_base"
+      ],
+      "family": "legume_bowl",
+      "confidence": 0.9
+    },
+    {
+      "whenAnyFoodPresent": [
+        "broadbeans_fava_beans_cooked",
+        "bread_egyptian_baladi_eish_baladi"
+      ],
+      "family": "egyptian_ful_breakfast",
+      "confidence": 0.85
+    },
+    {
+      "whenAllGroupsPresent": [
+        "protein.breakfast.egg",
+        "carb.bread.all"
+      ],
+      "family": "breakfast_bread_egg",
+      "confidence": 0.9
+    },
+    {
+      "whenAllGroupsPresent": [
+        "protein.breakfast.dairy",
+        "carb.bread.all"
+      ],
+      "family": "breakfast_bread_dairy",
+      "confidence": 0.85
+    },
+    {
+      "whenAllGroupsPresent": [
+        "carb.oats.breakfast"
+      ],
+      "family": "breakfast_oats_yogurt_bowl",
+      "confidence": 0.9
+    },
+    {
+      "whenAllGroupsPresent": [
+        "carb.fruit.breakfast_snack",
+        "protein.breakfast.yogurt_milk"
+      ],
+      "family": "snack_fruit_yogurt_nuts",
+      "confidence": 0.8
+    }
+  ],
+  "templateAnnotationSamples": [
+    {
+      "templateName": "Cheese with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "cheese_cottage_creamed",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.cheese"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Cheese with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "cheese_gouda",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.cheese"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_white_raw_fresh",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_whole_cooked_hard_boiled",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_whole_cooked_scrambled",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Skimmed milk (fat free) with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "skimmed_milk_fat_free",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt_milk"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Milk with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "milk_whole_3_25_milkfat",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt_milk"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Yogurt with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "yogurt_greek_plain_whole_milk",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Greek yogurt with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "greek_yogurt_5_fat_whole_milk",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Whey protein isolate with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "whey_protein_isolate_unflavored",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.dairy"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Whey protein concentrate with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "whey_protein_concentrate_unflavored",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.dairy"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Peanut butter with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "peanut_butter_smooth_without_salt",
+          "role": "protein",
+          "suggestedSwapGroup": "fat.nut_butter"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Turkey breast with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_multi_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "turkey_breast_deli_slices",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.main.animal.lean"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Cheese with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "cheese_cottage_creamed",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.cheese"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Cheese with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "cheese_gouda",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.cheese"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_white_raw_fresh",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_whole_cooked_hard_boiled",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Egg with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "egg_whole_cooked_scrambled",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.egg"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Skimmed milk (fat free) with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "skimmed_milk_fat_free",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt_milk"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Milk with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "milk_whole_3_25_milkfat",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt_milk"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Yogurt with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "yogurt_greek_plain_whole_milk",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Greek yogurt with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "greek_yogurt_5_fat_whole_milk",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.yogurt"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Whey protein isolate with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "whey_protein_isolate_unflavored",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.dairy"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Whey protein concentrate with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "whey_protein_concentrate_unflavored",
+          "role": "protein",
+          "suggestedSwapGroup": "protein.breakfast.dairy"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    },
+    {
+      "templateName": "Peanut butter with Bread and Butter",
+      "mealType": "breakfast",
+      "suggestedComponentAnnotations": [
+        {
+          "foodId": "bread_brown_whole_grain",
+          "role": "carb",
+          "suggestedSwapGroup": "carb.bread.western"
+        },
+        {
+          "foodId": "peanut_butter_smooth_without_salt",
+          "role": "protein",
+          "suggestedSwapGroup": "fat.nut_butter"
+        },
+        {
+          "foodId": "butter_without_salt",
+          "role": "fat",
+          "suggestedSwapGroup": "fat.butter.spread"
+        }
+      ]
+    }
+  ],
+  "coverageReport": {
+    "foodCount": 95,
+    "coveredFoodCount": 95,
+    "uncoveredFoodIds": [],
+    "templateStats": {
+      "sourceTemplateCount": 1477,
+      "mealTypeCounts": {
+        "breakfast": 341,
+        "dinner": 818,
+        "lunch": 293,
+        "snack": 25
+      }
+    }
+  }
+}

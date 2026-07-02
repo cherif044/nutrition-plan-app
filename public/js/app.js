@@ -199,7 +199,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       messages: plan.errors || plan.diagnostics?.errors || ['No feasible nutrition plan was found.'],
       diagnostics: plan.diagnostics,
     }));
-    return;
+    if (!Array.isArray(plan.meals) || plan.meals.length === 0) return;
   }
 
   if (plan.warnings?.length || plan.diagnostics?.warnings?.length) {
@@ -225,6 +225,13 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       name: meal.name,
       tag: meal.tag,
       target: { ...meal.target },
+      templateId: meal.templateId || null,
+      templateName: meal.templateName || null,
+      isOriginalTemplate: Boolean(meal.isOriginalTemplate),
+      numberOfSwaps: Number(meal.numberOfSwaps || 0),
+      candidateSource: meal.candidateSource || null,
+      isApproximate: Boolean(meal.isApproximate),
+      unavailableReason: meal.unavailableReason || null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
@@ -233,6 +240,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         food: item.food,
         quantityG: item.quantityG,
         alternatives: item.alternatives || [],
+        broaderAlternatives: item.broaderAlternatives || [],
+        component: item.component || null,
       })),
       chatHistory: [],
       chatTurnCount: 0,
@@ -387,12 +396,23 @@ function renderMealCard(state) {
 
 function refreshMealCardHeader(card, state) {
   const totals = computeTotals(state.items);
-  card.querySelector('.meal-card__meta').textContent =
-    `${state.items.length} food${state.items.length !== 1 ? 's' : ''}`;
+  card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
   card.querySelector('.meal-target').textContent = `${formatNumber(state.target.calories)} kcal`;
   card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
   card.querySelector('.meal-macros').textContent =
     `P ${formatNumber(totals.proteinG)}/${formatNumber(state.target.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}/${formatNumber(state.target.carbG)}g ${separator} F ${formatNumber(totals.fatG)}/${formatNumber(state.target.fatG)}g`;
+}
+
+function mealCardMetaText(state) {
+  const templateLabel = state.templateName ? `Template: ${state.templateName}` : 'Template: None';
+  return `${templateLabel} ${separator} ${mealTemplateStatusLabel(state)}`;
+}
+
+function mealTemplateStatusLabel(state) {
+  if (state.items.length === 0 || state.candidateSource === 'failed') return 'Failed';
+  if (state.isApproximate) return 'Approximate template';
+  if (state.numberOfSwaps > 0 || !state.isOriginalTemplate) return 'Modified template';
+  return 'Original template';
 }
 
 // ── Food item rendering ──────────────────────────────────────────────────────
@@ -492,11 +512,13 @@ function renderFoodItem(state, itemIndex) {
 
 function buildSwapPanel(panelEl, state, itemIndex) {
   const item = state.items[itemIndex];
-  const mealTag = state.tag;
 
   panelEl.innerHTML = '';
 
-  const alts = item.alternatives?.length ? item.alternatives : getAlternatives(item.food, mealTag);
+  const alts = (item.alternatives || []).filter((alt) => alt.id !== item.food.id);
+  const broaderAlts = (item.broaderAlternatives || []).filter((alt) =>
+    alt.id !== item.food.id && !alts.some((exact) => exact.id === alt.id)
+  );
   if (alts.length > 0) {
     const label = document.createElement('div');
     label.className = 'swap-section-label';
@@ -519,79 +541,60 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       altRow.append(btn);
     }
     panelEl.append(altRow);
+  } else if (broaderAlts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.textContent = 'No approved swaps available.';
+    panelEl.append(empty);
   }
 
-  const searchLabel = document.createElement('div');
-  searchLabel.className = 'swap-section-label';
-  searchLabel.textContent = 'Search any food';
-  panelEl.append(searchLabel);
+  if (broaderAlts.length > 0) {
+    const broaderBtn = document.createElement('button');
+    broaderBtn.type = 'button';
+    broaderBtn.className = 'swap-alt-btn';
+    broaderBtn.textContent = 'Show broader alternatives';
+    broaderBtn.addEventListener('click', () => {
+      broaderBtn.remove();
+      const label = document.createElement('div');
+      label.className = 'swap-section-label';
+      label.textContent = 'Broader alternatives';
+      panelEl.append(label);
 
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'swap-search-wrap';
-
-  const searchInput = document.createElement('input');
-  searchInput.type = 'search';
-  searchInput.className = 'swap-search-input';
-  searchInput.placeholder = 'Type to search…';
-  searchInput.autocomplete = 'off';
-
-  const resultsEl = document.createElement('div');
-  resultsEl.className = 'swap-search-results';
-  resultsEl.hidden = true;
-
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    if (!q) { resultsEl.hidden = true; return; }
-
-    const matches = [...foodsById.values()]
-      .filter((f) => f.id !== item.food.id && f.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const aTag = a.mealTags.includes(mealTag) ? 0 : 1;
-        const bTag = b.mealTags.includes(mealTag) ? 0 : 1;
-        return aTag - bTag || a.name.localeCompare(b.name);
-      })
-      .slice(0, 10);
-
-    resultsEl.innerHTML = '';
-    if (matches.length === 0) {
-      resultsEl.innerHTML = '<div style="padding:8px 10px;color:var(--muted);font-size:.82rem;">No matches</div>';
-    } else {
-      for (const food of matches) {
+      const broaderRow = document.createElement('div');
+      broaderRow.className = 'swap-alternatives';
+      for (const alt of broaderAlts) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'swap-result-item';
-        btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
+        btn.className = 'swap-alt-btn';
+        btn.dataset.altFoodId = alt.id;
+        btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
         btn.addEventListener('click', () => {
-          resultsEl.hidden = true;
           panelEl.hidden = true;
           panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-          applyFoodSwap(state, itemIndex, food, clampGrams(food, food.defaultServingG));
+          applyFoodSwap(state, itemIndex, alt, clampGrams(alt, alt.defaultServingG));
         });
-        resultsEl.append(btn);
+        broaderRow.append(btn);
       }
-    }
-    resultsEl.hidden = false;
-  });
-
-  document.addEventListener('click', function closeResults(e) {
-    if (!searchWrap.contains(e.target)) {
-      resultsEl.hidden = true;
-      document.removeEventListener('click', closeResults);
-    }
-  });
-
-  searchWrap.append(searchInput, resultsEl);
-  panelEl.append(searchWrap);
+      panelEl.append(broaderRow);
+    });
+    panelEl.append(broaderBtn);
+  }
 }
 
 // ── Food swap ────────────────────────────────────────────────────────────────
 
 function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
+  const previous = state.items[itemIndex];
   state.items[itemIndex] = {
     food: newFood,
     quantityG: gramAmount,
-    alternatives: getAlternatives(newFood, state.tag),
+    alternatives: (previous.alternatives || []).filter((food) => food.id !== newFood.id),
+    broaderAlternatives: (previous.broaderAlternatives || []).filter((food) => food.id !== newFood.id),
+    component: previous.component || null,
   };
+  state.isOriginalTemplate = false;
+  state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
+  state.candidateSource = state.candidateSource || 'manual_deterministic_swap';
   if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
   const oldRow = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
   const newRow = renderFoodItem(state, itemIndex);
@@ -655,7 +658,9 @@ function toggleAddFoodPanel(state, card) {
         const newItem = {
           food,
           quantityG: clampGrams(food, food.defaultServingG),
-          alternatives: getAlternatives(food, state.tag),
+          alternatives: [],
+          broaderAlternatives: [],
+          component: null,
         };
         state.items.push(newItem);
         if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
@@ -777,7 +782,9 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, devia
         const newItem = {
           food: s.food,
           quantityG: s.gramAmount,
-          alternatives: getAlternatives(s.food, state.tag),
+          alternatives: [],
+          broaderAlternatives: [],
+          component: null,
         };
         state.items.push(newItem);
         const foodList = card.querySelector('.food-list');
@@ -951,9 +958,16 @@ function buildPlanData() {
         food: item.food,
         quantityG: item.quantityG,
         alternatives: item.alternatives || [],
+        broaderAlternatives: item.broaderAlternatives || [],
+        component: item.component || null,
         totals: itemTotals(item.food, item.quantityG),
       })),
       totals: computeTotals(state.items),
+      templateId: state.templateId,
+      templateName: state.templateName,
+      isOriginalTemplate: state.isOriginalTemplate,
+      numberOfSwaps: state.numberOfSwaps,
+      candidateSource: state.candidateSource,
     })),
   };
 }
@@ -1227,7 +1241,7 @@ const chatPanel = (() => {
     const state = currentState;
     state.items = state.chatWorkingItems.map((pi) => {
       const food = foodsById.get(pi.foodId);
-      return { food, quantityG: pi.grams, alternatives: getAlternatives(food, state.tag) };
+      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], component: null };
     }).filter((i) => i.food);
     const foodList = state.cardEl.querySelector('.food-list');
     foodList.innerHTML = '';
@@ -1288,22 +1302,6 @@ function getUserPreferences() {
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
-function getAlternatives(food, mealTag, limit = 4) {
-  const byRole = (f) =>
-    f.id !== food.id &&
-    f.macroRole === food.macroRole &&
-    f.mealTags.includes(mealTag);
-
-  const withCategory = [...foodsById.values()].filter(
-    (f) => byRole(f) && f.categories.some((c) => food.categories.includes(c)),
-  );
-  const pool = withCategory.length > 0
-    ? withCategory
-    : [...foodsById.values()].filter(byRole);
-
-  return pool.slice(0, limit);
-}
-
 function computeTotals(items) {
   return items.reduce(
     (acc, item) => {
@@ -1335,7 +1333,11 @@ function clampGrams(food, grams) {
 }
 
 function deepCopyItems(items) {
-  return items.map((item) => ({ ...item, alternatives: [...(item.alternatives || [])] }));
+  return items.map((item) => ({
+    ...item,
+    alternatives: [...(item.alternatives || [])],
+    broaderAlternatives: [...(item.broaderAlternatives || [])],
+  }));
 }
 
 // ── Preference picker ────────────────────────────────────────────────────────
