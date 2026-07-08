@@ -405,10 +405,20 @@ function renderMealCard(state) {
 function refreshMealCardHeader(card, state) {
   const totals = computeTotals(state.items);
   card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
-  card.querySelector('.meal-target').textContent = `${formatNumber(state.target.calories)} kcal`;
-  card.querySelector('.meal-actual').textContent = `${formatNumber(totals.calories)} kcal`;
-  card.querySelector('.meal-macros').textContent =
-    `P ${formatNumber(totals.proteinG)}/${formatNumber(state.target.proteinG)}g ${separator} C ${formatNumber(totals.carbG)}/${formatNumber(state.target.carbG)}g ${separator} F ${formatNumber(totals.fatG)}/${formatNumber(state.target.fatG)}g`;
+
+  const values = {
+    calories: { unit: 'kcal', actual: totals.calories, target: state.target.calories },
+    proteinG: { unit: 'g', actual: totals.proteinG, target: state.target.proteinG },
+    carbG: { unit: 'g', actual: totals.carbG, target: state.target.carbG },
+    fatG: { unit: 'g', actual: totals.fatG, target: state.target.fatG },
+  };
+
+  for (const [key, value] of Object.entries(values)) {
+    const actualEl = card.querySelector(`.meal-actual-${key}`);
+    const targetEl = card.querySelector(`.meal-target-${key}`);
+    if (actualEl) actualEl.textContent = `${formatNumber(value.actual)} ${value.unit}`;
+    if (targetEl) targetEl.textContent = `${formatNumber(value.target)} ${value.unit}`;
+  }
 }
 
 function mealCardMetaText(state) {
@@ -461,7 +471,7 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
       <div class="food-actions">
-        <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">&#8652;</button>
+        <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">→</button>
       </div>
     </div>
     <div class="food-swap-panel" hidden></div>
@@ -524,22 +534,11 @@ function buildSwapPanel(panelEl, state, itemIndex) {
   panelEl.innerHTML = '';
 
   const alts = (item.alternatives || []).filter((alt) => alt.id !== item.food.id);
-  const broaderAlts = (item.broaderAlternatives || []).filter((alt) =>
-    alt.id !== item.food.id && !alts.some((exact) => exact.id === alt.id)
-  );
-  const nearestAlts = (item.nearestAlternatives || []).filter((alt) =>
-    alt.id !== item.food.id &&
-    !alts.some((exact) => exact.id === alt.id) &&
-    !broaderAlts.some((broader) => broader.id === alt.id)
-  );
-  let suggestionLevel = 1;
 
   if (alts.length > 0) {
-    const exactLevel = suggestionLevel;
-    suggestionLevel += 1;
     const label = document.createElement('div');
     label.className = 'swap-section-label';
-    label.textContent = `Level ${exactLevel} suggestions`;
+    label.textContent = 'Level 1 swaps';
     panelEl.append(label);
 
     const altRow = document.createElement('div');
@@ -549,91 +548,32 @@ function buildSwapPanel(panelEl, state, itemIndex) {
       btn.type = 'button';
       btn.className = 'swap-alt-btn';
       btn.dataset.altFoodId = alt.id;
-      btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
+      btn.innerHTML = `<span>${escapeHtml(item.food.name)}</span><span class="swap-arrow">→</span><strong>${escapeHtml(alt.name)}</strong>`;
       btn.addEventListener('click', () => {
         panelEl.hidden = true;
         panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
+        applyFoodSwap(state, itemIndex, alt);
       });
       altRow.append(btn);
     }
     panelEl.append(altRow);
   }
 
-  if (broaderAlts.length > 0) {
-    const broaderLevel = suggestionLevel;
-    suggestionLevel += 1;
-    const broaderBtn = document.createElement('button');
-    broaderBtn.type = 'button';
-    broaderBtn.className = 'swap-alt-btn';
-    broaderBtn.textContent = `Show level ${broaderLevel} suggestions`;
-    broaderBtn.addEventListener('click', () => {
-      broaderBtn.remove();
-      const label = document.createElement('div');
-      label.className = 'swap-section-label';
-      label.textContent = `Level ${broaderLevel} suggestions`;
-      panelEl.append(label);
-
-      const broaderRow = document.createElement('div');
-      broaderRow.className = 'swap-alternatives';
-      for (const alt of broaderAlts) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'swap-alt-btn';
-        btn.dataset.altFoodId = alt.id;
-        btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
-        btn.addEventListener('click', () => {
-          panelEl.hidden = true;
-          panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-          applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
-        });
-        broaderRow.append(btn);
-      }
-      panelEl.append(broaderRow);
-    });
-    panelEl.append(broaderBtn);
-  }
-
-  if (nearestAlts.length > 0) {
-    const nearestLevel = suggestionLevel;
-    const label = document.createElement('div');
-    label.className = 'swap-section-label';
-    label.textContent = `Level ${nearestLevel} suggestions`;
-    panelEl.append(label);
-
-    const nearestRow = document.createElement('div');
-    nearestRow.className = 'swap-alternatives';
-    for (const alt of nearestAlts) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'swap-alt-btn';
-      btn.dataset.altFoodId = alt.id;
-      btn.innerHTML = `${escapeHtml(alt.name)} <em>${formatNumber(alt.caloriesPer100g)} kcal/100g</em>`;
-      btn.addEventListener('click', () => {
-        panelEl.hidden = true;
-        panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        applyFoodSwap(state, itemIndex, alt, bestSwapGramsForMeal(state, itemIndex, alt));
-      });
-      nearestRow.append(btn);
-    }
-    panelEl.append(nearestRow);
-  }
-
-  if (alts.length === 0 && broaderAlts.length === 0 && nearestAlts.length === 0) {
+  if (alts.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'suggestion-empty';
-    empty.textContent = 'No approved swaps available.';
+    empty.textContent = 'No level 1 swaps available for this food.';
     panelEl.append(empty);
   }
 }
 
 // ── Food swap ────────────────────────────────────────────────────────────────
 
-function applyFoodSwap(state, itemIndex, newFood, gramAmount) {
+function applyFoodSwap(state, itemIndex, newFood, gramAmount = null) {
   const previous = state.items[itemIndex];
   state.items[itemIndex] = {
     food: newFood,
-    quantityG: gramAmount,
+    quantityG: clampGrams(newFood, gramAmount ?? previous.quantityG),
     alternatives: (previous.alternatives || []).filter((food) => food.id !== newFood.id),
     broaderAlternatives: (previous.broaderAlternatives || []).filter((food) => food.id !== newFood.id),
     nearestAlternatives: (previous.nearestAlternatives || []).filter((food) => food.id !== newFood.id),
@@ -812,10 +752,10 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, devia
       const swapBtn = document.createElement('button');
       swapBtn.type = 'button';
       swapBtn.className = 'suggestion-action-btn';
-      swapBtn.innerHTML = `<span class="suggestion-action-tag">Swap</span> <strong>${escapeHtml(s.food.name)}</strong> <em>${s.gramAmount}g</em>`;
+      swapBtn.innerHTML = `<span class="suggestion-action-tag">Swap</span> <strong>${probIdx !== -1 ? escapeHtml(state.items[probIdx].food.name) : 'Food'} <span class="swap-arrow">→</span> ${escapeHtml(s.food.name)}</strong>`;
       swapBtn.addEventListener('click', () => {
         if (probIdx !== -1) {
-          applyFoodSwap(state, probIdx, s.food, s.gramAmount);
+          applyFoodSwap(state, probIdx, s.food);
         }
         panel.hidden = true;
         card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));

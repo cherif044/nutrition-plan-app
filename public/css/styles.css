@@ -158,7 +158,8 @@ small { color: var(--faint); font-size: 0.73rem; font-weight: 600; }
   padding-top: 20px;
 }
 
-.planner, .results, #plan-output { display: grid; gap: 12px; }
+.planner, .results { display: grid; gap: 12px; }
+#plan-output { display: grid; gap: 20px; }
 .planner { position: sticky; top: 20px; }
 
 /* ── Glass panel ──────────────────────────────────────────────────────── */
@@ -653,7 +654,13 @@ input:focus, select:focus {
   overflow: hidden;
   padding: 0 !important;
   border-radius: var(--r-lg) !important;
+  border-color: rgba(13, 148, 136, 0.22);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.09), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
   animation: cardAppear 0.5s var(--ease-smooth) both;
+}
+
+.meal-card + .meal-card {
+  margin-top: 4px;
 }
 
 .meal-card:nth-child(1) { animation-delay: 0.04s; }
@@ -671,8 +678,8 @@ input:focus, select:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
-  background: linear-gradient(125deg, rgba(13, 148, 136, 0.08) 0%, rgba(255, 255, 255, 0.2) 70%);
+  padding: 20px 22px;
+  background: linear-gradient(125deg, rgba(13, 148, 136, 0.13) 0%, rgba(255, 255, 255, 0.42) 76%);
   border-bottom: 1px solid var(--line);
   position: relative;
   overflow: hidden;
@@ -702,7 +709,7 @@ input:focus, select:focus {
 
 .meal-card h2 {
   margin: 0 0 4px;
-  font-size: 1.08rem;
+  font-size: 1.18rem;
   letter-spacing: -0.02em;
 }
 
@@ -713,20 +720,25 @@ input:focus, select:focus {
 
 .meal-card__totals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  padding: 14px 20px;
+  padding: 16px 22px 14px;
+  background: rgba(255, 255, 255, 0.22);
 }
 
-.meal-card__totals div {
+.meal-metric {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.5);
-  padding: 12px;
-  transition: background 0.18s;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 12px 13px;
+  min-width: 0;
+  transition: border-color 0.18s, background 0.18s;
 }
 
-.meal-card__totals div:hover { background: rgba(255, 255, 255, 0.8); }
+.meal-metric:hover {
+  border-color: rgba(13, 148, 136, 0.24);
+  background: rgba(255, 255, 255, 0.9);
+}
 
 .meal-card__totals span {
   display: block;
@@ -739,9 +751,23 @@ input:focus, select:focus {
 
 .meal-card__totals strong {
   display: block;
-  margin-top: 5px;
-  font-size: 0.9rem;
-  line-height: 1.3;
+  margin-top: 7px;
+  font-size: 1.05rem;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.meal-card__totals small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.meal-card__totals small b {
+  color: var(--ink);
+  font-weight: 800;
 }
 
 /* ── Approx badge ─────────────────────────────────────────────────────── */
@@ -789,8 +815,12 @@ input:focus, select:focus {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.6);
-  padding: 12px;
+  padding: 13px;
   transition: all 0.2s var(--ease-out);
+}
+
+.food-item + .food-item {
+  margin-top: 8px;
 }
 
 .food-item:hover {
@@ -1032,7 +1062,8 @@ input:focus, select:focus {
   background: rgba(255, 255, 255, 0.75);
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 1rem;
+  font-weight: 800;
   flex-shrink: 0;
   transition: all 0.17s var(--ease-spring);
 }
@@ -1049,7 +1080,7 @@ input:focus, select:focus {
 .food-swap-panel {
   display: grid;
   gap: 10px;
-  padding: 12px;
+  padding: 13px;
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.4);
   animation: expandDown 0.22s var(--ease-smooth) both;
@@ -1063,20 +1094,26 @@ input:focus, select:focus {
   letter-spacing: 0.08em;
 }
 
-.swap-alternatives { display: flex; flex-wrap: wrap; gap: 6px; }
+.swap-alternatives {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 7px;
+}
 
 .swap-alt-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.78);
   color: var(--ink);
   cursor: pointer;
-  padding: 6px 12px;
+  padding: 8px 10px;
   font-size: 0.75rem;
   font-weight: 700;
+  text-align: left;
   transition: all 0.15s var(--ease-spring);
 }
 
@@ -1085,6 +1122,26 @@ input:focus, select:focus {
   background: var(--accent-soft);
   color: var(--accent-strong);
   transform: scale(1.03);
+}
+
+.swap-alt-btn span,
+.swap-alt-btn strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swap-alt-btn span:not(.swap-arrow) {
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.swap-arrow {
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 900;
+  flex: 0 0 auto;
 }
 
 .swap-alt-btn em { color: var(--muted); font-style: normal; font-size: 0.7rem; }
@@ -2119,6 +2176,7 @@ input:focus, select:focus {
   .workspace { grid-template-columns: 1fr; }
   .planner { position: static; }
   .topbar { align-items: flex-start; }
+  .meal-card__totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ── Responsive — Mobile ──────────────────────────────────────────────── */
