@@ -814,7 +814,7 @@ input:focus, select:focus {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.54);
-  padding: 14px 42px 14px 14px;
+  padding: 13px 14px;
   transition: all 0.2s var(--ease-out);
 }
 
@@ -830,47 +830,18 @@ input:focus, select:focus {
 
 .food-main {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "title title title"
-    "portion macros actions";
-  align-items: end;
-  column-gap: 14px;
-  row-gap: 12px;
-}
-
-.food-delete-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
+    "title grams"
+    "macros macros";
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid rgba(220, 38, 38, 0.18);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--danger);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 850;
-  line-height: 1;
-  opacity: 0.5;
-  transition: all 0.16s var(--ease-spring);
-}
-
-.food-delete-btn:hover {
-  border-color: rgba(220, 38, 38, 0.38);
-  background: rgba(254, 226, 226, 0.88);
-  opacity: 1;
-  transform: scale(1.06);
+  column-gap: 12px;
+  row-gap: 8px;
 }
 
 .food-title {
   grid-area: title;
   min-width: 0;
-  padding-right: 28px;
 }
 
 .food-name {
@@ -887,6 +858,18 @@ input:focus, select:focus {
   padding: 4px 9px;
   font-size: 0.76rem;
   font-weight: 800;
+}
+
+.food-grams-readout {
+  grid-area: grams;
+  justify-self: end;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.08);
+  color: var(--accent-strong);
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .food-macros {
@@ -1011,11 +994,13 @@ input:focus, select:focus {
 .meal-card__actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
-.auto-balance-btn, .chat-ai-btn {
+.meal-card__actions .btn {
   min-height: 30px !important;
   font-size: 0.73rem !important;
   padding: 0 9px !important;
@@ -1371,25 +1356,91 @@ input:focus, select:focus {
 
 .meal-rebalancing { opacity: 0.5; pointer-events: none; }
 
-/* ── Auto-balance suggestions ─────────────────────────────────────────── */
+/* ── Guided meal actions ──────────────────────────────────────────────── */
 
-.auto-balance-suggestions {
-  padding: 14px 20px 16px;
-  border-top: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.35);
+.meal-action-panel {
+  margin: 0 20px 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
   animation: expandDown 0.22s var(--ease-smooth) both;
 }
 
-.auto-balance-suggestions[hidden] { display: none; }
+.meal-action-panel[hidden] { display: none; }
 
-.suggestions-title {
+.meal-action-title {
   margin: 0 0 10px;
-  color: var(--danger);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.meal-action-subtitle,
+.meal-action-message {
+  margin: 0 0 10px;
+  color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
-.suggestion-list { display: grid; gap: 6px; }
+.meal-action-grid,
+.custom-food-form,
+.guided-choice-list,
+.proposal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.meal-action-grid label,
+.decline-feedback {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.guided-food-search,
+.custom-food-grid input,
+.decline-feedback input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink);
+  padding: 0 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.guided-food-search:focus,
+.custom-food-grid input:focus,
+.decline-feedback input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.guided-search-results {
+  display: grid;
+  gap: 6px;
+}
+
+.guided-search-results[hidden] { display: none; }
+
+.custom-food-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.custom-food-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) repeat(4, minmax(86px, 1fr));
+  gap: 7px;
+}
 
 .suggestion-action-btn {
   display: flex;
@@ -1441,6 +1492,76 @@ input:focus, select:focus {
 .suggestion-action-tag--insert {
   background: rgba(69, 69, 180, 0.1);
   color: #4545b4;
+}
+
+.proposal-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.proposal-compare > div {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 10px;
+}
+
+.proposal-compare span {
+  display: block;
+  color: var(--faint);
+  font-size: 0.66rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.proposal-compare strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.proposal-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 7px 0;
+}
+
+.proposal-item:last-child { border-bottom: 0; }
+
+.proposal-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+.proposal-item span {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.proposal-item em {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 /* ── Add food panel ───────────────────────────────────────────────────── */
@@ -1608,14 +1729,17 @@ input:focus, select:focus {
 .meal-card__actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
-.auto-balance-btn {
+.meal-card__actions .btn {
   min-height: 30px !important;
   font-size: 0.73rem !important;
   padding: 0 9px !important;
+  border-radius: 8px !important;
 }
 
 /* ── Meal target cell ─────────────────────────────────────────────────── */
@@ -2332,19 +2456,18 @@ input:focus, select:focus {
   .food-main {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "title title"
-      "portion actions"
+      "title grams"
       "macros macros";
-    row-gap: 10px;
+    row-gap: 8px;
   }
-  .food-quantity { justify-self: flex-start; }
   .food-macros { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
+  .custom-food-grid, .proposal-compare { grid-template-columns: 1fr; }
 
   form .panel, .summary, .empty-state { padding: 16px; }
   .meal-card__header { padding: 16px; }
   .meal-card__totals, .food-list { padding-left: 16px; padding-right: 16px; }
   .food-list { padding-bottom: 12px; }
-  .food-slot-add-btn { width: calc(100% - 32px); margin-left: 16px; margin-right: 16px; }
+  .meal-action-panel { margin-left: 16px; margin-right: 16px; }
 
   .planner-nav__brand h1 { font-size: 1.1rem; }
   .ai-chat-panel { width: 100%; }
@@ -2357,7 +2480,7 @@ input:focus, select:focus {
 
   .meal-card__actions { flex-wrap: wrap; gap: 4px; }
 
-  .auto-balance-btn, .chat-ai-btn {
+  .meal-card__actions .btn {
     font-size: 0.68rem !important;
     padding: 0 7px !important;
   }

@@ -187,8 +187,11 @@
             <p class="meal-card__meta"></p>
           </div>
           <div class="meal-card__actions">
-            <button class="btn btn-ghost auto-balance-btn" type="button">Auto-balance</button>
-            <button class="btn btn-ghost chat-ai-btn" type="button">Chat with AI</button>
+            <button class="btn btn-ghost try-meal-btn" type="button">Try another</button>
+            <button class="btn btn-ghost add-food-btn" type="button">Add food</button>
+            <button class="btn btn-ghost remove-food-btn" type="button">Remove food</button>
+            <button class="btn btn-ghost swap-food-btn" type="button">Swap food</button>
+            <button class="btn btn-primary rebalance-btn" type="button">Rebalance</button>
           </div>
         </div>
         <div class="meal-card__totals">
@@ -219,9 +222,7 @@
           <span>Macros</span>
         </div>
         <div class="food-list"></div>
-        <button class="food-slot-add-btn" type="button" aria-label="Add empty food slot">+</button>
-        <div class="auto-balance-suggestions" hidden></div>
-        <div class="add-food-panel" hidden></div>
+        <div class="meal-action-panel" hidden></div>
       </article>
     </template>
 

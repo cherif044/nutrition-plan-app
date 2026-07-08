@@ -1,5 +1,5 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
-const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox } = require('../services/planGenerator');
+const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox, generateAlternateMealOptions } = require('../services/planGenerator');
 const { loadFoods } = require('../repositories/foodRepository');
 const { chatWithLLM } = require('../services/llmService');
 
@@ -95,6 +95,211 @@ function computeSensitivityHandler(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+function mealOptionsHandler(req, res, next) {
+  try {
+    const {
+      mealTag,
+      mealTarget,
+      currentItems,
+      templateId,
+      userPreferences,
+      limit,
+    } = req.body;
+
+    if (!mealTarget || !Array.isArray(currentItems)) {
+      return res.status(400).json({ error: 'mealTarget and currentItems are required.' });
+    }
+
+    res.json({
+      mealOptions: generateAlternateMealOptions({
+        mealTag,
+        mealTarget,
+        currentItems,
+        templateId,
+        userPreferences,
+        limit,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function guidedMealSuggestionHandler(req, res, next) {
+  try {
+    const {
+      action,
+      mealTag,
+      mealTarget,
+      currentItems,
+      attemptedItems,
+      failureReason,
+      userPreferences,
+      rejectedProposal,
+      userFeedback,
+    } = req.body;
+
+    if (!action || !mealTarget || !Array.isArray(currentItems) || !Array.isArray(attemptedItems)) {
+      return res.status(400).json({ error: 'action, mealTarget, currentItems, and attemptedItems are required.' });
+    }
+
+    const foods = getFoods();
+    const availableFoods = filterFoodsForChatbox({
+      foods,
+      mealTag: mealTag || 'lunch',
+      userInput: {
+        dietType: userPreferences?.dietType || 'standard',
+        avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
+      },
+    });
+
+    const systemContent = `You are a meal-editing fallback. Respond with valid JSON only.
+
+Goal: suggest a food-level change inside ONE meal after deterministic rebalance failed.
+Do not adjust other meals. Do not suggest another full meal. Do not repeat rejected suggestions.
+
+Allowed actions:
+- replace one existing non-custom food with one available food
+- remove one existing food only if enough foods remain
+- keep an existing custom food but suggest replacing another food
+- return impossible if no sensible food-level change exists
+
+Return one JSON object:
+{"status":"proposal","message":"short user-facing explanation","items":[{"foodId":"exact id","quantityG":number,"locked":boolean}]}
+or
+{"status":"impossible","message":"short explanation"}
+
+Rules:
+1. Use only foodIds from CURRENT/ATTEMPTED items or AVAILABLE foods.
+2. Preserve custom foods from ATTEMPTED items unless the failed action was adding that custom food and it is clearly impossible.
+3. Keep locked:true on custom foods.
+4. Do not include foods from user avoids.
+5. Keep this meal recognizable; change the smallest number of foods.
+6. Quantity numbers are only a draft; backend will rebalance and validate them.`;
+
+    const userContent = JSON.stringify({
+      action,
+      mealTag,
+      mealTarget,
+      failureReason: failureReason || null,
+      userAvoids: userPreferences?.avoidFoods || [],
+      rejectedProposal: rejectedProposal || null,
+      userFeedback: userFeedback || null,
+      currentItems: currentItems.map(compactGuidedItem),
+      attemptedItems: attemptedItems.map(compactGuidedItem),
+      availableFoods: availableFoods.map((food) => ({
+        foodId: food.id,
+        name: food.name,
+        macroRole: food.macroRole,
+        minServingG: food.minServingG,
+        maxServingG: food.maxServingG,
+        caloriesPer100g: food.caloriesPer100g,
+        proteinGPer100g: food.proteinGPer100g,
+        carbGPer100g: food.carbGPer100g,
+        fatGPer100g: food.fatGPer100g,
+      })),
+    });
+
+    let payload;
+    try {
+      payload = await chatWithLLM([
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
+      ]);
+    } catch (error) {
+      console.error('[guided-meal-suggestion llm]', error.message);
+      return res.json({
+        status: 'impossible',
+        message: 'The deterministic solver could not fit this meal, and AI suggestions were unavailable.',
+      });
+    }
+
+    if (payload?.status !== 'proposal' || !Array.isArray(payload.items) || payload.items.length === 0) {
+      return res.json({
+        status: 'impossible',
+        message: payload?.message || 'No reliable food-level suggestion was found for this meal.',
+      });
+    }
+
+    const safeItems = sanitizeGuidedItems(payload.items, { currentItems, attemptedItems, availableFoods });
+    if (safeItems.length === 0) {
+      return res.json({ status: 'impossible', message: 'AI suggested foods that are not allowed for this meal.' });
+    }
+
+    const rebalance = rebalanceMeal({ mealTarget, items: safeItems });
+    if (!rebalance.success) {
+      return res.json({
+        status: 'impossible',
+        message: `No combination can solve this meal with the suggested foods. Change one of the foods.`,
+        violatedMacro: rebalance.violatedMacro,
+      });
+    }
+
+    const proposedItems = buildGuidedProposedItems(safeItems, rebalance.items);
+    res.json({
+      status: 'proposal',
+      message: payload.message || 'I found a food-level change that can fit this meal.',
+      proposedItems,
+      proposedTotals: rebalance.totals,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function compactGuidedItem(item) {
+  return {
+    foodId: item.foodId,
+    name: item.name || item.food?.name,
+    quantityG: Number(item.quantityG) || 0,
+    locked: Boolean(item.locked),
+    customFood: item.customFood || (String(item.foodId || '').startsWith('custom_') ? item.food : null),
+  };
+}
+
+function sanitizeGuidedItems(items, { currentItems, attemptedItems, availableFoods }) {
+  const allowedIds = new Set([
+    ...currentItems.map((item) => String(item.foodId)),
+    ...attemptedItems.map((item) => String(item.foodId)),
+    ...availableFoods.map((food) => String(food.id)),
+  ]);
+  const customById = new Map(
+    [...currentItems, ...attemptedItems]
+      .filter((item) => String(item.foodId || '').startsWith('custom_'))
+      .map((item) => [String(item.foodId), item.customFood || item.food]),
+  );
+  const seen = new Set();
+  return items
+    .map((item) => ({
+      foodId: String(item.foodId || ''),
+      quantityG: Number(item.quantityG) || 0,
+      locked: Boolean(item.locked),
+      customFood: customById.get(String(item.foodId || '')) || null,
+    }))
+    .filter((item) => {
+      if (!item.foodId || seen.has(item.foodId) || !allowedIds.has(item.foodId)) return false;
+      seen.add(item.foodId);
+      return true;
+    });
+}
+
+function buildGuidedProposedItems(requestItems, solvedItems) {
+  const foods = getFoods();
+  const foodById = new Map(foods.map((food) => [food.id, food]));
+  const requestById = new Map(requestItems.map((item) => [String(item.foodId), item]));
+  return solvedItems.map((solved) => {
+    const request = requestById.get(String(solved.foodId));
+    const food = foodById.get(String(solved.foodId)) || request?.customFood || null;
+    return {
+      foodId: solved.foodId,
+      food,
+      quantityG: solved.quantityG,
+      locked: Boolean(request?.locked),
+      customFood: request?.customFood || null,
+    };
+  }).filter((item) => item.food);
 }
 
 function macroGapScore(totals, target) {
@@ -1257,6 +1462,8 @@ module.exports = {
   checkSwapHandler,
   autoBalanceMealHandler,
   computeSensitivityHandler,
+  mealOptionsHandler,
   mealChatHandler,
+  guidedMealSuggestionHandler,
   validateMealChangesHandler,
 };

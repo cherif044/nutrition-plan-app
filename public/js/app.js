@@ -64,6 +64,8 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
+const MEAL_OPTION_CALORIE_TOLERANCE_PERCENT = 0.07;
+const MEAL_OPTION_MACRO_TOLERANCE_G = 5;
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -82,6 +84,19 @@ const plannerCtx = (() => {
   return { planId, folderId, folderName: null };
 })();
 
+async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const message = response.ok
+      ? 'The server returned an invalid response.'
+      : `${fallbackMessage} ${response.status ? `(${response.status})` : ''}`.trim();
+    return { error: message };
+  }
+}
+
 // ── Form submit ──────────────────────────────────────────────────────────────
 
 async function generateAndRender(apiUrl) {
@@ -93,7 +108,7 @@ async function generateAndRender(apiUrl) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(readForm()),
     });
-    const payload = await response.json();
+    const payload = await readJsonResponse(response, 'Unable to generate a nutrition plan.');
     if (!response.ok) {
       throw new Error(payload.error || 'Unable to generate a nutrition plan.');
     }
@@ -142,7 +157,7 @@ async function loadAllFoods() {
   try {
     const res = await fetch('/api/foods');
     if (!res.ok) return;
-    const { foods } = await res.json();
+    const { foods } = await readJsonResponse(res, 'Unable to load foods.');
     foodsById = new Map(foods.map((f) => [f.id, f]));
   } catch { /* non-critical */ }
 }
@@ -153,7 +168,7 @@ async function loadPlanForEdit(planId) {
   try {
     const res = await fetch(`/api/plans/${planId}`);
     if (!res.ok) { message.textContent = 'Plan not found.'; return; }
-    const { plan } = await res.json();
+    const { plan } = await readJsonResponse(res, 'Failed to load plan.');
 
     if (plan.plan_data?.input) {
       populateFormFromInput(plan.plan_data.input);
@@ -232,6 +247,11 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       candidateSource: meal.candidateSource || null,
       isApproximate: Boolean(meal.isApproximate),
       unavailableReason: meal.unavailableReason || null,
+      mealOptions: (meal.mealOptions || [])
+        .map(normalizeMealOption)
+        .filter((option) => mealOptionFitsTarget(option, meal.target)),
+      mealOptionIndex: 0,
+      pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
@@ -239,6 +259,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       items: meal.items.map((item) => ({
         food: item.food,
         quantityG: Number(item.quantityG) || 0,
+        locked: Boolean(item.locked),
+        customFood: item.customFood || null,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
         nearestAlternatives: item.nearestAlternatives || [],
@@ -383,13 +405,11 @@ function renderMealCard(state) {
 
   renderFoodList(state);
 
-  // Auto-balance button
-  card.querySelector('.auto-balance-btn').addEventListener('click', () => handleAutoBalance(state));
-
-  // Chat with AI button
-  card.querySelector('.chat-ai-btn').addEventListener('click', () => chatPanel.open(state));
-
-  card.querySelector('.food-slot-add-btn').addEventListener('click', () => addEmptyFoodSlot(state));
+  card.querySelector('.try-meal-btn').addEventListener('click', () => handleTryAnotherMeal(state));
+  card.querySelector('.add-food-btn').addEventListener('click', () => showAddFoodAction(state));
+  card.querySelector('.remove-food-btn').addEventListener('click', () => showRemoveFoodAction(state));
+  card.querySelector('.swap-food-btn').addEventListener('click', () => showSwapFoodAction(state));
+  card.querySelector('.rebalance-btn').addEventListener('click', () => handleDeterministicRebalance(state, { previewTitle: 'Rebalanced meal' }));
 
   return card;
 }
@@ -434,79 +454,6 @@ function renderFoodList(state) {
   });
 }
 
-function createEmptyFoodSlot() {
-  return {
-    food: null,
-    quantityG: 0,
-    alternatives: [],
-    broaderAlternatives: [],
-    nearestAlternatives: [],
-    component: null,
-    swapOptions: [],
-    swapIndex: 0,
-    isEmpty: true,
-  };
-}
-
-function addEmptyFoodSlot(state) {
-  state.items.push(createEmptyFoodSlot());
-  renderFoodList(state);
-}
-
-function removeFoodSlot(state, itemIndex) {
-  const item = state.items[itemIndex];
-  const label = item?.food?.name || 'this empty food slot';
-  if (!confirm(`Delete ${label}?`)) return;
-  state.items.splice(itemIndex, 1);
-  if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-  renderFoodList(state);
-  refreshMealCardHeader(state.cardEl, state);
-  refreshRedFlags();
-}
-
-function uniqueFoodsById(foods) {
-  const seen = new Set();
-  const result = [];
-  for (const food of foods || []) {
-    if (!food?.id || seen.has(food.id)) continue;
-    seen.add(food.id);
-    result.push(food);
-  }
-  return result;
-}
-
-function ensureSwapState(item) {
-  if (!item.food) {
-    item.swapOptions = [];
-    item.swapIndex = 0;
-    return item.swapOptions;
-  }
-
-  const existingOptions = Array.isArray(item.swapOptions) && item.swapOptions.length > 0
-    ? item.swapOptions
-    : [item.food, ...(item.alternatives || [])];
-  item.swapOptions = uniqueFoodsById(existingOptions);
-
-  const currentIndex = item.swapOptions.findIndex((food) => food.id === item.food.id);
-  if (currentIndex === -1) {
-    item.swapOptions = uniqueFoodsById([item.food, ...item.swapOptions]);
-    item.swapIndex = 0;
-  } else {
-    item.swapIndex = currentIndex;
-  }
-
-  return item.swapOptions;
-}
-
-function cycleFoodSwap(state, itemIndex, direction) {
-  const item = state.items[itemIndex];
-  const options = ensureSwapState(item);
-  if (options.length <= 1) return;
-
-  const nextIndex = (item.swapIndex + direction + options.length) % options.length;
-  applyFoodSwap(state, itemIndex, options[nextIndex], { swapIndex: nextIndex });
-}
-
 // ── Food item rendering ──────────────────────────────────────────────────────
 
 function renderFoodItem(state, itemIndex) {
@@ -517,333 +464,616 @@ function renderFoodItem(state, itemIndex) {
   row.className = 'food-item';
   row.dataset.itemIndex = itemIndex;
 
-  if (!food) {
-    row.classList.add('food-item--empty');
-    row.innerHTML = `
-      <button class="food-delete-btn" type="button" title="Delete food slot" aria-label="Delete empty food slot">×</button>
-      <button class="empty-food-slot-btn" type="button">
-        <span class="empty-food-slot-btn__mark">+</span>
-        <strong>Empty food slot</strong>
-        <small>Tap to choose a food</small>
-      </button>
-      <div class="food-slot-search" hidden></div>
-    `;
-
-    row.querySelector('.food-delete-btn').addEventListener('click', () => removeFoodSlot(state, itemIndex));
-    row.querySelector('.empty-food-slot-btn').addEventListener('click', () => openFoodSlotSearch(row, state, itemIndex));
-    return row;
-  }
-
   const totals = itemTotals(food, item.quantityG);
-  const swapOptions = ensureSwapState(item);
-  const canSwap = swapOptions.length > 1;
 
   row.innerHTML = `
-    <button class="food-delete-btn" type="button" title="Delete food" aria-label="Delete ${escapeHtml(food.name)}">×</button>
     <div class="food-main">
       <div class="food-title">
         <div class="food-name">${escapeHtml(food.name)}</div>
         ${food.nameAr ? `<div class="food-ar">${escapeHtml(food.nameAr)}</div>` : ''}
       </div>
-      <div class="food-gram-wrap">
-        <button class="gram-btn gram-minus" type="button" aria-label="Decrease grams">−</button>
-        <input
-          class="food-gram-input"
-          type="number"
-          value="${item.quantityG}"
-          min="0"
-          max="${food.maxServingG}"
-          step="10"
-          aria-label="Grams of ${escapeHtml(food.name)}"
-        />
-        <span class="food-gram-unit">g</span>
-        <button class="gram-btn gram-plus" type="button" aria-label="Increase grams">+</button>
-      </div>
+      <div class="food-grams-readout">${escapeHtml(formatPortion(item))}</div>
       <div class="food-macros">
         <strong class="item-kcal">${formatNumber(totals.calories)} kcal</strong>
         <span class="item-p">P ${formatNumber(totals.proteinG)}g</span>
         <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
-      <div class="food-actions">
-        <button class="food-swap-cycle-btn swap-prev-btn" type="button" title="Previous level 1 swap" aria-label="Previous level 1 swap for ${escapeHtml(food.name)}" ${canSwap ? '' : 'disabled'}>←</button>
-        <button class="food-swap-cycle-btn swap-next-btn" type="button" title="Next level 1 swap" aria-label="Next level 1 swap for ${escapeHtml(food.name)}" ${canSwap ? '' : 'disabled'}>→</button>
-      </div>
     </div>
   `;
-
-  const gramInput = row.querySelector('.food-gram-input');
-  let debounceTimer = null;
-  gramInput.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      const newGrams = clampGrams(food, Number(gramInput.value));
-      gramInput.value = newGrams;
-      state.items[itemIndex].quantityG = newGrams;
-      if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-      refreshMealDOM(state);
-      refreshRedFlags();
-    }, 400);
-  });
-
-  row.querySelector('.gram-minus').addEventListener('click', () => {
-    const newQ = clampGrams(food, item.quantityG - 10);
-    if (newQ === item.quantityG) return;
-    state.items[itemIndex].quantityG = newQ;
-    if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-    refreshMealDOM(state);
-    refreshRedFlags();
-  });
-
-  row.querySelector('.gram-plus').addEventListener('click', () => {
-    const newQ = clampGrams(food, item.quantityG + 10);
-    if (newQ === item.quantityG) return;
-    state.items[itemIndex].quantityG = newQ;
-    if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-    refreshMealDOM(state);
-    refreshRedFlags();
-  });
-
-  row.querySelector('.swap-prev-btn').addEventListener('click', () => cycleFoodSwap(state, itemIndex, -1));
-  row.querySelector('.swap-next-btn').addEventListener('click', () => cycleFoodSwap(state, itemIndex, 1));
-  row.querySelector('.food-delete-btn').addEventListener('click', () => removeFoodSlot(state, itemIndex));
 
   return row;
 }
 
-// ── Food swap ────────────────────────────────────────────────────────────────
+// ── Guided meal actions ─────────────────────────────────────────────────────
 
-function applyFoodSwap(state, itemIndex, newFood, options = {}) {
-  const previous = state.items[itemIndex];
-  const swapOptions = uniqueFoodsById(options.swapOptions || previous.swapOptions || [previous.food, ...(previous.alternatives || [])]);
-  const swapIndex = Number.isInteger(options.swapIndex)
-    ? options.swapIndex
-    : Math.max(0, swapOptions.findIndex((food) => food.id === newFood.id));
-
-  state.items[itemIndex] = {
-    food: newFood,
-    quantityG: Number.isFinite(options.gramAmount) ? clampGrams(newFood, options.gramAmount) : 0,
-    alternatives: previous.alternatives || [],
-    broaderAlternatives: previous.broaderAlternatives || [],
-    nearestAlternatives: previous.nearestAlternatives || [],
-    component: previous.component || null,
-    swapOptions,
-    swapIndex,
-    isEmpty: false,
+function normalizeMealOption(option) {
+  return {
+    templateId: option.templateId || null,
+    templateName: option.templateName || 'Alternate meal',
+    templateFamily: option.templateFamily || null,
+    items: (option.items || []).map(normalizeStateItem),
+    totals: option.totals || null,
+    isApproximate: Boolean(option.isApproximate),
   };
-  state.isOriginalTemplate = false;
-  state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
-  state.candidateSource = state.candidateSource || 'manual_deterministic_swap';
-  if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-  const oldRow = state.cardEl.querySelector(`[data-item-index="${itemIndex}"]`);
-  const newRow = renderFoodItem(state, itemIndex);
-  oldRow.replaceWith(newRow);
-  refreshMealCardHeader(state.cardEl, state);
-  refreshRedFlags();
 }
 
-function openFoodSlotSearch(row, state, itemIndex) {
-  const panelEl = row.querySelector('.food-slot-search');
-  if (!panelEl) return;
+function mealOptionFitsTarget(option, target) {
+  if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
+  const totals = option.totals || computeTotals(option.items);
+  return (
+    Math.abs(totals.calories - target.calories) <= target.calories * MEAL_OPTION_CALORIE_TOLERANCE_PERCENT &&
+    Math.abs(totals.proteinG - target.proteinG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
+    Math.abs(totals.carbG - target.carbG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
+    Math.abs(totals.fatG - target.fatG) <= MEAL_OPTION_MACRO_TOLERANCE_G
+  );
+}
 
-  if (!panelEl.hidden) {
-    panelEl.hidden = true;
-    return;
-  }
+function normalizeStateItem(item) {
+  return {
+    food: item.food,
+    quantityG: Number(item.quantityG) || 0,
+    locked: Boolean(item.locked),
+    customFood: item.customFood || null,
+    alternatives: item.alternatives || [],
+    broaderAlternatives: item.broaderAlternatives || [],
+    nearestAlternatives: item.nearestAlternatives || [],
+    component: item.component || null,
+  };
+}
 
-  panelEl.innerHTML = '';
-  const searchInput = document.createElement('input');
-  searchInput.type = 'search';
-  searchInput.className = 'swap-search-input';
-  searchInput.placeholder = 'Search food…';
-  searchInput.autocomplete = 'off';
+function mealActionItems(items) {
+  return items.filter((item) => item.food).map((item) => ({
+    foodId: item.food.id,
+    name: item.food.name,
+    quantityG: item.quantityG,
+    locked: Boolean(item.locked),
+    customFood: item.customFood || (item.food.custom ? customFoodPayload(item.food) : null),
+  }));
+}
 
-  const resultsEl = document.createElement('div');
-  resultsEl.className = 'swap-search-results food-slot-search-results';
-  resultsEl.hidden = true;
+function customFoodPayload(food) {
+  return {
+    id: food.id,
+    name: food.name,
+    servingG: food.defaultServingG || 100,
+    calories: (food.caloriesPer100g || 0) * (food.defaultServingG || 100) / 100,
+    proteinG: (food.proteinGPer100g || 0) * (food.defaultServingG || 100) / 100,
+    carbG: (food.carbGPer100g || 0) * (food.defaultServingG || 100) / 100,
+    fatG: (food.fatGPer100g || 0) * (food.defaultServingG || 100) / 100,
+  };
+}
 
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    resultsEl.innerHTML = '';
-    if (!q) {
-      resultsEl.hidden = true;
+async function handleTryAnotherMeal(state) {
+  if (!state.mealOptions.length) {
+    const refillOk = await refillMealOptions(state);
+    if (!refillOk) return;
+    if (!state.mealOptions.length) {
+      showActionMessage(state, 'No validated alternate meals were found for this slot.');
       return;
     }
-
-    const matches = [...foodsById.values()]
-      .filter((f) => f.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const aTag = a.mealTags.includes(state.tag) ? 0 : 1;
-        const bTag = b.mealTags.includes(state.tag) ? 0 : 1;
-        return aTag - bTag || a.name.localeCompare(b.name);
-      })
-      .slice(0, 10);
-
-    for (const food of matches) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'swap-result-item';
-      btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
-      btn.addEventListener('click', () => {
-        state.items[itemIndex] = {
-          food,
-          quantityG: 0,
-          alternatives: [],
-          broaderAlternatives: [],
-          nearestAlternatives: [],
-          component: null,
-          swapOptions: [food],
-          swapIndex: 0,
-          isEmpty: false,
-        };
-        if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-        renderFoodList(state);
-        refreshMealCardHeader(state.cardEl, state);
-        refreshRedFlags();
-      });
-      resultsEl.append(btn);
-    }
-
-    resultsEl.hidden = matches.length === 0;
+  }
+  const option = state.mealOptions[state.mealOptionIndex % state.mealOptions.length];
+  state.mealOptionIndex += 1;
+  showProposal(state, {
+    title: `Try ${option.templateName}`,
+    message: 'Previewing another validated meal for the same target.',
+    proposedItems: option.items,
+    proposedTotals: computeTotals(option.items),
+    source: 'alternate_meal',
+    templateName: option.templateName,
+    isApproximate: option.isApproximate,
   });
-
-  panelEl.append(searchInput, resultsEl);
-  panelEl.hidden = false;
-  setTimeout(() => searchInput.focus(), 50);
 }
 
-// ── Auto-balance ─────────────────────────────────────────────────────────────
-
-async function handleAutoBalance(state) {
-  const card = state.cardEl;
-  const btn = card.querySelector('.auto-balance-btn');
-  btn.disabled = true;
-  btn.textContent = 'Balancing…';
-
-  // Clear previous suggestions
-  const prevSuggestions = card.querySelector('.auto-balance-suggestions');
-  if (prevSuggestions) {
-    prevSuggestions.innerHTML = '';
-    prevSuggestions.hidden = true;
-  }
-  card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
-
+async function refillMealOptions(state) {
+  showActionMessage(state, 'Finding alternate meals...');
   try {
-    const res = await fetch('/api/auto-balance-meal', {
+    const res = await fetch('/api/meal-options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mealTag: state.tag,
-        items: state.items.filter((item) => item.food).map((item) => ({
-          foodId: item.food.id,
-          quantityG: item.quantityG,
-        })),
-        originalItems: state.originalItems.filter((item) => item.food).map((item) => ({
-          foodId: item.food.id,
-          quantityG: item.quantityG,
-        })),
+        mealTarget: state.target,
+        templateId: state.templateId,
+        currentItems: mealOptionRequestItems(state.items),
+        userPreferences: getUserPreferences(),
+        limit: 12,
       }),
     });
-
-    const payload = await res.json();
-
-    if (payload.success) {
-      for (const update of payload.items) {
-        const stateItem = state.items.find((it) => it.food?.id === update.foodId);
-        if (stateItem) stateItem.quantityG = update.quantityG;
-      }
-      if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-      refreshMealDOM(state);
-      refreshRedFlags();
-    } else {
-      showAutoBalanceSuggestions(state, payload.problematicFoodId, payload.suggestions || [], payload.deviations);
-    }
-  } catch {
-    // Network error — silently ignore
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Auto-balance';
+    const payload = await readJsonResponse(res, 'Unable to find alternate meals.');
+    if (!res.ok) throw new Error(payload.error || 'Unable to find alternate meals.');
+    state.mealOptions = (payload.mealOptions || [])
+      .map(normalizeMealOption)
+      .filter((option) => mealOptionFitsTarget(option, state.target));
+    state.mealOptionIndex = 0;
+    return true;
+  } catch (error) {
+    showActionMessage(state, error.message || 'Unable to find alternate meals.');
+    return false;
   }
 }
 
-function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, deviations) {
-  const card = state.cardEl;
+function mealOptionRequestItems(items) {
+  const compactFoods = (foods) => (foods || [])
+    .filter((food) => food?.id)
+    .map((food) => ({ id: food.id }));
 
-  const probIdx = state.items.findIndex((i) => i.food?.id === problematicFoodId);
-  if (probIdx !== -1) {
-    card.querySelector(`[data-item-index="${probIdx}"]`)?.classList.add('food-item--problematic');
-  }
+  return items.filter((item) => item.food).map((item) => ({
+    foodId: item.food.id,
+    quantityG: item.quantityG,
+    component: item.component || null,
+    alternatives: compactFoods(item.alternatives),
+    broaderAlternatives: compactFoods(item.broaderAlternatives),
+    nearestAlternatives: compactFoods(item.nearestAlternatives),
+  }));
+}
 
-  const panel = card.querySelector('.auto-balance-suggestions');
-  if (!panel) return;
-
+function showAddFoodAction(state) {
+  const panel = actionPanel(state);
   panel.hidden = false;
-  panel.innerHTML = '';
+  panel.innerHTML = `
+    <p class="meal-action-title">Add food to ${escapeHtml(state.name)}</p>
+    <div class="meal-action-grid">
+      <label>Database food <input class="guided-food-search" type="search" placeholder="Search existing foods" autocomplete="off" /></label>
+      <div class="guided-search-results" hidden></div>
+    </div>
+    <div class="custom-food-form">
+      <p class="meal-action-subtitle">Custom food</p>
+      <div class="custom-food-grid">
+        <input class="custom-name" type="text" placeholder="Food name" />
+        <input class="custom-calories" type="number" min="0" step="1" placeholder="Calories" />
+        <input class="custom-protein" type="number" min="0" step="0.1" placeholder="Protein g" />
+        <input class="custom-carbs" type="number" min="0" step="0.1" placeholder="Carbs g" />
+        <input class="custom-fat" type="number" min="0" step="0.1" placeholder="Fat g" />
+      </div>
+      <button class="btn btn-primary guided-custom-add" type="button">Fit custom food</button>
+    </div>
+  `;
 
-  const title = document.createElement('p');
-  title.className = 'suggestions-title';
-  title.textContent = suggestions.length > 0
-    ? 'Auto-balance couldn\'t find a solution. Try one of these options:'
-    : 'Auto-balance couldn\'t find a solution. Try swapping the highlighted food manually.';
-  panel.append(title);
-
-  if (suggestions.length > 0) {
-    const list = document.createElement('div');
-    list.className = 'suggestion-list';
-
-    for (const s of suggestions) {
-      const swapBtn = document.createElement('button');
-      swapBtn.type = 'button';
-      swapBtn.className = 'suggestion-action-btn';
-      swapBtn.innerHTML = `<span class="suggestion-action-tag">Swap</span> <strong>${probIdx !== -1 ? escapeHtml(state.items[probIdx].food.name) : 'Food'} <span class="swap-arrow">→</span> ${escapeHtml(s.food.name)}</strong>`;
-      swapBtn.addEventListener('click', () => {
-        if (probIdx !== -1) {
-          applyFoodSwap(state, probIdx, s.food);
-        }
-        panel.hidden = true;
-        card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
-      });
-      list.append(swapBtn);
-
-      const insertBtn = document.createElement('button');
-      insertBtn.type = 'button';
-      insertBtn.className = 'suggestion-action-btn';
-      insertBtn.innerHTML = `<span class="suggestion-action-tag suggestion-action-tag--insert">Add</span> <strong>${escapeHtml(s.food.name)}</strong> <em>${s.gramAmount}g</em>`;
-      insertBtn.addEventListener('click', () => {
-        const newItem = {
-          food: s.food,
-          quantityG: s.gramAmount,
-          alternatives: [],
-          broaderAlternatives: [],
-          nearestAlternatives: [],
-          component: null,
-          swapOptions: [s.food],
-          swapIndex: 0,
-          isEmpty: false,
-        };
-        state.items.push(newItem);
-        renderFoodList(state);
-        refreshMealCardHeader(card, state);
-        refreshRedFlags();
-        panel.hidden = true;
-        card.querySelectorAll('.food-item--problematic').forEach((el) => el.classList.remove('food-item--problematic'));
-      });
-      list.append(insertBtn);
-    }
-
-    panel.append(list);
-  }
-
-  if (deviations && (deviations.proteinPct > 0.05 || deviations.carbPct > 0.05 || deviations.fatPct > 0.05)) {
-    const askAiBtn = document.createElement('button');
-    askAiBtn.type = 'button';
-    askAiBtn.className = 'btn btn-secondary ask-ai-btn';
-    askAiBtn.textContent = 'Ask AI for help';
-    askAiBtn.addEventListener('click', () => {
-      chatPanel.openAndSend(state, "Auto-balance couldn't fully hit the targets for this meal. Can you suggest a change?");
+  const search = panel.querySelector('.guided-food-search');
+  const results = panel.querySelector('.guided-search-results');
+  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
+    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, locked: true })];
+    attemptGuidedRebalance(state, {
+      action: 'add_food',
+      attemptedItems: attempted,
+      title: `Add ${food.name}`,
+      failureReason: `Adding ${food.name} could not be fit by deterministic rebalance.`,
     });
-    panel.append(askAiBtn);
+  }));
+
+  panel.querySelector('.guided-custom-add').addEventListener('click', () => {
+    const custom = readCustomFood(panel);
+    if (!custom) {
+      showActionMessage(state, 'Enter a custom food name and calories/macros first.');
+      return;
+    }
+    const food = foodFromCustom(custom);
+    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, locked: true, customFood: custom })];
+    attemptGuidedRebalance(state, {
+      action: 'add_custom_food',
+      attemptedItems: attempted,
+      title: `Add ${food.name}`,
+      failureReason: `Adding custom food ${food.name} could not be fit by deterministic rebalance.`,
+    });
+  });
+}
+
+function showRemoveFoodAction(state) {
+  const foods = state.items.filter((item) => item.food);
+  if (foods.length <= 1) {
+    showActionMessage(state, 'This meal needs at least one food.');
+    return;
   }
+  const panel = actionPanel(state);
+  panel.hidden = false;
+  panel.innerHTML = `
+    <p class="meal-action-title">Remove one food</p>
+    <div class="guided-choice-list"></div>
+  `;
+  const list = panel.querySelector('.guided-choice-list');
+  foods.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-action-btn';
+    btn.innerHTML = `<strong>${escapeHtml(item.food.name)}</strong><em>${formatNumber(item.quantityG)}g</em>`;
+    btn.addEventListener('click', () => {
+      const attempted = state.items.filter((candidate) => candidate !== item);
+      attemptGuidedRebalance(state, {
+        action: 'remove_food',
+        attemptedItems: attempted,
+        title: `Remove ${item.food.name}`,
+        failureReason: `Removing ${item.food.name} could not be fit by deterministic rebalance.`,
+      });
+    });
+    list.append(btn);
+  });
+}
+
+function showSwapFoodAction(state) {
+  const swappable = state.items
+    .filter((item) => item.food)
+    .map((item) => ({ item, alternatives: (item.alternatives || []).filter(foodAllowedForCurrentPreferences) }))
+    .filter((entry) => entry.alternatives.length > 0);
+  if (!swappable.length) {
+    showActionMessage(state, 'No approved swaps available.');
+    return;
+  }
+  const panel = actionPanel(state);
+  panel.hidden = false;
+  panel.innerHTML = `
+    <p class="meal-action-title">Swap one food</p>
+    <div class="guided-choice-list"></div>
+  `;
+  const list = panel.querySelector('.guided-choice-list');
+  swappable.forEach(({ item, alternatives }) => {
+    for (const alt of alternatives) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'suggestion-action-btn';
+      btn.innerHTML = `<strong>${escapeHtml(item.food.name)} <span class="swap-arrow">→</span> ${escapeHtml(alt.name)}</strong>`;
+      btn.addEventListener('click', () => {
+        const attempted = state.items.map((candidate) => (
+          candidate === item
+            ? normalizeStateItem({ ...item, food: alt, quantityG: alt.defaultServingG, locked: false })
+            : candidate
+        ));
+        attemptGuidedRebalance(state, {
+          action: 'swap_food',
+          attemptedItems: attempted,
+          title: `Swap ${item.food.name}`,
+          failureReason: `Swapping ${item.food.name} for ${alt.name} could not be fit by deterministic rebalance.`,
+        });
+      });
+      list.append(btn);
+    }
+  });
+}
+
+async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
+  await attemptGuidedRebalance(state, {
+    action: 'rebalance',
+    attemptedItems: state.items,
+    title: previewTitle,
+    useAiFallback: false,
+    failureReason: 'No combination can solve this meal with the current foods. Change one of the foods.',
+  });
+}
+
+async function attemptGuidedRebalance(state, { action, attemptedItems, title, failureReason, useAiFallback = true, rejectedProposal = null, userFeedback = '' }) {
+  showActionMessage(state, 'Checking meal fit...');
+  const payloadItems = mealActionItems(attemptedItems);
+  try {
+    const res = await fetch('/api/rebalance-meal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mealTarget: state.target, items: payloadItems }),
+    });
+    const payload = await readJsonResponse(res, 'Unable to rebalance this meal.');
+    if (!res.ok) throw new Error(payload.error || 'Unable to rebalance this meal.');
+    if (res.ok && payload.success) {
+      const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
+      showProposal(state, {
+        title,
+        message: 'Deterministic rebalance found a valid fit.',
+        proposedItems,
+        proposedTotals: payload.totals,
+        source: 'deterministic',
+        retryContext: { action, attemptedItems, failureReason },
+      });
+      return;
+    }
+    if (useAiFallback) {
+      await requestGuidedAiSuggestion(state, { action, attemptedItems, failureReason, rejectedProposal, userFeedback });
+    } else {
+      showActionMessage(state, failureReason || 'No combination can solve this meal with the current foods. Change one of the foods.');
+    }
+  } catch (error) {
+    showActionMessage(state, error.message || 'Unable to rebalance this meal.');
+  }
+}
+
+async function requestGuidedAiSuggestion(state, { action, attemptedItems, failureReason, rejectedProposal = null, userFeedback = '' }) {
+  showActionMessage(state, 'Deterministic rebalance failed. Asking AI for food-level changes...');
+  try {
+    const res = await fetch('/api/guided-meal-suggestion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        mealTag: state.tag,
+        mealTarget: state.target,
+        currentItems: mealActionItems(state.items),
+        attemptedItems: mealActionItems(attemptedItems),
+        failureReason,
+        rejectedProposal: compactRejectedProposal(rejectedProposal),
+        userFeedback,
+        userPreferences: getUserPreferences(),
+      }),
+      signal: AbortSignal.timeout(50_000),
+    });
+    const payload = await readJsonResponse(res, 'AI suggestion failed.');
+    if (!res.ok) throw new Error(payload.error || 'AI suggestion failed.');
+    if (payload.status === 'proposal' && Array.isArray(payload.proposedItems)) {
+      const proposedItems = payload.proposedItems.map(itemFromGuidedProposal).filter((item) => item.food);
+      showProposal(state, {
+        title: 'Suggested food change',
+        message: payload.message,
+        proposedItems,
+        proposedTotals: payload.proposedTotals || computeTotals(proposedItems),
+        source: 'ai',
+        retryContext: { action, attemptedItems, failureReason },
+      });
+    } else {
+      showActionMessage(state, payload.message || 'No valid food-level suggestion was found.');
+    }
+  } catch (error) {
+    showActionMessage(state, error.message || 'No valid AI suggestion was found.');
+  }
+}
+
+function showProposal(state, proposal) {
+  state.pendingProposal = proposal;
+  const panel = actionPanel(state);
+  panel.hidden = false;
+  const currentTotals = computeTotals(state.items);
+  panel.innerHTML = `
+    <p class="meal-action-title">${escapeHtml(proposal.title)}</p>
+    <p class="meal-action-message">${escapeHtml(proposal.message || '')}</p>
+    <div class="proposal-compare">
+      <div>
+        <span>Current</span>
+        <strong>${formatMacroLine(currentTotals)}</strong>
+      </div>
+      <div>
+        <span>Preview</span>
+        <strong>${formatMacroLine(proposal.proposedTotals || computeTotals(proposal.proposedItems))}</strong>
+      </div>
+    </div>
+    <div class="proposal-list"></div>
+    <div class="proposal-actions">
+      <button class="btn btn-primary proposal-apply" type="button">Apply</button>
+      <button class="btn btn-ghost proposal-decline" type="button">Decline</button>
+    </div>
+  `;
+  const list = panel.querySelector('.proposal-list');
+  proposal.proposedItems.forEach((item) => {
+    const totals = itemTotals(item.food, item.quantityG);
+    const row = document.createElement('div');
+    row.className = 'proposal-item';
+    row.innerHTML = `<strong>${escapeHtml(item.food.name)}</strong><span>${escapeHtml(formatPortion(item))}</span><em>${formatNumber(totals.calories)} kcal · P ${formatNumber(totals.proteinG)}g · C ${formatNumber(totals.carbG)}g · F ${formatNumber(totals.fatG)}g</em>`;
+    list.append(row);
+  });
+  panel.querySelector('.proposal-apply').addEventListener('click', () => applyProposal(state));
+  panel.querySelector('.proposal-decline').addEventListener('click', () => showDeclineRetry(state, proposal));
+}
+
+function showDeclineRetry(state, proposal) {
+  const panel = actionPanel(state);
+  const canTryAnotherMeal = proposal.source === 'alternate_meal' && state.mealOptions.length > 0;
+  const canRetryAi = proposal.retryContext?.attemptedItems && proposal.retryContext?.action !== 'rebalance';
+  panel.innerHTML = `
+    <p class="meal-action-title">Suggestion declined</p>
+    ${canRetryAi ? "<label class=\"decline-feedback\">What didn't you like? <input type=\"text\" placeholder=\"Optional feedback\" /></label>" : ''}
+    <div class="proposal-actions">
+      ${canRetryAi ? '<button class="btn btn-primary retry-ai" type="button">Try again</button>' : ''}
+      ${canTryAnotherMeal ? '<button class="btn btn-primary retry-alternate" type="button">Try another meal</button>' : ''}
+      <button class="btn btn-ghost close-action" type="button">Close</button>
+    </div>
+  `;
+  panel.querySelector('.retry-ai')?.addEventListener('click', () => {
+    const feedback = panel.querySelector('input').value.trim();
+    requestGuidedAiSuggestion(state, {
+      ...(proposal.retryContext || {}),
+      rejectedProposal: proposal,
+      userFeedback: feedback,
+    });
+  });
+  panel.querySelector('.retry-alternate')?.addEventListener('click', () => handleTryAnotherMeal(state));
+  panel.querySelector('.close-action').addEventListener('click', () => {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    state.pendingProposal = null;
+  });
+}
+
+function applyProposal(state) {
+  if (!state.pendingProposal) return;
+  state.items = state.pendingProposal.proposedItems.map(normalizeStateItem);
+  state.isOriginalTemplate = false;
+  state.numberOfSwaps = state.pendingProposal.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
+  if (state.pendingProposal.source === 'alternate_meal') {
+    state.templateName = state.pendingProposal.templateName || state.pendingProposal.title.replace(/^Try\s+/, '');
+    state.isApproximate = Boolean(state.pendingProposal.isApproximate);
+  }
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+  resetChat(state);
+  const panel = actionPanel(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  state.pendingProposal = null;
+}
+
+function actionPanel(state) {
+  return state.cardEl.querySelector('.meal-action-panel');
+}
+
+function showActionMessage(state, text) {
+  const panel = actionPanel(state);
+  panel.hidden = false;
+  panel.innerHTML = `<p class="meal-action-message">${escapeHtml(text)}</p>`;
+}
+
+function renderFoodSearchResults(state, query, resultsEl, onSelect) {
+  const q = normalizeText(query);
+  const foods = [...foodsById.values()]
+    .filter(foodAllowedForCurrentPreferences)
+    .map((food) => ({ food, score: scoreFoodForMealSearch(food, q, state.tag) }))
+    .filter((entry) => entry.score > -1)
+    .sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name))
+    .slice(0, 8);
+
+  resultsEl.innerHTML = '';
+  if (!q) {
+    resultsEl.hidden = true;
+    return;
+  }
+  if (!foods.length) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.textContent = 'No allowed foods match that search.';
+    resultsEl.append(empty);
+    resultsEl.hidden = false;
+    return;
+  }
+
+  foods.forEach(({ food }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-item';
+    btn.innerHTML = `
+      <span>
+        <strong>${escapeHtml(food.name)}</strong>
+        <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${escapeHtml(food.macroRole || 'mixed')}</small>
+      </span>
+      <em>Add</em>
+    `;
+    btn.addEventListener('click', () => {
+      resultsEl.hidden = true;
+      onSelect(food);
+    });
+    resultsEl.append(btn);
+  });
+  resultsEl.hidden = false;
+}
+
+function scoreFoodForMealSearch(food, query, mealTag) {
+  if (!query) return -1;
+  const name = normalizeText(food.name);
+  const nameAr = normalizeText(food.nameAr);
+  const aliases = (food.aliases || []).map(normalizeText);
+  let score = -1;
+  if (name === query || nameAr === query || aliases.includes(query)) score = 100;
+  else if (name.startsWith(query) || nameAr.startsWith(query) || aliases.some((a) => a.startsWith(query))) score = 85;
+  else if (name.includes(query) || nameAr.includes(query) || aliases.some((a) => a.includes(query))) score = 65;
+  if (score < 0) return -1;
+  if ((food.mealTags || []).includes(mealTag)) score += 12;
+  return score;
+}
+
+function foodAllowedForCurrentPreferences(food) {
+  const prefs = getUserPreferences();
+  if (prefs.avoidFoods.includes(food.id)) return false;
+  if (prefs.dietType === 'vegan' && !food.isVegan) return false;
+  if (prefs.dietType === 'vegetarian' && !(food.isVegetarian || food.isVegan)) return false;
+  return true;
+}
+
+function readCustomFood(panel) {
+  const name = panel.querySelector('.custom-name')?.value.trim();
+  const calories = readMacroInput(panel, '.custom-calories');
+  const proteinG = readMacroInput(panel, '.custom-protein');
+  const carbG = readMacroInput(panel, '.custom-carbs');
+  const fatG = readMacroInput(panel, '.custom-fat');
+  if (!name || [calories, proteinG, carbG, fatG].some((value) => value === null)) return null;
+  return {
+    id: `custom_${Date.now()}`,
+    name,
+    servingG: 100,
+    calories,
+    proteinG,
+    carbG,
+    fatG,
+  };
+}
+
+function readMacroInput(panel, selector) {
+  const value = Number(panel.querySelector(selector)?.value);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function foodFromCustom(custom) {
+  return {
+    id: custom.id,
+    name: custom.name,
+    nameAr: '',
+    macroRole: dominantMacroRoleFrontend(custom),
+    caloriesPer100g: Number(custom.calories) || 0,
+    proteinGPer100g: Number(custom.proteinG) || 0,
+    carbGPer100g: Number(custom.carbG) || 0,
+    fatGPer100g: Number(custom.fatG) || 0,
+    isVegan: false,
+    isVegetarian: false,
+    allergens: [],
+    categories: ['custom_food'],
+    mealTags: ['breakfast', 'lunch', 'dinner', 'snack', 'iftar', 'suhoor'],
+    defaultServingG: 100,
+    minServingG: 0,
+    maxServingG: 100,
+    custom: true,
+  };
+}
+
+function dominantMacroRoleFrontend({ proteinG = 0, carbG = 0, fatG = 0 }) {
+  const scores = [
+    ['protein', Number(proteinG) * 4],
+    ['carb', Number(carbG) * 4],
+    ['fat', Number(fatG) * 9],
+  ].sort((a, b) => b[1] - a[1]);
+  if (scores[0][1] <= 0) return 'mixed';
+  return scores[0][1] >= scores[1][1] * 1.35 ? scores[0][0] : 'mixed';
+}
+
+function mergeSolvedQuantities(attemptedItems, solvedItems) {
+  const solvedById = new Map((solvedItems || []).map((item) => [String(item.foodId), Number(item.quantityG) || 0]));
+  return attemptedItems
+    .filter((item) => item.food && solvedById.has(String(item.food.id)))
+    .map((item) => normalizeStateItem({
+      ...item,
+      quantityG: solvedById.get(String(item.food.id)),
+    }));
+}
+
+function itemFromGuidedProposal(item) {
+  const custom = item.customFood || null;
+  const food = custom
+    ? foodFromCustom({ id: item.foodId, ...custom })
+    : (item.food?.caloriesPer100g !== undefined ? item.food : foodsById.get(item.foodId));
+
+  return normalizeStateItem({
+    food,
+    quantityG: item.quantityG,
+    locked: item.locked,
+    customFood: custom,
+    alternatives: [],
+    broaderAlternatives: [],
+    nearestAlternatives: [],
+  });
+}
+
+function formatMacroLine(totals) {
+  return `${formatNumber(totals.calories)} kcal · P ${formatNumber(totals.proteinG)}g · C ${formatNumber(totals.carbG)}g · F ${formatNumber(totals.fatG)}g`;
+}
+
+function formatPortion(item) {
+  if (item.customFood) {
+    const servingG = Number(item.customFood.servingG || 100);
+    const servings = servingG > 0 ? item.quantityG / servingG : 1;
+    return `${formatNumber(servings, servings >= 10 ? 0 : 1)} serving${Math.abs(servings - 1) < 0.05 ? '' : 's'}`;
+  }
+  return `${formatNumber(item.quantityG)}g`;
+}
+
+function compactRejectedProposal(proposal) {
+  if (!proposal) return null;
+  return {
+    source: proposal.source,
+    message: proposal.message,
+    items: mealActionItems(proposal.proposedItems || []),
+  };
 }
 
 // ── DOM refresh helpers ──────────────────────────────────────────────────────
@@ -902,7 +1132,7 @@ function showEditBar(planId, initialName) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, planData }),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res, 'Unable to save plan changes.');
     btn.disabled = false; btn.textContent = 'Save changes';
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
@@ -954,7 +1184,7 @@ function showFolderSaveBar(folderId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, planData }),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res, 'Unable to save plan.');
     btn.disabled = false; btn.textContent = 'Save plan';
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
@@ -992,15 +1222,15 @@ function buildPlanData() {
       items: state.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
+        locked: Boolean(item.locked),
+        customFood: item.customFood || null,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
         nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
-        swapOptions: item.swapOptions || null,
-        swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
-        isEmpty: !item.food,
         totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
       })),
+      mealOptions: state.mealOptions || [],
       totals: computeTotals(state.items),
       templateId: state.templateId,
       templateName: state.templateName,
@@ -1231,7 +1461,7 @@ const chatPanel = (() => {
         signal: AbortSignal.timeout(50_000),
       });
 
-      const payload = await res.json();
+      const payload = await readJsonResponse(res, 'AI request failed.');
       if (!res.ok) throw new Error(payload.error || 'AI request failed');
 
       state.chatHistory.push({ role: 'assistant', content: payload.message || '' });
@@ -1390,7 +1620,7 @@ function deepCopyItems(items) {
 async function loadPreferenceOptions() {
   try {
     const response = await fetch('/api/preferences');
-    const payload = await response.json();
+    const payload = await readJsonResponse(response, 'Unable to load preference options.');
 
     if (!response.ok) {
       throw new Error(payload.error || 'Unable to load preference options.');
