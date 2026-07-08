@@ -64,13 +64,6 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
-const SWAP_GRAM_STEP = 5;
-const SWAP_GRAM_SCORE_WEIGHTS = {
-  calories: 0.35,
-  proteinG: 1,
-  carbG: 1,
-  fatG: 1,
-};
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -245,11 +238,13 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       })),
       items: meal.items.map((item) => ({
         food: item.food,
-        quantityG: item.quantityG,
+        quantityG: Number(item.quantityG) || 0,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
         nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
+        swapOptions: item.swapOptions || null,
+        swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
       })),
       chatHistory: [],
       chatTurnCount: 0,
@@ -382,22 +377,19 @@ function renderMealCard(state) {
   const card = mealTemplate.content.firstElementChild.cloneNode(true);
   card.querySelector('h2').textContent = state.name;
   card.dataset.mealIndex = state.mealIndex;
+  state.cardEl = card;
 
   refreshMealCardHeader(card, state);
 
-  const foodList = card.querySelector('.food-list');
-  state.items.forEach((_, itemIndex) => {
-    foodList.append(renderFoodItem(state, itemIndex));
-  });
+  renderFoodList(state);
 
   // Auto-balance button
   card.querySelector('.auto-balance-btn').addEventListener('click', () => handleAutoBalance(state));
 
-  // Add food button
-  card.querySelector('.add-food-btn').addEventListener('click', () => toggleAddFoodPanel(state, card));
-
   // Chat with AI button
   card.querySelector('.chat-ai-btn').addEventListener('click', () => chatPanel.open(state));
+
+  card.querySelector('.food-slot-add-btn').addEventListener('click', () => addEmptyFoodSlot(state));
 
   return card;
 }
@@ -433,18 +425,121 @@ function mealTemplateStatusLabel(state) {
   return 'Original template';
 }
 
+function renderFoodList(state) {
+  const foodList = state.cardEl?.querySelector('.food-list');
+  if (!foodList) return;
+  foodList.innerHTML = '';
+  state.items.forEach((_, itemIndex) => {
+    foodList.append(renderFoodItem(state, itemIndex));
+  });
+}
+
+function createEmptyFoodSlot() {
+  return {
+    food: null,
+    quantityG: 0,
+    alternatives: [],
+    broaderAlternatives: [],
+    nearestAlternatives: [],
+    component: null,
+    swapOptions: [],
+    swapIndex: 0,
+    isEmpty: true,
+  };
+}
+
+function addEmptyFoodSlot(state) {
+  state.items.push(createEmptyFoodSlot());
+  renderFoodList(state);
+}
+
+function removeFoodSlot(state, itemIndex) {
+  const item = state.items[itemIndex];
+  const label = item?.food?.name || 'this empty food slot';
+  if (!confirm(`Delete ${label}?`)) return;
+  state.items.splice(itemIndex, 1);
+  if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function uniqueFoodsById(foods) {
+  const seen = new Set();
+  const result = [];
+  for (const food of foods || []) {
+    if (!food?.id || seen.has(food.id)) continue;
+    seen.add(food.id);
+    result.push(food);
+  }
+  return result;
+}
+
+function ensureSwapState(item) {
+  if (!item.food) {
+    item.swapOptions = [];
+    item.swapIndex = 0;
+    return item.swapOptions;
+  }
+
+  const existingOptions = Array.isArray(item.swapOptions) && item.swapOptions.length > 0
+    ? item.swapOptions
+    : [item.food, ...(item.alternatives || [])];
+  item.swapOptions = uniqueFoodsById(existingOptions);
+
+  const currentIndex = item.swapOptions.findIndex((food) => food.id === item.food.id);
+  if (currentIndex === -1) {
+    item.swapOptions = uniqueFoodsById([item.food, ...item.swapOptions]);
+    item.swapIndex = 0;
+  } else {
+    item.swapIndex = currentIndex;
+  }
+
+  return item.swapOptions;
+}
+
+function cycleFoodSwap(state, itemIndex, direction) {
+  const item = state.items[itemIndex];
+  const options = ensureSwapState(item);
+  if (options.length <= 1) return;
+
+  const nextIndex = (item.swapIndex + direction + options.length) % options.length;
+  applyFoodSwap(state, itemIndex, options[nextIndex], { swapIndex: nextIndex });
+}
+
 // ── Food item rendering ──────────────────────────────────────────────────────
 
 function renderFoodItem(state, itemIndex) {
   const item = state.items[itemIndex];
   const food = item.food;
-  const totals = itemTotals(food, item.quantityG);
 
   const row = document.createElement('div');
   row.className = 'food-item';
   row.dataset.itemIndex = itemIndex;
 
+  if (!food) {
+    row.classList.add('food-item--empty');
+    row.innerHTML = `
+      <button class="food-delete-btn" type="button" title="Delete food slot" aria-label="Delete empty food slot">×</button>
+      <button class="empty-food-slot-btn" type="button">
+        <span class="empty-food-slot-btn__mark">+</span>
+        <strong>Empty food slot</strong>
+        <small>Tap to choose a food</small>
+      </button>
+      <div class="food-slot-search" hidden></div>
+    `;
+
+    row.querySelector('.food-delete-btn').addEventListener('click', () => removeFoodSlot(state, itemIndex));
+    row.querySelector('.empty-food-slot-btn').addEventListener('click', () => openFoodSlotSearch(row, state, itemIndex));
+    return row;
+  }
+
+  const totals = itemTotals(food, item.quantityG);
+  const swapOptions = ensureSwapState(item);
+  const canSwap = swapOptions.length > 1;
+
   row.innerHTML = `
+    <button class="food-delete-btn" type="button" title="Delete food" aria-label="Delete ${escapeHtml(food.name)}">×</button>
     <div class="food-main">
       <div class="food-title">
         <div class="food-name">${escapeHtml(food.name)}</div>
@@ -456,7 +551,7 @@ function renderFoodItem(state, itemIndex) {
           class="food-gram-input"
           type="number"
           value="${item.quantityG}"
-          min="${food.minServingG}"
+          min="0"
           max="${food.maxServingG}"
           step="10"
           aria-label="Grams of ${escapeHtml(food.name)}"
@@ -471,10 +566,10 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
       <div class="food-actions">
-        <button class="food-swap-btn" type="button" title="Swap food" aria-label="Swap ${escapeHtml(food.name)}">→</button>
+        <button class="food-swap-cycle-btn swap-prev-btn" type="button" title="Previous level 1 swap" aria-label="Previous level 1 swap for ${escapeHtml(food.name)}" ${canSwap ? '' : 'disabled'}>←</button>
+        <button class="food-swap-cycle-btn swap-next-btn" type="button" title="Next level 1 swap" aria-label="Next level 1 swap for ${escapeHtml(food.name)}" ${canSwap ? '' : 'disabled'}>→</button>
       </div>
     </div>
-    <div class="food-swap-panel" hidden></div>
   `;
 
   const gramInput = row.querySelector('.food-gram-input');
@@ -509,75 +604,32 @@ function renderFoodItem(state, itemIndex) {
     refreshRedFlags();
   });
 
-  // Swap button
-  const swapBtn = row.querySelector('.food-swap-btn');
-  const swapPanel = row.querySelector('.food-swap-panel');
-  swapBtn.addEventListener('click', () => {
-    const isOpen = !swapPanel.hidden;
-    state.cardEl.querySelectorAll('.food-swap-panel').forEach((p) => { p.hidden = true; });
-    state.cardEl.querySelectorAll('.food-swap-btn').forEach((b) => b.classList.remove('active'));
-    if (!isOpen) {
-      swapPanel.hidden = false;
-      swapBtn.classList.add('active');
-      buildSwapPanel(swapPanel, state, itemIndex);
-    }
-  });
+  row.querySelector('.swap-prev-btn').addEventListener('click', () => cycleFoodSwap(state, itemIndex, -1));
+  row.querySelector('.swap-next-btn').addEventListener('click', () => cycleFoodSwap(state, itemIndex, 1));
+  row.querySelector('.food-delete-btn').addEventListener('click', () => removeFoodSlot(state, itemIndex));
 
   return row;
 }
 
-// ── Swap panel ───────────────────────────────────────────────────────────────
-
-function buildSwapPanel(panelEl, state, itemIndex) {
-  const item = state.items[itemIndex];
-
-  panelEl.innerHTML = '';
-
-  const alts = (item.alternatives || []).filter((alt) => alt.id !== item.food.id);
-
-  if (alts.length > 0) {
-    const label = document.createElement('div');
-    label.className = 'swap-section-label';
-    label.textContent = 'Level 1 swaps';
-    panelEl.append(label);
-
-    const altRow = document.createElement('div');
-    altRow.className = 'swap-alternatives';
-    for (const alt of alts) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'swap-alt-btn';
-      btn.dataset.altFoodId = alt.id;
-      btn.innerHTML = `<span>${escapeHtml(item.food.name)}</span><span class="swap-arrow">→</span><strong>${escapeHtml(alt.name)}</strong>`;
-      btn.addEventListener('click', () => {
-        panelEl.hidden = true;
-        panelEl.closest('.food-item').querySelector('.food-swap-btn').classList.remove('active');
-        applyFoodSwap(state, itemIndex, alt);
-      });
-      altRow.append(btn);
-    }
-    panelEl.append(altRow);
-  }
-
-  if (alts.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'suggestion-empty';
-    empty.textContent = 'No level 1 swaps available for this food.';
-    panelEl.append(empty);
-  }
-}
-
 // ── Food swap ────────────────────────────────────────────────────────────────
 
-function applyFoodSwap(state, itemIndex, newFood, gramAmount = null) {
+function applyFoodSwap(state, itemIndex, newFood, options = {}) {
   const previous = state.items[itemIndex];
+  const swapOptions = uniqueFoodsById(options.swapOptions || previous.swapOptions || [previous.food, ...(previous.alternatives || [])]);
+  const swapIndex = Number.isInteger(options.swapIndex)
+    ? options.swapIndex
+    : Math.max(0, swapOptions.findIndex((food) => food.id === newFood.id));
+
   state.items[itemIndex] = {
     food: newFood,
-    quantityG: clampGrams(newFood, gramAmount ?? previous.quantityG),
-    alternatives: (previous.alternatives || []).filter((food) => food.id !== newFood.id),
-    broaderAlternatives: (previous.broaderAlternatives || []).filter((food) => food.id !== newFood.id),
-    nearestAlternatives: (previous.nearestAlternatives || []).filter((food) => food.id !== newFood.id),
+    quantityG: Number.isFinite(options.gramAmount) ? clampGrams(newFood, options.gramAmount) : 0,
+    alternatives: previous.alternatives || [],
+    broaderAlternatives: previous.broaderAlternatives || [],
+    nearestAlternatives: previous.nearestAlternatives || [],
     component: previous.component || null,
+    swapOptions,
+    swapIndex,
+    isEmpty: false,
   };
   state.isOriginalTemplate = false;
   state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
@@ -590,10 +642,8 @@ function applyFoodSwap(state, itemIndex, newFood, gramAmount = null) {
   refreshRedFlags();
 }
 
-// ── Insert food ──────────────────────────────────────────────────────────────
-
-function toggleAddFoodPanel(state, card) {
-  const panelEl = card.querySelector('.add-food-panel');
+function openFoodSlotSearch(row, state, itemIndex) {
+  const panelEl = row.querySelector('.food-slot-search');
   if (!panelEl) return;
 
   if (!panelEl.hidden) {
@@ -602,29 +652,23 @@ function toggleAddFoodPanel(state, card) {
   }
 
   panelEl.innerHTML = '';
-
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'swap-search-wrap';
-  searchWrap.style.padding = '10px 18px 12px';
-
-  const label = document.createElement('div');
-  label.className = 'swap-section-label';
-  label.style.marginBottom = '6px';
-  label.textContent = 'Add food to this meal';
-
   const searchInput = document.createElement('input');
   searchInput.type = 'search';
   searchInput.className = 'swap-search-input';
-  searchInput.placeholder = 'Search food to add…';
+  searchInput.placeholder = 'Search food…';
   searchInput.autocomplete = 'off';
 
   const resultsEl = document.createElement('div');
-  resultsEl.className = 'swap-search-results';
+  resultsEl.className = 'swap-search-results food-slot-search-results';
   resultsEl.hidden = true;
 
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim().toLowerCase();
-    if (!q) { resultsEl.hidden = true; return; }
+    resultsEl.innerHTML = '';
+    if (!q) {
+      resultsEl.hidden = true;
+      return;
+    }
 
     const matches = [...foodsById.values()]
       .filter((f) => f.name.toLowerCase().includes(q))
@@ -635,36 +679,35 @@ function toggleAddFoodPanel(state, card) {
       })
       .slice(0, 10);
 
-    resultsEl.innerHTML = '';
     for (const food of matches) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'swap-result-item';
       btn.innerHTML = `<strong>${escapeHtml(food.name)}</strong><em>${escapeHtml(food.macroRole)}</em>`;
       btn.addEventListener('click', () => {
-        const newItem = {
+        state.items[itemIndex] = {
           food,
-          quantityG: clampGrams(food, food.defaultServingG),
+          quantityG: 0,
           alternatives: [],
           broaderAlternatives: [],
           nearestAlternatives: [],
           component: null,
+          swapOptions: [food],
+          swapIndex: 0,
+          isEmpty: false,
         };
-        state.items.push(newItem);
         if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
-        const foodList = card.querySelector('.food-list');
-        foodList.append(renderFoodItem(state, state.items.length - 1));
-        refreshMealCardHeader(card, state);
+        renderFoodList(state);
+        refreshMealCardHeader(state.cardEl, state);
         refreshRedFlags();
-        panelEl.hidden = true;
       });
       resultsEl.append(btn);
     }
+
     resultsEl.hidden = matches.length === 0;
   });
 
-  searchWrap.append(label, searchInput, resultsEl);
-  panelEl.append(searchWrap);
+  panelEl.append(searchInput, resultsEl);
   panelEl.hidden = false;
   setTimeout(() => searchInput.focus(), 50);
 }
@@ -691,11 +734,11 @@ async function handleAutoBalance(state) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mealTag: state.tag,
-        items: state.items.map((item) => ({
+        items: state.items.filter((item) => item.food).map((item) => ({
           foodId: item.food.id,
           quantityG: item.quantityG,
         })),
-        originalItems: state.originalItems.map((item) => ({
+        originalItems: state.originalItems.filter((item) => item.food).map((item) => ({
           foodId: item.food.id,
           quantityG: item.quantityG,
         })),
@@ -706,7 +749,7 @@ async function handleAutoBalance(state) {
 
     if (payload.success) {
       for (const update of payload.items) {
-        const stateItem = state.items.find((it) => it.food.id === update.foodId);
+        const stateItem = state.items.find((it) => it.food?.id === update.foodId);
         if (stateItem) stateItem.quantityG = update.quantityG;
       }
       if (state.chatHistory.length > 0 || state.chatWorkingItems) resetChat(state, true);
@@ -726,7 +769,7 @@ async function handleAutoBalance(state) {
 function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, deviations) {
   const card = state.cardEl;
 
-  const probIdx = state.items.findIndex((i) => i.food.id === problematicFoodId);
+  const probIdx = state.items.findIndex((i) => i.food?.id === problematicFoodId);
   if (probIdx !== -1) {
     card.querySelector(`[data-item-index="${probIdx}"]`)?.classList.add('food-item--problematic');
   }
@@ -774,10 +817,12 @@ function showAutoBalanceSuggestions(state, problematicFoodId, suggestions, devia
           broaderAlternatives: [],
           nearestAlternatives: [],
           component: null,
+          swapOptions: [s.food],
+          swapIndex: 0,
+          isEmpty: false,
         };
         state.items.push(newItem);
-        const foodList = card.querySelector('.food-list');
-        foodList.append(renderFoodItem(state, state.items.length - 1));
+        renderFoodList(state);
         refreshMealCardHeader(card, state);
         refreshRedFlags();
         panel.hidden = true;
@@ -810,6 +855,7 @@ function refreshMealDOM(state) {
   state.items.forEach((item, itemIndex) => {
     const rowEl = card.querySelector(`[data-item-index="${itemIndex}"]`);
     if (!rowEl) return;
+    if (!item.food) return;
 
     const totals = itemTotals(item.food, item.quantityG);
 
@@ -948,8 +994,12 @@ function buildPlanData() {
         quantityG: item.quantityG,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
+        nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
-        totals: itemTotals(item.food, item.quantityG),
+        swapOptions: item.swapOptions || null,
+        swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
+        isEmpty: !item.food,
+        totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
       })),
       totals: computeTotals(state.items),
       templateId: state.templateId,
@@ -993,7 +1043,7 @@ function buildMessageNode(role, text, opts = {}) {
 
 function buildDraftTable(state) {
   const workingItems = state.chatWorkingItems;
-  const displayItems = workingItems || state.items.map((i) => ({
+  const displayItems = workingItems || state.items.filter((i) => i.food).map((i) => ({
     foodId: i.food.id,
     name: i.food.name,
     grams: i.quantityG,
@@ -1004,7 +1054,7 @@ function buildDraftTable(state) {
   }));
 
   const prevItems = state.chatPrevWorkingItems || (workingItems
-    ? state.items.map((i) => ({ foodId: i.food.id, grams: i.quantityG }))
+    ? state.items.filter((i) => i.food).map((i) => ({ foodId: i.food.id, grams: i.quantityG }))
     : null);
   const prevMap = prevItems ? new Map(prevItems.map((i) => [i.foodId, i])) : null;
 
@@ -1147,9 +1197,9 @@ const chatPanel = (() => {
     try {
       const sourceItems = state.chatWorkingItems
         ? state.chatWorkingItems.map((pi) => ({ food: foodsById.get(pi.foodId), quantityG: pi.grams }))
-        : state.items;
+        : state.items.filter((item) => item.food);
 
-      const currentItems = sourceItems.map((item) => ({
+      const currentItems = sourceItems.filter((item) => item.food).map((item) => ({
         name: item.food.name,
         grams: item.quantityG,
         foodId: item.food.id,
@@ -1193,7 +1243,7 @@ const chatPanel = (() => {
         if (madeChanges) {
           state.chatPrevWorkingItems = state.chatWorkingItems
             ? [...state.chatWorkingItems]
-            : state.items.map((i) => ({ foodId: i.food.id, name: i.food.name, grams: i.quantityG }));
+            : state.items.filter((i) => i.food).map((i) => ({ foodId: i.food.id, name: i.food.name, grams: i.quantityG }));
           state.chatWorkingItems = payload.proposedItems;
           refreshDraftTable();
         }
@@ -1230,11 +1280,9 @@ const chatPanel = (() => {
     const state = currentState;
     state.items = state.chatWorkingItems.map((pi) => {
       const food = foodsById.get(pi.foodId);
-      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], nearestAlternatives: [], component: null };
+      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], nearestAlternatives: [], component: null, swapOptions: food ? [food] : [], swapIndex: 0, isEmpty: false };
     }).filter((i) => i.food);
-    const foodList = state.cardEl.querySelector('.food-list');
-    foodList.innerHTML = '';
-    state.items.forEach((_, i) => foodList.append(renderFoodItem(state, i)));
+    renderFoodList(state);
     refreshMealCardHeader(state.cardEl, state);
     refreshRedFlags();
     resetChat(state);
@@ -1294,6 +1342,7 @@ function getUserPreferences() {
 function computeTotals(items) {
   return items.reduce(
     (acc, item) => {
+      if (!item.food) return acc;
       const t = itemTotals(item.food, item.quantityG);
       acc.calories += t.calories;
       acc.proteinG += t.proteinG;
@@ -1315,87 +1364,8 @@ function itemTotals(food, quantityG) {
   };
 }
 
-function bestSwapGramsForMeal(state, itemIndex, newFood) {
-  const fixedItems = state.items.filter((_, index) => index !== itemIndex);
-  const currentItem = state.items[itemIndex];
-  return bestSingleFoodGramsForTarget({
-    food: newFood,
-    fixedTotals: computeTotals(fixedItems),
-    target: state.target,
-    preferredGrams: currentItem?.quantityG ?? newFood.defaultServingG,
-  });
-}
-
-function bestSingleFoodGramsForTarget({ food, fixedTotals, target, preferredGrams }) {
-  const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
-  const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
-  const perGram = {
-    calories: (Number(food.caloriesPer100g) || 0) / 100,
-    proteinG: (Number(food.proteinGPer100g) || 0) / 100,
-    carbG: (Number(food.carbGPer100g) || 0) / 100,
-    fatG: (Number(food.fatGPer100g) || 0) / 100,
-  };
-
-  let numerator = 0;
-  let denominator = 0;
-  for (const key of Object.keys(SWAP_GRAM_SCORE_WEIGHTS)) {
-    const desired = Number(target?.[key]) || 0;
-    const fixed = Number(fixedTotals?.[key]) || 0;
-    const rate = perGram[key];
-    const normalizer = Math.max(1, Math.abs(desired));
-    const weight = SWAP_GRAM_SCORE_WEIGHTS[key];
-    numerator += weight * rate * (desired - fixed) / (normalizer * normalizer);
-    denominator += weight * rate * rate / (normalizer * normalizer);
-  }
-
-  const analyticGrams = denominator > 0 ? numerator / denominator : food.defaultServingG;
-  const fallbackGrams = Number.isFinite(preferredGrams) ? preferredGrams : food.defaultServingG;
-  const candidates = new Set([
-    min,
-    max,
-    clampGrams(food, food.defaultServingG, SWAP_GRAM_STEP),
-    clampGrams(food, fallbackGrams, SWAP_GRAM_STEP),
-  ]);
-
-  if (Number.isFinite(analyticGrams)) {
-    const clamped = Math.min(Math.max(analyticGrams, min), max);
-    const lower = Math.floor(clamped / SWAP_GRAM_STEP) * SWAP_GRAM_STEP;
-    const upper = Math.ceil(clamped / SWAP_GRAM_STEP) * SWAP_GRAM_STEP;
-    [lower, upper, clamped].forEach((grams) => {
-      candidates.add(clampGrams(food, grams, SWAP_GRAM_STEP));
-    });
-  }
-
-  return [...candidates].sort((a, b) => {
-    const aTotals = totalsWithSingleFood(fixedTotals, food, a);
-    const bTotals = totalsWithSingleFood(fixedTotals, food, b);
-    const scoreDiff = macroErrorScoreForTotals(aTotals, target) - macroErrorScoreForTotals(bTotals, target);
-    if (Math.abs(scoreDiff) > 1e-9) return scoreDiff;
-    return Math.abs(a - fallbackGrams) - Math.abs(b - fallbackGrams);
-  })[0];
-}
-
-function totalsWithSingleFood(fixedTotals, food, quantityG) {
-  const totals = itemTotals(food, quantityG);
-  return {
-    calories: (Number(fixedTotals?.calories) || 0) + totals.calories,
-    proteinG: (Number(fixedTotals?.proteinG) || 0) + totals.proteinG,
-    carbG: (Number(fixedTotals?.carbG) || 0) + totals.carbG,
-    fatG: (Number(fixedTotals?.fatG) || 0) + totals.fatG,
-  };
-}
-
-function macroErrorScoreForTotals(totals, target) {
-  return Object.entries(SWAP_GRAM_SCORE_WEIGHTS).reduce((sum, [key, weight]) => {
-    const desired = Number(target?.[key]) || 0;
-    const actual = Number(totals?.[key]) || 0;
-    const normalizer = Math.max(1, Math.abs(desired));
-    const error = (actual - desired) / normalizer;
-    return sum + weight * error * error;
-  }, 0);
-}
-
 function clampGrams(food, grams, step = 10) {
+  if (!Number.isFinite(Number(grams)) || Number(grams) <= 0) return 0;
   const min = food.minServingG ?? 20;
   const max = food.maxServingG ?? 500;
   const safeStep = Number.isFinite(step) && step > 0 ? step : 10;

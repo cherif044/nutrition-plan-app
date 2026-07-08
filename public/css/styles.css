@@ -787,12 +787,12 @@ input:focus, select:focus {
 
 .food-list {
   display: grid;
-  gap: 8px;
-  padding: 4px 20px 20px;
+  gap: 10px;
+  padding: 14px 20px;
 }
 
 .food-list-head {
-  display: grid;
+  display: none;
   grid-template-columns: minmax(0, 1.4fr) 96px minmax(200px, 1fr);
   gap: 12px;
   padding: 0 20px 2px;
@@ -811,11 +811,10 @@ input:focus, select:focus {
 .food-item {
   position: relative;
   display: grid;
-  gap: 9px;
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.6);
-  padding: 13px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.54);
+  padding: 14px 42px 14px 14px;
   transition: all 0.2s var(--ease-out);
 }
 
@@ -831,12 +830,54 @@ input:focus, select:focus {
 
 .food-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) auto minmax(160px, 1fr) auto;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title title title"
+    "portion macros actions";
+  align-items: end;
+  column-gap: 14px;
+  row-gap: 12px;
 }
 
-.food-name { font-weight: 750; font-size: 0.88rem; }
+.food-delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1;
+  opacity: 0.5;
+  transition: all 0.16s var(--ease-spring);
+}
+
+.food-delete-btn:hover {
+  border-color: rgba(220, 38, 38, 0.38);
+  background: rgba(254, 226, 226, 0.88);
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.food-title {
+  grid-area: title;
+  min-width: 0;
+  padding-right: 28px;
+}
+
+.food-name {
+  font-weight: 780;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
 
 .food-quantity {
   justify-self: end;
@@ -849,15 +890,21 @@ input:focus, select:focus {
 }
 
 .food-macros {
+  grid-area: macros;
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  text-align: right;
-  font-size: 0.82rem;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .food-macros strong, .food-macros span { white-space: nowrap; }
-.food-macros strong { color: var(--ink); }
+.food-macros strong {
+  color: var(--ink);
+  font-size: 0.84rem;
+}
 
 /* ── Alternatives ─────────────────────────────────────────────────────── */
 
@@ -968,7 +1015,7 @@ input:focus, select:focus {
   flex-shrink: 0;
 }
 
-.auto-balance-btn, .add-food-btn, .chat-ai-btn {
+.auto-balance-btn, .chat-ai-btn {
   min-height: 30px !important;
   font-size: 0.73rem !important;
   padding: 0 9px !important;
@@ -978,24 +1025,30 @@ input:focus, select:focus {
 /* ── Gram controls ────────────────────────────────────────────────────── */
 
 .food-gram-wrap {
+  grid-area: portion;
   display: flex;
   align-items: center;
-  gap: 4px;
-  justify-self: end;
+  gap: 2px;
+  justify-self: start;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 2px 6px;
 }
 
 .gram-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.75);
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 700;
   flex-shrink: 0;
   line-height: 1;
@@ -1004,10 +1057,9 @@ input:focus, select:focus {
 }
 
 .gram-btn:hover {
-  border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-strong);
-  transform: scale(1.1);
+  transform: none;
 }
 
 .gram-btn:active {
@@ -1025,15 +1077,15 @@ input:focus, select:focus {
 }
 
 .food-gram-input {
-  width: 62px;
-  min-height: 32px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  width: 52px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink);
   text-align: right;
-  padding: 0 6px;
-  font-size: 0.82rem;
+  padding: 0 3px;
+  font-size: 0.8rem;
   font-weight: 800;
   outline: none;
   transition: all 0.15s var(--ease-out);
@@ -1042,48 +1094,119 @@ input:focus, select:focus {
 }
 
 .food-gram-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-glow);
-  background: #fff;
+  box-shadow: none;
+  background: transparent;
 }
 
 .food-gram-unit { color: var(--muted); font-size: 0.75rem; font-weight: 700; }
 
-/* ── Swap button ──────────────────────────────────────────────────────── */
+/* ── Swap controls ────────────────────────────────────────────────────── */
 
-.food-swap-btn {
+.food-swap-cycle-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.75);
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   flex-shrink: 0;
   transition: all 0.17s var(--ease-spring);
 }
 
-.food-swap-btn:hover, .food-swap-btn.active {
-  border-color: var(--accent);
+.food-swap-cycle-btn:hover:not(:disabled) {
   background: var(--accent-soft);
   color: var(--accent-strong);
-  transform: scale(1.06);
+  transform: none;
 }
 
-/* ── Swap panel ───────────────────────────────────────────────────────── */
+.food-swap-cycle-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
 
-.food-swap-panel {
+.food-slot-add-btn {
   display: grid;
-  gap: 10px;
-  padding: 13px;
-  border-top: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.4);
-  animation: expandDown 0.22s var(--ease-smooth) both;
+  place-items: center;
+  width: calc(100% - 40px);
+  min-height: 42px;
+  margin: 0 20px 20px;
+  border: 1px dashed rgba(13, 148, 136, 0.42);
+  border-radius: var(--r-sm);
+  background: rgba(13, 148, 136, 0.06);
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: 1.35rem;
+  font-weight: 850;
+  line-height: 1;
+  transition: all 0.18s var(--ease-spring);
+}
+
+.food-slot-add-btn:hover {
+  border-style: solid;
+  background: var(--accent-soft);
+  transform: translateY(-1px);
+}
+
+.food-item--empty {
+  padding: 13px 42px 13px 13px;
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.empty-food-slot-btn {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.empty-food-slot-btn__mark {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 1.2rem;
+  font-weight: 850;
+}
+
+.empty-food-slot-btn strong {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.empty-food-slot-btn small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.food-slot-search {
+  position: relative;
+  padding-top: 8px;
+}
+
+.food-slot-search[hidden] { display: none; }
+
+.food-slot-search-results {
+  position: static;
+  margin-top: 6px;
 }
 
 .swap-section-label {
@@ -1489,7 +1612,7 @@ input:focus, select:focus {
   flex-shrink: 0;
 }
 
-.auto-balance-btn, .add-food-btn {
+.auto-balance-btn {
   min-height: 30px !important;
   font-size: 0.73rem !important;
   padding: 0 9px !important;
@@ -1564,7 +1687,19 @@ input:focus, select:focus {
 
 /* ── Food actions ─────────────────────────────────────────────────────── */
 
-.food-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.food-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  justify-self: end;
+  align-self: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 2px;
+}
 
 /* ── Locked food ──────────────────────────────────────────────────────── */
 
@@ -2194,14 +2329,22 @@ input:focus, select:focus {
 
   .field-grid, .segmented, .metrics, .meal-card__totals { grid-template-columns: 1fr; }
   .food-list-head { display: none; }
-  .food-main { grid-template-columns: 1fr auto; }
+  .food-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title title"
+      "portion actions"
+      "macros macros";
+    row-gap: 10px;
+  }
   .food-quantity { justify-self: flex-start; }
   .food-macros { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
 
   form .panel, .summary, .empty-state { padding: 16px; }
   .meal-card__header { padding: 16px; }
   .meal-card__totals, .food-list { padding-left: 16px; padding-right: 16px; }
-  .food-list { padding-bottom: 16px; }
+  .food-list { padding-bottom: 12px; }
+  .food-slot-add-btn { width: calc(100% - 32px); margin-left: 16px; margin-right: 16px; }
 
   .planner-nav__brand h1 { font-size: 1.1rem; }
   .ai-chat-panel { width: 100%; }
@@ -2214,7 +2357,7 @@ input:focus, select:focus {
 
   .meal-card__actions { flex-wrap: wrap; gap: 4px; }
 
-  .auto-balance-btn, .add-food-btn, .chat-ai-btn {
+  .auto-balance-btn, .chat-ai-btn {
     font-size: 0.68rem !important;
     padding: 0 7px !important;
   }
