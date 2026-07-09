@@ -162,6 +162,7 @@ Do not adjust other meals. Do not suggest another full meal. Do not repeat rejec
 
 Allowed actions:
 - replace one existing non-custom food with one available food
+- add one available food when a swap/add/remove attempt is close but missing a balancing macro
 - remove one existing food only if enough foods remain
 - keep an existing custom food but suggest replacing another food
 - return impossible if no sensible food-level change exists
@@ -177,7 +178,8 @@ Rules:
 3. Keep locked:true on custom foods.
 4. Do not include foods from user avoids.
 5. Keep this meal recognizable; change the smallest number of foods.
-6. Quantity numbers are only a draft; backend will rebalance and validate them.`;
+6. For action "swap_food", preserve the user's chosen replacement from ATTEMPTED items whenever possible. First try adding exactly one AVAILABLE food to balance the swapped meal. If that cannot work, try removing exactly one non-custom food. Only suggest another replacement if preserving the chosen swap is clearly impossible.
+7. Quantity numbers are only a draft; backend will rebalance and validate them.`;
 
     const userContent = JSON.stringify({
       action,

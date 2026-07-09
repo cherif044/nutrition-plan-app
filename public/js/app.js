@@ -251,6 +251,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         .map(normalizeMealOption)
         .filter((option) => mealOptionFitsTarget(option, meal.target)),
       mealOptionIndex: 0,
+      mealOptionsLoaded: (meal.mealOptions || []).length > 0,
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
@@ -268,6 +269,14 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         swapOptions: item.swapOptions || null,
         swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
       })),
+      originalMealOption: normalizeMealOption({
+        templateId: meal.templateId || null,
+        templateName: meal.templateName || meal.name,
+        templateFamily: meal.templateFamily || null,
+        items: meal.items,
+        totals: meal.totals || null,
+        isApproximate: Boolean(meal.isApproximate),
+      }),
       chatHistory: [],
       chatTurnCount: 0,
       chatWorkingItems: null,
@@ -405,11 +414,11 @@ function renderMealCard(state) {
 
   renderFoodList(state);
 
-  card.querySelector('.try-meal-btn').addEventListener('click', () => handleTryAnotherMeal(state));
-  card.querySelector('.add-food-btn').addEventListener('click', () => showAddFoodAction(state));
-  card.querySelector('.remove-food-btn').addEventListener('click', () => showRemoveFoodAction(state));
-  card.querySelector('.swap-food-btn').addEventListener('click', () => showSwapFoodAction(state));
+  card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
+  card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
+  card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
   card.querySelector('.rebalance-btn').addEventListener('click', () => handleDeterministicRebalance(state, { previewTitle: 'Rebalanced meal' }));
+  refreshMealCycleButtons(state);
 
   return card;
 }
@@ -479,8 +488,19 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
+      <div class="food-actions">
+        <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${escapeHtml(food.name)}">
+          <span aria-hidden="true">⇄</span>
+        </button>
+        <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${escapeHtml(food.name)}">
+          <span aria-hidden="true">⌫</span>
+        </button>
+      </div>
     </div>
   `;
+
+  row.querySelector('.food-swap-btn').addEventListener('click', () => showSwapFoodAction(state, itemIndex));
+  row.querySelector('.food-delete-btn').addEventListener('click', () => showRemoveFoodAction(state, itemIndex));
 
   return row;
 }
@@ -545,25 +565,71 @@ function customFoodPayload(food) {
 }
 
 async function handleTryAnotherMeal(state) {
-  if (!state.mealOptions.length) {
+  await handleCycleMealOption(state, 1);
+}
+
+function readyMealOptions(state) {
+  const original = state.originalMealOption || normalizeMealOption({
+    templateId: state.templateId || null,
+    templateName: state.templateName || state.name,
+    items: state.items,
+    isApproximate: Boolean(state.isApproximate),
+  });
+  const seen = new Set();
+  return [original, ...(state.mealOptions || [])].filter((option) => {
+    const key = option.templateId || option.templateName || JSON.stringify((option.items || []).map((item) => item.food?.id));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Array.isArray(option.items) && option.items.length > 0;
+  });
+}
+
+async function handleCycleMealOption(state, direction) {
+  if (direction > 0 && state.mealOptionIndex >= readyMealOptions(state).length - 1) {
     const refillOk = await refillMealOptions(state);
     if (!refillOk) return;
-    if (!state.mealOptions.length) {
-      showActionMessage(state, 'No validated alternate meals were found for this slot.');
-      return;
-    }
   }
-  const option = state.mealOptions[state.mealOptionIndex % state.mealOptions.length];
-  state.mealOptionIndex += 1;
-  showProposal(state, {
-    title: `Try ${option.templateName}`,
-    message: 'Previewing another validated meal for the same target.',
-    proposedItems: option.items,
-    proposedTotals: computeTotals(option.items),
-    source: 'alternate_meal',
-    templateName: option.templateName,
-    isApproximate: option.isApproximate,
-  });
+
+  const options = readyMealOptions(state);
+  const nextIndex = state.mealOptionIndex + direction;
+  if (nextIndex < 0 || nextIndex >= options.length) {
+    refreshMealCycleButtons(state);
+    return;
+  }
+
+  applyReadyMealOption(state, options[nextIndex], nextIndex);
+}
+
+function applyReadyMealOption(state, option, optionIndex) {
+  state.items = option.items.map(normalizeStateItem);
+  state.mealOptionIndex = optionIndex;
+  state.templateId = option.templateId || state.templateId;
+  state.templateName = option.templateName || state.templateName;
+  state.isApproximate = Boolean(option.isApproximate);
+  state.isOriginalTemplate = optionIndex === 0;
+  state.numberOfSwaps = 0;
+  state.pendingProposal = null;
+
+  const panel = actionPanel(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
+  refreshRedFlags();
+  resetChat(state);
+}
+
+function refreshMealCycleButtons(state) {
+  const options = readyMealOptions(state);
+  const prev = state.cardEl?.querySelector('.meal-cycle-btn--prev');
+  const next = state.cardEl?.querySelector('.meal-cycle-btn--next');
+  if (!prev || !next) return;
+
+  prev.disabled = state.mealOptionIndex <= 0;
+  next.disabled = state.mealOptionsLoaded && state.mealOptionIndex >= options.length - 1;
+  prev.setAttribute('aria-disabled', String(prev.disabled));
+  next.setAttribute('aria-disabled', String(next.disabled));
 }
 
 async function refillMealOptions(state) {
@@ -587,6 +653,8 @@ async function refillMealOptions(state) {
       .map(normalizeMealOption)
       .filter((option) => mealOptionFitsTarget(option, state.target));
     state.mealOptionIndex = 0;
+    state.mealOptionsLoaded = true;
+    refreshMealCycleButtons(state);
     return true;
   } catch (error) {
     showActionMessage(state, error.message || 'Unable to find alternate meals.');
@@ -617,6 +685,8 @@ function showAddFoodAction(state) {
     <div class="meal-action-grid">
       <label>Database food <input class="guided-food-search" type="search" placeholder="Search existing foods" autocomplete="off" /></label>
       <div class="guided-search-results" hidden></div>
+      <div class="guided-selected-food" hidden></div>
+      <button class="btn btn-primary guided-food-submit" type="button" disabled>Add selected food</button>
     </div>
     <div class="custom-food-form">
       <p class="meal-action-subtitle">Custom food</p>
@@ -633,7 +703,29 @@ function showAddFoodAction(state) {
 
   const search = panel.querySelector('.guided-food-search');
   const results = panel.querySelector('.guided-search-results');
-  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
+  const selectedEl = panel.querySelector('.guided-selected-food');
+  const submit = panel.querySelector('.guided-food-submit');
+  let selectedFood = null;
+
+  search.addEventListener('input', () => {
+    selectedFood = null;
+    selectedEl.hidden = true;
+    selectedEl.innerHTML = '';
+    submit.disabled = true;
+    renderFoodSearchResults(state, search.value, results, (food) => {
+      selectedFood = food;
+      selectedEl.hidden = false;
+      selectedEl.innerHTML = `<strong>${escapeHtml(food.name)}</strong><span>${formatNumber(food.caloriesPer100g)} kcal/100g</span>`;
+      submit.disabled = false;
+    });
+  });
+
+  submit.addEventListener('click', () => {
+    if (!selectedFood) {
+      showActionMessage(state, 'Choose a food from the search results first.');
+      return;
+    }
+    const food = selectedFood;
     const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, locked: true })];
     attemptGuidedRebalance(state, {
       action: 'add_food',
@@ -641,7 +733,7 @@ function showAddFoodAction(state) {
       title: `Add ${food.name}`,
       failureReason: `Adding ${food.name} could not be fit by deterministic rebalance.`,
     });
-  }));
+  });
 
   panel.querySelector('.guided-custom-add').addEventListener('click', () => {
     const custom = readCustomFood(panel);
@@ -660,12 +752,26 @@ function showAddFoodAction(state) {
   });
 }
 
-function showRemoveFoodAction(state) {
+function showRemoveFoodAction(state, itemIndex = null) {
   const foods = state.items.filter((item) => item.food);
   if (foods.length <= 1) {
     showActionMessage(state, 'This meal needs at least one food.');
     return;
   }
+
+  if (Number.isInteger(itemIndex)) {
+    const item = state.items[itemIndex];
+    if (!item?.food) return;
+    const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
+    attemptGuidedRebalance(state, {
+      action: 'remove_food',
+      attemptedItems: attempted,
+      title: `Remove ${item.food.name}`,
+      failureReason: `Removing ${item.food.name} could not be fit by deterministic rebalance.`,
+    });
+    return;
+  }
+
   const panel = actionPanel(state);
   panel.hidden = false;
   panel.innerHTML = `
@@ -691,43 +797,77 @@ function showRemoveFoodAction(state) {
   });
 }
 
-function showSwapFoodAction(state) {
-  const swappable = state.items
-    .filter((item) => item.food)
-    .map((item) => ({ item, alternatives: (item.alternatives || []).filter(foodAllowedForCurrentPreferences) }))
-    .filter((entry) => entry.alternatives.length > 0);
-  if (!swappable.length) {
-    showActionMessage(state, 'No approved swaps available.');
+function showSwapFoodAction(state, itemIndex = null) {
+  const item = Number.isInteger(itemIndex) ? state.items[itemIndex] : null;
+  if (!item?.food) {
+    showActionMessage(state, 'Choose a food to swap first.');
     return;
   }
+
+  const alternatives = uniqueFoods([
+    ...(item.alternatives || []),
+    ...(item.broaderAlternatives || []),
+    ...(item.nearestAlternatives || []),
+  ]).filter(foodAllowedForCurrentPreferences);
+
   const panel = actionPanel(state);
   panel.hidden = false;
   panel.innerHTML = `
-    <p class="meal-action-title">Swap one food</p>
+    <p class="meal-action-title">Swap ${escapeHtml(item.food.name)}</p>
     <div class="guided-choice-list"></div>
+    <div class="meal-action-grid swap-search-block">
+      <label>Search foods <input class="guided-food-search" type="search" placeholder="Find a replacement food" autocomplete="off" /></label>
+      <div class="guided-search-results" hidden></div>
+    </div>
   `;
   const list = panel.querySelector('.guided-choice-list');
-  swappable.forEach(({ item, alternatives }) => {
-    for (const alt of alternatives) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'suggestion-action-btn';
-      btn.innerHTML = `<strong>${escapeHtml(item.food.name)} <span class="swap-arrow">→</span> ${escapeHtml(alt.name)}</strong>`;
-      btn.addEventListener('click', () => {
-        const attempted = state.items.map((candidate) => (
-          candidate === item
-            ? normalizeStateItem({ ...item, food: alt, quantityG: alt.defaultServingG, locked: false })
-            : candidate
-        ));
-        attemptGuidedRebalance(state, {
-          action: 'swap_food',
-          attemptedItems: attempted,
-          title: `Swap ${item.food.name}`,
-          failureReason: `Swapping ${item.food.name} for ${alt.name} could not be fit by deterministic rebalance.`,
-        });
-      });
-      list.append(btn);
-    }
+
+  if (!alternatives.length) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.textContent = 'No suggested swaps for this food. Search for another allowed food.';
+    list.append(empty);
+  }
+
+  alternatives.slice(0, 8).forEach((alt) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-action-btn';
+    btn.innerHTML = `<strong>${escapeHtml(alt.name)}</strong><em>Swap</em>`;
+    btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
+    list.append(btn);
+  });
+
+  const search = panel.querySelector('.guided-food-search');
+  const results = panel.querySelector('.guided-search-results');
+  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
+    attemptSwapFood(state, itemIndex, food);
+  }));
+}
+
+function uniqueFoods(foods) {
+  const seen = new Set();
+  return (foods || []).filter((food) => {
+    if (!food?.id || seen.has(food.id)) return false;
+    seen.add(food.id);
+    return true;
+  });
+}
+
+function attemptSwapFood(state, itemIndex, alt) {
+  const item = state.items[itemIndex];
+  if (!item?.food || !alt) return;
+  const replacementQuantityG = clampGrams(alt, item.quantityG, 5) || alt.defaultServingG || item.quantityG;
+  const attempted = state.items.map((candidate, candidateIndex) => (
+    candidateIndex === itemIndex
+      ? normalizeStateItem({ ...item, food: alt, quantityG: replacementQuantityG, locked: false })
+      : candidate
+  ));
+  attemptGuidedRebalance(state, {
+    action: 'swap_food',
+    attemptedItems: attempted,
+    title: `Swap ${item.food.name}`,
+    failureReason: `Swapping ${item.food.name} for ${alt.name} could not be fit by deterministic rebalance.`,
   });
 }
 
@@ -858,7 +998,7 @@ function showDeclineRetry(state, proposal) {
     ${canRetryAi ? "<label class=\"decline-feedback\">What didn't you like? <input type=\"text\" placeholder=\"Optional feedback\" /></label>" : ''}
     <div class="proposal-actions">
       ${canRetryAi ? '<button class="btn btn-primary retry-ai" type="button">Try again</button>' : ''}
-      ${canTryAnotherMeal ? '<button class="btn btn-primary retry-alternate" type="button">Try another meal</button>' : ''}
+      ${canTryAnotherMeal ? '<button class="btn btn-primary retry-alternate" type="button">Next ready meal</button>' : ''}
       <button class="btn btn-ghost close-action" type="button">Close</button>
     </div>
   `;
@@ -886,9 +1026,19 @@ function applyProposal(state) {
   if (state.pendingProposal.source === 'alternate_meal') {
     state.templateName = state.pendingProposal.templateName || state.pendingProposal.title.replace(/^Try\s+/, '');
     state.isApproximate = Boolean(state.pendingProposal.isApproximate);
+  } else {
+    state.originalMealOption = normalizeMealOption({
+      templateId: state.templateId || null,
+      templateName: state.templateName || state.name,
+      items: state.items,
+      totals: computeTotals(state.items),
+      isApproximate: Boolean(state.isApproximate),
+    });
+    state.mealOptionIndex = 0;
   }
   renderFoodList(state);
   refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
   refreshRedFlags();
   resetChat(state);
   const panel = actionPanel(state);
@@ -939,7 +1089,7 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect) {
         <strong>${escapeHtml(food.name)}</strong>
         <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${escapeHtml(food.macroRole || 'mixed')}</small>
       </span>
-      <em>Add</em>
+      <em>Select</em>
     `;
     btn.addEventListener('click', () => {
       resultsEl.hidden = true;

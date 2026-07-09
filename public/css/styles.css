@@ -649,6 +649,7 @@ input:focus, select:focus {
 /* ── Meal card ────────────────────────────────────────────────────────── */
 
 .meal-card {
+  position: relative;
   display: grid;
   gap: 0;
   overflow: hidden;
@@ -830,10 +831,10 @@ input:focus, select:focus {
 
 .food-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
-    "title grams"
-    "macros macros";
+    "title grams actions"
+    "macros macros actions";
   align-items: center;
   column-gap: 12px;
   row-gap: 8px;
@@ -888,6 +889,110 @@ input:focus, select:focus {
   color: var(--ink);
   font-size: 0.84rem;
 }
+
+.food-actions {
+  grid-area: actions;
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  padding: 3px;
+}
+
+.food-icon-btn,
+.meal-add-food-btn,
+.meal-cycle-btn {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: rgba(248, 250, 252, 0.84);
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transition: background 0.16s var(--ease-smooth), color 0.16s var(--ease-smooth), opacity 0.16s var(--ease-smooth), transform 0.16s var(--ease-spring);
+}
+
+.food-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.food-icon-btn:hover {
+  background: #fff;
+  color: var(--accent-strong);
+  transform: scale(1.06);
+}
+
+.food-icon-btn:active,
+.meal-add-food-btn:active,
+.meal-cycle-btn:active {
+  transform: scale(0.94);
+}
+
+.food-delete-btn:hover {
+  color: var(--danger);
+}
+
+.meal-add-tray {
+  display: flex;
+  justify-content: center;
+  padding: 0 20px 18px;
+}
+
+.meal-add-food-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  font-size: 1.45rem;
+  font-weight: 750;
+  box-shadow: 0 10px 24px rgba(13, 148, 136, 0.22), 0 1px 0 rgba(255, 255, 255, 0.28) inset;
+}
+
+.meal-add-food-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(13, 148, 136, 0.28), 0 1px 0 rgba(255, 255, 255, 0.3) inset;
+}
+
+.meal-cycle-btn {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  width: 34px;
+  height: 48px;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 1.55rem;
+  font-weight: 600;
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+}
+
+.meal-cycle-btn--prev { left: 8px; transform: translateY(-50%); }
+.meal-cycle-btn--next { right: 8px; transform: translateY(-50%); }
+
+.meal-cycle-btn:hover:not(:disabled) {
+  background: #fff;
+  color: var(--accent-strong);
+}
+
+.meal-cycle-btn:disabled {
+  opacity: 0.24;
+  cursor: default;
+  box-shadow: none;
+}
+
+.meal-cycle-btn--prev:active,
+.meal-cycle-btn--next:active { transform: translateY(-50%) scale(0.94); }
 
 /* ── Alternatives ─────────────────────────────────────────────────────── */
 
@@ -1430,6 +1535,40 @@ input:focus, select:focus {
 
 .guided-search-results[hidden] { display: none; }
 
+.guided-selected-food {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 9px;
+  background: rgba(13, 148, 136, 0.08);
+  color: var(--ink);
+  padding: 9px 11px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.guided-selected-food[hidden] { display: none; }
+
+.guided-selected-food span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.guided-food-submit:disabled {
+  opacity: 0.42;
+  cursor: default;
+  box-shadow: none;
+}
+
+.swap-search-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
 .custom-food-form {
   margin-top: 12px;
   padding-top: 12px;
@@ -1813,16 +1952,16 @@ input:focus, select:focus {
 
 .food-actions {
   grid-area: actions;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
   justify-self: end;
   align-self: center;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.62);
-  padding: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 3px;
 }
 
 /* ── Locked food ──────────────────────────────────────────────────────── */
@@ -2457,10 +2596,11 @@ input:focus, select:focus {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "title grams"
-      "macros macros";
+      "macros actions";
     row-gap: 8px;
   }
   .food-macros { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
+  .food-actions { align-self: end; }
   .custom-food-grid, .proposal-compare { grid-template-columns: 1fr; }
 
   form .panel, .summary, .empty-state { padding: 16px; }
@@ -2484,6 +2624,15 @@ input:focus, select:focus {
     font-size: 0.68rem !important;
     padding: 0 7px !important;
   }
+
+  .meal-cycle-btn {
+    width: 30px;
+    height: 42px;
+    font-size: 1.35rem;
+  }
+
+  .meal-cycle-btn--prev { left: 6px; }
+  .meal-cycle-btn--next { right: 6px; }
 }
 
 /* ── Touch — disable hover lifts on pure-touch devices ───────────────── */

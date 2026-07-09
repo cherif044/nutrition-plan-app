@@ -1982,6 +1982,143 @@ function solvePortionsLeastSquares(items, target, options = {}) {
   }));
 }
 
+function findPortionGridSolution(items, target, bounds, seedItems = items) {
+  const keys = ['calories', 'proteinG', 'carbG', 'fatG'];
+  const fixedItems = items.filter((item) => item.locked);
+  const fixedTotals = totalsForItems(fixedItems);
+  const seedByFoodId = new Map(seedItems.map((item) => [item.food.id, item.quantityG]));
+
+  const variables = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !item.locked)
+    .map(({ item, index }) => {
+      const candidates = servingGridCandidates(item.food, seedByFoodId.get(item.food.id) ?? item.quantityG)
+        .map((quantityG) => ({
+          quantityG,
+          totals: macrosForFoodPortion(item.food, quantityG),
+        }));
+      return { item, index, candidates };
+    })
+    .filter((entry) => entry.candidates.length > 0)
+    .sort((a, b) => a.candidates.length - b.candidates.length);
+
+  if (variables.length === 0) return null;
+
+  const suffix = Array.from({ length: variables.length + 1 }, () => emptyMacroRange());
+  for (let i = variables.length - 1; i >= 0; i--) {
+    const current = candidateMacroRange(variables[i].candidates);
+    suffix[i] = addMacroRanges(current, suffix[i + 1]);
+  }
+
+  let best = null;
+  let bestScore = Infinity;
+  const chosen = new Map();
+
+  function canStillFit(totals, pos) {
+    const remaining = suffix[pos];
+    return keys.every((key) => (
+      totals[key] + remaining.min[key] <= bounds[key].max &&
+      totals[key] + remaining.max[key] >= bounds[key].min
+    ));
+  }
+
+  function visit(pos, totals) {
+    if (!canStillFit(totals, pos)) return;
+
+    if (pos >= variables.length) {
+      if (findBoundsViolation(totals, bounds)) return;
+      const score = macroBoundFitScore(totals, target);
+      if (score < bestScore) {
+        bestScore = score;
+        best = new Map(chosen);
+      }
+      return;
+    }
+
+    const variable = variables[pos];
+    for (const candidate of variable.candidates) {
+      chosen.set(variable.index, candidate.quantityG);
+      visit(pos + 1, addMacros(totals, candidate.totals));
+      chosen.delete(variable.index);
+    }
+  }
+
+  visit(0, fixedTotals);
+  if (!best) return null;
+
+  return items.map((item, index) => (
+    best.has(index)
+      ? { ...item, quantityG: best.get(index) }
+      : item
+  ));
+}
+
+function servingGridCandidates(food, seedQuantityG, step = 5) {
+  const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
+  const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
+  const first = Math.ceil(min / step) * step;
+  const last = Math.floor(max / step) * step;
+  const candidates = [];
+
+  for (let quantityG = first; quantityG <= last; quantityG += step) {
+    candidates.push(quantityG);
+  }
+
+  const seed = roundServingWithinBounds(seedQuantityG, min, max, step);
+  if (!candidates.includes(seed)) candidates.push(seed);
+
+  return [...new Set(candidates)]
+    .sort((a, b) => Math.abs(a - seed) - Math.abs(b - seed) || a - b);
+}
+
+function emptyMacroRange() {
+  const empty = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+  return { min: { ...empty }, max: { ...empty } };
+}
+
+function candidateMacroRange(candidates) {
+  const range = {
+    min: { calories: Infinity, proteinG: Infinity, carbG: Infinity, fatG: Infinity },
+    max: { calories: -Infinity, proteinG: -Infinity, carbG: -Infinity, fatG: -Infinity },
+  };
+
+  for (const candidate of candidates) {
+    for (const key of Object.keys(range.min)) {
+      range.min[key] = Math.min(range.min[key], candidate.totals[key]);
+      range.max[key] = Math.max(range.max[key], candidate.totals[key]);
+    }
+  }
+
+  return range;
+}
+
+function addMacroRanges(left, right) {
+  const range = emptyMacroRange();
+  for (const key of Object.keys(range.min)) {
+    range.min[key] = left.min[key] + right.min[key];
+    range.max[key] = left.max[key] + right.max[key];
+  }
+  return range;
+}
+
+function addMacros(left, right) {
+  return {
+    calories: left.calories + right.calories,
+    proteinG: left.proteinG + right.proteinG,
+    carbG: left.carbG + right.carbG,
+    fatG: left.fatG + right.fatG,
+  };
+}
+
+function macroBoundFitScore(totals, target) {
+  return (
+    Math.abs(totals.calories - target.calories) / Math.max(1, target.calories) +
+    Math.abs(totals.proteinG - target.proteinG) / Math.max(1, target.proteinG) +
+    Math.abs(totals.carbG - target.carbG) / Math.max(1, target.carbG) +
+    Math.abs(totals.fatG - target.fatG) / Math.max(1, target.fatG)
+  );
+}
+
 function rebalanceMeal({ mealTarget, items: rawItems, mealBounds }) {
   const items = resolveMealActionItems(rawItems);
 
@@ -2004,6 +2141,14 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds }) {
   const totals = totalsForItems(finalItems);
   const violation = findBoundsViolation(totals, bounds);
   if (violation) {
+    const gridItems = findPortionGridSolution(items, mealTarget, bounds, finalItems);
+    if (gridItems) {
+      return {
+        success: true,
+        items: gridItems.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
+        totals: totalsForItems(gridItems),
+      };
+    }
     return { success: false, violatedMacro: violation };
   }
 
@@ -2073,7 +2218,9 @@ function adjustPortionsWithLocks(initialItems, target, bounds) {
     carbG: Math.max(0, target.carbG - lockedTotals.carbG),
     fatG: Math.max(0, target.fatG - lockedTotals.fatG),
   };
-  const adjustedUnlocked = solvePortionsLeastSquares(unlocked, residualTarget);
+  const adjustedUnlocked = solvePortionsLeastSquares(unlocked, residualTarget, {
+    maxIterations: NUTRITION.maxPortionAdjustmentIterations * 4,
+  });
   return initialItems.map((item) => (
     item.locked
       ? item

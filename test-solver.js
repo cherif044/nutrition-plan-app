@@ -1,5 +1,5 @@
 // Sanity checks for solvePortionsLeastSquares — run with: node test-solver.js
-const { solvePortionsLeastSquares } = require('./src/services/planGenerator');
+const { rebalanceMeal, solvePortionsLeastSquares } = require('./src/services/planGenerator');
 
 const PROTEIN_TOL = 10;
 const CARB_TOL    = 15;
@@ -99,6 +99,28 @@ if (r2) {
 
 // ─── Test 3: bounds never exceeded (summary) ──────────────────────────────
 console.log('\nTest 3: bounds (already verified per item in Tests 1 & 2 above)');
+
+// ─── Test 4: rebalance must not false-negative when a valid grid fit exists ──
+console.log('\nTest 4: rebalance false-negative regression — brown bread swap');
+const dinnerTarget = { calories: 761, proteinG: 53, carbG: 81, fatG: 25 };
+const brownBreadSwapItems = [
+  { foodId: 'bread_brown_whole_grain', quantityG: 30, locked: false },
+  { foodId: 'chicken_breast_skinless_boneless_grilled', quantityG: 85, locked: false },
+  { foodId: 'cheese_cheddar', quantityG: 40, locked: false },
+  { foodId: 'nuts_almond_butter_without_salt', quantityG: 15, locked: false },
+];
+const rebalance = rebalanceMeal({ mealTarget: dinnerTarget, items: brownBreadSwapItems });
+assert(rebalance.success === true, 'rebalance finds a valid in-range solution from a bad swap starting point');
+if (rebalance.success) {
+  assert(Math.abs(rebalance.totals.proteinG - dinnerTarget.proteinG) <= dinnerTarget.proteinG * 0.10,
+    `protein within meal bounds (got ${rebalance.totals.proteinG.toFixed(1)}g)`);
+  assert(Math.abs(rebalance.totals.carbG - dinnerTarget.carbG) <= dinnerTarget.carbG * 0.10,
+    `carbs within meal bounds (got ${rebalance.totals.carbG.toFixed(1)}g)`);
+  assert(Math.abs(rebalance.totals.fatG - dinnerTarget.fatG) <= dinnerTarget.fatG * 0.10,
+    `fat within meal bounds (got ${rebalance.totals.fatG.toFixed(1)}g)`);
+  assert(Math.abs(rebalance.totals.calories - dinnerTarget.calories) <= dinnerTarget.calories * 0.10,
+    `calories within meal bounds (got ${rebalance.totals.calories.toFixed(0)} kcal)`);
+}
 
 // ─── Results ──────────────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(50)}`);

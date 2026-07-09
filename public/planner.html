@@ -181,16 +181,14 @@
 
     <template id="meal-template">
       <article class="meal-card panel">
+        <button class="meal-cycle-btn meal-cycle-btn--prev" type="button" aria-label="Previous ready meal">‹</button>
+        <button class="meal-cycle-btn meal-cycle-btn--next" type="button" aria-label="Next ready meal">›</button>
         <div class="meal-card__header">
           <div>
             <h2></h2>
             <p class="meal-card__meta"></p>
           </div>
           <div class="meal-card__actions">
-            <button class="btn btn-ghost try-meal-btn" type="button">Try another</button>
-            <button class="btn btn-ghost add-food-btn" type="button">Add food</button>
-            <button class="btn btn-ghost remove-food-btn" type="button">Remove food</button>
-            <button class="btn btn-ghost swap-food-btn" type="button">Swap food</button>
             <button class="btn btn-primary rebalance-btn" type="button">Rebalance</button>
           </div>
         </div>
@@ -222,6 +220,11 @@
           <span>Macros</span>
         </div>
         <div class="food-list"></div>
+        <div class="meal-add-tray">
+          <button class="meal-add-food-btn" type="button" aria-label="Add food">
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
         <div class="meal-action-panel" hidden></div>
       </article>
     </template>
