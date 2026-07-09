@@ -89,7 +89,7 @@ if (r2) {
   const m2 = macros(r2);
   const fatResidual = Math.abs(m2.F - target2.fatG);
   assert(fatResidual > FAT_TOL,
-    `checkRebalanceFeasibility would report infeasible (fat residual=${fatResidual.toFixed(1)}g > tol=${FAT_TOL}g)`);
+    `rebalance should treat this as infeasible (fat residual=${fatResidual.toFixed(1)}g > tol=${FAT_TOL}g)`);
   r2.forEach((item) => {
     const { minServingG: lo, maxServingG: hi, id } = item.food;
     assert(item.quantityG >= lo && item.quantityG <= hi,
@@ -104,10 +104,10 @@ console.log('\nTest 3: bounds (already verified per item in Tests 1 & 2 above)')
 console.log('\nTest 4: rebalance false-negative regression — brown bread swap');
 const dinnerTarget = { calories: 761, proteinG: 53, carbG: 81, fatG: 25 };
 const brownBreadSwapItems = [
-  { foodId: 'bread_brown_whole_grain', quantityG: 30, locked: false },
-  { foodId: 'chicken_breast_skinless_boneless_grilled', quantityG: 85, locked: false },
-  { foodId: 'cheese_cheddar', quantityG: 40, locked: false },
-  { foodId: 'nuts_almond_butter_without_salt', quantityG: 15, locked: false },
+  { foodId: 'bread_brown_whole_grain', quantityG: 30 },
+  { foodId: 'chicken_breast_skinless_boneless_grilled', quantityG: 85 },
+  { foodId: 'cheese_cheddar', quantityG: 40 },
+  { foodId: 'nuts_almond_butter_without_salt', quantityG: 15 },
 ];
 const rebalance = rebalanceMeal({ mealTarget: dinnerTarget, items: brownBreadSwapItems });
 assert(rebalance.success === true, 'rebalance finds a valid in-range solution from a bad swap starting point');

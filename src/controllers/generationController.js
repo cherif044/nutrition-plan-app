@@ -1,6 +1,5 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
-const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, autoBalanceMeal, computeMealBounds, computeSensitivityMatrix, checkRebalanceFeasibility, filterFoodsForChatbox, generateAlternateMealOptions } = require('../services/planGenerator');
-const { loadFoods } = require('../repositories/foodRepository');
+const { generatePlan, generatePlanFreeform, getFoods, rebalanceMeal, filterFoodsForChatbox, generateAlternateMealOptions } = require('../services/planGenerator');
 const { chatWithLLM } = require('../services/llmService');
 
 const STRICT_TARGET_TOLERANCE = 0.10;
@@ -49,49 +48,6 @@ function rebalanceMealHandler(req, res, next) {
       return res.status(400).json({ error: 'mealTarget and items are required.' });
     }
     res.json(rebalanceMeal({ mealTarget, items, mealBounds }));
-  } catch (error) {
-    next(error);
-  }
-}
-
-function checkSwapHandler(req, res, next) {
-  try {
-    const { mealTarget, items, mealBounds } = req.body;
-    if (!mealTarget || !Array.isArray(items)) {
-      return res.status(400).json({ error: 'mealTarget and items are required.' });
-    }
-    res.json(checkRebalanceFeasibility({ mealTarget, items, mealBounds }));
-  } catch (error) {
-    next(error);
-  }
-}
-
-function autoBalanceMealHandler(req, res, next) {
-  try {
-    const { items, originalItems, mealTag } = req.body;
-    if (!Array.isArray(items) || !Array.isArray(originalItems)) {
-      return res.status(400).json({ error: 'items and originalItems must be arrays.' });
-    }
-    res.json(autoBalanceMeal({ items, originalItems, mealTag }));
-  } catch (error) {
-    next(error);
-  }
-}
-
-function computeSensitivityHandler(req, res, next) {
-  try {
-    const { mealTarget, items: rawItems } = req.body;
-    if (!mealTarget || !Array.isArray(rawItems)) {
-      return res.status(400).json({ error: 'mealTarget and items are required.' });
-    }
-    const foods = loadFoods();
-    const foodMap = new Map(foods.map((f) => [f.id, f]));
-    const items = rawItems.map((item) => {
-      const food = foodMap.get(String(item.foodId));
-      if (!food) throw new Error(`Unknown food id: ${item.foodId}`);
-      return { food, quantityG: Number(item.quantityG) || food.defaultServingG };
-    });
-    res.json({ sensitivityMatrix: computeSensitivityMatrix(items, mealTarget) });
   } catch (error) {
     next(error);
   }
@@ -168,18 +124,17 @@ Allowed actions:
 - return impossible if no sensible food-level change exists
 
 Return one JSON object:
-{"status":"proposal","message":"short user-facing explanation","items":[{"foodId":"exact id","quantityG":number,"locked":boolean}]}
+{"status":"proposal","message":"short user-facing explanation","items":[{"foodId":"exact id","quantityG":number}]}
 or
 {"status":"impossible","message":"short explanation"}
 
 Rules:
 1. Use only foodIds from CURRENT/ATTEMPTED items or AVAILABLE foods.
 2. Preserve custom foods from ATTEMPTED items unless the failed action was adding that custom food and it is clearly impossible.
-3. Keep locked:true on custom foods.
-4. Do not include foods from user avoids.
-5. Keep this meal recognizable; change the smallest number of foods.
-6. For action "swap_food", preserve the user's chosen replacement from ATTEMPTED items whenever possible. First try adding exactly one AVAILABLE food to balance the swapped meal. If that cannot work, try removing exactly one non-custom food. Only suggest another replacement if preserving the chosen swap is clearly impossible.
-7. Quantity numbers are only a draft; backend will rebalance and validate them.`;
+3. Do not include foods from user avoids.
+4. Keep this meal recognizable; change the smallest number of foods.
+5. For action "swap_food", preserve the user's chosen replacement from ATTEMPTED items whenever possible. First try adding exactly one AVAILABLE food to balance the swapped meal. If that cannot work, try removing exactly one non-custom food. Only suggest another replacement if preserving the chosen swap is clearly impossible.
+6. Quantity numbers are only a draft; backend will rebalance and validate them.`;
 
     const userContent = JSON.stringify({
       action,
@@ -256,7 +211,6 @@ function compactGuidedItem(item) {
     foodId: item.foodId,
     name: item.name || item.food?.name,
     quantityG: Number(item.quantityG) || 0,
-    locked: Boolean(item.locked),
     customFood: item.customFood || (String(item.foodId || '').startsWith('custom_') ? item.food : null),
   };
 }
@@ -277,7 +231,6 @@ function sanitizeGuidedItems(items, { currentItems, attemptedItems, availableFoo
     .map((item) => ({
       foodId: String(item.foodId || ''),
       quantityG: Number(item.quantityG) || 0,
-      locked: Boolean(item.locked),
       customFood: customById.get(String(item.foodId || '')) || null,
     }))
     .filter((item) => {
@@ -298,7 +251,6 @@ function buildGuidedProposedItems(requestItems, solvedItems) {
       foodId: solved.foodId,
       food,
       quantityG: solved.quantityG,
-      locked: Boolean(request?.locked),
       customFood: request?.customFood || null,
     };
   }).filter((item) => item.food);
@@ -1324,136 +1276,6 @@ meal_snapshot must list ALL foods in the final meal (including unchanged ones) u
   }
 }
 
-async function validateMealChangesHandler(req, res, next) {
-  try {
-    const { mealTarget, mealTag, currentItems, changes } = req.body;
-    if (!mealTarget || !Array.isArray(currentItems) || !Array.isArray(changes)) {
-      return res.status(400).json({ error: 'mealTarget, currentItems, and changes are required.' });
-    }
-
-    const foods = getFoods();
-    const foodByName = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
-    const foodById = new Map(foods.map((f) => [f.id, f]));
-
-    // Validate all food names in changes
-    for (const change of changes) {
-      if (change.action === 'add' || change.action === 'modify' || change.action === 'remove') {
-        const found = foodByName.get(change.food_name?.toLowerCase());
-        if (!found) {
-          return res.json({ valid: false, reason: 'food_not_found', food_name: change.food_name });
-        }
-      }
-    }
-
-    // Build existing item categories for overlap checks
-    const existingFoods = currentItems
-      .map((ci) => (ci.foodId ? foodById.get(String(ci.foodId)) : null) || foodByName.get(ci.name?.toLowerCase()))
-      .filter(Boolean);
-    const existingCategories = new Set(existingFoods.flatMap((f) => f.categories || []));
-
-    // Extra validation for 'add' actions: mealTag and category overlap
-    for (const change of changes) {
-      if (change.action !== 'add') continue;
-      const food = foodByName.get(change.food_name?.toLowerCase());
-      if (!food) continue;
-
-      if (mealTag && !food.mealTags?.includes(mealTag)) {
-        return res.json({ valid: false, reason: 'wrong_meal_type', food_name: food.name, mealTag });
-      }
-
-      const overlap = (food.categories || []).find((c) => existingCategories.has(c));
-      if (overlap) {
-        return res.json({ valid: false, reason: 'category_overlap', food_name: food.name, duplicateCategory: overlap });
-      }
-    }
-
-    // Start from current items
-    let items = currentItems.map((ci) => {
-      const food = ci.foodId ? foodById.get(String(ci.foodId)) : foodByName.get(ci.name?.toLowerCase());
-      if (!food) return null;
-      return { food, grams: Number(ci.grams) };
-    }).filter(Boolean);
-
-    // Apply changes
-    for (const change of changes) {
-      const food = foodByName.get(change.food_name.toLowerCase());
-      if (change.action === 'remove') {
-        items = items.filter((i) => i.food.name.toLowerCase() !== change.food_name.toLowerCase());
-      } else if (change.action === 'add') {
-        items.push({ food, grams: Number(change.grams) });
-      } else if (change.action === 'modify') {
-        const existing = items.find((i) => i.food.name.toLowerCase() === change.food_name.toLowerCase());
-        if (existing) existing.grams = Number(change.grams);
-      }
-    }
-
-    // Validate quantities
-    for (const item of items) {
-      const { food, grams } = item;
-      const min = food.minServingG ?? 20;
-      const max = food.maxServingG ?? 500;
-      if (grams < min || grams > max) {
-        return res.json({ valid: false, reason: 'quantity_out_of_range', food_name: food.name });
-      }
-    }
-
-    // Compute proposed totals
-    const proposedTotals = items.reduce(
-      (acc, { food, grams }) => {
-        const factor = grams / 100;
-        acc.calories += food.caloriesPer100g * factor;
-        acc.proteinG += food.proteinGPer100g * factor;
-        acc.carbG += food.carbGPer100g * factor;
-        acc.fatG += food.fatGPer100g * factor;
-        return acc;
-      },
-      { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-    );
-
-    // Round totals
-    for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-      proposedTotals[key] = parseFloat(proposedTotals[key].toFixed(1));
-    }
-
-    // Check macros within tolerance of target
-    console.log('VALIDATION - target:', mealTarget, 'proposed:', proposedTotals);
-    const TOLERANCE = 0.10;
-    for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-      const tgt = mealTarget[key];
-      const actual = proposedTotals[key];
-      if (Math.abs(actual - tgt) / Math.max(1, tgt) > TOLERANCE) {
-        return res.json({
-          valid: false,
-          reason: 'macros_off_target',
-          details: {
-            key,
-            target: tgt,
-            actual,
-            deviation: parseFloat(((Math.abs(actual - tgt) / Math.max(1, tgt)) * 100).toFixed(1)),
-          },
-        });
-      }
-    }
-
-    const proposedItems = items.map(({ food, grams }) => {
-      const factor = grams / 100;
-      return {
-        foodId: food.id,
-        name: food.name,
-        grams,
-        calories: parseFloat((food.caloriesPer100g * factor).toFixed(1)),
-        proteinG: parseFloat((food.proteinGPer100g * factor).toFixed(1)),
-        carbG: parseFloat((food.carbGPer100g * factor).toFixed(1)),
-        fatG: parseFloat((food.fatGPer100g * factor).toFixed(1)),
-      };
-    });
-
-    res.json({ valid: true, proposedItems, proposedTotals });
-  } catch (error) {
-    next(error);
-  }
-}
-
 module.exports = {
   health,
   getFoodsHandler,
@@ -1461,11 +1283,7 @@ module.exports = {
   generatePlanHandler,
   generatePlanFreeformHandler,
   rebalanceMealHandler,
-  checkSwapHandler,
-  autoBalanceMealHandler,
-  computeSensitivityHandler,
   mealOptionsHandler,
   mealChatHandler,
   guidedMealSuggestionHandler,
-  validateMealChangesHandler,
 };

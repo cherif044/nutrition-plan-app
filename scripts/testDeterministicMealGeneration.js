@@ -36,7 +36,7 @@ run();
 function run() {
   testNoMacroRoleFallbackSource();
   testMealCardDisplaySource();
-  testSwapGramOptimizer();
+  testSwapPreservesCurrentPortionSource();
   testBackendMinimalMealMetadata();
   testOriginalTemplateFitsNoSwap();
   testApproximateOriginalBeatsUnnecessarySwaps();
@@ -76,12 +76,10 @@ function testMealCardDisplaySource() {
   assert(source.includes('Modified template'), 'meal card should include modified template status');
   assert(source.includes('Approximate template'), 'meal card should include approximate template status');
   assert(source.includes('Failed'), 'meal card should include failed status');
-  assert(source.includes('No approved swaps available.'), 'swap panel should show locked/no-candidate message');
-  assert(source.includes('Show level ${broaderLevel} suggestions'), 'family-slot suggestions should be hidden behind an explicit option');
-  assert(!source.includes('Search any food'), 'swap panel must not expose all-food search');
+  assert(source.includes('No suggested swaps for this food. Search for another allowed food.'), 'swap panel should handle foods without suggested alternatives');
+  assert(source.includes('Find a replacement food'), 'row swap panel should expose replacement search');
+  assert(!source.includes('Search any food'), 'swap panel must not use old all-food wording');
   assert(!source.includes('function getAlternatives'), 'frontend must not compute macro-role alternatives');
-  const swapPanelSource = source.match(/function buildSwapPanel[\s\S]*?function applyFoodSwap/)?.[0] ?? '';
-  assert(!swapPanelSource.includes('foodsById.values()'), 'Suggest button must not search unrelated foods');
 
   const helperSource = source.match(/function mealCardMetaText[\s\S]*?function renderFoodItem/)?.[0]
     .replace(/\nfunction renderFoodItem[\s\S]*$/, '');
@@ -107,66 +105,14 @@ function testMealCardDisplaySource() {
   );
 }
 
-function testSwapGramOptimizer() {
+function testSwapPreservesCurrentPortionSource() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
-  assert(source.includes('bestSwapGramsForMeal'), 'swap click should optimize the replacement food grams');
-  assert(source.includes('bestSingleFoodGramsForTarget'), 'swap grams should be solved deterministically');
-  assert(!source.includes('applyFoodSwapAndRebalance'), 'swap click must not auto-rebalance the whole meal');
-
-  const utilitySource = source.match(/function computeTotals[\s\S]*?function deepCopyItems/)?.[0]
-    .replace(/\nfunction deepCopyItems[\s\S]*$/, '');
-  assert(utilitySource, 'utility helper functions should be extractable');
-
-  const context = {
-    SWAP_GRAM_STEP: 5,
-    SWAP_GRAM_SCORE_WEIGHTS: {
-      calories: 0.35,
-      proteinG: 1,
-      carbG: 1,
-      fatG: 1,
-    },
-  };
-  vm.createContext(context);
-  vm.runInContext(`${utilitySource}; this.bestSingleFoodGramsForTarget = bestSingleFoodGramsForTarget; this.totalsWithSingleFood = totalsWithSingleFood; this.macroErrorScoreForTotals = macroErrorScoreForTotals;`, context);
-
-  const food = {
-    caloriesPer100g: 100,
-    proteinGPer100g: 10,
-    carbGPer100g: 20,
-    fatGPer100g: 5,
-    minServingG: 50,
-    maxServingG: 200,
-    defaultServingG: 100,
-  };
-  const fixedTotals = { calories: 100, proteinG: 5, carbG: 20, fatG: 2 };
-  const exactTarget = context.totalsWithSingleFood(fixedTotals, food, 150);
-  assert.equal(
-    context.bestSingleFoodGramsForTarget({ food, fixedTotals, target: exactTarget, preferredGrams: 80 }),
-    150,
-    'swap optimizer should find the exact one-food grams when available',
-  );
-
-  const impossibleHighTarget = context.totalsWithSingleFood(fixedTotals, food, 500);
-  assert.equal(
-    context.bestSingleFoodGramsForTarget({ food, fixedTotals, target: impossibleHighTarget, preferredGrams: 100 }),
-    200,
-    'swap optimizer should clamp to max serving when target requires too much food',
-  );
-
-  const zeroMacroFood = {
-    caloriesPer100g: 0,
-    proteinGPer100g: 0,
-    carbGPer100g: 0,
-    fatGPer100g: 0,
-    minServingG: 10,
-    maxServingG: 80,
-    defaultServingG: 30,
-  };
-  assert.equal(
-    context.bestSingleFoodGramsForTarget({ food: zeroMacroFood, fixedTotals, target: exactTarget, preferredGrams: 45 }),
-    45,
-    'zero-macro foods should fall back to the least disruptive gram value',
-  );
+  assert(source.includes('function attemptSwapFood'), 'row swap should use a focused swap handler');
+  assert(source.includes('clampGrams(alt, item.quantityG, 5)'), 'swap should preserve the replaced food grams within replacement bounds');
+  assert(source.includes("action: 'swap_food'"), 'swap should pass through deterministic rebalance');
+  assert(!source.includes('bestSwapGramsForMeal'), 'old one-food swap optimizer should not remain in frontend');
+  assert(!source.includes('bestSingleFoodGramsForTarget'), 'old one-food gram solver should not remain in frontend');
+  assert(!source.includes('applyFoodSwapAndRebalance'), 'old swap/rebalance helper should not remain in frontend');
 }
 
 function testBackendMinimalMealMetadata() {

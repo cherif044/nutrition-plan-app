@@ -260,7 +260,6 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       items: meal.items.map((item) => ({
         food: item.food,
         quantityG: Number(item.quantityG) || 0,
-        locked: Boolean(item.locked),
         customFood: item.customFood || null,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
@@ -533,7 +532,6 @@ function normalizeStateItem(item) {
   return {
     food: item.food,
     quantityG: Number(item.quantityG) || 0,
-    locked: Boolean(item.locked),
     customFood: item.customFood || null,
     alternatives: item.alternatives || [],
     broaderAlternatives: item.broaderAlternatives || [],
@@ -547,7 +545,6 @@ function mealActionItems(items) {
     foodId: item.food.id,
     name: item.food.name,
     quantityG: item.quantityG,
-    locked: Boolean(item.locked),
     customFood: item.customFood || (item.food.custom ? customFoodPayload(item.food) : null),
   }));
 }
@@ -726,7 +723,7 @@ function showAddFoodAction(state) {
       return;
     }
     const food = selectedFood;
-    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, locked: true })];
+    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG })];
     attemptGuidedRebalance(state, {
       action: 'add_food',
       attemptedItems: attempted,
@@ -742,7 +739,7 @@ function showAddFoodAction(state) {
       return;
     }
     const food = foodFromCustom(custom);
-    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, locked: true, customFood: custom })];
+    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, customFood: custom })];
     attemptGuidedRebalance(state, {
       action: 'add_custom_food',
       attemptedItems: attempted,
@@ -860,7 +857,7 @@ function attemptSwapFood(state, itemIndex, alt) {
   const replacementQuantityG = clampGrams(alt, item.quantityG, 5) || alt.defaultServingG || item.quantityG;
   const attempted = state.items.map((candidate, candidateIndex) => (
     candidateIndex === itemIndex
-      ? normalizeStateItem({ ...item, food: alt, quantityG: replacementQuantityG, locked: false })
+      ? normalizeStateItem({ ...item, food: alt, quantityG: replacementQuantityG })
       : candidate
   ));
   attemptGuidedRebalance(state, {
@@ -1196,7 +1193,6 @@ function itemFromGuidedProposal(item) {
   return normalizeStateItem({
     food,
     quantityG: item.quantityG,
-    locked: item.locked,
     customFood: custom,
     alternatives: [],
     broaderAlternatives: [],
@@ -1224,31 +1220,6 @@ function compactRejectedProposal(proposal) {
     message: proposal.message,
     items: mealActionItems(proposal.proposedItems || []),
   };
-}
-
-// ── DOM refresh helpers ──────────────────────────────────────────────────────
-
-function refreshMealDOM(state) {
-  const card = state.cardEl;
-  refreshMealCardHeader(card, state);
-
-  state.items.forEach((item, itemIndex) => {
-    const rowEl = card.querySelector(`[data-item-index="${itemIndex}"]`);
-    if (!rowEl) return;
-    if (!item.food) return;
-
-    const totals = itemTotals(item.food, item.quantityG);
-
-    const gramInput = rowEl.querySelector('.food-gram-input');
-    if (gramInput && document.activeElement !== gramInput) {
-      gramInput.value = item.quantityG;
-    }
-
-    rowEl.querySelector('.item-kcal').textContent = `${formatNumber(totals.calories)} kcal`;
-    rowEl.querySelector('.item-p').textContent = `P ${formatNumber(totals.proteinG)}g`;
-    rowEl.querySelector('.item-c').textContent = `C ${formatNumber(totals.carbG)}g`;
-    rowEl.querySelector('.item-f').textContent = `F ${formatNumber(totals.fatG)}g`;
-  });
 }
 
 // ── Edit / Save bars ─────────────────────────────────────────────────────────
@@ -1372,7 +1343,6 @@ function buildPlanData() {
       items: state.items.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
-        locked: Boolean(item.locked),
         customFood: item.customFood || null,
         alternatives: item.alternatives || [],
         broaderAlternatives: item.broaderAlternatives || [],
@@ -1671,12 +1641,6 @@ const chatPanel = (() => {
   return { open, close, openAndSend, syncFromState, refreshDraftTable, get currentState() { return currentState; } };
 })();
 
-function appendMessage(messagesEl, role, text, opts = {}) {
-  const node = buildMessageNode(role, text, opts);
-  messagesEl.append(node);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
 function buildSnapshotTable(snapshot, totals, mealTarget) {
   const tol = 0.05;
   const ok = totals && ['calories', 'proteinG', 'carbG', 'fatG'].every(
@@ -1754,15 +1718,6 @@ function clampGrams(food, grams, step = 10) {
   if (rounded < min) rounded = Math.ceil(min / safeStep) * safeStep;
   if (rounded > max) rounded = Math.floor(max / safeStep) * safeStep;
   return Math.min(Math.max(rounded, min), max);
-}
-
-function deepCopyItems(items) {
-  return items.map((item) => ({
-    ...item,
-    alternatives: [...(item.alternatives || [])],
-    broaderAlternatives: [...(item.broaderAlternatives || [])],
-    nearestAlternatives: [...(item.nearestAlternatives || [])],
-  }));
 }
 
 // ── Preference picker ────────────────────────────────────────────────────────
