@@ -1,6 +1,7 @@
 const { loadFoods } = require('../repositories/foodRepository');
 const { loadTemplates } = require('../repositories/templateRepository');
 const { loadSwapSystem } = require('../repositories/swapSystemRepository');
+const { loadReadyMealBundles } = require('../repositories/readyMealRepository');
 const { getSwapCandidates, applySwapToTemplate } = require('./mealSwapService');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const {
@@ -20,9 +21,7 @@ const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
 const NEAREST_ALTERNATIVE_LIMIT = 4;
-const MEAL_OPTION_LIMIT = 12;
-const MEAL_OPTION_CALORIE_TOLERANCE_PERCENT = 0.07;
-const MEAL_OPTION_MACRO_TOLERANCE_G = 5;
+const MEAL_OPTION_LIMIT = 250;
 
 function getFoods() {
   return loadFoods();
@@ -54,30 +53,25 @@ function _generatePlanInternal(rawInput, useTemplates) {
     throw new Error('No foods match the selected restrictions. Try removing one filter.');
   }
 
-  const usedSnackFoodIds = new Set();
-  const generatedMeals = mealTargets.map((target, index) => {
-    // MOD-7: exclude foods already used in a previous snack
-    let foodPool = allowedFoods;
-    if (target.tag === 'snack' && usedSnackFoodIds.size > 0) {
-      const filtered = allowedFoods.filter((f) => !usedSnackFoodIds.has(f.id));
-      if (filtered.length > 0) foodPool = filtered;
-    }
-    const meal = generateMeal({ target, allowedFoods: foodPool, mealIndex: index, input, useTemplates });
-    if (target.tag === 'snack') {
-      meal.items.forEach((item) => usedSnackFoodIds.add(item.food.id));
-    }
-    return meal;
-  });
+  const generatedMeals = useTemplates
+    ? generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods })
+    : mealTargets.map((target, index) =>
+        generateMeal({ target, allowedFoods, mealIndex: index, input, useTemplates })
+      );
 
-  const optimization = useTemplates
-    ? optimizeTemplateDay(generatedMeals, dailyTargets)
-    : { meals: generatedMeals, warnings: [] };
+  const optimization = {
+    meals: generatedMeals,
+    warnings: [],
+    errors: generatedMeals
+      .filter((meal) => meal.items.length === 0 && meal.unavailableReason)
+      .map((meal) => meal.unavailableReason),
+  };
 
   const meals = optimization.meals.map((meal) => {
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
     const seedTarget = meal.seedTarget ?? meal.target;
-    const displayTarget = useTemplates ? mealTotals : meal.target;
+    const displayTarget = meal.target;
     const numberOfSwaps = Number.isFinite(meal.numberOfSwaps)
       ? meal.numberOfSwaps
       : (meal.swapsApplied?.length ?? 0);
@@ -91,6 +85,8 @@ function _generatePlanInternal(rawInput, useTemplates) {
       slotProfile: meal.slotProfile ?? null,
       templateId: meal.templateId ?? null,
       templateName: meal.templateName ?? null,
+      readyMealId: meal.readyMealId ?? meal.templateId ?? null,
+      readyMealTrack: meal.readyMealTrack ?? null,
       isOriginalTemplate: meal.items.length > 0 && numberOfSwaps === 0 && Boolean(meal.templateId),
       numberOfSwaps,
       candidateSource: meal.candidateSource ?? meal.generationSource ?? null,
@@ -112,6 +108,8 @@ function _generatePlanInternal(rawInput, useTemplates) {
         templateId: option.templateId ?? null,
         templateName: option.templateName ?? 'Alternate meal',
         templateFamily: option.templateFamily ?? null,
+        readyMealId: option.readyMealId ?? option.templateId ?? null,
+        readyMealTrack: option.readyMealTrack ?? null,
         items: option.items.map((item) => ({
           food: item.food,
           quantityG: item.quantityG,
@@ -143,13 +141,12 @@ function _generatePlanInternal(rawInput, useTemplates) {
 }
 
 function targetsForSlotProfile(dailyTargets, profile) {
-  const calories = dailyTargets.calories * profile.idealCaloriePercent;
-  const ratio = profile.macroCalorieRatio;
+  const slotFactor = profile.idealCaloriePercent;
   return {
-    calories,
-    proteinG: (calories * ratio.protein) / NUTRITION.proteinKcalPerGram,
-    carbG: (calories * ratio.carb) / NUTRITION.carbKcalPerGram,
-    fatG: (calories * ratio.fat) / NUTRITION.fatKcalPerGram,
+    calories: dailyTargets.calories * slotFactor,
+    proteinG: dailyTargets.proteinG * slotFactor,
+    carbG: dailyTargets.carbG * slotFactor,
+    fatG: dailyTargets.fatG * slotFactor,
   };
 }
 
@@ -417,10 +414,10 @@ function calculateResidual(dayTotals, dailyTarget) {
 
 function residualTolerances(dailyTarget) {
   return {
-    calories: dailyTarget.calories * NUTRITION.calorieTolerancePercent,
-    proteinG: NUTRITION.proteinToleranceG,
-    carbG: NUTRITION.carbToleranceG,
-    fatG: NUTRITION.fatToleranceG,
+    calories: dailyTarget.calories * NUTRITION.totalMacroTolerancePercent,
+    proteinG: dailyTarget.proteinG * NUTRITION.totalMacroTolerancePercent,
+    carbG: dailyTarget.carbG * NUTRITION.totalMacroTolerancePercent,
+    fatG: dailyTarget.fatG * NUTRITION.totalMacroTolerancePercent,
   };
 }
 
@@ -1025,12 +1022,7 @@ function componentCausingBiggestMacroProblem(items, target) {
     carbG: target.carbG - totals.carbG,
     fatG: target.fatG - totals.fatG,
   };
-  const tolerances = {
-    calories: target.calories * NUTRITION.calorieTolerancePercent,
-    proteinG: NUTRITION.proteinToleranceG,
-    carbG: NUTRITION.carbToleranceG,
-    fatG: NUTRITION.fatToleranceG,
-  };
+  const tolerances = mealTolerances(target);
   const worstMacro = ['proteinG', 'carbG', 'fatG', 'calories']
     .sort((a, b) => Math.abs(residual[b]) / Math.max(1, tolerances[b]) -
       Math.abs(residual[a]) / Math.max(1, tolerances[a]))[0];
@@ -1331,7 +1323,7 @@ function nearestAlternativeScore(original, candidate, originalCuisine, mealTags)
 
 function generateMeal({ target, allowedFoods, mealIndex, input = null, useTemplates = false }) {
   if (useTemplates && input) {
-    const selection = selectTemplateForMeal({
+    const selection = selectReadyMealForMeal({
       mealTag: target.tag,
       allowedFoods,
       input,
@@ -1342,32 +1334,29 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
       const generationDebug = logMealGenerationFailure({
         mealType: target.tag,
         targetMacros: target.targets,
-        failureReason: `No coherent ready template or approved same-family swap candidate matched ${target.name}.`,
+        failureReason: `No ready meal from the database matched ${target.name} within the macro constraints.`,
       });
       return emptyMeal(
         target,
-        `No ready meal template matched ${target.name} with the current targets and restrictions.`,
+        `No ready meal matched ${target.name} with the current targets and restrictions.`,
         generationDebug,
       );
     }
 
-    debugOptimizer('primary template selected', {
+    debugOptimizer('primary ready meal selected', {
       slot: target.name,
-      template: selection.template.name,
-      filteredTemplateCount: selection.filteredCount,
+      readyMeal: selection.readyMeal.id,
+      filteredReadyMealCount: selection.filteredCount,
       rankedAlternateCount: selection.alternates.length,
     });
 
-    return buildMeal({
+    return buildReadyMeal({
       target,
       items: selection.items,
-      allowedFoods,
-      template: selection.template,
-      templateAlternates: selection.alternates,
-      swapsApplied: selection.swaps,
-      generationSource: selection.source,
+      readyMeal: selection.readyMeal,
+      alternates: selection.alternates,
+      generationSource: 'ready_meal_database',
       generationDebug: selection.generationDebug,
-      input,
     });
   }
 
@@ -1377,6 +1366,263 @@ function generateMeal({ target, allowedFoods, mealIndex, input = null, useTempla
     failureReason: 'Template generation is required; random macro-role fallback is disabled.',
   });
   return emptyMeal(target, generationDebug.failureReason, generationDebug);
+}
+
+function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods }) {
+  const candidateSets = mealTargets.map((target) => ({
+    target,
+    candidates: readyMealCandidatesForMeal({
+      mealTag: target.tag,
+      allowedFoods,
+      target: target.targets,
+    }),
+  }));
+  const missing = candidateSets.filter((slot) => slot.candidates.length === 0);
+  if (missing.length > 0) {
+    return candidateSets.map((slot) => {
+      const best = slot.candidates[0];
+      if (best) {
+        return buildReadyMealFromCandidate({
+          target: slot.target,
+          candidate: best,
+          alternates: slot.candidates.slice(1),
+        });
+      }
+
+      const generationDebug = logMealGenerationFailure({
+        mealType: slot.target.tag,
+        targetMacros: slot.target.targets,
+        failureReason: `No ready meal from the database matched ${slot.target.name} within the macro constraints.`,
+      });
+      return emptyMeal(
+        slot.target,
+        `No ready meal matched ${slot.target.name} with the current targets and restrictions.`,
+        generationDebug,
+      );
+    });
+  }
+
+  const selected = selectReadyMealDayCombination(candidateSets, dailyTargets);
+  return candidateSets.map((slot, index) => buildReadyMealFromCandidate({
+    target: slot.target,
+    candidate: selected[index],
+    alternates: slot.candidates.filter((candidate) => candidate.readyMeal.id !== selected[index].readyMeal.id),
+  }));
+}
+
+function readyMealCandidatesForMeal({ mealTag, allowedFoods, target }) {
+  const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
+  const tags = templateTagsForMealTag(mealTag);
+  return loadReadyMealBundles()
+    .filter((readyMeal) => tags.includes(readyMeal.mealTag))
+    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, target))
+    .filter(Boolean)
+    .filter((candidate) => isWithinTolerance(candidate.items, target))
+    .sort((a, b) => (
+      a.score - b.score ||
+      a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true })
+    ));
+}
+
+function selectReadyMealDayCombination(candidateSets, dailyTargets) {
+  const beamWidth = 2500;
+  let beam = [{
+    candidates: [],
+    totals: { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+    mealScore: 0,
+  }];
+
+  for (const slot of candidateSets) {
+    const next = [];
+    for (const partial of beam) {
+      for (const candidate of slot.candidates) {
+        const totals = addMacros(partial.totals, candidate.totals);
+        next.push({
+          candidates: [...partial.candidates, candidate],
+          totals,
+          mealScore: partial.mealScore + candidate.score,
+        });
+      }
+    }
+
+    next.sort((a, b) => compareDayCandidates(a, b, dailyTargets));
+    beam = next.slice(0, beamWidth);
+  }
+
+  return beam[0].candidates;
+}
+
+function compareDayCandidates(a, b, dailyTargets) {
+  const aWithin = residualWithinTolerance(a.totals, dailyTargets);
+  const bWithin = residualWithinTolerance(b.totals, dailyTargets);
+  if (aWithin !== bWithin) return aWithin ? -1 : 1;
+
+  const aScore = calculateResidualScore(a.totals, dailyTargets);
+  const bScore = calculateResidualScore(b.totals, dailyTargets);
+  return (
+    aScore - bScore ||
+    a.mealScore - b.mealScore ||
+    daySignature(a).localeCompare(daySignature(b), undefined, { numeric: true })
+  );
+}
+
+function daySignature(day) {
+  return day.candidates.map((candidate) => candidate.readyMeal.id).join('|');
+}
+
+function buildReadyMealFromCandidate({ target, candidate, alternates }) {
+  return buildReadyMeal({
+    target,
+    items: candidate.items,
+    readyMeal: candidate.readyMeal,
+    alternates,
+    generationSource: 'ready_meal_database',
+    generationDebug: readyMealGenerationDebug({
+      mealTag: target.tag,
+      targetMacros: target.targets,
+      selected: candidate,
+      candidateCount: alternates.length + 1,
+    }),
+  });
+}
+
+function selectReadyMealForMeal({ mealTag, allowedFoods, target }) {
+  const candidates = readyMealCandidatesForMeal({ mealTag, allowedFoods, target });
+
+  const selected = candidates[0] ?? null;
+  if (!selected) return null;
+
+  return {
+    readyMeal: selected.readyMeal,
+    items: selected.items,
+    alternates: candidates.slice(1),
+    filteredCount: candidates.length,
+    generationDebug: readyMealGenerationDebug({
+      mealTag,
+      targetMacros: target,
+      selected,
+      candidateCount: candidates.length,
+    }),
+  };
+}
+
+function readyMealGenerationDebug({ mealTag, targetMacros, selected, candidateCount }) {
+  return {
+    mealType: mealTag,
+    targetMacros,
+    selectedTemplate: {
+      templateId: selected.readyMeal.id,
+      name: readyMealDisplayName(selected.readyMeal),
+      family: selected.readyMeal.track,
+    },
+    originalTemplateSolved: true,
+    originalTemplateMacroFit: selected.fit,
+    swapsTried: 0,
+    swapsAccepted: 0,
+    bestCandidateSource: 'ready_meal_database',
+    candidatesTriedBySwapCount: { 0: candidateCount, 1: 0, 2: 0 },
+    selectedCandidateSwapCount: 0,
+    selectedCandidateSource: 'ready_meal_database',
+    selectedCandidateReason: 'ready_meal_day_fit',
+    finalMacroFit: selected.fit,
+    failureReason: null,
+  };
+}
+
+function solveReadyMealCandidate(readyMeal, allowedFoodByName, target) {
+  const items = [];
+  for (const component of readyMeal.components) {
+    const food = allowedFoodByName.get(normalizeIngredientName(component.lookupName));
+    if (!food) return null;
+    items.push({
+      food,
+      quantityG: clampServing(food, food.defaultServingG),
+      component: {
+        slot: component.slot,
+        foodId: food.id,
+        ingredientName: component.ingredientName,
+        lookupName: component.lookupName,
+        readyMealId: readyMeal.id,
+        swapEnabled: false,
+      },
+    });
+  }
+
+  const solvedItems = solvePortionsLeastSquares(items, {
+    proteinG: target.proteinG,
+    carbG: target.carbG,
+    fatG: target.fatG,
+  });
+  const withTotals = solvedItems.map((item) => ({
+    ...item,
+    alternatives: [],
+    broaderAlternatives: [],
+    nearestAlternatives: [],
+    totals: macrosForFoodPortion(item.food, item.quantityG),
+  }));
+  const fit = macroFitDetails(withTotals, target);
+
+  return {
+    readyMeal,
+    items: withTotals,
+    totals: fit.totals,
+    fit,
+    score: fit.score + servingRealismPenalty(withTotals) * 0.25,
+  };
+}
+
+function buildReadyMeal({
+  target,
+  items,
+  readyMeal,
+  alternates = [],
+  generationSource = null,
+  generationDebug = null,
+}) {
+  const totals = sumTargets(items.map((item) => item.totals));
+  return {
+    name: target.name,
+    tag: target.tag,
+    target: target.targets,
+    slotProfile: target.slotProfile ?? null,
+    templateId: readyMeal.id,
+    templateName: readyMealDisplayName(readyMeal),
+    templateFamily: readyMeal.track ?? null,
+    readyMealId: readyMeal.id,
+    readyMealTrack: readyMeal.track ?? null,
+    templateAlternates: [],
+    generationSource,
+    isOriginalTemplate: true,
+    numberOfSwaps: 0,
+    candidateSource: generationSource,
+    swapsApplied: [],
+    generationDebug,
+    items,
+    mealOptions: buildReadyMealOptions({ target, alternates }),
+    totals,
+    isApproximate: !isWithinTolerance(items, target.targets),
+  };
+}
+
+function buildReadyMealOptions({ target, alternates }) {
+  return (alternates || []).map((candidate) => ({
+    templateId: candidate.readyMeal.id,
+    templateName: readyMealDisplayName(candidate.readyMeal),
+    templateFamily: candidate.readyMeal.track ?? null,
+    readyMealId: candidate.readyMeal.id,
+    readyMealTrack: candidate.readyMeal.track ?? null,
+    items: candidate.items,
+    totals: candidate.totals,
+    isApproximate: !isWithinTolerance(candidate.items, target.targets),
+  }));
+}
+
+function readyMealDisplayName(readyMeal) {
+  return readyMeal.track ? `${readyMeal.id} - ${readyMeal.track}` : readyMeal.id;
+}
+
+function normalizeIngredientName(name) {
+  return String(name || '').trim().toLowerCase();
 }
 
 function logMealGenerationFailure({ mealType, targetMacros, failureReason }) {
@@ -1500,12 +1746,7 @@ function mealOptionSignature(items) {
 }
 
 function isStrictMealOptionFit(totals, target) {
-  return (
-    Math.abs(totals.calories - target.calories) <= target.calories * MEAL_OPTION_CALORIE_TOLERANCE_PERCENT &&
-    Math.abs(totals.proteinG - target.proteinG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
-    Math.abs(totals.carbG - target.carbG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
-    Math.abs(totals.fatG - target.fatG) <= MEAL_OPTION_MACRO_TOLERANCE_G
-  );
+  return totalsWithinMealTolerance(totals, target);
 }
 
 function mealOptionForTarget(option, target) {
@@ -1531,6 +1772,72 @@ function mealOptionForTarget(option, target) {
 }
 
 function generateAlternateMealOptions({
+  mealTag,
+  mealTarget,
+  currentItems,
+  templateId = null,
+  userPreferences = {},
+  limit = MEAL_OPTION_LIMIT,
+}) {
+  const foods = loadFoods();
+  const foodMap = new Map(foods.map((food) => [food.id, food]));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || MEAL_OPTION_LIMIT, MEAL_OPTION_LIMIT));
+  const input = {
+    dietType: userPreferences?.dietType || 'standard',
+    avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
+    allergies: [],
+    dislikes: [],
+    mealTag: mealTag || 'lunch',
+  };
+  const allowedFoods = filterFoods(foods, input);
+  const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
+
+  const baseItems = (currentItems || [])
+    .map((item) => {
+      const food = foodMap.get(String(item.foodId || item.food?.id || ''));
+      if (!food) return null;
+      return {
+        food,
+        quantityG: clampServing(food, Number(item.quantityG) || Number(item.grams) || food.defaultServingG),
+        component: item.component || null,
+        clientAlternatives: item,
+      };
+    })
+    .filter(Boolean);
+
+  if (baseItems.length === 0 || !mealTarget) return [];
+
+  const seen = new Set([mealOptionSignature(baseItems)].filter(Boolean));
+  return loadReadyMealBundles()
+    .filter((readyMeal) => templateTagsForMealTag(mealTag || 'lunch').includes(readyMeal.mealTag))
+    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, mealTarget))
+    .filter(Boolean)
+    .filter((candidate) => isWithinTolerance(candidate.items, mealTarget))
+    .filter((candidate) => {
+      if (candidate.readyMeal.id === templateId) return false;
+      const signature = mealOptionSignature(candidate.items);
+      if (!signature || seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    })
+    .sort((a, b) => (
+      a.score - b.score ||
+      a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true })
+    ))
+    .slice(0, safeLimit)
+    .map((candidate) => ({
+      templateId: candidate.readyMeal.id,
+      templateName: readyMealDisplayName(candidate.readyMeal),
+      templateFamily: candidate.readyMeal.track ?? null,
+      readyMealId: candidate.readyMeal.id,
+      readyMealTrack: candidate.readyMeal.track ?? null,
+      items: candidate.items,
+      totals: candidate.totals,
+      isApproximate: !isWithinTolerance(candidate.items, mealTarget),
+    }));
+}
+
+function generateLegacyAlternateMealOptions({
   mealTag,
   mealTarget,
   currentItems,
@@ -1744,12 +2051,26 @@ function findBoundsViolation(totals, bounds) {
 
 function isWithinTolerance(items, target) {
   const totals = totalsForItems(items);
+  return totalsWithinMealTolerance(totals, target);
+}
+
+function mealTolerances(target) {
+  return {
+    calories: target.calories * NUTRITION.calorieTolerancePercent,
+    proteinG: target.proteinG * NUTRITION.mealMacroTolerancePercent,
+    carbG: target.carbG * NUTRITION.mealMacroTolerancePercent,
+    fatG: target.fatG * NUTRITION.mealMacroTolerancePercent,
+  };
+}
+
+function totalsWithinMealTolerance(totals, target) {
+  const tolerances = mealTolerances(target);
   return (
     Math.abs(totals.calories - target.calories) <=
-      target.calories * NUTRITION.calorieTolerancePercent &&
-    Math.abs(totals.proteinG - target.proteinG) <= NUTRITION.proteinToleranceG &&
-    Math.abs(totals.carbG - target.carbG) <= NUTRITION.carbToleranceG &&
-    Math.abs(totals.fatG - target.fatG) <= NUTRITION.fatToleranceG
+      tolerances.calories &&
+    Math.abs(totals.proteinG - target.proteinG) <= tolerances.proteinG &&
+    Math.abs(totals.carbG - target.carbG) <= tolerances.carbG &&
+    Math.abs(totals.fatG - target.fatG) <= tolerances.fatG
   );
 }
 

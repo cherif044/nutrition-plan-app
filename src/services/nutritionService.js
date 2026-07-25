@@ -5,7 +5,7 @@ function calculateDailyTargets(input) {
   const adjustment = NUTRITION.goalAdjustments[input.goal] ?? 0;
   const targetCalories = Math.max(1200, maintenance + adjustment);
   const proteinG = input.weightKg * NUTRITION.proteinPerKg;
-  const fatG = input.weightKg * NUTRITION.fatPerKg;
+  const fatG = fatTargetForCalories(input, targetCalories, proteinG);
   const proteinCalories = proteinG * NUTRITION.proteinKcalPerGram;
   const fatCalories = fatG * NUTRITION.fatKcalPerGram;
   const remainingCalories = Math.max(0, targetCalories - proteinCalories - fatCalories);
@@ -16,6 +16,23 @@ function calculateDailyTargets(input) {
     carbG: remainingCalories / NUTRITION.carbKcalPerGram,
     fatG,
   };
+}
+
+function fatTargetForCalories(input, targetCalories, proteinG) {
+  const preferredFatG = input.weightKg * NUTRITION.fatPerKg;
+  const minimumFatG = input.weightKg * NUTRITION.minimumFatPerKg;
+
+  if (input.goal !== 'lose_weight_aggressive') {
+    return preferredFatG;
+  }
+
+  const proteinCalories = proteinG * NUTRITION.proteinKcalPerGram;
+  const carbFloorG = input.weightKg * NUTRITION.aggressiveLossCarbFloorPerKg;
+  const fatCaloriesAfterCarbFloor =
+    targetCalories - proteinCalories - carbFloorG * NUTRITION.carbKcalPerGram;
+  const fatGAfterCarbFloor = fatCaloriesAfterCarbFloor / NUTRITION.fatKcalPerGram;
+
+  return clamp(fatGAfterCarbFloor, minimumFatG, preferredFatG);
 }
 
 function maintenanceCalories(input) {

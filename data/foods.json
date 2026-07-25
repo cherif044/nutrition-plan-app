@@ -3246,5 +3246,294 @@
       "vegetarian",
       "vegan"
     ]
+  },
+  {
+    "id": "cheese_parmesan_hard",
+    "name": "Cheese, parmesan, hard",
+    "macro_role": "protein",
+    "calories_per_100g": 392,
+    "protein_g_per_100g": 35.75,
+    "carb_g_per_100g": 3.22,
+    "fat_g_per_100g": 25,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 1175,
+    "is_vegan": false,
+    "is_vegetarian": true,
+    "allergens": [
+      "dairy"
+    ],
+    "categories": [
+      "dairy_and_eggs",
+      "dairy",
+      "milk",
+      "lactose"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 5,
+    "min_serving_g": 5,
+    "max_serving_g": 30,
+    "fdc_id": 170848,
+    "sub_category": "dairy_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "contains_dairy"
+    ]
+  },
+  {
+    "id": "beef_liver_cooked_braised",
+    "name": "Beef, liver, cooked, braised",
+    "macro_role": "protein",
+    "calories_per_100g": 191,
+    "protein_g_per_100g": 29.08,
+    "carb_g_per_100g": 5.13,
+    "fat_g_per_100g": 5.26,
+    "fiber_g_per_100g": 0,
+    "sodium_mg_per_100g": 79,
+    "is_vegan": false,
+    "is_vegetarian": false,
+    "allergens": [],
+    "categories": [
+      "beef_products",
+      "beef",
+      "red_meat",
+      "meat",
+      "animal_protein"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 85,
+    "min_serving_g": 42.5,
+    "max_serving_g": 250,
+    "fdc_id": 168626,
+    "sub_category": "animal_protein",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": []
+  },
+  {
+    "id": "blackberries_raw",
+    "name": "Blackberries, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 43,
+    "protein_g_per_100g": 1.39,
+    "carb_g_per_100g": 9.61,
+    "fat_g_per_100g": 0.49,
+    "fiber_g_per_100g": 5.3,
+    "sodium_mg_per_100g": 1,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "fruits",
+      "fruit"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 144,
+    "min_serving_g": 50,
+    "max_serving_g": 250,
+    "fdc_id": 173946,
+    "sub_category": "fruit",
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "tomato_sauce_canned_no_salt_added",
+    "name": "Tomato sauce, canned, no salt added",
+    "macro_role": "mixed",
+    "calories_per_100g": 24,
+    "protein_g_per_100g": 1.2,
+    "carb_g_per_100g": 5.31,
+    "fat_g_per_100g": 0.3,
+    "fiber_g_per_100g": 1.5,
+    "sodium_mg_per_100g": 11,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sauces",
+      "condiment"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 61,
+    "min_serving_g": 15,
+    "max_serving_g": 80,
+    "fdc_id": 169074,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "hot_sauce_tabasco_ready_to_serve",
+    "name": "Hot sauce (Tabasco), ready-to-serve",
+    "macro_role": "mixed",
+    "calories_per_100g": 12,
+    "protein_g_per_100g": 1.29,
+    "carb_g_per_100g": 0.8,
+    "fat_g_per_100g": 0.76,
+    "fiber_g_per_100g": 0.6,
+    "sodium_mg_per_100g": 633,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sauces",
+      "condiment"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 5,
+    "min_serving_g": 5,
+    "max_serving_g": 15,
+    "fdc_id": 174528,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "chocolate_dark_70_85_cacao",
+    "name": "Chocolate, dark, 70-85% cacao",
+    "macro_role": "fat",
+    "calories_per_100g": 598,
+    "protein_g_per_100g": 7.79,
+    "carb_g_per_100g": 45.9,
+    "fat_g_per_100g": 42.63,
+    "fiber_g_per_100g": 10.9,
+    "sodium_mg_per_100g": 20,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sweets"
+    ],
+    "meal_tags": [
+      "snack"
+    ],
+    "default_serving_g": 30,
+    "min_serving_g": 10,
+    "max_serving_g": 60,
+    "fdc_id": 170273,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "granola_homemade",
+    "name": "Granola, homemade",
+    "macro_role": "carb",
+    "calories_per_100g": 489,
+    "protein_g_per_100g": 13.67,
+    "carb_g_per_100g": 53.88,
+    "fat_g_per_100g": 24.31,
+    "fiber_g_per_100g": 8.9,
+    "sodium_mg_per_100g": 26,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "grains",
+      "cereals"
+    ],
+    "meal_tags": [
+      "breakfast"
+    ],
+    "default_serving_g": 50,
+    "min_serving_g": 30,
+    "max_serving_g": 150,
+    "fdc_id": 171646,
+    "sub_category": "starch",
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "sauce_bbq_generic",
+    "name": "Sauce, BBQ, generic",
+    "macro_role": "mixed",
+    "calories_per_100g": 172,
+    "protein_g_per_100g": 0.82,
+    "carb_g_per_100g": 40.77,
+    "fat_g_per_100g": 0.63,
+    "fiber_g_per_100g": 0.9,
+    "sodium_mg_per_100g": 1027,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "sauces",
+      "condiment"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 34,
+    "min_serving_g": 10,
+    "max_serving_g": 40,
+    "fdc_id": 174523,
+    "sub_category": null,
+    "cuisine_tag": "continental",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "asparagus_cooked_boiled",
+    "name": "Asparagus, cooked, boiled",
+    "macro_role": "mixed",
+    "calories_per_100g": 22,
+    "protein_g_per_100g": 2.4,
+    "carb_g_per_100g": 4.11,
+    "fat_g_per_100g": 0.22,
+    "fiber_g_per_100g": 2,
+    "sodium_mg_per_100g": 14,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 90,
+    "min_serving_g": 60,
+    "max_serving_g": 200,
+    "fdc_id": 168390,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
   }
 ]

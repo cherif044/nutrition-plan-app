@@ -84,6 +84,10 @@ function mealOptionsHandler(req, res, next) {
 }
 
 async function guidedMealSuggestionHandler(req, res, next) {
+  return res.status(410).json({
+    error: 'AI meal editing is disabled. Use ready-meal navigation only.',
+  });
+
   try {
     const {
       action,
@@ -1025,6 +1029,10 @@ function buildExplicitSwapSuggestion({ userMessage, currentItems, availableFoods
 }
 
 async function mealChatHandler(req, res, next) {
+  return res.status(410).json({
+    error: 'AI meal chat is disabled. Use ready-meal navigation only.',
+  });
+
   try {
     const { mealTag, mealTarget, currentItems, currentTotals, userPreferences, conversationHistory, userMessage } = req.body;
     if (!mealTag || !mealTarget || !Array.isArray(currentItems) || !userMessage) {

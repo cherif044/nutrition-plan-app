@@ -64,8 +64,8 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
-const MEAL_OPTION_CALORIE_TOLERANCE_PERCENT = 0.07;
-const MEAL_OPTION_MACRO_TOLERANCE_G = 5;
+const MEAL_OPTION_MACRO_TOLERANCE_PERCENT = 0.20;
+const DAILY_TOTAL_MACRO_TOLERANCE_PERCENT = 0.20;
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -125,7 +125,7 @@ form.addEventListener('submit', (event) => {
   generateAndRender('/api/generate-plan');
 });
 
-freeformButton.addEventListener('click', () => {
+freeformButton?.addEventListener('click', () => {
   generateAndRender('/api/generate-plan-freeform');
 });
 
@@ -242,6 +242,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       target: { ...meal.target },
       templateId: meal.templateId || null,
       templateName: meal.templateName || null,
+      templateFamily: meal.templateFamily || meal.readyMealTrack || null,
       isOriginalTemplate: Boolean(meal.isOriginalTemplate),
       numberOfSwaps: Number(meal.numberOfSwaps || 0),
       candidateSource: meal.candidateSource || null,
@@ -373,13 +374,11 @@ function refreshRedFlags() {
     actual.fatG += t.fatG;
   }
 
-  const THRESH = 0.10;
-
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
     const tgt = dailyTargets[key];
     const diff = actual[key] - tgt;
     const pct = Math.abs(diff) / Math.max(1, tgt);
-    const flagged = pct > THRESH;
+    const flagged = !dailyMetricFitsTarget(key, actual[key], tgt);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
     if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
@@ -415,8 +414,6 @@ function renderMealCard(state) {
 
   card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
   card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
-  card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
-  card.querySelector('.rebalance-btn').addEventListener('click', () => handleDeterministicRebalance(state, { previewTitle: 'Rebalanced meal' }));
   refreshMealCycleButtons(state);
 
   return card;
@@ -442,15 +439,16 @@ function refreshMealCardHeader(card, state) {
 }
 
 function mealCardMetaText(state) {
-  const templateLabel = state.templateName ? `Template: ${state.templateName}` : 'Template: None';
-  return `${templateLabel} ${separator} ${mealTemplateStatusLabel(state)}`;
+  const optionCount = readyMealOptions(state).length;
+  const optionLabel = optionCount > 0 ? `Meal ${state.mealOptionIndex + 1} of ${optionCount}` : 'No ready meal';
+  const templateLabel = state.templateName ? `Ready meal: ${state.templateName}` : 'Ready meal: None';
+  return `${templateLabel} ${separator} ${optionLabel} ${separator} ${mealTemplateStatusLabel(state)}`;
 }
 
 function mealTemplateStatusLabel(state) {
   if (state.items.length === 0 || state.candidateSource === 'failed') return 'Failed';
-  if (state.isApproximate) return 'Approximate template';
-  if (state.numberOfSwaps > 0 || !state.isOriginalTemplate) return 'Modified template';
-  return 'Original template';
+  if (state.isApproximate) return 'Approximate fit';
+  return 'Macro fit';
 }
 
 function renderFoodList(state) {
@@ -487,19 +485,8 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
-      <div class="food-actions">
-        <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${escapeHtml(food.name)}">
-          <span aria-hidden="true">⇄</span>
-        </button>
-        <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${escapeHtml(food.name)}">
-          <span aria-hidden="true">⌫</span>
-        </button>
-      </div>
     </div>
   `;
-
-  row.querySelector('.food-swap-btn').addEventListener('click', () => showSwapFoodAction(state, itemIndex));
-  row.querySelector('.food-delete-btn').addEventListener('click', () => showRemoveFoodAction(state, itemIndex));
 
   return row;
 }
@@ -521,10 +508,56 @@ function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
   return (
-    Math.abs(totals.calories - target.calories) <= target.calories * MEAL_OPTION_CALORIE_TOLERANCE_PERCENT &&
-    Math.abs(totals.proteinG - target.proteinG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
-    Math.abs(totals.carbG - target.carbG) <= MEAL_OPTION_MACRO_TOLERANCE_G &&
-    Math.abs(totals.fatG - target.fatG) <= MEAL_OPTION_MACRO_TOLERANCE_G
+    Math.abs(totals.calories - target.calories) <= target.calories * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
+    Math.abs(totals.proteinG - target.proteinG) <= target.proteinG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
+    Math.abs(totals.carbG - target.carbG) <= target.carbG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
+    Math.abs(totals.fatG - target.fatG) <= target.fatG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT
+  );
+}
+
+function currentDailyTotals() {
+  return mealStates.reduce(
+    (total, state) => addTotals(total, computeTotals(state.items)),
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+}
+
+function dailyTotalsWithMealOption(state, option) {
+  const optionTotals = option.totals || computeTotals(option.items);
+  return mealStates.reduce((total, candidate) => {
+    const mealTotals = candidate === state ? optionTotals : computeTotals(candidate.items);
+    return addTotals(total, mealTotals);
+  }, { calories: 0, proteinG: 0, carbG: 0, fatG: 0 });
+}
+
+function addTotals(left, right) {
+  return {
+    calories: left.calories + right.calories,
+    proteinG: left.proteinG + right.proteinG,
+    carbG: left.carbG + right.carbG,
+    fatG: left.fatG + right.fatG,
+  };
+}
+
+function dailyTotalsFitTarget(totals) {
+  if (!dailyTargets) return true;
+  return ['calories', 'proteinG', 'carbG', 'fatG'].every((key) =>
+    dailyMetricFitsTarget(key, totals[key], dailyTargets[key])
+  );
+}
+
+function dailyMetricFitsTarget(key, actual, target) {
+  if (!Number.isFinite(actual) || !Number.isFinite(target)) return false;
+  return Math.abs(actual - target) <= target * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT;
+}
+
+function dailyTargetScore(totals) {
+  if (!dailyTargets) return 0;
+  return (
+    Math.abs(totals.calories - dailyTargets.calories) / Math.max(1, dailyTargets.calories * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
+    Math.abs(totals.proteinG - dailyTargets.proteinG) / Math.max(1, dailyTargets.proteinG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
+    Math.abs(totals.carbG - dailyTargets.carbG) / Math.max(1, dailyTargets.carbG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
+    Math.abs(totals.fatG - dailyTargets.fatG) / Math.max(1, dailyTargets.fatG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT)
   );
 }
 
@@ -588,8 +621,9 @@ async function handleCycleMealOption(state, direction) {
   }
 
   const options = readyMealOptions(state);
-  const nextIndex = state.mealOptionIndex + direction;
-  if (nextIndex < 0 || nextIndex >= options.length) {
+  const nextIndex = nextDaySafeMealOptionIndex(state, direction, options);
+  if (nextIndex === null) {
+    showActionMessage(state, 'No ready meal in that direction keeps the full day inside target.');
     refreshMealCycleButtons(state);
     return;
   }
@@ -597,11 +631,29 @@ async function handleCycleMealOption(state, direction) {
   applyReadyMealOption(state, options[nextIndex], nextIndex);
 }
 
+function nextDaySafeMealOptionIndex(state, direction, options) {
+  const currentTotals = currentDailyTotals();
+  const currentFitsDay = dailyTotalsFitTarget(currentTotals);
+  const currentScore = dailyTargetScore(currentTotals);
+
+  for (let index = state.mealOptionIndex + direction; index >= 0 && index < options.length; index += direction) {
+    const option = options[index];
+    if (!mealOptionFitsTarget(option, state.target)) continue;
+
+    const nextTotals = dailyTotalsWithMealOption(state, option);
+    if (dailyTotalsFitTarget(nextTotals)) return index;
+    if (!currentFitsDay && dailyTargetScore(nextTotals) < currentScore) return index;
+  }
+
+  return null;
+}
+
 function applyReadyMealOption(state, option, optionIndex) {
   state.items = option.items.map(normalizeStateItem);
   state.mealOptionIndex = optionIndex;
   state.templateId = option.templateId || state.templateId;
   state.templateName = option.templateName || state.templateName;
+  state.templateFamily = option.templateFamily || option.readyMealTrack || null;
   state.isApproximate = Boolean(option.isApproximate);
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
@@ -641,7 +693,7 @@ async function refillMealOptions(state) {
         templateId: state.templateId,
         currentItems: mealOptionRequestItems(state.items),
         userPreferences: getUserPreferences(),
-        limit: 12,
+        limit: 250,
       }),
     });
     const payload = await readJsonResponse(res, 'Unable to find alternate meals.');
@@ -1354,6 +1406,8 @@ function buildPlanData() {
       totals: computeTotals(state.items),
       templateId: state.templateId,
       templateName: state.templateName,
+      readyMealId: state.templateId,
+      readyMealTrack: state.templateFamily || null,
       isOriginalTemplate: state.isOriginalTemplate,
       numberOfSwaps: state.numberOfSwaps,
       candidateSource: state.candidateSource,
@@ -1456,6 +1510,16 @@ function buildDraftTable(state) {
 const chatPanel = (() => {
   let currentState = null;
   const panelEl = document.getElementById('ai-chat-panel');
+  if (!panelEl) {
+    return {
+      open() {},
+      close() {},
+      async openAndSend() {},
+      syncFromState() {},
+      refreshDraftTable() {},
+      get currentState() { return null; },
+    };
+  }
   const titleEl = panelEl.querySelector('.ai-chat-panel__title');
   const messagesEl = panelEl.querySelector('.ai-chat-panel__messages');
   const statusEl = panelEl.querySelector('.ai-chat-panel__status');
@@ -1871,9 +1935,11 @@ function normalizeText(value) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  freeformButton.disabled = isLoading;
+  if (freeformButton) freeformButton.disabled = isLoading;
   submitButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Generate plan';
-  freeformButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Build your own meals instead';
+  if (freeformButton) {
+    freeformButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Build your own meals instead';
+  }
 }
 
 function syncRamadanControls() {

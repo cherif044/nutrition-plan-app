@@ -27,11 +27,11 @@
       <header class="topbar" style="margin-top: 16px;">
         <div>
           <p class="eyebrow">Plan builder</p>
-          <p>Build daily meals from structured food data and realistic servings.</p>
+          <p>Build daily meals from fixed ready-meal options and realistic servings.</p>
         </div>
         <div class="topbar-stats" aria-label="Dataset summary" id="topbar-stats">
-          <span><strong>95</strong> foods</span>
-          <span><strong>13</strong> categories</span>
+          <span><strong>223</strong> ready meals</span>
+          <span><strong>104</strong> foods</span>
           <span><strong>4</strong> macros</span>
         </div>
       </header>
@@ -151,9 +151,6 @@
           <button class="generate-button" type="submit">
             <span>Generate plan</span>
           </button>
-          <button class="generate-button generate-button--ghost" type="button" id="freeform-btn">
-            <span>Build your own meals instead</span>
-          </button>
           <p id="form-message" class="message" role="status" aria-live="polite"></p>
         </form>
 
@@ -188,9 +185,6 @@
             <h2></h2>
             <p class="meal-card__meta"></p>
           </div>
-          <div class="meal-card__actions">
-            <button class="btn btn-primary rebalance-btn" type="button">Rebalance</button>
-          </div>
         </div>
         <div class="meal-card__totals">
           <div class="meal-metric" data-meal-metric="calories">
@@ -220,34 +214,9 @@
           <span>Macros</span>
         </div>
         <div class="food-list"></div>
-        <div class="meal-add-tray">
-          <button class="meal-add-food-btn" type="button" aria-label="Add food">
-            <span aria-hidden="true">+</span>
-          </button>
-        </div>
         <div class="meal-action-panel" hidden></div>
       </article>
     </template>
-
-    <div id="ai-chat-panel" class="ai-chat-panel" hidden>
-      <div class="ai-chat-panel__header">
-        <span class="ai-chat-panel__title"></span>
-        <button type="button" class="ai-chat-panel__close">✕</button>
-      </div>
-      <div class="ai-chat-panel__messages"></div>
-      <div class="ai-chat-panel__status" hidden>AI is thinking…</div>
-      <div class="ai-chat-panel__input-row">
-        <input type="text" class="ai-chat-panel__input" placeholder="Ask about this meal…" autocomplete="off" />
-        <button type="button" class="btn btn-primary ai-chat-panel__send-btn">Send</button>
-      </div>
-      <div class="ai-chat-panel__draft">
-        <div class="ai-chat-panel__draft-header">
-          <span>Chat Meal</span>
-        </div>
-        <div class="ai-chat-panel__draft-table"></div>
-        <button type="button" class="btn btn-primary ai-chat-panel__apply-btn" hidden>Apply to Meal</button>
-      </div>
-    </div>
 
     <script src="/js/app.js" defer></script>
   </body>
