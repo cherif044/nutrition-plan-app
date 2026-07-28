@@ -516,13 +516,20 @@ function mealOptionFitsTarget(option, target) {
   const totals = option.totals || computeTotals(option.items);
   const weightKg = Number(currentPlanInput?.weightKg);
   if (!dailyTargets || !Number.isFinite(weightKg)) return false;
+  const proteinShare = target.proteinG / dailyTargets.proteinG;
+  const fatShare = target.fatG / dailyTargets.fatG;
   return (
     Math.abs(totals.calories - target.calories) <=
       dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT &&
-    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min &&
-    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max &&
-    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min &&
-    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max
+    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min *
+      proteinShare &&
+    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max *
+      proteinShare &&
+    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min *
+      fatShare &&
+    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max *
+      fatShare &&
+    totals.carbG >= 0
   );
 }
 

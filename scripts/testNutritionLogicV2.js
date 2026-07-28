@@ -447,7 +447,7 @@ test('7. Database meal macro ratios', 'pre-verdict meal macro tolerance remains 
   assert.equal(NUTRITION.mealMacroTolerancePercent, 0.20);
 });
 
-// 8. Per-meal ±5% daily-calorie window and literal per-meal g/kg ranges
+// 8. Per-meal ±5% daily-calorie window and proportional per-meal g/kg ranges
 for (let dailyCalories = 1200; dailyCalories <= 5000; dailyCalories += 100) {
   test('8. Meal swap flexibility', `absolute meal window at ${dailyCalories} kcal`, () => {
     const target = { calories: dailyCalories * 0.3, proteinG: 45, carbG: 60, fatG: 20 };
@@ -461,6 +461,8 @@ const swapBase = {
   dailyTargets: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
   weightKg: 80,
   mealTarget: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
+  currentDailyTotals: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
+  currentMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
 };
 for (let delta = -140; delta <= 140; delta += 5) {
   test('8. Meal swap flexibility', `individual meal calorie delta ${delta}`, () => {
@@ -468,15 +470,15 @@ for (let delta = -140; delta <= 140; delta += 5) {
       ...swapBase,
       proposedMealTotals: {
         calories: swapBase.mealTarget.calories + delta,
-        proteinG: 160,
+        proteinG: 40,
         carbG: 60,
-        fatG: 60,
+        fatG: 15,
       },
     });
     assert.equal(validation.valid, Math.abs(delta) <= 100);
   });
 }
-for (let proteinG = 130; proteinG <= 190; proteinG += 1) {
+for (let proteinG = 10; proteinG <= 80; proteinG += 1) {
   test('8. Meal swap flexibility', `individual meal protein ${proteinG}g`, () => {
     const validation = validateMealSwap({
       ...swapBase,
@@ -484,47 +486,79 @@ for (let proteinG = 130; proteinG <= 190; proteinG += 1) {
         calories: 500,
         proteinG,
         carbG: 60,
-        fatG: 60,
+        fatG: 15,
       },
     });
-    assert.equal(validation.valid, proteinG >= 144 && proteinG <= 176);
+    assert.equal(validation.valid, proteinG >= 36 && proteinG <= 44);
   });
 }
-for (let fatG = 40; fatG <= 90; fatG += 1) {
+for (let fatG = 0; fatG <= 50; fatG += 1) {
   test('8. Meal swap flexibility', `individual meal fat ${fatG}g`, () => {
     const validation = validateMealSwap({
       ...swapBase,
       proposedMealTotals: {
         calories: 500,
-        proteinG: 160,
+        proteinG: 40,
         carbG: 60,
         fatG,
       },
     });
-    assert.equal(validation.valid, fatG >= 52.8 && fatG <= 80);
+    const minimumMealFatG = 80 * 0.66 * (15 / 56);
+    const maximumMealFatG = 80 * 1.0 * (15 / 56);
+    assert.equal(validation.valid, fatG >= minimumMealFatG && fatG <= maximumMealFatG);
   });
 }
 for (const weightKg of [40, 55, 70, 80, 100, 125, 150, 180, 220]) {
   for (const dailyCalories of [1200, 1800, 2500, 3500, 5000]) {
-    test('8. Meal swap flexibility', `literal g/kg bounds ${weightKg}kg/${dailyCalories}kcal`, () => {
+    test('8. Meal swap flexibility', `daily g/kg bounds ${weightKg}kg/${dailyCalories}kcal`, () => {
       const mealTarget = { calories: dailyCalories * 0.25, proteinG: 1, carbG: 1, fatG: 1 };
-      const bounds = computeMealBounds(mealTarget, { dailyCalories, weightKg });
-      close(bounds.proteinG.min, weightKg * 1.8);
-      close(bounds.proteinG.max, weightKg * 2.2);
-      close(bounds.fatG.min, weightKg * 0.66);
-      close(bounds.fatG.max, weightKg);
-      assert.equal(bounds.carbG.min, -Infinity);
-      assert.equal(bounds.carbG.max, Infinity);
+      const dailyTargets = {
+        calories: dailyCalories,
+        proteinG: weightKg * 2,
+        carbG: 100,
+        fatG: weightKg * 0.7,
+      };
+      const currentMealTotals = {
+        calories: mealTarget.calories,
+        proteinG: weightKg * 0.5,
+        carbG: 25,
+        fatG: weightKg * 0.175,
+      };
+      mealTarget.proteinG = currentMealTotals.proteinG;
+      mealTarget.carbG = currentMealTotals.carbG;
+      mealTarget.fatG = currentMealTotals.fatG;
+      const mealBounds = computeMealBounds(mealTarget, {
+        dailyCalories,
+        dailyTargets,
+        weightKg,
+      });
+      close(mealBounds.proteinG.min, weightKg * 1.8 * 0.25);
+      close(mealBounds.proteinG.max, weightKg * 2.2 * 0.25);
+      close(mealBounds.fatG.min, weightKg * 0.66 * 0.25);
+      close(mealBounds.fatG.max, weightKg * 1.0 * 0.25);
+      assert.equal(mealBounds.carbG.min, 0);
+      assert.equal(mealBounds.carbG.max, Infinity);
+      const validation = validateMealSwap({
+        dailyTargets,
+        weightKg,
+        mealTarget,
+        proposedMealTotals: currentMealTotals,
+      });
+      assert.equal(validation.valid, true);
+      close(validation.bounds.proteinG.min, weightKg * 1.8 * 0.25);
+      close(validation.bounds.proteinG.max, weightKg * 2.2 * 0.25);
+      close(validation.bounds.fatG.min, weightKg * 0.66 * 0.25);
+      close(validation.bounds.fatG.max, weightKg * 1.0 * 0.25);
     });
   }
 }
 for (const carbG of [-500, -1, 0, 100, 500, 1000]) {
-  test('8. Meal swap flexibility', `carbohydrate ${carbG}g has no invented per-kg range`, () => {
+  test('8. Meal swap flexibility', `individual meal carbohydrate ${carbG}g`, () => {
     const validation = validateMealSwap({
       ...swapBase,
-      proposedMealTotals: { calories: 500, proteinG: 160, carbG, fatG: 60 },
+      proposedMealTotals: { calories: 500, proteinG: 40, carbG, fatG: 15 },
     });
-    assert.equal(validation.valid, true);
+    assert.equal(validation.valid, carbG >= 0);
   });
 }
 test('8. Meal swap flexibility', 'missing per-meal context is rejected', () => {
@@ -532,17 +566,22 @@ test('8. Meal swap flexibility', 'missing per-meal context is rejected', () => {
   assert.equal(validation.valid, false);
   assert.deepEqual(validation.violations, ['meal_context']);
 });
-test('8. Meal swap flexibility', 'unrelated full-day totals do not change individual-meal validation', () => {
-  const validation = validateMealSwap({
+test('8. Meal swap flexibility', 'other meals do not affect individual-meal validation', () => {
+  const valid = validateMealSwap({
+    ...swapBase,
+    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
+  });
+  const alsoValid = validateMealSwap({
     ...swapBase,
     currentDailyTotals: { calories: 1, proteinG: 1, carbG: 1, fatG: 1 },
     currentMealTotals: { calories: 9999, proteinG: 9999, carbG: 9999, fatG: 9999 },
-    proposedMealTotals: { calories: 500, proteinG: 160, carbG: 60, fatG: 60 },
+    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
   });
-  assert.equal(validation.valid, true);
+  assert.equal(valid.valid, true);
+  assert.equal(alsoValid.valid, true);
 });
-test('8. Meal swap flexibility', 'deterministic rebalance enforces individual-meal ranges', () => {
-  const mealTarget = { calories: 500, proteinG: 160, carbG: 60, fatG: 60 };
+test('8. Meal swap flexibility', 'deterministic rebalance enforces only the selected meal bounds', () => {
+  const mealTarget = { calories: 500, proteinG: 40, carbG: 60, fatG: 15 };
   const result = rebalanceMeal({
     mealTarget,
     items: [
@@ -554,31 +593,39 @@ test('8. Meal swap flexibility', 'deterministic rebalance enforces individual-me
           servingG: 100,
           maxServingG: 100,
           calories: 500,
-          proteinG: 160,
+          proteinG: 40,
           carbG: 60,
-          fatG: 60,
+          fatG: 15,
         },
       },
     ],
     dailyContext: {
       dailyTargets: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
       weightKg: 80,
+      currentDailyTotals: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
+      currentMealTotals: mealTarget,
     },
   });
   assert.equal(result.success, true);
   assert.equal(result.mealValidation.valid, true);
   assert(Math.abs(result.totals.calories - mealTarget.calories) <= 100);
 });
-test('8. Meal swap flexibility', 'meal below literal protein range is blocked even if the full day is in range', () => {
+test('8. Meal swap flexibility', 'normal meal protein is accepted within its proportional meal range', () => {
   const validation = validateMealSwap({
     ...swapBase,
-    currentDailyTotals: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
-    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 60 },
+    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
   });
-  assert.equal(validation.valid, false);
-  assert(validation.violations.includes('meal_protein'));
+  assert.equal(validation.valid, true);
+  close(validation.bounds.proteinG.min, 36);
+  close(validation.bounds.proteinG.max, 44);
 });
-test('8. Meal swap flexibility', 'no verdict-derived daily swap tolerance remains', () => {
+test('8. Meal swap flexibility', 'only the selected meal calorie total is checked', () => {
+  const validation = validateMealSwap({
+    ...swapBase,
+    currentDailyTotals: { ...swapBase.currentDailyTotals, calories: 2400 },
+    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
+  });
+  assert.equal(validation.valid, true);
   assert.equal(Object.hasOwn(NUTRITION, 'dailyCalorieTolerancePercent'), false);
   assert.equal(Object.hasOwn(require('../src/services/planGenerator'), 'validateDailySwap'), false);
 });
@@ -650,12 +697,13 @@ test('9. End-to-end integration', 'UI exposes exactly the four document activity
     .filter((value) => ['sedentary', 'light', 'moderate', 'athlete', 'physical_job', 'very_active'].includes(value));
   assert.deepEqual(optionValues, ['sedentary', 'light', 'moderate', 'athlete']);
 });
-test('9. End-to-end integration', 'UI sends only the context needed for individual-meal swap rules', () => {
+test('9. End-to-end integration', 'UI sends only selected-meal rule context', () => {
   assert(appJs.includes('dailyContext:'));
   assert(appJs.includes('dailyTargets,'));
   assert(appJs.includes('weightKg: Number(currentPlanInput?.weightKg)'));
   assert(!appJs.includes('currentDailyTotals:'));
   assert(!appJs.includes('currentMealTotals:'));
+  assert(!appJs.includes('projectedDailyTotalsForMeal'));
 });
 
 const summary = Object.fromEntries(results);

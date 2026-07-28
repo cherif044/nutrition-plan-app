@@ -60,15 +60,14 @@ verdict/improvement commentary, not in the Section 7 rules.
 
 - A proposed meal may differ from its original meal target by at most 5% of
   total daily calories.
-- Each proposed individual meal must contain protein within 1.8-2.2 g/kg of
-  body weight and fat within 0.66-1.0 g/kg of body weight.
+- Protein and fat are validated only inside that meal. Each meal receives its
+  proportional share of the daily 1.8-2.2 g/kg protein range and 0.66-1.0
+  g/kg fat range, based on that meal's original macro allocation.
 - The rule does not define a carbohydrate g/kg range, so the swap validator
-  does not invent one.
+  only requires the meal's carbohydrate amount to be non-negative.
 - The backend requires daily context for interactive rebalance requests and
-  validates the individual meal before accepting a result.
-
-This is the literal Section 8 behavior. The alternative of checking the
-projected full day appears only in the verdict and is intentionally not used.
+  validates only the selected meal before accepting a result. Other meals do
+  not affect approval.
 
 ## Verification
 

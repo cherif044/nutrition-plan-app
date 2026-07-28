@@ -1,5 +1,9 @@
 // Sanity checks for solvePortionsLeastSquares — run with: node test-solver.js
-const { rebalanceMeal, solvePortionsLeastSquares } = require('./src/services/planGenerator');
+const {
+  findBestPortionGridFit,
+  rebalanceMeal,
+  solvePortionsLeastSquares,
+} = require('./src/services/planGenerator');
 
 const PROTEIN_TOL = 10;
 const CARB_TOL    = 15;
@@ -19,11 +23,12 @@ function makeFood(id, p, c, f, min = 20, max = 500) {
 function macros(items) {
   return items.reduce(
     (s, i) => ({
+      kcal: s.kcal + (i.quantityG * i.food.caloriesPer100g) / 100,
       P: s.P + (i.quantityG * i.food.proteinGPer100g) / 100,
       C: s.C + (i.quantityG * i.food.carbGPer100g)    / 100,
       F: s.F + (i.quantityG * i.food.fatGPer100g)     / 100,
     }),
-    { P: 0, C: 0, F: 0 },
+    { kcal: 0, P: 0, C: 0, F: 0 },
   );
 }
 
@@ -124,6 +129,66 @@ if (rebalance.success) {
   assert(Math.abs(rebalance.totals.calories - dinnerTarget.calories) <= 2500 * 0.05,
     `calories within ±5% of daily calories (got ${rebalance.totals.calories.toFixed(0)} kcal)`);
 }
+
+// ─── Test 5: exact 1g grid search finds a tight valid combination ─────────
+console.log('\nTest 5: exact grid search — finds valid 1g gram distribution');
+const exactProtein = makeFood('exact-protein', 10, 0, 0, 0, 150);
+const exactCarb = makeFood('exact-carb', 0, 10, 0, 0, 150);
+const exactFat = makeFood('exact-fat', 0, 0, 10, 0, 150);
+const exactItems = [
+  { food: exactProtein, quantityG: 10 },
+  { food: exactCarb, quantityG: 10 },
+  { food: exactFat, quantityG: 10 },
+];
+const exactTarget = {
+  calories: 132.6,
+  proteinG: 12.3,
+  carbG: 8.7,
+  fatG: 5.4,
+};
+const exactBounds = {
+  calories: { min: 132.55, max: 132.65 },
+  proteinG: { min: 12.25, max: 12.35 },
+  carbG: { min: 8.65, max: 8.75 },
+  fatG: { min: 5.35, max: 5.45 },
+};
+const exactFit = findBestPortionGridFit(exactItems, exactTarget, exactBounds, exactItems, {
+  step: 1,
+  maxVisits: 500000,
+  maxMs: 1000,
+});
+assert(Boolean(exactFit), 'exact grid search returns a valid fit');
+if (exactFit) {
+  const exactMacros = macros(exactFit.items);
+  assert(exactFit.exhaustive === true, 'small exact search completes exhaustively');
+  assert(Math.abs(exactMacros.kcal - exactTarget.calories) <= 0.05,
+    `calories exact within 1g grid (got ${exactMacros.kcal.toFixed(2)} kcal)`);
+  assert(Math.abs(exactMacros.P - exactTarget.proteinG) <= 0.05,
+    `protein exact within 1g grid (got ${exactMacros.P.toFixed(2)}g)`);
+  assert(Math.abs(exactMacros.C - exactTarget.carbG) <= 0.05,
+    `carbs exact within 1g grid (got ${exactMacros.C.toFixed(2)}g)`);
+  assert(Math.abs(exactMacros.F - exactTarget.fatG) <= 0.05,
+    `fat exact within 1g grid (got ${exactMacros.F.toFixed(2)}g)`);
+}
+
+// ─── Test 6: exact grid search rejects truly infeasible bounds ─────────────
+console.log('\nTest 6: exact grid search — rejects infeasible bounds');
+const infeasibleFit = findBestPortionGridFit(exactItems, {
+  calories: 1000,
+  proteinG: 200,
+  carbG: 200,
+  fatG: 200,
+}, {
+  calories: { min: 995, max: 1005 },
+  proteinG: { min: 195, max: 205 },
+  carbG: { min: 195, max: 205 },
+  fatG: { min: 195, max: 205 },
+}, exactItems, {
+  step: 1,
+  maxVisits: 500000,
+  maxMs: 1000,
+});
+assert(infeasibleFit === null, 'exact grid search returns null when no gram combination can satisfy bounds');
 
 // ─── Results ──────────────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(50)}`);

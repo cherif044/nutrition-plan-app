@@ -89,6 +89,7 @@ function testMealOptionsUseOnlyReadyMeals() {
   const plan = generatePlan(baseInput);
 
   for (const meal of plan.meals) {
+    assert(meal.mealOptions.length > 0, `${meal.name} should include valid ready alternatives`);
     for (const option of meal.mealOptions) {
       const readyMeal = readyById.get(option.readyMealId);
       assert(readyMeal, `${meal.name} option should use a ready meal id`);
@@ -99,7 +100,7 @@ function testMealOptionsUseOnlyReadyMeals() {
         weightKg: baseInput.weightKg,
         mealTarget: meal.target,
         proposedMealTotals: option.totals,
-      }).valid, true, `${meal.name} option should satisfy the literal individual-meal rule`);
+      }).valid, true, `${meal.name} option should satisfy its own calorie and macro ranges`);
       assert.equal(option.items.length, readyMeal.components.length, `${option.readyMealId} should keep its fixed ingredients`);
     }
 
@@ -121,12 +122,8 @@ function testMealOptionsUseOnlyReadyMeals() {
       weightKg: baseInput.weightKg,
       mealTarget: meal.target,
       proposedMealTotals: option.totals,
-    }).valid), `${meal.name} API options should satisfy the literal individual-meal rule`);
+    }).valid), `${meal.name} API options should satisfy their own calorie and macro ranges`);
   }
-  assert(
-    plan.meals.every((meal) => meal.mealOptions.length === 0),
-    'the current database should expose no invalid arrow alternatives when literal per-meal g/kg ranges are infeasible',
-  );
 }
 
 function testReadyMealOnlyUi() {
