@@ -13,10 +13,7 @@ const NUTRITION = {
     sedentary: 1.2,
     light: 1.375,
     moderate: 1.55,
-    physical_job: 1.65,
     athlete: 1.9,
-    // Accepted only for saved-plan compatibility. New plans use physical_job.
-    very_active: 1.725,
   },
   weightLoss: {
     minimumWeeklyPercent: 0.5,
@@ -29,11 +26,6 @@ const NUTRITION = {
     maximumSurplusCalories: 300,
     defaultSurplusCalories: 250,
   },
-  calorieFloor: {
-    bmrMultiplier: 1.2,
-    maleAbsolute: 1500,
-    femaleAbsolute: 1200,
-  },
   proteinPerKg: {
     minimum: 1.8,
     maximum: 2.2,
@@ -45,10 +37,8 @@ const NUTRITION = {
     default: 0.7,
   },
   mealSwapDailyCalorieWindowPercent: 0.05,
-  dailyCalorieTolerancePercent: 0.05,
-  databaseProteinFloorFraction: 0.75,
   calorieTolerancePercent: 0.20,
-  mealMacroTolerancePercent: 0.30,
+  mealMacroTolerancePercent: 0.20,
   totalMacroTolerancePercent: 0.05,
   residualScoreImprovementThreshold: 0.10,
   hardErrorCalorieFloorPercent: 0.80,
@@ -88,7 +78,7 @@ const MEAL_DISTRIBUTIONS = {
   },
 };
 
-const MEAL_SLOT_POLICY = {
+const STANDARD_MEAL_SLOT_POLICY = {
   3: [
     { name: 'Breakfast', tag: 'breakfast' },
     { name: 'Lunch', tag: 'lunch' },
@@ -100,30 +90,51 @@ const MEAL_SLOT_POLICY = {
     { name: 'Lunch', tag: 'lunch' },
     { name: 'Dinner', tag: 'dinner' },
   ],
-  5: [
-    { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Snack 1', tag: 'snack' },
-    { name: 'Lunch', tag: 'lunch' },
-    { name: 'Snack 2', tag: 'snack' },
-    { name: 'Dinner', tag: 'dinner' },
-  ],
 };
 
-const TWO_MEAL_SLOT_POLICY = {
+const AMBIGUOUS_MEAL_SLOT_POLICY = {
   balanced: [
-    { name: 'First Meal', tag: 'lunch' },
-    { name: 'Main Meal', tag: 'dinner' },
+    { name: 'Meal 1', tag: 'main' },
+    { name: 'Meal 2', tag: 'main' },
   ],
   breakfast_heavy: [
     { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Dinner', tag: 'dinner' },
+    { name: 'Meal 2', tag: 'main' },
   ],
   lunch_heavy: [
-    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Meal 1', tag: 'main' },
     { name: 'Lunch', tag: 'lunch' },
   ],
   dinner_heavy: [
+    { name: 'Meal 1', tag: 'main' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+  balanced_5: [
+    { name: 'Meal 1', tag: 'main' },
+    { name: 'Snack 1', tag: 'snack' },
+    { name: 'Meal 3', tag: 'main' },
+    { name: 'Snack 2', tag: 'snack' },
+    { name: 'Meal 5', tag: 'main' },
+  ],
+  breakfast_heavy_5: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Snack 1', tag: 'snack' },
+    { name: 'Meal 3', tag: 'main' },
+    { name: 'Snack 2', tag: 'snack' },
+    { name: 'Meal 5', tag: 'main' },
+  ],
+  lunch_heavy_5: [
+    { name: 'Meal 1', tag: 'main' },
+    { name: 'Snack 1', tag: 'snack' },
     { name: 'Lunch', tag: 'lunch' },
+    { name: 'Snack 2', tag: 'snack' },
+    { name: 'Meal 5', tag: 'main' },
+  ],
+  dinner_heavy_5: [
+    { name: 'Meal 1', tag: 'main' },
+    { name: 'Snack 1', tag: 'snack' },
+    { name: 'Meal 3', tag: 'main' },
+    { name: 'Snack 2', tag: 'snack' },
     { name: 'Dinner', tag: 'dinner' },
   ],
 };
@@ -138,9 +149,9 @@ const RAMADAN_DISTRIBUTION = {
 };
 
 module.exports = {
+  AMBIGUOUS_MEAL_SLOT_POLICY,
   MEAL_DISTRIBUTIONS,
-  MEAL_SLOT_POLICY,
   NUTRITION,
   RAMADAN_DISTRIBUTION,
-  TWO_MEAL_SLOT_POLICY,
+  STANDARD_MEAL_SLOT_POLICY,
 };

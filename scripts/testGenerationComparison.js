@@ -32,7 +32,7 @@ const profiles = [
   profile('seafood allergy', { allergies: ['seafood'] }),
   profile('dislikes chicken', { dislikes: ['chicken'] }),
   profile('dislikes rice', { dislikes: ['rice'] }),
-  profile('high protein target', { weightKg: 110, activityLevel: 'physical_job' }),
+  profile('high protein target', { weightKg: 110, activityLevel: 'athlete' }),
   profile('weight loss target', { goal: 'lose_weight', activityLevel: 'light' }),
   profile('weight gain target', { goal: 'gain_weight', activityLevel: 'moderate' }),
 ];

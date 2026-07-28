@@ -73,6 +73,28 @@ function deriveMealMacroProfiles({ readyMeals, foods }) {
     };
   }
 
+  const mainTags = ['breakfast', 'lunch', 'dinner'];
+  const mainSourceCount = mainTags.reduce(
+    (total, tag) => total + profiles[tag].sourceCount,
+    0,
+  );
+  profiles.main = {
+    protein: mainTags.reduce(
+      (total, tag) => total + profiles[tag].protein * profiles[tag].sourceCount,
+      0,
+    ) / mainSourceCount,
+    carb: mainTags.reduce(
+      (total, tag) => total + profiles[tag].carb * profiles[tag].sourceCount,
+      0,
+    ) / mainSourceCount,
+    fat: mainTags.reduce(
+      (total, tag) => total + profiles[tag].fat * profiles[tag].sourceCount,
+      0,
+    ) / mainSourceCount,
+    sourceCount: mainSourceCount,
+    source: 'ready_meal_database',
+  };
+
   return profiles;
 }
 

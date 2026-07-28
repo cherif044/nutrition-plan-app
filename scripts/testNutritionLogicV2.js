@@ -26,7 +26,7 @@ const {
   generatePlan,
   normalizeInput,
   rebalanceMeal,
-  validateDailySwap,
+  validateMealSwap,
 } = require('../src/services/planGenerator');
 
 const results = new Map();
@@ -174,16 +174,19 @@ for (const sex of ['male', 'female']) {
     }
   }
 }
-test('3. Activity and TDEE', 'physical job and athlete are separate tiers', () => {
-  assert(NUTRITION.activityMultipliers.physical_job < NUTRITION.activityMultipliers.athlete);
-  assert(NUTRITION.activityMultipliers.physical_job >= 1.6);
-  assert.equal(NUTRITION.activityMultipliers.athlete, 1.9);
+test('3. Activity and TDEE', 'document defines exactly four activity tiers', () => {
+  assert.deepEqual(NUTRITION.activityMultipliers, {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    athlete: 1.9,
+  });
 });
 
-// 4. Maintenance, loss, gain, and safety floor
+// 4. Maintenance, loss, and gain
 for (const weightKg of [40, 60, 80, 100, 120, 150, 180, 220]) {
   for (const sex of ['male', 'female']) {
-    for (const activityLevel of ['sedentary', 'light', 'moderate', 'physical_job', 'athlete']) {
+    for (const activityLevel of ['sedentary', 'light', 'moderate', 'athlete']) {
       test('4. Goal calorie adjustment', `maintain ${weightKg}/${sex}/${activityLevel}`, () => {
         const input = normalizeInput(baseRaw({ weightKg, sex, activityLevel, goal: 'maintain' }));
         const details = calculateNutritionDetails(input);
@@ -213,16 +216,31 @@ for (const weightKg of [40, 60, 80, 100, 120, 150, 180, 220]) {
           }));
           const details = calculateNutritionDetails(input);
           const deficit = weightKg * weeklyWeightLossPercent / 100 * 7700 / 7;
-          const absoluteFloor = sex === 'male' ? 1500 : 1200;
-          const floor = Math.max(details.bmr * 1.2, absoluteFloor);
           close(details.requestedDailyDeficitCalories, deficit);
-          close(details.safetyFloorCalories, floor);
-          close(details.targetCalories, Math.max(details.maintenanceCalories - deficit, floor));
+          assert.equal(Object.hasOwn(details, 'safetyFloorCalories'), false);
+          close(details.targetCalories, details.maintenanceCalories - deficit);
+          close(details.adjustmentCalories, -deficit);
         });
       }
     }
   }
 }
+for (const input of [
+  baseRaw({ weightKg: 150, heightCm: 145, age: 75, sex: 'female', activityLevel: 'sedentary', goal: 'lose_weight', weeklyWeightLossPercent: 1 }),
+  baseRaw({ weightKg: 220, heightCm: 150, age: 80, sex: 'male', activityLevel: 'sedentary', goal: 'lose_weight', weeklyWeightLossPercent: 1 }),
+]) {
+  test('4. Goal calorie adjustment', `loss formula is not changed by a calorie floor ${input.weightKg}/${input.sex}`, () => {
+    const normalized = normalizeInput(input);
+    const details = calculateNutritionDetails(normalized);
+    const expected =
+      details.maintenanceCalories -
+      input.weightKg * input.weeklyWeightLossPercent / 100 * 7700 / 7;
+    close(details.targetCalories, expected);
+  });
+}
+test('4. Goal calorie adjustment', 'no verdict-derived calorie-floor policy remains', () => {
+  assert.equal(Object.hasOwn(NUTRITION, 'calorieFloor'), false);
+});
 
 // 5. Daily macronutrients and edge handling
 for (const weightKg of [40, 55, 70, 85, 100, 125, 150, 180, 220]) {
@@ -236,7 +254,6 @@ for (const weightKg of [40, 55, 70, 85, 100, 125, 150, 180, 220]) {
         );
         close(targets.proteinG, weightKg * proteinPerKg);
         close(targets.fatG, weightKg * fatPerKg);
-        assert(targets.carbG >= 0);
         close(
           targets.proteinG * 4 + targets.carbG * 4 + targets.fatG * 9,
           targetCalories,
@@ -246,26 +263,25 @@ for (const weightKg of [40, 55, 70, 85, 100, 125, 150, 180, 220]) {
   }
 }
 for (const weightKg of [40, 60, 80, 100, 150, 220]) {
-  test('5. Daily macronutrients', `fat trims before protein at ${weightKg}kg`, () => {
-    const minimumMacroCalories = weightKg * 1.8 * 4 + weightKg * 0.66 * 9;
+  test('5. Daily macronutrients', `low calories do not alter selected factors at ${weightKg}kg`, () => {
+    const targetCalories = weightKg * 5;
     const targets = calculateMacroTargets(
       { weightKg, proteinPerKg: 2, fatPerKg: 1 },
-      minimumMacroCalories + weightKg * 0.2 * 4,
+      targetCalories,
     );
-    assert(targets.fatG >= weightKg * 0.66 - 1e-7);
-    assert(targets.fatG < weightKg);
-    assert(targets.proteinG >= weightKg * 1.8 - 1e-7);
-    assert(targets.carbG >= 0);
+    close(targets.proteinG, weightKg * 2);
+    close(targets.fatG, weightKg);
+    close(targets.carbG, (targetCalories - weightKg * 2 * 4 - weightKg * 9) / 4);
+    assert(targets.carbG < 0);
   });
-  test('5. Daily macronutrients', `reject impossible minimums at ${weightKg}kg`, () => {
-    const minimumMacroCalories = weightKg * 1.8 * 4 + weightKg * 0.66 * 9;
-    expectThrow(
-      () => calculateMacroTargets(
-        { weightKg, proteinPerKg: 2.2, fatPerKg: 1 },
-        minimumMacroCalories - 1,
-      ),
-      /too low/,
+  test('5. Daily macronutrients', `carbs are literal remaining calories at ${weightKg}kg`, () => {
+    const targetCalories = weightKg * 17;
+    const targets = calculateMacroTargets(
+      { weightKg, proteinPerKg: 2.2, fatPerKg: 1 },
+      targetCalories,
     );
+    close(targets.carbG, (targetCalories - weightKg * 2.2 * 4 - weightKg * 9) / 4);
+    close(targets.proteinG * 4 + targets.carbG * 4 + targets.fatG * 9, targetCalories);
   });
 }
 
@@ -287,14 +303,46 @@ for (const [distribution, table] of Object.entries(MEAL_DISTRIBUTIONS)) {
     });
   }
 }
-test('6. Meal calorie distribution', 'two-meal labels are explicit for every pattern', () => {
+test('6. Meal calorie distribution', 'ambiguous two-meal slots stay generic unless the table names the heavy meal', () => {
+  assert.deepEqual(
+    getMealSlotProfile(2, 'balanced').map(({ name, tag }) => ({ name, tag })),
+    [{ name: 'Meal 1', tag: 'main' }, { name: 'Meal 2', tag: 'main' }],
+  );
+  assert.deepEqual(
+    getMealSlotProfile(2, 'breakfast_heavy').map(({ name, tag }) => ({ name, tag })),
+    [{ name: 'Breakfast', tag: 'breakfast' }, { name: 'Meal 2', tag: 'main' }],
+  );
+  assert.deepEqual(
+    getMealSlotProfile(2, 'lunch_heavy').map(({ name, tag }) => ({ name, tag })),
+    [{ name: 'Meal 1', tag: 'main' }, { name: 'Lunch', tag: 'lunch' }],
+  );
+  assert.deepEqual(
+    getMealSlotProfile(2, 'dinner_heavy').map(({ name, tag }) => ({ name, tag })),
+    [{ name: 'Meal 1', tag: 'main' }, { name: 'Dinner', tag: 'dinner' }],
+  );
+});
+test('6. Meal calorie distribution', 'ambiguous five-meal main slots stay generic', () => {
   for (const distribution of Object.keys(MEAL_DISTRIBUTIONS)) {
-    const profiles = getMealSlotProfile(2, distribution);
-    assert(profiles.every((profile) => profile.name && profile.tag));
+    const profiles = getMealSlotProfile(5, distribution);
+    assert.deepEqual(profiles.slice(1, 4).filter((_, index) => index % 2 === 0).map((profile) => profile.tag), ['snack', 'snack']);
+    const namedHeavyIndex = {
+      breakfast_heavy: 0,
+      lunch_heavy: 2,
+      dinner_heavy: 4,
+    }[distribution];
+    profiles.forEach((profile, index) => {
+      if (profile.tag === 'snack') return;
+      if (index === namedHeavyIndex) {
+        assert.equal(profile.tag, distribution.replace('_heavy', ''));
+      } else {
+        assert.equal(profile.tag, 'main');
+        assert.match(profile.name, /^Meal [135]$/);
+      }
+    });
   }
 });
 
-// 7. Database-derived macro ratios, protein floors, and exact daily reconciliation
+// 7. Database-derived macro ratios and exact daily reconciliation
 const databaseProfiles = getDatabaseMealMacroProfiles();
 const expectedSourceCounts = { breakfast: 54, lunch: 70, dinner: 53, snack: 46 };
 for (const tag of Object.keys(expectedSourceCounts)) {
@@ -316,9 +364,27 @@ for (const tag of Object.keys(expectedSourceCounts)) {
 }
 test('7. Database meal macro ratios', 'profiles are derived from all 223 ready meals', () => {
   assert.equal(
-    Object.values(databaseProfiles).reduce((total, profile) => total + profile.sourceCount, 0),
+    Object.keys(expectedSourceCounts).reduce(
+      (total, tag) => total + databaseProfiles[tag].sourceCount,
+      0,
+    ),
     loadReadyMealBundles().length,
   );
+});
+test('7. Database meal macro ratios', 'generic main profile is weighted from all non-snack meals', () => {
+  assert.equal(databaseProfiles.main.source, 'ready_meal_database');
+  assert.equal(
+    databaseProfiles.main.sourceCount,
+    expectedSourceCounts.breakfast + expectedSourceCounts.lunch + expectedSourceCounts.dinner,
+  );
+  for (const macro of ['protein', 'carb', 'fat']) {
+    const expected = ['breakfast', 'lunch', 'dinner'].reduce(
+      (total, tag) =>
+        total + databaseProfiles[tag][macro] * databaseProfiles[tag].sourceCount,
+      0,
+    ) / databaseProfiles.main.sourceCount;
+    close(databaseProfiles.main[macro], expected);
+  }
 });
 test('7. Database meal macro ratios', 'derivation responds to fixture nutrition data', () => {
   const foods = [
@@ -361,11 +427,6 @@ for (const distribution of Object.keys(MEAL_DISTRIBUTIONS)) {
           close(totals[key], dailyTargets[key], 1e-5);
         }
         for (const meal of meals) {
-          const minimumProteinCalories =
-            dailyTargets.proteinG * 4 *
-            meal.slotProfile.idealCaloriePercent *
-            NUTRITION.databaseProteinFloorFraction;
-          assert(meal.targets.proteinG * 4 >= minimumProteinCalories - 1e-5);
           close(
             meal.targets.proteinG * 4 +
             meal.targets.carbG * 4 +
@@ -379,12 +440,18 @@ for (const distribution of Object.keys(MEAL_DISTRIBUTIONS)) {
     }
   }
 }
+test('7. Database meal macro ratios', 'no verdict-derived protein floor constant remains', () => {
+  assert.equal(Object.hasOwn(NUTRITION, 'databaseProteinFloorFraction'), false);
+});
+test('7. Database meal macro ratios', 'pre-verdict meal macro tolerance remains 20%', () => {
+  assert.equal(NUTRITION.mealMacroTolerancePercent, 0.20);
+});
 
-// 8. ±5% daily-calorie swap window and daily range checks
+// 8. Per-meal ±5% daily-calorie window and literal per-meal g/kg ranges
 for (let dailyCalories = 1200; dailyCalories <= 5000; dailyCalories += 100) {
   test('8. Meal swap flexibility', `absolute meal window at ${dailyCalories} kcal`, () => {
     const target = { calories: dailyCalories * 0.3, proteinG: 45, carbG: 60, fatG: 20 };
-    const bounds = computeMealBounds(target, { dailyCalories });
+    const bounds = computeMealBounds(target, { dailyCalories, weightKg: 80 });
     close(bounds.calories.min, target.calories - dailyCalories * 0.05);
     close(bounds.calories.max, target.calories + dailyCalories * 0.05);
   });
@@ -393,86 +460,127 @@ for (let dailyCalories = 1200; dailyCalories <= 5000; dailyCalories += 100) {
 const swapBase = {
   dailyTargets: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
   weightKg: 80,
-  currentDailyTotals: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
-  currentMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
+  mealTarget: { calories: 500, proteinG: 40, carbG: 60, fatG: 15 },
 };
 for (let delta = -140; delta <= 140; delta += 5) {
-  test('8. Meal swap flexibility', `projected daily calorie delta ${delta}`, () => {
-    const validation = validateDailySwap({
+  test('8. Meal swap flexibility', `individual meal calorie delta ${delta}`, () => {
+    const validation = validateMealSwap({
       ...swapBase,
       proposedMealTotals: {
-        ...swapBase.currentMealTotals,
-        calories: swapBase.currentMealTotals.calories + delta,
+        calories: swapBase.mealTarget.calories + delta,
+        proteinG: 160,
+        carbG: 60,
+        fatG: 60,
       },
     });
     assert.equal(validation.valid, Math.abs(delta) <= 100);
   });
 }
-for (let delta = -24; delta <= 24; delta += 1) {
-  test('8. Meal swap flexibility', `projected protein delta ${delta}`, () => {
-    const validation = validateDailySwap({
+for (let proteinG = 130; proteinG <= 190; proteinG += 1) {
+  test('8. Meal swap flexibility', `individual meal protein ${proteinG}g`, () => {
+    const validation = validateMealSwap({
       ...swapBase,
       proposedMealTotals: {
-        ...swapBase.currentMealTotals,
-        proteinG: swapBase.currentMealTotals.proteinG + delta,
+        calories: 500,
+        proteinG,
+        carbG: 60,
+        fatG: 60,
       },
     });
-    assert.equal(validation.valid, 160 + delta >= 144 && 160 + delta <= 176);
+    assert.equal(validation.valid, proteinG >= 144 && proteinG <= 176);
   });
 }
-for (let delta = -10; delta <= 30; delta += 1) {
-  test('8. Meal swap flexibility', `projected fat delta ${delta}`, () => {
-    const validation = validateDailySwap({
+for (let fatG = 40; fatG <= 90; fatG += 1) {
+  test('8. Meal swap flexibility', `individual meal fat ${fatG}g`, () => {
+    const validation = validateMealSwap({
       ...swapBase,
       proposedMealTotals: {
-        ...swapBase.currentMealTotals,
-        fatG: swapBase.currentMealTotals.fatG + delta,
+        calories: 500,
+        proteinG: 160,
+        carbG: 60,
+        fatG,
       },
     });
-    assert.equal(validation.valid, 56 + delta >= 52.8 && 56 + delta <= 80);
+    assert.equal(validation.valid, fatG >= 52.8 && fatG <= 80);
   });
 }
-test('8. Meal swap flexibility', 'missing daily context is rejected', () => {
-  const validation = validateDailySwap({});
+for (const weightKg of [40, 55, 70, 80, 100, 125, 150, 180, 220]) {
+  for (const dailyCalories of [1200, 1800, 2500, 3500, 5000]) {
+    test('8. Meal swap flexibility', `literal g/kg bounds ${weightKg}kg/${dailyCalories}kcal`, () => {
+      const mealTarget = { calories: dailyCalories * 0.25, proteinG: 1, carbG: 1, fatG: 1 };
+      const bounds = computeMealBounds(mealTarget, { dailyCalories, weightKg });
+      close(bounds.proteinG.min, weightKg * 1.8);
+      close(bounds.proteinG.max, weightKg * 2.2);
+      close(bounds.fatG.min, weightKg * 0.66);
+      close(bounds.fatG.max, weightKg);
+      assert.equal(bounds.carbG.min, -Infinity);
+      assert.equal(bounds.carbG.max, Infinity);
+    });
+  }
+}
+for (const carbG of [-500, -1, 0, 100, 500, 1000]) {
+  test('8. Meal swap flexibility', `carbohydrate ${carbG}g has no invented per-kg range`, () => {
+    const validation = validateMealSwap({
+      ...swapBase,
+      proposedMealTotals: { calories: 500, proteinG: 160, carbG, fatG: 60 },
+    });
+    assert.equal(validation.valid, true);
+  });
+}
+test('8. Meal swap flexibility', 'missing per-meal context is rejected', () => {
+  const validation = validateMealSwap({});
   assert.equal(validation.valid, false);
-  assert.deepEqual(validation.violations, ['daily_context']);
+  assert.deepEqual(validation.violations, ['meal_context']);
 });
-test('8. Meal swap flexibility', 'negative daily carbohydrates are rejected', () => {
-  const validation = validateDailySwap({
+test('8. Meal swap flexibility', 'unrelated full-day totals do not change individual-meal validation', () => {
+  const validation = validateMealSwap({
     ...swapBase,
-    proposedMealTotals: { calories: 500, proteinG: 40, carbG: -300, fatG: 15 },
+    currentDailyTotals: { calories: 1, proteinG: 1, carbG: 1, fatG: 1 },
+    currentMealTotals: { calories: 9999, proteinG: 9999, carbG: 9999, fatG: 9999 },
+    proposedMealTotals: { calories: 500, proteinG: 160, carbG: 60, fatG: 60 },
   });
-  assert(validation.violations.includes('daily_carbs'));
+  assert.equal(validation.valid, true);
 });
-test('8. Meal swap flexibility', 'deterministic rebalance enforces projected daily ranges', () => {
-  const mealTarget = { calories: 761, proteinG: 53, carbG: 81, fatG: 25 };
+test('8. Meal swap flexibility', 'deterministic rebalance enforces individual-meal ranges', () => {
+  const mealTarget = { calories: 500, proteinG: 160, carbG: 60, fatG: 60 };
   const result = rebalanceMeal({
     mealTarget,
     items: [
-      { foodId: 'bread_brown_whole_grain', quantityG: 30 },
-      { foodId: 'chicken_breast_skinless_boneless_grilled', quantityG: 85 },
-      { foodId: 'cheese_cheddar', quantityG: 40 },
-      { foodId: 'nuts_almond_butter_without_salt', quantityG: 15 },
+      {
+        foodId: 'custom_rule_boundary_meal',
+        quantityG: 100,
+        customFood: {
+          name: 'Rule boundary meal',
+          servingG: 100,
+          maxServingG: 100,
+          calories: 500,
+          proteinG: 160,
+          carbG: 60,
+          fatG: 60,
+        },
+      },
     ],
     dailyContext: {
-      dailyTargets: { calories: 2500, proteinG: 160, carbG: 300, fatG: 70 },
+      dailyTargets: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
       weightKg: 80,
-      currentDailyTotals: { calories: 2500, proteinG: 160, carbG: 300, fatG: 70 },
-      currentMealTotals: mealTarget,
     },
   });
   assert.equal(result.success, true);
-  assert.equal(result.dailyValidation.valid, true);
-  assert(Math.abs(result.totals.calories - mealTarget.calories) <= 125);
+  assert.equal(result.mealValidation.valid, true);
+  assert(Math.abs(result.totals.calories - mealTarget.calories) <= 100);
 });
-test('8. Meal swap flexibility', 'otherwise-valid meal is blocked when daily protein is out of range', () => {
-  const validation = validateDailySwap({
+test('8. Meal swap flexibility', 'meal below literal protein range is blocked even if the full day is in range', () => {
+  const validation = validateMealSwap({
     ...swapBase,
-    currentDailyTotals: { ...swapBase.currentDailyTotals, proteinG: 140 },
-    proposedMealTotals: swapBase.currentMealTotals,
+    currentDailyTotals: { calories: 2000, proteinG: 160, carbG: 250, fatG: 56 },
+    proposedMealTotals: { calories: 500, proteinG: 40, carbG: 60, fatG: 60 },
   });
   assert.equal(validation.valid, false);
-  assert(validation.violations.includes('daily_protein'));
+  assert(validation.violations.includes('meal_protein'));
+});
+test('8. Meal swap flexibility', 'no verdict-derived daily swap tolerance remains', () => {
+  assert.equal(Object.hasOwn(NUTRITION, 'dailyCalorieTolerancePercent'), false);
+  assert.equal(Object.hasOwn(require('../src/services/planGenerator'), 'validateDailySwap'), false);
 });
 
 // End-to-end generation and UI wiring
@@ -492,7 +600,7 @@ for (const distribution of Object.keys(MEAL_DISTRIBUTIONS)) {
   }
 }
 for (const sex of ['male', 'female']) {
-  for (const activityLevel of ['sedentary', 'light', 'moderate', 'physical_job', 'athlete']) {
+  for (const activityLevel of ['sedentary', 'light', 'moderate', 'athlete']) {
     for (const goal of ['maintain', 'lose_weight', 'gain_weight']) {
       test('9. End-to-end integration', `${sex}/${activityLevel}/${goal}`, () => {
         const plan = generatePlan(baseRaw({ sex, activityLevel, goal }));
@@ -536,10 +644,18 @@ test('9. End-to-end integration', 'UI uses only the three document goals', () =>
     assert(plannerHtml.includes(`value="${goal}"`));
   }
 });
-test('9. End-to-end integration', 'UI sends daily swap context', () => {
+test('9. End-to-end integration', 'UI exposes exactly the four document activity levels', () => {
+  const optionValues = [...plannerHtml.matchAll(/<option value="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((value) => ['sedentary', 'light', 'moderate', 'athlete', 'physical_job', 'very_active'].includes(value));
+  assert.deepEqual(optionValues, ['sedentary', 'light', 'moderate', 'athlete']);
+});
+test('9. End-to-end integration', 'UI sends only the context needed for individual-meal swap rules', () => {
   assert(appJs.includes('dailyContext:'));
-  assert(appJs.includes('currentDailyTotals: currentDailyTotals()'));
-  assert(appJs.includes('currentMealTotals: computeTotals(state.items)'));
+  assert(appJs.includes('dailyTargets,'));
+  assert(appJs.includes('weightKg: Number(currentPlanInput?.weightKg)'));
+  assert(!appJs.includes('currentDailyTotals:'));
+  assert(!appJs.includes('currentMealTotals:'));
 });
 
 const summary = Object.fromEntries(results);

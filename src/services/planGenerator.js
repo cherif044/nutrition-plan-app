@@ -8,7 +8,6 @@ const {
   NUTRITION,
   buildMealTargets,
   calculateNutritionDetails,
-  dailyMacroRanges,
   macrosForFoodPortion,
   sumTargets,
   roundToNearest,
@@ -19,8 +18,6 @@ const ACTIVITY_LEVELS = new Set([
   'sedentary',
   'light',
   'moderate',
-  'physical_job',
-  'very_active',
   'athlete',
 ]);
 const GOALS = new Set(['maintain', 'lose_weight', 'lose_weight_aggressive', 'gain_weight']);
@@ -87,6 +84,12 @@ function _generatePlanInternal(rawInput, useTemplates) {
     const mealOptions = (meal.mealOptions ?? [])
       .map((option) => mealOptionForTarget(option, displayTarget))
       .filter(Boolean)
+      .filter((option) => validateMealSwap({
+        dailyTargets,
+        weightKg: input.weightKg,
+        mealTarget: displayTarget,
+        proposedMealTotals: option.totals,
+      }).valid)
       .slice(0, MEAL_OPTION_LIMIT);
     return {
       name: meal.name,
@@ -143,7 +146,6 @@ function _generatePlanInternal(rawInput, useTemplates) {
       maintenanceCalories: nutritionCalculation.maintenanceCalories,
       targetCalories: nutritionCalculation.targetCalories,
       adjustmentCalories: nutritionCalculation.adjustmentCalories,
-      safetyFloorCalories: nutritionCalculation.safetyFloorCalories,
       requestedDailyDeficitCalories: nutritionCalculation.requestedDailyDeficitCalories,
       weeklyWeightLossPercent: nutritionCalculation.weeklyWeightLossPercent,
       proteinPerKg: nutritionCalculation.proteinPerKg,
@@ -239,6 +241,14 @@ function repairTemplateDay(meals, dailyTargets) {
           meal: meal.name,
           calories: solvedTotals.calories,
           hardMaxCalories,
+        });
+        continue;
+      }
+      if (!totalsWithinMealTolerance(solvedTotals, meal.target)) {
+        debugOptimizer('repair rejected meal tolerance', {
+          meal: meal.name,
+          totals: solvedTotals,
+          target: meal.target,
         });
         continue;
       }
@@ -1865,6 +1875,7 @@ function generateAlternateMealOptions({
   currentItems,
   templateId = null,
   userPreferences = {},
+  dailyContext,
   limit = MEAL_OPTION_LIMIT,
 }) {
   const foods = loadFoods();
@@ -1893,7 +1904,7 @@ function generateAlternateMealOptions({
     })
     .filter(Boolean);
 
-  if (baseItems.length === 0 || !mealTarget) return [];
+  if (baseItems.length === 0 || !mealTarget || !dailyContext) return [];
 
   const seen = new Set([mealOptionSignature(baseItems)].filter(Boolean));
   return loadReadyMealBundles()
@@ -1901,6 +1912,11 @@ function generateAlternateMealOptions({
     .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, mealTarget))
     .filter(Boolean)
     .filter((candidate) => isWithinTolerance(candidate.items, mealTarget))
+    .filter((candidate) => validateMealSwap({
+      ...dailyContext,
+      mealTarget,
+      proposedMealTotals: candidate.totals,
+    }).valid)
     .filter((candidate) => {
       if (candidate.readyMeal.id === templateId) return false;
       const signature = mealOptionSignature(candidate.items);
@@ -2098,6 +2114,7 @@ function emptyMeal(target, reason = null, generationDebug = null) {
 function templateTagsForMealTag(mealTag) {
   if (mealTag === 'iftar') return ['dinner', 'lunch'];
   if (mealTag === 'suhoor') return ['breakfast', 'dinner'];
+  if (mealTag === 'main') return ['breakfast', 'lunch', 'dinner'];
   return [mealTag];
 }
 
@@ -2124,93 +2141,70 @@ function computeMealBounds(target, options = {}) {
     ? { mealMacroTolerance: options }
     : options;
   const dailyCalories = Number(normalizedOptions.dailyCalories);
+  const weightKg = Number(normalizedOptions.weightKg);
   const calorieWindow = Number.isFinite(dailyCalories) && dailyCalories > 0
     ? dailyCalories * NUTRITION.mealSwapDailyCalorieWindowPercent
     : target.calories * NUTRITION.mealSwapDailyCalorieWindowPercent;
-  const macroTolerance =
-    normalizedOptions.mealMacroTolerance ?? NUTRITION.mealMacroTolerancePercent;
+  const hasWeight = Number.isFinite(weightKg) && weightKg > 0;
   return {
     calories: {
       min: Math.max(0, target.calories - calorieWindow),
       max: target.calories + calorieWindow,
     },
     proteinG: {
-      min: target.proteinG * (1 - macroTolerance),
-      max: target.proteinG * (1 + macroTolerance),
+      min: hasWeight
+        ? weightKg * NUTRITION.proteinPerKg.minimum
+        : target.proteinG * (1 - NUTRITION.mealMacroTolerancePercent),
+      max: hasWeight
+        ? weightKg * NUTRITION.proteinPerKg.maximum
+        : target.proteinG * (1 + NUTRITION.mealMacroTolerancePercent),
     },
     carbG: {
-      min: Math.max(0, target.carbG * (1 - macroTolerance)),
-      max: target.carbG * (1 + macroTolerance),
+      min: -Infinity,
+      max: Infinity,
     },
     fatG: {
-      min: target.fatG * (1 - macroTolerance),
-      max: target.fatG * (1 + macroTolerance),
+      min: hasWeight
+        ? weightKg * NUTRITION.fatPerKg.minimum
+        : target.fatG * (1 - NUTRITION.mealMacroTolerancePercent),
+      max: hasWeight
+        ? weightKg * NUTRITION.fatPerKg.maximum
+        : target.fatG * (1 + NUTRITION.mealMacroTolerancePercent),
     },
   };
 }
 
-function validateDailySwap({
+function validateMealSwap({
   dailyTargets,
   weightKg,
-  currentDailyTotals,
-  currentMealTotals,
+  mealTarget,
   proposedMealTotals,
 }) {
   if (
     !dailyTargets ||
     !Number.isFinite(Number(weightKg)) ||
-    !currentDailyTotals ||
-    !currentMealTotals ||
+    !mealTarget ||
     !proposedMealTotals
   ) {
     return {
       valid: false,
-      violations: ['daily_context'],
-      projectedDailyTotals: null,
+      violations: ['meal_context'],
+      bounds: null,
     };
   }
 
-  const projectedDailyTotals = {};
-  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-    projectedDailyTotals[key] =
-      Number(currentDailyTotals[key] || 0) -
-      Number(currentMealTotals[key] || 0) +
-      Number(proposedMealTotals[key] || 0);
-  }
-
-  const macroRanges = dailyMacroRanges(Number(weightKg));
-  const calorieWindow =
-    Number(dailyTargets.calories) * NUTRITION.dailyCalorieTolerancePercent;
+  const bounds = computeMealBounds(mealTarget, {
+    dailyCalories: Number(dailyTargets.calories),
+    weightKg: Number(weightKg),
+  });
   const violations = [];
-  if (
-    projectedDailyTotals.calories <
-      Number(dailyTargets.calories) - calorieWindow ||
-    projectedDailyTotals.calories >
-      Number(dailyTargets.calories) + calorieWindow
-  ) {
-    violations.push('daily_calories');
-  }
-  if (
-    projectedDailyTotals.proteinG < macroRanges.proteinG.min ||
-    projectedDailyTotals.proteinG > macroRanges.proteinG.max
-  ) {
-    violations.push('daily_protein');
-  }
-  if (
-    projectedDailyTotals.fatG < macroRanges.fatG.min ||
-    projectedDailyTotals.fatG > macroRanges.fatG.max
-  ) {
-    violations.push('daily_fat');
-  }
-  if (projectedDailyTotals.carbG < 0) {
-    violations.push('daily_carbs');
-  }
+  const violation = findBoundsViolation(proposedMealTotals, bounds);
+  if (violation) violations.push(`meal_${violation}`);
 
   return {
     valid: violations.length === 0,
     violations,
-    projectedDailyTotals,
-    macroRanges,
+    bounds,
   };
 }
 
@@ -2612,24 +2606,25 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds, dailyContext }
 
   const bounds = mealBounds ?? computeMealBounds(mealTarget, {
     dailyCalories: dailyContext?.dailyTargets?.calories,
+    weightKg: dailyContext?.weightKg,
   });
   const initialTotals = totalsForItems(items);
   if (!findBoundsViolation(initialTotals, bounds)) {
-    const dailyValidation = dailyContext
-      ? validateDailySwap({ ...dailyContext, proposedMealTotals: initialTotals })
+    const mealValidation = dailyContext
+      ? validateMealSwap({ ...dailyContext, mealTarget, proposedMealTotals: initialTotals })
       : null;
-    if (dailyValidation && !dailyValidation.valid) {
+    if (mealValidation && !mealValidation.valid) {
       return {
         success: false,
-        violatedMacro: dailyValidation.violations[0],
-        dailyValidation,
+        violatedMacro: mealValidation.violations[0],
+        mealValidation,
       };
     }
     return {
       success: true,
       items: items.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
       totals: initialTotals,
-      ...(dailyValidation ? { dailyValidation } : {}),
+      ...(mealValidation ? { mealValidation } : {}),
     };
   }
 
@@ -2645,34 +2640,34 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds, dailyContext }
     const gridItems = findPortionGridSolution(items, mealTarget, bounds, finalItems);
     if (gridItems) {
       const gridTotals = totalsForItems(gridItems);
-      const dailyValidation = dailyContext
-        ? validateDailySwap({ ...dailyContext, proposedMealTotals: gridTotals })
+      const mealValidation = dailyContext
+        ? validateMealSwap({ ...dailyContext, mealTarget, proposedMealTotals: gridTotals })
         : null;
-      if (dailyValidation && !dailyValidation.valid) {
+      if (mealValidation && !mealValidation.valid) {
         return {
           success: false,
-          violatedMacro: dailyValidation.violations[0],
-          dailyValidation,
+          violatedMacro: mealValidation.violations[0],
+          mealValidation,
         };
       }
       return {
         success: true,
         items: gridItems.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
         totals: gridTotals,
-        ...(dailyValidation ? { dailyValidation } : {}),
+        ...(mealValidation ? { mealValidation } : {}),
       };
     }
     return { success: false, violatedMacro: violation };
   }
 
-  const dailyValidation = dailyContext
-    ? validateDailySwap({ ...dailyContext, proposedMealTotals: totals })
+  const mealValidation = dailyContext
+    ? validateMealSwap({ ...dailyContext, mealTarget, proposedMealTotals: totals })
     : null;
-  if (dailyValidation && !dailyValidation.valid) {
+  if (mealValidation && !mealValidation.valid) {
     return {
       success: false,
-      violatedMacro: dailyValidation.violations[0],
-      dailyValidation,
+      violatedMacro: mealValidation.violations[0],
+      mealValidation,
     };
   }
 
@@ -2680,7 +2675,7 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds, dailyContext }
     success: true,
     items: finalItems.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
     totals,
-    ...(dailyValidation ? { dailyValidation } : {}),
+    ...(mealValidation ? { mealValidation } : {}),
   };
 }
 
@@ -2691,7 +2686,10 @@ function adjustPortions(initialItems, target) {
 }
 
 function filterFoodsForChatbox({ foods, mealTag, userInput }) {
-  let filtered = foods.filter((f) => f.mealTags.includes(mealTag));
+  const acceptedTags = templateTagsForMealTag(mealTag);
+  let filtered = foods.filter((f) =>
+    acceptedTags.some((tag) => f.mealTags.includes(tag))
+  );
 
   try {
     const safeInput = {
@@ -2737,7 +2735,7 @@ module.exports = {
   normalizeInput,
   rebalanceMeal,
   computeMealBounds,
-  validateDailySwap,
+  validateMealSwap,
   filterFoodsForChatbox,
   generateAlternateMealOptions,
   solvePortionsLeastSquares,

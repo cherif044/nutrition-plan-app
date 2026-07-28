@@ -514,24 +514,16 @@ function normalizeMealOption(option) {
 function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
-  if (!dailyTargets) return false;
-  return Math.abs(totals.calories - target.calories) <=
-    dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT;
-}
-
-function currentDailyTotals() {
-  return mealStates.reduce(
-    (total, state) => addTotals(total, computeTotals(state.items)),
-    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  const weightKg = Number(currentPlanInput?.weightKg);
+  if (!dailyTargets || !Number.isFinite(weightKg)) return false;
+  return (
+    Math.abs(totals.calories - target.calories) <=
+      dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT &&
+    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min &&
+    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max &&
+    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min &&
+    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max
   );
-}
-
-function dailyTotalsWithMealOption(state, option) {
-  const optionTotals = option.totals || computeTotals(option.items);
-  return mealStates.reduce((total, candidate) => {
-    const mealTotals = candidate === state ? optionTotals : computeTotals(candidate.items);
-    return addTotals(total, mealTotals);
-  }, { calories: 0, proteinG: 0, carbG: 0, fatG: 0 });
 }
 
 function addTotals(left, right) {
@@ -541,20 +533,6 @@ function addTotals(left, right) {
     carbG: left.carbG + right.carbG,
     fatG: left.fatG + right.fatG,
   };
-}
-
-function dailyTotalsFitTarget(totals) {
-  if (!dailyTargets || !currentPlanInput) return false;
-  const weightKg = Number(currentPlanInput.weightKg);
-  return (
-    Math.abs(totals.calories - dailyTargets.calories) <=
-      dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT &&
-    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min &&
-    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max &&
-    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min &&
-    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max &&
-    totals.carbG >= 0
-  );
 }
 
 function dailyMetricFitsTarget(key, actual, target) {
@@ -572,16 +550,6 @@ function dailyMetricFitsTarget(key, actual, target) {
       actual <= weightKg * FAT_RANGE_PER_KG.max;
   }
   return actual >= 0;
-}
-
-function dailyTargetScore(totals) {
-  if (!dailyTargets) return 0;
-  return (
-    Math.abs(totals.calories - dailyTargets.calories) / Math.max(1, dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT) +
-    Math.abs(totals.proteinG - dailyTargets.proteinG) / Math.max(1, dailyTargets.proteinG * 0.1) +
-    Math.abs(totals.carbG - dailyTargets.carbG) / Math.max(1, dailyTargets.carbG * 0.1) +
-    Math.abs(totals.fatG - dailyTargets.fatG) / Math.max(1, dailyTargets.fatG * 0.1)
-  );
 }
 
 function normalizeStateItem(item) {
@@ -646,7 +614,7 @@ async function handleCycleMealOption(state, direction) {
   const options = readyMealOptions(state);
   const nextIndex = nextDaySafeMealOptionIndex(state, direction, options);
   if (nextIndex === null) {
-    showActionMessage(state, 'No ready meal in that direction keeps the full day inside target.');
+    showActionMessage(state, 'No ready meal in that direction fits this meal’s rule window.');
     refreshMealCycleButtons(state);
     return;
   }
@@ -655,17 +623,9 @@ async function handleCycleMealOption(state, direction) {
 }
 
 function nextDaySafeMealOptionIndex(state, direction, options) {
-  const currentTotals = currentDailyTotals();
-  const currentFitsDay = dailyTotalsFitTarget(currentTotals);
-  const currentScore = dailyTargetScore(currentTotals);
-
   for (let index = state.mealOptionIndex + direction; index >= 0 && index < options.length; index += direction) {
     const option = options[index];
-    if (!mealOptionFitsTarget(option, state.target)) continue;
-
-    const nextTotals = dailyTotalsWithMealOption(state, option);
-    if (dailyTotalsFitTarget(nextTotals)) return index;
-    if (!currentFitsDay && dailyTargetScore(nextTotals) < currentScore) return index;
+    if (mealOptionFitsTarget(option, state.target)) return index;
   }
 
   return null;
@@ -716,6 +676,10 @@ async function refillMealOptions(state) {
         templateId: state.templateId,
         currentItems: mealOptionRequestItems(state.items),
         userPreferences: getUserPreferences(),
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+        },
         limit: 250,
       }),
     });
@@ -966,8 +930,6 @@ async function attemptGuidedRebalance(state, { action, attemptedItems, title, fa
         dailyContext: {
           dailyTargets,
           weightKg: Number(currentPlanInput?.weightKg),
-          currentDailyTotals: currentDailyTotals(),
-          currentMealTotals: computeTotals(state.items),
         },
       }),
     });

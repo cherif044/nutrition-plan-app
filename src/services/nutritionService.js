@@ -1,9 +1,9 @@
 const {
+  AMBIGUOUS_MEAL_SLOT_POLICY,
   MEAL_DISTRIBUTIONS,
-  MEAL_SLOT_POLICY,
   NUTRITION,
   RAMADAN_DISTRIBUTION,
-  TWO_MEAL_SLOT_POLICY,
+  STANDARD_MEAL_SLOT_POLICY,
 } = require('../config/nutritionConstants');
 const { getDatabaseMealMacroProfiles } = require('./mealMacroProfileService');
 
@@ -29,12 +29,11 @@ function maintenanceCalories(input) {
   return calculateBmr(input) * multiplier;
 }
 
-function calculateGoalCalories(input, maintenance, bmr) {
+function calculateGoalCalories(input, maintenance) {
   if (input.goal === 'maintain') {
     return {
       targetCalories: maintenance,
       adjustmentCalories: 0,
-      safetyFloorCalories: null,
     };
   }
 
@@ -43,7 +42,6 @@ function calculateGoalCalories(input, maintenance, bmr) {
     return {
       targetCalories: maintenance + surplus,
       adjustmentCalories: surplus,
-      safetyFloorCalories: null,
     };
   }
 
@@ -51,60 +49,29 @@ function calculateGoalCalories(input, maintenance, bmr) {
     input.weeklyWeightLossPercent ?? NUTRITION.weightLoss.defaultWeeklyPercent;
   const weeklyLossKg = input.weightKg * weeklyPercent / 100;
   const dailyDeficit = weeklyLossKg * NUTRITION.weightLoss.kcalPerKg / 7;
-  const absoluteFloor = input.sex === 'male'
-    ? NUTRITION.calorieFloor.maleAbsolute
-    : NUTRITION.calorieFloor.femaleAbsolute;
-  const safetyFloorCalories = Math.max(
-    bmr * NUTRITION.calorieFloor.bmrMultiplier,
-    absoluteFloor,
-  );
-  const targetCalories = Math.max(maintenance - dailyDeficit, safetyFloorCalories);
+  const targetCalories = maintenance - dailyDeficit;
 
   return {
     targetCalories,
-    adjustmentCalories: targetCalories - maintenance,
+    adjustmentCalories: -dailyDeficit,
     requestedDailyDeficitCalories: dailyDeficit,
-    safetyFloorCalories,
     weeklyWeightLossPercent: weeklyPercent,
   };
 }
 
 function calculateMacroTargets(input, targetCalories) {
   const proteinFactor = input.proteinPerKg ?? NUTRITION.proteinPerKg.default;
-  const preferredFatFactor = input.fatPerKg ?? NUTRITION.fatPerKg.default;
-  let proteinG = input.weightKg * proteinFactor;
-  let fatG = input.weightKg * preferredFatFactor;
-
-  const minimumProteinG = input.weightKg * NUTRITION.proteinPerKg.minimum;
-  const minimumFatG = input.weightKg * NUTRITION.fatPerKg.minimum;
-  const proteinCalories = () => proteinG * NUTRITION.proteinKcalPerGram;
-  const fatCalories = () => fatG * NUTRITION.fatKcalPerGram;
-
-  if (proteinCalories() + fatCalories() > targetCalories) {
-    fatG = Math.max(
-      minimumFatG,
-      (targetCalories - proteinCalories()) / NUTRITION.fatKcalPerGram,
-    );
-  }
-
-  if (proteinCalories() + fatCalories() > targetCalories) {
-    proteinG = Math.max(
-      minimumProteinG,
-      (targetCalories - fatCalories()) / NUTRITION.proteinKcalPerGram,
-    );
-  }
-
-  if (proteinCalories() + fatCalories() > targetCalories + 1e-6) {
-    throw new Error(
-      'The calorie target is too low to satisfy the minimum protein and fat ranges safely.',
-    );
-  }
-
-  const remainingCalories = targetCalories - proteinCalories() - fatCalories();
+  const fatFactor = input.fatPerKg ?? NUTRITION.fatPerKg.default;
+  const proteinG = input.weightKg * proteinFactor;
+  const fatG = input.weightKg * fatFactor;
+  const remainingCalories =
+    targetCalories -
+    proteinG * NUTRITION.proteinKcalPerGram -
+    fatG * NUTRITION.fatKcalPerGram;
   return {
     calories: targetCalories,
     proteinG,
-    carbG: Math.max(0, remainingCalories) / NUTRITION.carbKcalPerGram,
+    carbG: remainingCalories / NUTRITION.carbKcalPerGram,
     fatG,
   };
 }
@@ -112,14 +79,13 @@ function calculateMacroTargets(input, targetCalories) {
 function calculateNutritionDetails(input) {
   const bmr = calculateBmr(input);
   const maintenance = maintenanceCalories(input);
-  const goal = calculateGoalCalories(input, maintenance, bmr);
+  const goal = calculateGoalCalories(input, maintenance);
   const targets = calculateMacroTargets(input, goal.targetCalories);
   return {
     bmr,
     maintenanceCalories: maintenance,
     targetCalories: goal.targetCalories,
     adjustmentCalories: goal.adjustmentCalories,
-    safetyFloorCalories: goal.safetyFloorCalories,
     requestedDailyDeficitCalories: goal.requestedDailyDeficitCalories ?? null,
     weeklyWeightLossPercent: goal.weeklyWeightLossPercent ?? null,
     proteinPerKg: targets.proteinG / input.weightKg,
@@ -171,8 +137,10 @@ function getMealSlotProfile(
     throw new Error('Choose a valid meal count and distribution.');
   }
   const slots = numberOfMeals === 2
-    ? TWO_MEAL_SLOT_POLICY[distribution]
-    : MEAL_SLOT_POLICY[numberOfMeals];
+    ? AMBIGUOUS_MEAL_SLOT_POLICY[distribution]
+    : numberOfMeals === 5
+      ? AMBIGUOUS_MEAL_SLOT_POLICY[`${distribution}_5`]
+      : STANDARD_MEAL_SLOT_POLICY[numberOfMeals];
   if (!slots || slots.length !== factors.length) {
     throw new Error('Meal-slot policy is incomplete.');
   }
@@ -223,39 +191,38 @@ function distributeMacrosAcrossMeals(dailyTargets, profiles) {
     carb: dailyTargets.carbG * NUTRITION.carbKcalPerGram,
     fat: dailyTargets.fatG * NUTRITION.fatKcalPerGram,
   };
-  const proteinFloors = rowTotals.map((rowCalories) =>
-    columnTotals.protein *
-    (rowCalories / dailyTargets.calories) *
-    NUTRITION.databaseProteinFloorFraction
-  );
-  const residualRows = rowTotals.map((row, index) => row - proteinFloors[index]);
-  const residualColumns = [
-    columnTotals.protein - sum(proteinFloors),
-    columnTotals.carb,
-    columnTotals.fat,
-  ];
+  if (Object.values(columnTotals).some((value) => value < 0)) {
+    return rowTotals.map((calories, index) => {
+      const factor = profiles[index].idealCaloriePercent;
+      return {
+        calories,
+        proteinG: dailyTargets.proteinG * factor,
+        carbG: dailyTargets.carbG * factor,
+        fatG: dailyTargets.fatG * factor,
+      };
+    });
+  }
+
   const prior = profiles.map((profile, index) => {
     const rowCalories = rowTotals[index];
     return [
-      Math.max(
-        MATRIX_EPSILON,
-        rowCalories * profile.macroCalorieRatio.protein - proteinFloors[index],
-      ),
+      Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.protein),
       Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.carb),
       Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.fat),
     ];
   });
-  const residualMatrix = balanceMacroMatrix(prior, residualRows, residualColumns);
+  const matrix = balanceMacroMatrix(
+    prior,
+    rowTotals,
+    [columnTotals.protein, columnTotals.carb, columnTotals.fat],
+  );
 
-  return residualMatrix.map((row, index) => {
-    const proteinCalories = row[0] + proteinFloors[index];
-    const carbCalories = row[1];
-    const fatCalories = row[2];
+  return matrix.map((row, index) => {
     return {
       calories: rowTotals[index],
-      proteinG: proteinCalories / NUTRITION.proteinKcalPerGram,
-      carbG: carbCalories / NUTRITION.carbKcalPerGram,
-      fatG: fatCalories / NUTRITION.fatKcalPerGram,
+      proteinG: row[0] / NUTRITION.proteinKcalPerGram,
+      carbG: row[1] / NUTRITION.carbKcalPerGram,
+      fatG: row[2] / NUTRITION.fatKcalPerGram,
     };
   });
 }
@@ -283,19 +250,6 @@ function balanceMacroMatrix(prior, rowTotals, columnTotals) {
     if (rowError < 1e-7 && columnError < 1e-7) break;
   }
   return matrix;
-}
-
-function dailyMacroRanges(weightKg) {
-  return {
-    proteinG: {
-      min: weightKg * NUTRITION.proteinPerKg.minimum,
-      max: weightKg * NUTRITION.proteinPerKg.maximum,
-    },
-    fatG: {
-      min: weightKg * NUTRITION.fatPerKg.minimum,
-      max: weightKg * NUTRITION.fatPerKg.maximum,
-    },
-  };
 }
 
 function scaleTargets(targets, factor) {
@@ -351,7 +305,6 @@ module.exports = {
   calculateGoalCalories,
   calculateMacroTargets,
   calculateNutritionDetails,
-  dailyMacroRanges,
   distributeMacrosAcrossMeals,
   getMealSlotProfile,
   macrosForFoodPortion,

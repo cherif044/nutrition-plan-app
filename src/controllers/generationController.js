@@ -49,7 +49,7 @@ function rebalanceMealHandler(req, res, next) {
     }
     if (!dailyContext) {
       return res.status(400).json({
-        error: 'dailyContext is required to enforce the daily calorie and macro ranges.',
+        error: 'dailyContext is required to enforce the per-meal calorie and macro ranges.',
       });
     }
     res.json(rebalanceMeal({ mealTarget, items, mealBounds, dailyContext }));
@@ -66,11 +66,14 @@ function mealOptionsHandler(req, res, next) {
       currentItems,
       templateId,
       userPreferences,
+      dailyContext,
       limit,
     } = req.body;
 
-    if (!mealTarget || !Array.isArray(currentItems)) {
-      return res.status(400).json({ error: 'mealTarget and currentItems are required.' });
+    if (!mealTarget || !Array.isArray(currentItems) || !dailyContext) {
+      return res.status(400).json({
+        error: 'mealTarget, currentItems, and dailyContext are required.',
+      });
     }
 
     res.json({
@@ -80,6 +83,7 @@ function mealOptionsHandler(req, res, next) {
         currentItems,
         templateId,
         userPreferences,
+        dailyContext,
         limit,
       }),
     });

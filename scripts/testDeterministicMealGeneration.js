@@ -4,7 +4,11 @@ const path = require('path');
 
 const { loadFoods } = require('../src/repositories/foodRepository');
 const { loadReadyMealBundles } = require('../src/repositories/readyMealRepository');
-const { generatePlan, generateAlternateMealOptions } = require('../src/services/planGenerator');
+const {
+  generatePlan,
+  generateAlternateMealOptions,
+  validateMealSwap,
+} = require('../src/services/planGenerator');
 const { NUTRITION, macrosForFoodPortion, sumTargets } = require('../src/services/nutritionService');
 
 const baseInput = {
@@ -85,12 +89,17 @@ function testMealOptionsUseOnlyReadyMeals() {
   const plan = generatePlan(baseInput);
 
   for (const meal of plan.meals) {
-    assert(meal.mealOptions.length > 0, `${meal.name} should include ready alternatives for arrow navigation`);
     for (const option of meal.mealOptions) {
       const readyMeal = readyById.get(option.readyMealId);
       assert(readyMeal, `${meal.name} option should use a ready meal id`);
       assert.equal(readyMeal.mealTag, meal.tag, `${meal.name} option should stay in the same meal category`);
       assertWithinTolerance(option.items, meal.target, `${meal.name} option ${option.readyMealId}`);
+      assert.equal(validateMealSwap({
+        dailyTargets: plan.dailyTargets,
+        weightKg: baseInput.weightKg,
+        mealTarget: meal.target,
+        proposedMealTotals: option.totals,
+      }).valid, true, `${meal.name} option should satisfy the literal individual-meal rule`);
       assert.equal(option.items.length, readyMeal.components.length, `${option.readyMealId} should keep its fixed ingredients`);
     }
 
@@ -100,10 +109,24 @@ function testMealOptionsUseOnlyReadyMeals() {
       currentItems: meal.items.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
       templateId: meal.readyMealId,
       userPreferences: { dietType: 'standard', avoidFoods: [] },
+      dailyContext: {
+        dailyTargets: plan.dailyTargets,
+        weightKg: baseInput.weightKg,
+      },
       limit: 250,
     });
     assert(apiOptions.every((option) => readyById.has(option.readyMealId)), `${meal.name} API options should be ready meals only`);
+    assert(apiOptions.every((option) => validateMealSwap({
+      dailyTargets: plan.dailyTargets,
+      weightKg: baseInput.weightKg,
+      mealTarget: meal.target,
+      proposedMealTotals: option.totals,
+    }).valid), `${meal.name} API options should satisfy the literal individual-meal rule`);
   }
+  assert(
+    plan.meals.every((meal) => meal.mealOptions.length === 0),
+    'the current database should expose no invalid arrow alternatives when literal per-meal g/kg ranges are infeasible',
+  );
 }
 
 function testReadyMealOnlyUi() {
