@@ -175,6 +175,28 @@ function debugOptimizer(message, payload = undefined) {
 }
 
 function optimizeTemplateDay(meals, dailyTargets) {
+  const missingSlots = meals
+    .filter((meal) => isRequiredMainSlot(meal) && meal.items.length === 0)
+    .map((meal) => meal.name);
+  if (meals.some((meal) => meal.target?.macroWindows)) {
+    const errors = missingSlots.length > 0
+      ? [`Impossible with current templates: no feasible ready templates for ${missingSlots.join(', ')}.`]
+      : [];
+    return {
+      meals,
+      warnings: [],
+      errors,
+      diagnostics: {
+        status: errors.length > 0 ? 'error' : 'pass',
+        warnings: [],
+        errors,
+        missingSlots,
+        totals: totalsForMeals(meals),
+        target: dailyTargets,
+      },
+    };
+  }
+
   debugOptimizer('daily target', dailyTargets);
   meals.forEach((meal) => {
     debugOptimizer('slot solved before repair', {
@@ -1501,11 +1523,15 @@ function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods }) {
 function readyMealCandidatesForMeal({ mealTag, allowedFoods, target }) {
   const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
   const tags = templateTagsForMealTag(mealTag);
+  const acceptanceBounds = computeMealBounds(target);
   return loadReadyMealBundles()
     .filter((readyMeal) => tags.includes(readyMeal.mealTag))
-    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, target))
+    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, target, {
+      bounds: acceptanceBounds,
+      forceExact: true,
+    }))
     .filter(Boolean)
-    .filter((candidate) => isWithinTolerance(candidate.items, target))
+    .filter((candidate) => totalsWithinMealTolerance(candidate.totals, target))
     .sort((a, b) => (
       a.score - b.score ||
       a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true })
@@ -2171,12 +2197,14 @@ function computeMealBounds(target, options = {}) {
   const normalizedOptions = typeof options === 'number'
     ? { mealMacroTolerance: options }
     : options;
+  if (target?.macroWindows) {
+    return cloneMacroBounds(target.macroWindows);
+  }
+
   const dailyCalories = Number(normalizedOptions.dailyCalories);
   const dailyTargets = normalizedOptions.dailyTargets;
   const weightKg = Number(normalizedOptions.weightKg);
-  const calorieWindow = Number.isFinite(dailyCalories) && dailyCalories > 0
-    ? dailyCalories * NUTRITION.mealSwapDailyCalorieWindowPercent
-    : target.calories * NUTRITION.mealSwapDailyCalorieWindowPercent;
+  const calorieWindow = target.calories * NUTRITION.mealSwapDailyCalorieWindowPercent;
   const proteinShare = macroAllocationShare(
     target.proteinG,
     dailyTargets?.proteinG,
@@ -2218,6 +2246,15 @@ function computeMealBounds(target, options = {}) {
   };
 }
 
+function cloneMacroBounds(bounds) {
+  return {
+    calories: { ...bounds.calories },
+    proteinG: { ...bounds.proteinG },
+    carbG: { ...bounds.carbG },
+    fatG: { ...bounds.fatG },
+  };
+}
+
 function macroAllocationShare(mealMacroG, dailyMacroG, mealCalories, dailyCalories) {
   const macroShare = Number(mealMacroG) / Number(dailyMacroG);
   if (Number.isFinite(macroShare) && macroShare >= 0) return macroShare;
@@ -2231,6 +2268,18 @@ function validateMealSwap({
   mealTarget,
   proposedMealTotals,
 }) {
+  if (mealTarget?.macroWindows && proposedMealTotals) {
+    const bounds = computeMealBounds(mealTarget);
+    const violations = [];
+    const violation = findBoundsViolation(proposedMealTotals, bounds);
+    if (violation) violations.push(`meal_${violation}`);
+    return {
+      valid: violations.length === 0,
+      violations,
+      bounds,
+    };
+  }
+
   if (
     !dailyTargets ||
     !Number.isFinite(Number(weightKg)) ||
@@ -2283,6 +2332,7 @@ function mealTolerances(target) {
 }
 
 function targetToleranceBounds(target) {
+  if (target?.macroWindows) return computeMealBounds(target);
   const tolerances = mealTolerances(target);
   return {
     calories: {
@@ -2305,6 +2355,10 @@ function targetToleranceBounds(target) {
 }
 
 function totalsWithinMealTolerance(totals, target) {
+  if (target?.macroWindows) {
+    return findBoundsViolation(totals, computeMealBounds(target)) === null;
+  }
+
   const tolerances = mealTolerances(target);
   return (
     Math.abs(totals.calories - target.calories) <=

@@ -514,6 +514,18 @@ function normalizeMealOption(option) {
 function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
+  if (target.macroWindows) {
+    return (
+      totals.calories >= target.macroWindows.calories.min &&
+      totals.calories <= target.macroWindows.calories.max &&
+      totals.proteinG >= target.macroWindows.proteinG.min &&
+      totals.proteinG <= target.macroWindows.proteinG.max &&
+      totals.carbG >= target.macroWindows.carbG.min &&
+      totals.carbG <= target.macroWindows.carbG.max &&
+      totals.fatG >= target.macroWindows.fatG.min &&
+      totals.fatG <= target.macroWindows.fatG.max
+    );
+  }
   const weightKg = Number(currentPlanInput?.weightKg);
   if (!dailyTargets || !Number.isFinite(weightKg)) return false;
   const proteinShare = target.proteinG / dailyTargets.proteinG;

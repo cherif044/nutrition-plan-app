@@ -147,6 +147,17 @@ function testAiEndpointsDisabled() {
 
 function assertWithinTolerance(items, target, label) {
   const totals = sumTargets(items.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
+  if (target.macroWindows) {
+    assert(totals.calories >= target.macroWindows.calories.min - 0.01, `${label} calories min`);
+    assert(totals.calories <= target.macroWindows.calories.max + 0.01, `${label} calories max`);
+    assert(totals.proteinG >= target.macroWindows.proteinG.min - 0.01, `${label} protein min`);
+    assert(totals.proteinG <= target.macroWindows.proteinG.max + 0.01, `${label} protein max`);
+    assert(totals.carbG >= target.macroWindows.carbG.min - 0.01, `${label} carbs min`);
+    assert(totals.carbG <= target.macroWindows.carbG.max + 0.01, `${label} carbs max`);
+    assert(totals.fatG >= target.macroWindows.fatG.min - 0.01, `${label} fat min`);
+    assert(totals.fatG <= target.macroWindows.fatG.max + 0.01, `${label} fat max`);
+    return;
+  }
   assert(
     Math.abs(totals.calories - target.calories) <= target.calories * NUTRITION.calorieTolerancePercent + 0.01,
     `${label} calories should fit target`,

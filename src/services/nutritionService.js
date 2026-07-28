@@ -8,6 +8,7 @@ const {
 const { getDatabaseMealMacroProfiles } = require('./mealMacroProfileService');
 
 const MATRIX_EPSILON = 1e-9;
+const DEFAULT_MAIN_PROFILE_TAG = 'lunch';
 
 function calculateBmr(input) {
   const sexConstant = input.sex === 'male'
@@ -73,6 +74,34 @@ function calculateMacroTargets(input, targetCalories) {
     proteinG,
     carbG: remainingCalories / NUTRITION.carbKcalPerGram,
     fatG,
+    macroRanges: calculateDailyMacroRanges(input.weightKg, targetCalories),
+  };
+}
+
+function calculateDailyMacroRanges(weightKg, targetCalories) {
+  const protein = {
+    min: weightKg * NUTRITION.proteinPerKg.minimum,
+    max: weightKg * NUTRITION.proteinPerKg.maximum,
+  };
+  const fat = {
+    min: weightKg * NUTRITION.fatPerKg.minimum,
+    max: weightKg * NUTRITION.fatPerKg.maximum,
+  };
+  return {
+    proteinG: protein,
+    fatG: fat,
+    carbG: {
+      min: (
+        targetCalories -
+        protein.max * NUTRITION.proteinKcalPerGram -
+        fat.max * NUTRITION.fatKcalPerGram
+      ) / NUTRITION.carbKcalPerGram,
+      max: (
+        targetCalories -
+        protein.min * NUTRITION.proteinKcalPerGram -
+        fat.min * NUTRITION.fatKcalPerGram
+      ) / NUTRITION.carbKcalPerGram,
+    },
   };
 }
 
@@ -110,10 +139,14 @@ function buildMealTargets(dailyTargets, input, databaseProfiles = getDatabaseMea
     databaseProfiles,
   );
   const macroTargets = distributeMacrosAcrossMeals(dailyTargets, profiles);
+  const macroWindows = buildScaledMealMacroWindows(dailyTargets, profiles);
   return profiles.map((profile, index) => ({
     name: profile.name,
     tag: profile.tag,
-    targets: macroTargets[index],
+    targets: {
+      ...macroTargets[index],
+      macroWindows: macroWindows[index],
+    },
     slotProfile: profile,
   }));
 }
@@ -147,9 +180,9 @@ function getMealSlotProfile(
 
   return slots.map((slot, index) => buildSlotProfile({
     ...slot,
-    profileTag: slot.tag,
+    profileTag: slot.profileTag ?? slot.tag,
     idealCaloriePercent: factors[index],
-    databaseProfile: databaseProfiles[slot.tag],
+    databaseProfile: databaseProfiles[slot.profileTag ?? slot.tag],
   }));
 }
 
@@ -172,13 +205,97 @@ function buildSlotProfile({
     minCaloriePercent: Math.max(0, idealCaloriePercent - window),
     maxCaloriePercent: Math.min(1, idealCaloriePercent + window),
     hardMaxCaloriePercent: Math.min(1, idealCaloriePercent + window),
-    macroCalorieRatio: {
-      protein: databaseProfile.protein,
-      carb: databaseProfile.carb,
-      fat: databaseProfile.fat,
-    },
+    macroCalorieRatio: fixedMacroRatioRangeFor(profileTag),
     macroProfileSource: databaseProfile.source,
     macroProfileSampleSize: databaseProfile.sourceCount,
+  };
+}
+
+function fixedMacroRatioRangeFor(profileTag) {
+  const tag = NUTRITION.mealMacroRatioRanges[profileTag]
+    ? profileTag
+    : DEFAULT_MAIN_PROFILE_TAG;
+  return NUTRITION.mealMacroRatioRanges[tag];
+}
+
+function buildScaledMealMacroWindows(dailyTargets, profiles) {
+  const dailyRanges = dailyTargets.macroRanges ?? calculateDailyMacroRangesFromTargets(dailyTargets);
+  const rawProtein = profiles.map((profile) => rawMacroWindowFor(profile, dailyTargets.calories, 'protein'));
+  const rawFat = profiles.map((profile) => rawMacroWindowFor(profile, dailyTargets.calories, 'fat'));
+  const protein = scaleRawWindows(rawProtein, dailyRanges.proteinG);
+  const fat = scaleRawWindows(rawFat, dailyRanges.fatG);
+
+  return profiles.map((profile, index) => {
+    const calories = dailyTargets.calories * profile.idealCaloriePercent;
+    const proteinG = protein.windows[index];
+    const fatG = fat.windows[index];
+    return {
+      calories: {
+        min: calories * (1 - NUTRITION.mealSwapDailyCalorieWindowPercent),
+        max: calories * (1 + NUTRITION.mealSwapDailyCalorieWindowPercent),
+      },
+      proteinG,
+      fatG,
+      carbG: {
+        min: (
+          calories -
+          proteinG.max * NUTRITION.proteinKcalPerGram -
+          fatG.max * NUTRITION.fatKcalPerGram
+        ) / NUTRITION.carbKcalPerGram,
+        max: (
+          calories -
+          proteinG.min * NUTRITION.proteinKcalPerGram -
+          fatG.min * NUTRITION.fatKcalPerGram
+        ) / NUTRITION.carbKcalPerGram,
+      },
+      scaling: {
+        protein: {
+          raw: rawProtein[index],
+          minScale: protein.minScale,
+          maxScale: protein.maxScale,
+        },
+        fat: {
+          raw: rawFat[index],
+          minScale: fat.minScale,
+          maxScale: fat.maxScale,
+        },
+      },
+    };
+  });
+}
+
+function rawMacroWindowFor(profile, dailyCalories, macro) {
+  const ratioRange = profile.macroCalorieRatio[macro];
+  const mealCalories = dailyCalories * profile.idealCaloriePercent;
+  const kcalPerGram = macro === 'fat'
+    ? NUTRITION.fatKcalPerGram
+    : NUTRITION.proteinKcalPerGram;
+  return {
+    min: mealCalories * ratioRange.min / kcalPerGram,
+    max: mealCalories * ratioRange.max / kcalPerGram,
+  };
+}
+
+function scaleRawWindows(rawWindows, dailyRange) {
+  const rawMinSum = sum(rawWindows.map((window) => window.min));
+  const rawMaxSum = sum(rawWindows.map((window) => window.max));
+  const minScale = dailyRange.min / rawMinSum;
+  const maxScale = dailyRange.max / rawMaxSum;
+  return {
+    minScale,
+    maxScale,
+    windows: rawWindows.map((window) => ({
+      min: window.min * minScale,
+      max: window.max * maxScale,
+    })),
+  };
+}
+
+function calculateDailyMacroRangesFromTargets(dailyTargets) {
+  return {
+    proteinG: { min: dailyTargets.proteinG, max: dailyTargets.proteinG },
+    fatG: { min: dailyTargets.fatG, max: dailyTargets.fatG },
+    carbG: { min: dailyTargets.carbG, max: dailyTargets.carbG },
   };
 }
 
@@ -206,9 +323,9 @@ function distributeMacrosAcrossMeals(dailyTargets, profiles) {
   const prior = profiles.map((profile, index) => {
     const rowCalories = rowTotals[index];
     return [
-      Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.protein),
-      Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.carb),
-      Math.max(MATRIX_EPSILON, rowCalories * profile.macroCalorieRatio.fat),
+      Math.max(MATRIX_EPSILON, rowCalories * ratioMidpoint(profile.macroCalorieRatio.protein)),
+      Math.max(MATRIX_EPSILON, rowCalories * ratioMidpoint(profile.macroCalorieRatio.carb)),
+      Math.max(MATRIX_EPSILON, rowCalories * ratioMidpoint(profile.macroCalorieRatio.fat)),
     ];
   });
   const matrix = balanceMacroMatrix(
@@ -261,6 +378,11 @@ function scaleTargets(targets, factor) {
   };
 }
 
+function ratioMidpoint(rangeOrValue) {
+  if (Number.isFinite(rangeOrValue)) return rangeOrValue;
+  return (rangeOrValue.min + rangeOrValue.max) / 2;
+}
+
 function macrosForFoodPortion(food, quantityG) {
   const multiplier = quantityG / 100;
   return {
@@ -302,9 +424,11 @@ module.exports = {
   buildMealTargets,
   calculateBmr,
   calculateDailyTargets,
+  calculateDailyMacroRanges,
   calculateGoalCalories,
   calculateMacroTargets,
   calculateNutritionDetails,
+  buildScaledMealMacroWindows,
   distributeMacrosAcrossMeals,
   getMealSlotProfile,
   macrosForFoodPortion,
