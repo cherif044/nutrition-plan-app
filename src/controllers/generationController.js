@@ -43,11 +43,16 @@ function generatePlanFreeformHandler(req, res, next) {
 
 function rebalanceMealHandler(req, res, next) {
   try {
-    const { mealTarget, items, mealBounds } = req.body;
+    const { mealTarget, items, mealBounds, dailyContext } = req.body;
     if (!mealTarget || !Array.isArray(items)) {
       return res.status(400).json({ error: 'mealTarget and items are required.' });
     }
-    res.json(rebalanceMeal({ mealTarget, items, mealBounds }));
+    if (!dailyContext) {
+      return res.status(400).json({
+        error: 'dailyContext is required to enforce the daily calorie and macro ranges.',
+      });
+    }
+    res.json(rebalanceMeal({ mealTarget, items, mealBounds, dailyContext }));
   } catch (error) {
     next(error);
   }

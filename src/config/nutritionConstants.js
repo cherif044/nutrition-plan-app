@@ -2,35 +2,54 @@ const NUTRITION = {
   proteinKcalPerGram: 4,
   carbKcalPerGram: 4,
   fatKcalPerGram: 9,
-  proteinPerKg: 2,
-  fatPerKg: 1.0,
-  minimumFatPerKg: 0.6,
-  aggressiveLossCarbFloorPerKg: 1.0,
-  katchMcArdleBase: 370,
-  katchMcArdleLeanMassMultiplier: 21.6,
+  mifflinStJeor: {
+    weightCoefficient: 10,
+    heightCoefficient: 6.25,
+    ageCoefficient: 5,
+    maleConstant: 5,
+    femaleConstant: -161,
+  },
   activityMultipliers: {
     sedentary: 1.2,
     light: 1.375,
     moderate: 1.55,
-    very_active: 1.725,
+    physical_job: 1.65,
     athlete: 1.9,
+    // Accepted only for saved-plan compatibility. New plans use physical_job.
+    very_active: 1.725,
   },
-  bodyweightActivityFactors: {
-    sedentary: 26,
-    light: 30,
-    moderate: 34,
-    very_active: 38,
-    athlete: 42,
+  weightLoss: {
+    minimumWeeklyPercent: 0.5,
+    maximumWeeklyPercent: 1.0,
+    defaultWeeklyPercent: 0.75,
+    kcalPerKg: 7700,
   },
-  goalAdjustments: {
-    maintain: 0,
-    lose_weight: -500,
-    lose_weight_aggressive: -1000,
-    gain_weight: 300,
+  weightGain: {
+    minimumSurplusCalories: 200,
+    maximumSurplusCalories: 300,
+    defaultSurplusCalories: 250,
   },
+  calorieFloor: {
+    bmrMultiplier: 1.2,
+    maleAbsolute: 1500,
+    femaleAbsolute: 1200,
+  },
+  proteinPerKg: {
+    minimum: 1.8,
+    maximum: 2.2,
+    default: 2.0,
+  },
+  fatPerKg: {
+    minimum: 0.66,
+    maximum: 1.0,
+    default: 0.7,
+  },
+  mealSwapDailyCalorieWindowPercent: 0.05,
+  dailyCalorieTolerancePercent: 0.05,
+  databaseProteinFloorFraction: 0.75,
   calorieTolerancePercent: 0.20,
-  mealMacroTolerancePercent: 0.20,
-  totalMacroTolerancePercent: 0.20,
+  mealMacroTolerancePercent: 0.30,
+  totalMacroTolerancePercent: 0.05,
   residualScoreImprovementThreshold: 0.10,
   hardErrorCalorieFloorPercent: 0.80,
   severeCalorieFloorPercent: 0.70,
@@ -42,74 +61,86 @@ const NUTRITION = {
   maxMealAttempts: 8,
 };
 
-const MEAL_SPLITS = {
-  meals: {
-    2: [0.5, 0.5],
-    3: [0.3, 0.4, 0.3],
-    4: [0.25, 0.25, 0.25, 0.25],
-    5: [0.2, 0.25, 0.25, 0.2, 0.1],
-    6: [0.18, 0.2, 0.2, 0.15, 0.15, 0.12],
+const MEAL_DISTRIBUTIONS = {
+  balanced: {
+    2: [0.40, 0.60],
+    3: [0.25, 0.40, 0.35],
+    4: [0.25, 0.15, 0.30, 0.30],
+    5: [0.20, 0.10, 0.30, 0.10, 0.30],
   },
-  snacks: {
-    0: 0,
-    1: 0.10,
-    2: 0.15,
-    3: 0.20,
+  breakfast_heavy: {
+    2: [0.60, 0.40],
+    3: [0.40, 0.30, 0.30],
+    4: [0.35, 0.15, 0.25, 0.25],
+    5: [0.30, 0.15, 0.25, 0.10, 0.20],
   },
-  ramadanSplits: [0.5, 0.2, 0.3],
-  ramadanNames: ['Iftar', 'Snack', 'Suhoor'],
-  ramadanTags: ['iftar', 'snack', 'suhoor'],
+  lunch_heavy: {
+    2: [0.35, 0.65],
+    3: [0.20, 0.50, 0.30],
+    4: [0.20, 0.10, 0.45, 0.25],
+    5: [0.15, 0.10, 0.45, 0.10, 0.20],
+  },
+  dinner_heavy: {
+    2: [0.30, 0.70],
+    3: [0.20, 0.30, 0.50],
+    4: [0.20, 0.10, 0.25, 0.45],
+    5: [0.15, 0.10, 0.20, 0.10, 0.45],
+  },
 };
 
-// Hardcoded per-slot macro profiles for template seeding. These should eventually
-// be informed by actual template composition once the ready-meal library is larger.
-const SLOT_MACRO_PROFILES = {
-  breakfast: {
-    calorieWeight: 0.28,
-    minOffset: 0.05,
-    maxOffset: 0.05,
-    hardMaxOffset: 0.10,
-    macroCalorieRatio: { protein: 0.22, carb: 0.48, fat: 0.30 },
-  },
-  lunch: {
-    calorieWeight: 0.39,
-    minOffset: 0.05,
-    maxOffset: 0.05,
-    hardMaxOffset: 0.10,
-    macroCalorieRatio: { protein: 0.35, carb: 0.40, fat: 0.25 },
-  },
-  dinner: {
-    calorieWeight: 0.33,
-    minOffset: 0.05,
-    maxOffset: 0.05,
-    hardMaxOffset: 0.10,
-    macroCalorieRatio: { protein: 0.35, carb: 0.30, fat: 0.35 },
-  },
-  snack: {
-    calorieWeight: 0.16,
-    minOffset: 0.05,
-    maxOffset: 0.05,
-    hardMaxOffset: 0.10,
-    macroCalorieRatio: { protein: 0.22, carb: 0.48, fat: 0.30 },
-  },
-  iftar: {
-    calorieWeight: 0.50,
-    minOffset: 0.08,
-    maxOffset: 0.08,
-    hardMaxOffset: 0.12,
-    macroCalorieRatio: { protein: 0.32, carb: 0.43, fat: 0.25 },
-  },
-  suhoor: {
-    calorieWeight: 0.34,
-    minOffset: 0.08,
-    maxOffset: 0.08,
-    hardMaxOffset: 0.12,
-    macroCalorieRatio: { protein: 0.28, carb: 0.42, fat: 0.30 },
-  },
+const MEAL_SLOT_POLICY = {
+  3: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Lunch', tag: 'lunch' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+  4: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Snack', tag: 'snack' },
+    { name: 'Lunch', tag: 'lunch' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+  5: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Snack 1', tag: 'snack' },
+    { name: 'Lunch', tag: 'lunch' },
+    { name: 'Snack 2', tag: 'snack' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+};
+
+const TWO_MEAL_SLOT_POLICY = {
+  balanced: [
+    { name: 'First Meal', tag: 'lunch' },
+    { name: 'Main Meal', tag: 'dinner' },
+  ],
+  breakfast_heavy: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+  lunch_heavy: [
+    { name: 'Breakfast', tag: 'breakfast' },
+    { name: 'Lunch', tag: 'lunch' },
+  ],
+  dinner_heavy: [
+    { name: 'Lunch', tag: 'lunch' },
+    { name: 'Dinner', tag: 'dinner' },
+  ],
+};
+
+const RAMADAN_DISTRIBUTION = {
+  factors: [0.5, 0.2, 0.3],
+  slots: [
+    { name: 'Iftar', tag: 'iftar', profileTag: 'dinner' },
+    { name: 'Snack', tag: 'snack', profileTag: 'snack' },
+    { name: 'Suhoor', tag: 'suhoor', profileTag: 'breakfast' },
+  ],
 };
 
 module.exports = {
-  MEAL_SPLITS,
+  MEAL_DISTRIBUTIONS,
+  MEAL_SLOT_POLICY,
   NUTRITION,
-  SLOT_MACRO_PROFILES,
+  RAMADAN_DISTRIBUTION,
+  TWO_MEAL_SLOT_POLICY,
 };

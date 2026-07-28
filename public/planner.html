@@ -50,8 +50,21 @@
                 <input type="number" name="heightCm" min="1" step="0.1" value="175" required />
               </label>
             </div>
+            <div class="field-grid">
+              <label>
+                <span>Age</span>
+                <input type="number" name="age" min="1" max="120" step="1" value="30" required />
+              </label>
+              <label>
+                <span>Sex used for BMR</span>
+                <select name="sex" required>
+                  <option value="male" selected>Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </label>
+            </div>
             <label>
-              <span>Body fat % <small>optional</small></span>
+              <span>Body fat % <small>optional profile data</small></span>
               <input type="number" name="bodyFatPercentage" min="1" max="69" step="0.1" value="20" />
             </label>
             <label>
@@ -60,10 +73,10 @@
                 <option value="sedentary">Sedentary</option>
                 <option value="light" selected>Light</option>
                 <option value="moderate">Moderate</option>
-                <option value="very_active">Very active</option>
-                <option value="athlete">Athlete</option>
+                <option value="physical_job">Physical job / very active lifestyle</option>
+                <option value="athlete">Elite athlete / heavy daily training</option>
               </select>
-              <small style="color:var(--muted);">Most people fall under Light.</small>
+              <small style="color:var(--muted);">Athlete is reserved for heavy daily training.</small>
             </label>
           </section>
 
@@ -79,32 +92,27 @@
                 <span>Lose weight</span>
               </label>
               <label>
-                <input type="radio" name="goal" value="lose_weight_aggressive" />
-                <span>Aggressive loss</span>
-              </label>
-              <label>
                 <input type="radio" name="goal" value="gain_weight" />
                 <span>Gain weight</span>
               </label>
             </div>
             <div class="field-grid">
               <label>
-                <span>Meals</span>
+                <span>Total meals</span>
                 <select name="numberOfMeals">
                   <option value="2">2 meals</option>
                   <option value="3" selected>3 meals</option>
                   <option value="4">4 meals</option>
                   <option value="5">5 meals</option>
-                  <option value="6">6 meals</option>
                 </select>
               </label>
               <label>
-                <span>Snacks</span>
-                <select name="numberOfSnacks">
-                  <option value="0">0 snacks</option>
-                  <option value="1" selected>1 snack</option>
-                  <option value="2">2 snacks</option>
-                  <option value="3">3 snacks</option>
+                <span>Calorie distribution</span>
+                <select name="mealDistribution">
+                  <option value="balanced" selected>Balanced</option>
+                  <option value="breakfast_heavy">Breakfast-heavy</option>
+                  <option value="lunch_heavy">Lunch-heavy</option>
+                  <option value="dinner_heavy">Dinner-heavy</option>
                 </select>
               </label>
             </div>

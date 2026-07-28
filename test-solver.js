@@ -109,7 +109,16 @@ const brownBreadSwapItems = [
   { foodId: 'cheese_cheddar', quantityG: 40 },
   { foodId: 'nuts_almond_butter_without_salt', quantityG: 15 },
 ];
-const rebalance = rebalanceMeal({ mealTarget: dinnerTarget, items: brownBreadSwapItems });
+const rebalance = rebalanceMeal({
+  mealTarget: dinnerTarget,
+  items: brownBreadSwapItems,
+  dailyContext: {
+    dailyTargets: { calories: 2500, proteinG: 160, carbG: 300, fatG: 70 },
+    weightKg: 80,
+    currentDailyTotals: { calories: 2500, proteinG: 160, carbG: 300, fatG: 70 },
+    currentMealTotals: dinnerTarget,
+  },
+});
 assert(rebalance.success === true, 'rebalance finds a valid in-range solution from a bad swap starting point');
 if (rebalance.success) {
   assert(Math.abs(rebalance.totals.proteinG - dinnerTarget.proteinG) <= dinnerTarget.proteinG * 0.10,
@@ -118,8 +127,9 @@ if (rebalance.success) {
     `carbs within meal bounds (got ${rebalance.totals.carbG.toFixed(1)}g)`);
   assert(Math.abs(rebalance.totals.fatG - dinnerTarget.fatG) <= dinnerTarget.fatG * 0.10,
     `fat within meal bounds (got ${rebalance.totals.fatG.toFixed(1)}g)`);
-  assert(Math.abs(rebalance.totals.calories - dinnerTarget.calories) <= dinnerTarget.calories * 0.10,
-    `calories within meal bounds (got ${rebalance.totals.calories.toFixed(0)} kcal)`);
+  assert(Math.abs(rebalance.totals.calories - dinnerTarget.calories) <= 2500 * 0.05,
+    `calories within ±5% of daily calories (got ${rebalance.totals.calories.toFixed(0)} kcal)`);
+  assert(rebalance.dailyValidation?.valid === true, 'projected daily totals stay inside daily ranges');
 }
 
 // ─── Results ──────────────────────────────────────────────────────────────

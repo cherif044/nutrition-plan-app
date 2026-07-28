@@ -54,7 +54,7 @@ const submitButton = form.querySelector('button[type="submit"]');
 const freeformButton = document.querySelector('#freeform-btn');
 const ramadanToggle = form.elements.ramadanMode;
 const mealsSelect = form.elements.numberOfMeals;
-const snacksSelect = form.elements.numberOfSnacks;
+const distributionSelect = form.elements.mealDistribution;
 const preferenceFields = document.querySelectorAll('.preference-field');
 
 const labels = {
@@ -64,8 +64,9 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
-const MEAL_OPTION_MACRO_TOLERANCE_PERCENT = 0.20;
-const DAILY_TOTAL_MACRO_TOLERANCE_PERCENT = 0.20;
+const DAILY_CALORIE_WINDOW_PERCENT = 0.05;
+const PROTEIN_RANGE_PER_KG = { min: 1.8, max: 2.2 };
+const FAT_RANGE_PER_KG = { min: 0.66, max: 1.0 };
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -75,6 +76,7 @@ loadAllFoods();
 
 const mealStates = [];
 let dailyTargets = null;
+let currentPlanInput = null;
 
 const plannerCtx = (() => {
   const p = new URLSearchParams(location.search);
@@ -138,11 +140,13 @@ function readForm() {
   return {
     weightKg: data.get('weightKg'),
     heightCm: data.get('heightCm'),
+    age: data.get('age'),
+    sex: data.get('sex'),
     bodyFatPercentage: data.get('bodyFatPercentage'),
     activityLevel: data.get('activityLevel'),
     goal: data.get('goal'),
     numberOfMeals: data.get('numberOfMeals'),
-    numberOfSnacks: data.get('numberOfSnacks'),
+    mealDistribution: data.get('mealDistribution'),
     dietType: data.get('dietType'),
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
     milkType: data.get('milkType'),
@@ -187,11 +191,13 @@ function populateFormFromInput(input) {
   };
   set('weightKg', input.weightKg);
   set('heightCm', input.heightCm);
+  set('age', input.age);
+  set('sex', input.sex);
   set('bodyFatPercentage', input.bodyFatPercentage);
   set('activityLevel', input.activityLevel);
   set('goal', input.goal);
   set('numberOfMeals', input.numberOfMeals);
-  set('numberOfSnacks', input.numberOfSnacks);
+  set('mealDistribution', input.mealDistribution);
   set('dietType', input.dietType);
   set('milkType', input.milkType);
   set('coffeesPerDay', input.coffeesPerDay);
@@ -204,6 +210,7 @@ function populateFormFromInput(input) {
 function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {}) {
   output.innerHTML = '';
   mealStates.length = 0;
+  currentPlanInput = plan.input || null;
   output.hidden = false;
   emptyState.hidden = true;
 
@@ -507,12 +514,9 @@ function normalizeMealOption(option) {
 function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
-  return (
-    Math.abs(totals.calories - target.calories) <= target.calories * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
-    Math.abs(totals.proteinG - target.proteinG) <= target.proteinG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
-    Math.abs(totals.carbG - target.carbG) <= target.carbG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT &&
-    Math.abs(totals.fatG - target.fatG) <= target.fatG * MEAL_OPTION_MACRO_TOLERANCE_PERCENT
-  );
+  if (!dailyTargets) return false;
+  return Math.abs(totals.calories - target.calories) <=
+    dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT;
 }
 
 function currentDailyTotals() {
@@ -540,24 +544,43 @@ function addTotals(left, right) {
 }
 
 function dailyTotalsFitTarget(totals) {
-  if (!dailyTargets) return true;
-  return ['calories', 'proteinG', 'carbG', 'fatG'].every((key) =>
-    dailyMetricFitsTarget(key, totals[key], dailyTargets[key])
+  if (!dailyTargets || !currentPlanInput) return false;
+  const weightKg = Number(currentPlanInput.weightKg);
+  return (
+    Math.abs(totals.calories - dailyTargets.calories) <=
+      dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT &&
+    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min &&
+    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max &&
+    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min &&
+    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max &&
+    totals.carbG >= 0
   );
 }
 
 function dailyMetricFitsTarget(key, actual, target) {
   if (!Number.isFinite(actual) || !Number.isFinite(target)) return false;
-  return Math.abs(actual - target) <= target * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT;
+  const weightKg = Number(currentPlanInput?.weightKg);
+  if (key === 'calories') {
+    return Math.abs(actual - target) <= target * DAILY_CALORIE_WINDOW_PERCENT;
+  }
+  if (key === 'proteinG' && Number.isFinite(weightKg)) {
+    return actual >= weightKg * PROTEIN_RANGE_PER_KG.min &&
+      actual <= weightKg * PROTEIN_RANGE_PER_KG.max;
+  }
+  if (key === 'fatG' && Number.isFinite(weightKg)) {
+    return actual >= weightKg * FAT_RANGE_PER_KG.min &&
+      actual <= weightKg * FAT_RANGE_PER_KG.max;
+  }
+  return actual >= 0;
 }
 
 function dailyTargetScore(totals) {
   if (!dailyTargets) return 0;
   return (
-    Math.abs(totals.calories - dailyTargets.calories) / Math.max(1, dailyTargets.calories * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
-    Math.abs(totals.proteinG - dailyTargets.proteinG) / Math.max(1, dailyTargets.proteinG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
-    Math.abs(totals.carbG - dailyTargets.carbG) / Math.max(1, dailyTargets.carbG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT) +
-    Math.abs(totals.fatG - dailyTargets.fatG) / Math.max(1, dailyTargets.fatG * DAILY_TOTAL_MACRO_TOLERANCE_PERCENT)
+    Math.abs(totals.calories - dailyTargets.calories) / Math.max(1, dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT) +
+    Math.abs(totals.proteinG - dailyTargets.proteinG) / Math.max(1, dailyTargets.proteinG * 0.1) +
+    Math.abs(totals.carbG - dailyTargets.carbG) / Math.max(1, dailyTargets.carbG * 0.1) +
+    Math.abs(totals.fatG - dailyTargets.fatG) / Math.max(1, dailyTargets.fatG * 0.1)
   );
 }
 
@@ -937,7 +960,16 @@ async function attemptGuidedRebalance(state, { action, attemptedItems, title, fa
     const res = await fetch('/api/rebalance-meal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mealTarget: state.target, items: payloadItems }),
+      body: JSON.stringify({
+        mealTarget: state.target,
+        items: payloadItems,
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+          currentDailyTotals: currentDailyTotals(),
+          currentMealTotals: computeTotals(state.items),
+        },
+      }),
     });
     const payload = await readJsonResponse(res, 'Unable to rebalance this meal.');
     if (!res.ok) throw new Error(payload.error || 'Unable to rebalance this meal.');
@@ -1945,7 +1977,7 @@ function setLoading(isLoading) {
 function syncRamadanControls() {
   const disabled = ramadanToggle.checked;
   mealsSelect.disabled = disabled;
-  snacksSelect.disabled = disabled;
+  distributionSelect.disabled = disabled;
 }
 
 function formatNumber(value, decimals = 0) {

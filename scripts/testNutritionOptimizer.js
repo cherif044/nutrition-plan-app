@@ -6,10 +6,12 @@ const { NUTRITION, macrosForFoodPortion, sumTargets } = require('../src/services
 
 const cases = [
   named('default standard', {}),
-  named('standard 3 meals no snacks', { numberOfSnacks: 0 }, { mayMiss: true }),
-  named('standard weight loss', { goal: 'lose_weight', numberOfSnacks: 0 }),
-  named('standard gain with snack', { goal: 'gain_weight' }, { mayMiss: true }),
+  named('standard weight loss', { goal: 'lose_weight', weeklyWeightLossPercent: 0.5 }),
+  named('standard gain', { goal: 'gain_weight', gainSurplusCalories: 300 }, { mayMiss: true }),
   named('four meals standard', { numberOfMeals: 4 }, { mayMiss: true }),
+  named('breakfast-heavy', { mealDistribution: 'breakfast_heavy' }, { mayMiss: true }),
+  named('lunch-heavy', { mealDistribution: 'lunch_heavy' }, { mayMiss: true }),
+  named('dinner-heavy', { mealDistribution: 'dinner_heavy' }, { mayMiss: true }),
   named('vegetarian constrained', { dietType: 'vegetarian' }, { mayMiss: true }),
   named('vegan constrained', { dietType: 'vegan' }, { mayMiss: true }),
   named('avoid dairy constrained', { avoidFoods: ['dairy'] }, { mayMiss: true }),
@@ -58,11 +60,17 @@ function named(name, overrides, expect = {}) {
     input: {
       weightKg: 80,
       heightCm: 175,
+      age: 30,
+      sex: 'male',
       bodyFatPercentage: 20,
       activityLevel: 'light',
       goal: 'maintain',
+      weeklyWeightLossPercent: 0.75,
+      gainSurplusCalories: 250,
+      proteinPerKg: 2,
+      fatPerKg: 0.7,
       numberOfMeals: 3,
-      numberOfSnacks: 1,
+      mealDistribution: 'balanced',
       dietType: 'standard',
       avoidFoods: [],
       ...overrides,
@@ -72,7 +80,7 @@ function named(name, overrides, expect = {}) {
 }
 
 function expectedMealCount(input) {
-  return input.ramadanMode ? 3 : Number(input.numberOfMeals) + Number(input.numberOfSnacks);
+  return input.ramadanMode ? 3 : Number(input.numberOfMeals);
 }
 
 function assertWithinTolerance(items, target, label) {

@@ -10,11 +10,17 @@ const { NUTRITION, macrosForFoodPortion, sumTargets } = require('../src/services
 const baseInput = {
   weightKg: 80,
   heightCm: 175,
+  age: 30,
+  sex: 'male',
   bodyFatPercentage: 20,
   activityLevel: 'light',
   goal: 'maintain',
-  numberOfMeals: 3,
-  numberOfSnacks: 1,
+  weeklyWeightLossPercent: 0.75,
+  gainSurplusCalories: 250,
+  proteinPerKg: 2,
+  fatPerKg: 0.7,
+  numberOfMeals: 4,
+  mealDistribution: 'balanced',
   dietType: 'standard',
   allergies: [],
   dislikes: [],
@@ -56,7 +62,7 @@ function testGeneratedPlanUsesOnlyReadyMeals() {
   const plan = generatePlan(baseInput);
 
   assert.equal(plan.status, undefined, 'standard input should generate without an error status');
-  assert.equal(plan.meals.length, 4, 'standard input should generate 3 meals and 1 snack');
+  assert.equal(plan.meals.length, 4, 'standard input should generate the four-slot policy');
 
   for (const meal of plan.meals) {
     assert(readyIds.has(meal.readyMealId), `${meal.name} should use a ready meal id`);

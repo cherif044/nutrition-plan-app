@@ -4,10 +4,12 @@
   "description": "Node.js/Express website version of the Nutrition Plan app.",
   "main": "src/server.js",
   "scripts": {
+    "test": "npm run check && npm run test:nutrition-v2 && node test-solver.js && npm run test:optimizer && npm run test:deterministic-generation && npm run test:meal-chat-quality",
     "start": "node --env-file=.env src/server.js",
     "dev": "node --env-file=.env --watch src/server.js",
-    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check scripts/data/enrichFoodData.js && node --check scripts/testNutritionOptimizer.js && node --check scripts/testGenerationComparison.js && node --check scripts/testDeterministicMealGeneration.js && node --check scripts/testMealChatQuality.js",
+    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check scripts/data/enrichFoodData.js && node --check scripts/testNutritionLogicV2.js && node --check scripts/testNutritionOptimizer.js && node --check scripts/testGenerationComparison.js && node --check scripts/testDeterministicMealGeneration.js && node --check scripts/testMealChatQuality.js",
     "test:optimizer": "node scripts/testNutritionOptimizer.js",
+    "test:nutrition-v2": "node scripts/testNutritionLogicV2.js",
     "test:generation-comparison": "node scripts/testGenerationComparison.js",
     "test:deterministic-generation": "node scripts/testDeterministicMealGeneration.js",
     "test:meal-chat-quality": "node scripts/testMealChatQuality.js"

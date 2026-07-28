@@ -3,11 +3,17 @@ const { generatePlan } = require('../src/services/planGenerator');
 const baseInput = {
   weightKg: 80,
   heightCm: 175,
+  age: 30,
+  sex: 'male',
   bodyFatPercentage: 20,
   activityLevel: 'light',
   goal: 'maintain',
+  weeklyWeightLossPercent: 0.75,
+  gainSurplusCalories: 250,
+  proteinPerKg: 2,
+  fatPerKg: 0.7,
   numberOfMeals: 3,
-  numberOfSnacks: 0,
+  mealDistribution: 'balanced',
   dietType: 'standard',
   milkType: 'skimmed',
   coffeesPerDay: 1,
@@ -18,7 +24,7 @@ const baseInput = {
 
 const profiles = [
   profile('standard diet, 3 meals', {}),
-  profile('standard diet, 3 meals + 1 snack', { numberOfSnacks: 1 }),
+  profile('standard diet, 4 meals with snack', { numberOfMeals: 4 }),
   profile('vegetarian', { dietType: 'vegetarian' }),
   profile('vegan', { dietType: 'vegan' }),
   profile('dairy allergy', { allergies: ['dairy'] }),
@@ -26,7 +32,7 @@ const profiles = [
   profile('seafood allergy', { allergies: ['seafood'] }),
   profile('dislikes chicken', { dislikes: ['chicken'] }),
   profile('dislikes rice', { dislikes: ['rice'] }),
-  profile('high protein target', { weightKg: 110, activityLevel: 'very_active' }),
+  profile('high protein target', { weightKg: 110, activityLevel: 'physical_job' }),
   profile('weight loss target', { goal: 'lose_weight', activityLevel: 'light' }),
   profile('weight gain target', { goal: 'gain_weight', activityLevel: 'moderate' }),
 ];
