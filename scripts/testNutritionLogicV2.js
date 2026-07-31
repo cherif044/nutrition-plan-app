@@ -154,6 +154,42 @@ check('1d / Section 6 Meal-calorie distribution', () => {
       assert.deepEqual(profiles.map((profile) => profile.idealCaloriePercent), percentages);
     }
   }
+  const expectedSlots = {
+    balanced: {
+      2: ['breakfast:breakfast', 'main_meal:lunch'],
+      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
+      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
+      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
+    },
+    breakfast_heavy: {
+      2: ['breakfast:breakfast', 'main_meal:lunch'],
+      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
+      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
+      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
+    },
+    lunch_heavy: {
+      2: ['breakfast:breakfast', 'lunch:lunch'],
+      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
+      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
+      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
+    },
+    dinner_heavy: {
+      2: ['breakfast:breakfast', 'dinner:dinner'],
+      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
+      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
+      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
+    },
+  };
+  for (const [distribution, table] of Object.entries(expectedSlots)) {
+    for (const [mealCount, expected] of Object.entries(table)) {
+      const profiles = getMealSlotProfile(Number(mealCount), distribution);
+      assert.deepEqual(
+        profiles.map((profile) => `${profile.tag}:${profile.profileTag}`),
+        expected,
+        `${distribution} ${mealCount} meal slots should be typed`,
+      );
+    }
+  }
   for (const mealCount of [4, 5]) {
     for (const distribution of ['breakfast_heavy', 'lunch_heavy', 'dinner_heavy']) {
       const snacks = getMealSlotProfile(mealCount, distribution)

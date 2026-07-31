@@ -36,6 +36,7 @@ run();
 function run() {
   testReadyMealDataCoverage();
   testGeneratedPlanUsesOnlyReadyMeals();
+  testDistributionReadyMealSlotTyping();
   testMealOptionsUseOnlyReadyMeals();
   testReadyMealOnlyUi();
   testAiEndpointsDisabled();
@@ -126,9 +127,41 @@ function testMealOptionsUseOnlyReadyMeals() {
   }
 }
 
+function testDistributionReadyMealSlotTyping() {
+  const readyById = new Map(loadReadyMealBundles().map((meal) => [meal.id, meal]));
+  const cases = [
+    { mealDistribution: 'balanced', numberOfMeals: 2 },
+    { mealDistribution: 'balanced', numberOfMeals: 5 },
+    { mealDistribution: 'lunch_heavy', numberOfMeals: 2 },
+    { mealDistribution: 'dinner_heavy', numberOfMeals: 5 },
+  ];
+
+  for (const testCase of cases) {
+    const plan = generatePlan({ ...baseInput, ...testCase });
+    assert.equal(plan.status, undefined, `${testCase.mealDistribution}/${testCase.numberOfMeals} should generate`);
+    assert.equal(plan.meals.length, testCase.numberOfMeals);
+    for (const meal of plan.meals) {
+      const readyMeal = readyById.get(meal.readyMealId);
+      assert(readyMeal, `${meal.name} should use a known ready meal`);
+      assert(
+        allowedReadyMealTags(meal.tag).includes(readyMeal.mealTag),
+        `${meal.name} (${meal.tag}) should not use ${readyMeal.mealTag} ready meals`,
+      );
+    }
+  }
+}
+
+function allowedReadyMealTags(mealTag) {
+  if (mealTag === 'main_meal' || mealTag === 'main') return ['lunch', 'dinner'];
+  if (mealTag === 'iftar') return ['dinner', 'lunch'];
+  if (mealTag === 'suhoor') return ['breakfast', 'dinner'];
+  return [mealTag];
+}
+
 function testReadyMealOnlyUi() {
   const plannerHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'planner.html'), 'utf8');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
 
   assert(!plannerHtml.includes('freeform-btn'), 'planner should not show build-your-own/freeform mode');
   assert(!plannerHtml.includes('rebalance-btn'), 'planner should not show manual rebalance');
@@ -137,6 +170,11 @@ function testReadyMealOnlyUi() {
   assert(!appJs.includes("querySelector('.rebalance-btn')"), 'frontend should not bind rebalance control');
   assert(!appJs.includes('food-swap-btn'), 'frontend should not render ingredient swap buttons');
   assert(!appJs.includes('food-delete-btn'), 'frontend should not render ingredient delete buttons');
+  assert(appJs.includes('(currentIndex + step * offset + options.length) % options.length'), 'meal option navigation should wrap around circularly');
+  assert(!appJs.includes('state.mealOptionIndex <= 0'), 'previous ready-meal button should not disable at the first option');
+  assert(!appJs.includes('state.mealOptionIndex >= options.length - 1'), 'next ready-meal button should not disable at the last option');
+  assert(styles.includes('top: 44px;'), 'meal cycle buttons should use fixed header positioning on desktop');
+  assert(!styles.includes('top: 50%;'), 'meal cycle buttons should not be vertically centered against variable card height');
 }
 
 function testAiEndpointsDisabled() {

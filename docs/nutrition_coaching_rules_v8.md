@@ -76,10 +76,10 @@ Total daily calories are split across meals as a percentage. Four patterns: Bala
 
 | # of meals | Distribution |
 |---|---|
-| 2 meals | 40% / 60% |
-| 3 meals | 25% / 40% / 35% |
-| 4 meals | 25% / 15% (snack) / 30% / 30% |
-| 5 meals | 20% / 10% (snack) / 30% / 10% (snack) / 30% |
+| 2 meals | 40%(breakfast) / 60%(lunch/dinner) |
+| 3 meals | 25%(breakfast) / 40%(lunhc) / 35%(dinner) |
+| 4 meals | 25%(breakfast) / 15% (snack) / 30%(lunhc) / 30%(dinner) |
+| 5 meals | 20%(breakfast) / 10% (snack) / 30%(lunhc) / 10% (snack) / 30%(dinner) |
 
 ### 6.2 Breakfast-Heavy Distribution (+5pts to breakfast)
 

@@ -2171,7 +2171,7 @@ function emptyMeal(target, reason = null, generationDebug = null) {
 function templateTagsForMealTag(mealTag) {
   if (mealTag === 'iftar') return ['dinner', 'lunch'];
   if (mealTag === 'suhoor') return ['breakfast', 'dinner'];
-  if (mealTag === 'main') return ['breakfast', 'lunch', 'dinner'];
+  if (mealTag === 'main' || mealTag === 'main_meal') return ['lunch', 'dinner'];
   return [mealTag];
 }
 

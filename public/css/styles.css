@@ -679,7 +679,7 @@ input:focus, select:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 22px;
+  padding: 20px 64px;
   background: linear-gradient(125deg, rgba(13, 148, 136, 0.13) 0%, rgba(255, 255, 255, 0.42) 76%);
   border-bottom: 1px solid var(--line);
   position: relative;
@@ -943,23 +943,28 @@ input:focus, select:focus {
 .meal-cycle-btn {
   position: absolute;
   z-index: 4;
-  top: 50%;
-  width: 34px;
-  height: 48px;
+  top: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
-  color: var(--ink);
-  font-size: 1.55rem;
-  font-weight: 600;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--accent-strong);
+  font-size: 1.35rem;
+  font-weight: 850;
   backdrop-filter: var(--blur-sm);
   -webkit-backdrop-filter: var(--blur-sm);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.95) inset;
 }
 
-.meal-cycle-btn--prev { left: 8px; transform: translateY(-50%); }
-.meal-cycle-btn--next { right: 8px; transform: translateY(-50%); }
+.meal-cycle-btn--prev { left: 14px; transform: translateY(-50%); }
+.meal-cycle-btn--next { right: 14px; transform: translateY(-50%); }
 
 .meal-cycle-btn:hover:not(:disabled) {
-  background: #fff;
+  background: linear-gradient(180deg, #fff, rgba(240, 253, 249, 0.96));
   color: var(--accent-strong);
+  border-color: rgba(13, 148, 136, 0.36);
+  transform: translateY(-50%) scale(1.05);
 }
 
 .meal-cycle-btn:disabled {
@@ -1954,7 +1959,7 @@ input:focus, select:focus {
   .custom-food-grid, .proposal-compare { grid-template-columns: 1fr; }
 
   form .panel, .summary, .empty-state { padding: 16px; }
-  .meal-card__header { padding: 16px; }
+  .meal-card__header { padding: 16px 54px; }
   .meal-card__totals, .food-list { padding-left: 16px; padding-right: 16px; }
   .food-list { padding-bottom: 12px; }
   .meal-action-panel { margin-left: 16px; margin-right: 16px; }
@@ -1976,13 +1981,14 @@ input:focus, select:focus {
   }
 
   .meal-cycle-btn {
-    width: 30px;
-    height: 42px;
-    font-size: 1.35rem;
+    top: 38px;
+    width: 34px;
+    height: 34px;
+    font-size: 1.2rem;
   }
 
-  .meal-cycle-btn--prev { left: 6px; }
-  .meal-cycle-btn--next { right: 6px; }
+  .meal-cycle-btn--prev { left: 10px; }
+  .meal-cycle-btn--next { right: 10px; }
 }
 
 /* ── Touch — disable hover lifts on pure-touch devices ───────────────── */

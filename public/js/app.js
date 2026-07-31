@@ -625,15 +625,21 @@ function readyMealOptions(state) {
 }
 
 async function handleCycleMealOption(state, direction) {
-  if (direction > 0 && state.mealOptionIndex >= readyMealOptions(state).length - 1) {
+  if (!state.mealOptionsLoaded && readyMealOptions(state).length <= 1) {
     const refillOk = await refillMealOptions(state);
     if (!refillOk) return;
   }
 
   const options = readyMealOptions(state);
+  if (options.length <= 1) {
+    showActionMessage(state, 'No other ready meals fit this meal window yet.');
+    refreshMealCycleButtons(state);
+    return;
+  }
+
   const nextIndex = nextDaySafeMealOptionIndex(state, direction, options);
   if (nextIndex === null) {
-    showActionMessage(state, 'No ready meal in that direction fits this meal’s rule window.');
+    showActionMessage(state, 'No other ready meal fits this meal window.');
     refreshMealCycleButtons(state);
     return;
   }
@@ -642,7 +648,11 @@ async function handleCycleMealOption(state, direction) {
 }
 
 function nextDaySafeMealOptionIndex(state, direction, options) {
-  for (let index = state.mealOptionIndex + direction; index >= 0 && index < options.length; index += direction) {
+  const step = direction >= 0 ? 1 : -1;
+  const currentIndex = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  for (let offset = 1; offset <= options.length; offset += 1) {
+    const index = (currentIndex + step * offset + options.length) % options.length;
+    if (index === currentIndex) continue;
     const option = options[index];
     if (mealOptionFitsTarget(option, state.target)) return index;
   }
@@ -677,8 +687,9 @@ function refreshMealCycleButtons(state) {
   const next = state.cardEl?.querySelector('.meal-cycle-btn--next');
   if (!prev || !next) return;
 
-  prev.disabled = state.mealOptionIndex <= 0;
-  next.disabled = state.mealOptionsLoaded && state.mealOptionIndex >= options.length - 1;
+  const disabled = options.length <= 1;
+  prev.disabled = disabled;
+  next.disabled = disabled;
   prev.setAttribute('aria-disabled', String(prev.disabled));
   next.setAttribute('aria-disabled', String(next.disabled));
 }
