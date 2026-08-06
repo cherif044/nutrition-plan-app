@@ -38,8 +38,8 @@ function run() {
   testGeneratedPlanUsesOnlyReadyMeals();
   testDistributionReadyMealSlotTyping();
   testMealOptionsUseOnlyReadyMeals();
-  testReadyMealOnlyUi();
-  testAiEndpointsDisabled();
+  testReadyMealUiWithFoodCustomization();
+  testAiFoodEditEndpointsEnabled();
 
   console.log('ready-meal generation tests passed');
 }
@@ -158,18 +158,26 @@ function allowedReadyMealTags(mealTag) {
   return [mealTag];
 }
 
-function testReadyMealOnlyUi() {
+function testReadyMealUiWithFoodCustomization() {
   const plannerHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'planner.html'), 'utf8');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
   const styles = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
 
   assert(!plannerHtml.includes('freeform-btn'), 'planner should not show build-your-own/freeform mode');
   assert(!plannerHtml.includes('rebalance-btn'), 'planner should not show manual rebalance');
-  assert(!plannerHtml.includes('meal-add-food-btn'), 'planner should not show add-food control');
-  assert(!appJs.includes("querySelector('.meal-add-food-btn')"), 'frontend should not bind add-food control');
-  assert(!appJs.includes("querySelector('.rebalance-btn')"), 'frontend should not bind rebalance control');
-  assert(!appJs.includes('food-swap-btn'), 'frontend should not render ingredient swap buttons');
-  assert(!appJs.includes('food-delete-btn'), 'frontend should not render ingredient delete buttons');
+  assert(!appJs.includes("querySelector('.rebalance-btn')"), 'frontend should not bind manual rebalance control');
+  assert(plannerHtml.includes('ai-mode-toggle'), 'planner should show an AI mode switch');
+  assert(plannerHtml.includes('meal-add-food-btn'), 'planner should show add-food control');
+  assert(plannerHtml.includes('meal-add-tray" hidden'), 'add-food control should be hidden before AI mode');
+  assert(appJs.includes("querySelector('.meal-add-food-btn')"), 'frontend should bind add-food control');
+  assert(appJs.includes('food-swap-btn'), 'frontend should render ingredient swap buttons');
+  assert(appJs.includes('food-delete-btn'), 'frontend should render ingredient delete buttons');
+  assert(appJs.includes('state.aiModeEnabled ?'), 'ingredient controls should only render in AI mode');
+  assert(appJs.includes("action: 'add_food'"), 'add food should use guided rebalance');
+  assert(appJs.includes("action: 'remove_food'"), 'remove food should use guided rebalance');
+  assert(appJs.includes("action: 'swap_food'"), 'swap food should use guided rebalance');
+  assert(styles.includes('.ai-mode-switch'), 'AI mode should use switch styling');
+  assert(styles.includes('.meal-add-tray[hidden]'), 'hidden add tray should not reserve layout space');
   assert(appJs.includes('(currentIndex + step * offset + options.length) % options.length'), 'meal option navigation should wrap around circularly');
   assert(!appJs.includes('state.mealOptionIndex <= 0'), 'previous ready-meal button should not disable at the first option');
   assert(!appJs.includes('state.mealOptionIndex >= options.length - 1'), 'next ready-meal button should not disable at the last option');
@@ -177,10 +185,11 @@ function testReadyMealOnlyUi() {
   assert(!styles.includes('top: 50%;'), 'meal cycle buttons should not be vertically centered against variable card height');
 }
 
-function testAiEndpointsDisabled() {
+function testAiFoodEditEndpointsEnabled() {
   const controller = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'generationController.js'), 'utf8');
-  assert(controller.includes('AI meal editing is disabled'), 'guided AI edit endpoint should be disabled');
-  assert(controller.includes('AI meal chat is disabled'), 'meal chat endpoint should be disabled');
+  assert(!controller.includes('AI meal editing is disabled'), 'guided AI edit endpoint should be enabled');
+  assert(!controller.includes('AI meal chat is disabled'), 'meal chat endpoint should be enabled');
+  assert(controller.includes('const systemContent = `You are a meal-editing fallback.'), 'guided AI edit prompt should be present');
 }
 
 function assertWithinTolerance(items, target, label) {

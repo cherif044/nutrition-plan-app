@@ -93,10 +93,6 @@ function mealOptionsHandler(req, res, next) {
 }
 
 async function guidedMealSuggestionHandler(req, res, next) {
-  return res.status(410).json({
-    error: 'AI meal editing is disabled. Use ready-meal navigation only.',
-  });
-
   try {
     const {
       action,
@@ -108,6 +104,7 @@ async function guidedMealSuggestionHandler(req, res, next) {
       userPreferences,
       rejectedProposal,
       userFeedback,
+      dailyContext,
     } = req.body;
 
     if (!action || !mealTarget || !Array.isArray(currentItems) || !Array.isArray(attemptedItems)) {
@@ -128,11 +125,12 @@ async function guidedMealSuggestionHandler(req, res, next) {
 
 Goal: suggest a food-level change inside ONE meal after deterministic rebalance failed.
 Do not adjust other meals. Do not suggest another full meal. Do not repeat rejected suggestions.
+Return a complete final food list for this meal, not a delta/change list.
 
 Allowed actions:
 - replace one existing non-custom food with one available food
 - add one available food when a swap/add/remove attempt is close but missing a balancing macro
-- remove one existing food only if enough foods remain
+- remove one existing food, and if that cannot fit by portion changes alone, keep it removed and add one available food to replace the lost calories/macros
 - keep an existing custom food but suggest replacing another food
 - return impossible if no sensible food-level change exists
 
@@ -147,7 +145,8 @@ Rules:
 3. Do not include foods from user avoids.
 4. Keep this meal recognizable; change the smallest number of foods.
 5. For action "swap_food", preserve the user's chosen replacement from ATTEMPTED items whenever possible. First try adding exactly one AVAILABLE food to balance the swapped meal. If that cannot work, try removing exactly one non-custom food. Only suggest another replacement if preserving the chosen swap is clearly impossible.
-6. Quantity numbers are only a draft; backend will rebalance and validate them.`;
+6. For action "remove_food", foods present in CURRENT but missing from ATTEMPTED were intentionally deleted. Do not bring those deleted foods back. First try keeping all ATTEMPTED foods and adding exactly one AVAILABLE food that fixes the missing macro/calorie gap. If one added food cannot work, try replacing one remaining non-custom food plus adding one AVAILABLE food. Only return impossible after trying those food-level options.
+7. Quantity numbers are only a draft; backend will rebalance and validate them.`;
 
     const userContent = JSON.stringify({
       action,
@@ -193,12 +192,12 @@ Rules:
       });
     }
 
-    const safeItems = sanitizeGuidedItems(payload.items, { currentItems, attemptedItems, availableFoods });
+    const safeItems = sanitizeGuidedItems(payload.items, { action, currentItems, attemptedItems, availableFoods });
     if (safeItems.length === 0) {
       return res.json({ status: 'impossible', message: 'AI suggested foods that are not allowed for this meal.' });
     }
 
-    const rebalance = rebalanceMeal({ mealTarget, items: safeItems });
+    const rebalance = rebalanceMeal({ mealTarget, items: safeItems, dailyContext });
     if (!rebalance.success) {
       return res.json({
         status: 'impossible',
@@ -228,7 +227,15 @@ function compactGuidedItem(item) {
   };
 }
 
-function sanitizeGuidedItems(items, { currentItems, attemptedItems, availableFoods }) {
+function sanitizeGuidedItems(items, { action, currentItems, attemptedItems, availableFoods }) {
+  const attemptedIds = new Set(attemptedItems.map((item) => String(item.foodId)));
+  const removedIds = new Set(
+    action === 'remove_food'
+      ? currentItems
+        .map((item) => String(item.foodId))
+        .filter((foodId) => foodId && !attemptedIds.has(foodId))
+      : [],
+  );
   const allowedIds = new Set([
     ...currentItems.map((item) => String(item.foodId)),
     ...attemptedItems.map((item) => String(item.foodId)),
@@ -248,6 +255,7 @@ function sanitizeGuidedItems(items, { currentItems, attemptedItems, availableFoo
     }))
     .filter((item) => {
       if (!item.foodId || seen.has(item.foodId) || !allowedIds.has(item.foodId)) return false;
+      if (removedIds.has(item.foodId)) return false;
       seen.add(item.foodId);
       return true;
     });
@@ -1038,10 +1046,6 @@ function buildExplicitSwapSuggestion({ userMessage, currentItems, availableFoods
 }
 
 async function mealChatHandler(req, res, next) {
-  return res.status(410).json({
-    error: 'AI meal chat is disabled. Use ready-meal navigation only.',
-  });
-
   try {
     const { mealTag, mealTarget, currentItems, currentTotals, userPreferences, conversationHistory, userMessage } = req.body;
     if (!mealTag || !mealTarget || !Array.isArray(currentItems) || !userMessage) {

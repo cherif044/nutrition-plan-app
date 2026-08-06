@@ -260,6 +260,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         .filter((option) => mealOptionFitsTarget(option, meal.target)),
       mealOptionIndex: 0,
       mealOptionsLoaded: (meal.mealOptions || []).length > 0,
+      aiModeEnabled: false,
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
@@ -421,9 +422,32 @@ function renderMealCard(state) {
 
   card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
   card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
+  card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
+  card.querySelector('.ai-mode-toggle').addEventListener('change', (event) => {
+    setMealAiMode(state, event.target.checked);
+  });
+  refreshMealCustomizationControls(state);
   refreshMealCycleButtons(state);
 
   return card;
+}
+
+function setMealAiMode(state, enabled) {
+  state.aiModeEnabled = Boolean(enabled);
+  renderFoodList(state);
+  refreshMealCustomizationControls(state);
+  if (!state.aiModeEnabled) {
+    const panel = actionPanel(state);
+    panel.hidden = true;
+    panel.innerHTML = '';
+    state.pendingProposal = null;
+    if (chatPanel.currentState === state) chatPanel.close();
+  }
+}
+
+function refreshMealCustomizationControls(state) {
+  const tray = state.cardEl?.querySelector('.meal-add-tray');
+  if (tray) tray.hidden = !state.aiModeEnabled;
 }
 
 function refreshMealCardHeader(card, state) {
@@ -474,7 +498,7 @@ function renderFoodItem(state, itemIndex) {
   const food = item.food;
 
   const row = document.createElement('div');
-  row.className = 'food-item';
+  row.className = `food-item${state.aiModeEnabled ? ' food-item--ai' : ''}`;
   row.dataset.itemIndex = itemIndex;
 
   const totals = itemTotals(food, item.quantityG);
@@ -492,8 +516,21 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
+      ${state.aiModeEnabled ? `
+        <div class="food-actions">
+          <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${escapeHtml(food.name)}">
+            <span aria-hidden="true">⇄</span>
+          </button>
+          <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${escapeHtml(food.name)}">
+            <span aria-hidden="true">⌫</span>
+          </button>
+        </div>
+      ` : ''}
     </div>
   `;
+
+  row.querySelector('.food-swap-btn')?.addEventListener('click', () => showSwapFoodAction(state, itemIndex));
+  row.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, itemIndex));
 
   return row;
 }
@@ -1003,6 +1040,10 @@ async function requestGuidedAiSuggestion(state, { action, attemptedItems, failur
         rejectedProposal: compactRejectedProposal(rejectedProposal),
         userFeedback,
         userPreferences: getUserPreferences(),
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+        },
       }),
       signal: AbortSignal.timeout(50_000),
     });

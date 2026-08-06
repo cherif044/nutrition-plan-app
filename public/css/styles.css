@@ -827,6 +827,13 @@ input:focus, select:focus {
   row-gap: 8px;
 }
 
+.food-item:not(.food-item--ai) .food-main {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title grams"
+    "macros macros";
+}
+
 .food-title {
   grid-area: title;
   min-width: 0;
@@ -923,6 +930,8 @@ input:focus, select:focus {
   justify-content: center;
   padding: 0 20px 18px;
 }
+
+.meal-add-tray[hidden] { display: none; }
 
 .meal-add-food-btn {
   width: 42px;
@@ -1089,6 +1098,69 @@ input:focus, select:focus {
   font-size: 0.73rem !important;
   padding: 0 9px !important;
   border-radius: 8px !important;
+}
+
+.ai-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ai-mode-switch span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.ai-mode-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ai-mode-switch i {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.38);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.14);
+  transition: background 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
+}
+
+.ai-mode-switch i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.ai-mode-switch input:checked + i {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.22), inset 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.ai-mode-switch input:checked + i::after {
+  transform: translateX(18px);
+}
+
+.ai-mode-switch input:focus-visible + i {
+  outline: 3px solid rgba(13, 148, 136, 0.18);
+  outline-offset: 3px;
 }
 
 /* ── Guided meal actions ──────────────────────────────────────────────── */
@@ -1953,6 +2025,11 @@ input:focus, select:focus {
       "title grams"
       "macros actions";
     row-gap: 8px;
+  }
+  .food-item:not(.food-item--ai) .food-main {
+    grid-template-areas:
+      "title grams"
+      "macros macros";
   }
   .food-macros { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
   .food-actions { align-self: end; }
