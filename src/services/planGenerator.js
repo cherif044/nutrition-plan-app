@@ -36,6 +36,11 @@ const MEAL_OPTION_LIMIT = 250;
 const EXACT_PORTION_SEARCH_STEP_G = 1;
 const EXACT_PORTION_SEARCH_MAX_VISITS = 250000;
 const EXACT_PORTION_SEARCH_MAX_MS = 60;
+const COFFEE_MILK_GRAMS_PER_COFFEE = 50;
+const MILK_TYPE_FOOD_IDS = {
+  skimmed: 'skimmed_milk_fat_free',
+  whole: 'milk_whole_3_25_milkfat',
+};
 
 function getFoods() {
   return loadFoods();
@@ -76,7 +81,13 @@ function _generatePlanInternal(rawInput, useTemplates) {
           .map((meal) => meal.unavailableReason),
       };
 
-  const meals = optimization.meals.map((meal) => {
+  const coffeeApplied = applyCoffeeMilkAllowance({
+    meals: optimization.meals,
+    input,
+    allowedFoods,
+  });
+
+  const meals = coffeeApplied.meals.map((meal) => {
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
     const seedTarget = meal.seedTarget ?? meal.target;
@@ -156,7 +167,9 @@ function _generatePlanInternal(rawInput, useTemplates) {
     },
     meals,
     ...(optimization.diagnostics ? { diagnostics: optimization.diagnostics } : {}),
-    ...(optimization.warnings.length > 0 ? { warnings: optimization.warnings } : {}),
+    ...([...optimization.warnings, ...coffeeApplied.warnings].length > 0 ? {
+      warnings: [...optimization.warnings, ...coffeeApplied.warnings],
+    } : {}),
     ...(optimization.errors?.length > 0 ? {
       errors: optimization.errors,
       status: 'error',
@@ -221,6 +234,61 @@ function optimizeTemplateDay(meals, dailyTargets) {
     warnings: diagnostics.warnings,
     errors: diagnostics.errors,
     diagnostics,
+  };
+}
+
+function applyCoffeeMilkAllowance({ meals, input, allowedFoods }) {
+  const coffeesPerDay = Number(input.coffeesPerDay) || 0;
+  if (coffeesPerDay <= 0) {
+    return { meals, warnings: [] };
+  }
+
+  const milkFoodId = MILK_TYPE_FOOD_IDS[input.milkType] || MILK_TYPE_FOOD_IDS.skimmed;
+  const allowedById = new Map(allowedFoods.map((food) => [food.id, food]));
+  const milkFood = allowedById.get(milkFoodId);
+
+  if (!milkFood) {
+    return {
+      meals,
+      warnings: ['Coffee milk was skipped because the selected milk does not match the current diet or avoid-food rules.'],
+    };
+  }
+
+  const mealIndex = meals.findIndex((meal) => meal.tag === 'breakfast' && meal.items.length > 0);
+  const targetIndex = mealIndex >= 0
+    ? mealIndex
+    : meals.findIndex((meal) => meal.items.length > 0);
+
+  if (targetIndex < 0) {
+    return {
+      meals,
+      warnings: ['Coffee milk was skipped because no generated meal could receive it.'],
+    };
+  }
+
+  const quantityG = roundToNearest(coffeesPerDay * COFFEE_MILK_GRAMS_PER_COFFEE, 5);
+  const coffeeLabel = `${coffeesPerDay} coffee${coffeesPerDay === 1 ? '' : 's'} milk allowance`;
+  const item = {
+    food: milkFood,
+    quantityG,
+    alternatives: [],
+    broaderAlternatives: [],
+    nearestAlternatives: [],
+    component: {
+      source: 'coffee_milk_allowance',
+      ingredientName: coffeeLabel,
+      readyMealId: meals[targetIndex].readyMealId ?? meals[targetIndex].templateId ?? null,
+    },
+    totals: macrosForFoodPortion(milkFood, quantityG),
+  };
+
+  return {
+    meals: meals.map((meal, index) => (
+      index === targetIndex
+        ? { ...meal, items: [...meal.items, item] }
+        : meal
+    )),
+    warnings: [],
   };
 }
 

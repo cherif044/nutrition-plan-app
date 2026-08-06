@@ -38,6 +38,7 @@ function run() {
   testGeneratedPlanUsesOnlyReadyMeals();
   testDistributionReadyMealSlotTyping();
   testMealOptionsUseOnlyReadyMeals();
+  testCoffeeMilkAllowance();
   testReadyMealUiWithFoodCustomization();
   testAiFoodEditEndpointsEnabled();
 
@@ -149,6 +150,26 @@ function testDistributionReadyMealSlotTyping() {
       );
     }
   }
+}
+
+function testCoffeeMilkAllowance() {
+  const skimmedPlan = generatePlan({ ...baseInput, coffeesPerDay: 1, milkType: 'skimmed' });
+  const skimmedCoffee = findCoffeeMilkAllowance(skimmedPlan);
+  assert(skimmedCoffee, 'one coffee should add a milk allowance item');
+  assert.equal(skimmedCoffee.food.id, 'skimmed_milk_fat_free');
+  assert.equal(skimmedCoffee.quantityG, 50);
+
+  const wholePlan = generatePlan({ ...baseInput, coffeesPerDay: 2, milkType: 'whole' });
+  const wholeCoffee = findCoffeeMilkAllowance(wholePlan);
+  assert(wholeCoffee, 'two coffees should add a milk allowance item');
+  assert.equal(wholeCoffee.food.id, 'milk_whole_3_25_milkfat');
+  assert.equal(wholeCoffee.quantityG, 100);
+}
+
+function findCoffeeMilkAllowance(plan) {
+  return plan.meals
+    .flatMap((meal) => meal.items)
+    .find((item) => item.component?.source === 'coffee_milk_allowance');
 }
 
 function allowedReadyMealTags(mealTag) {
