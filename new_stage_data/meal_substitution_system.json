@@ -1,12 +1,12 @@
 {
   "metadata": {
     "version": "3.0",
-    "total_bundles": 223,
+    "total_bundles": 152,
     "meal_counts": {
-      "breakfast": 54,
-      "lunch": 70,
-      "dinner": 53,
-      "snack": 46
+      "breakfast": 32,
+      "lunch": 49,
+      "dinner": 49,
+      "snack": 22
     }
   },
   "food_classification": [
@@ -177,7 +177,7 @@
     },
     {
       "ingredient": "Fish, tuna, light, canned in water",
-      "meal_category": "Lunch, Dinner, Snack",
+      "meal_category": "Breakfast, Lunch, Dinner, Snack",
       "nutrition_role": "Protein-dense"
     },
     {
@@ -528,7 +528,7 @@
         "track": "Sweet — Oats",
         "protein": "Whey protein isolate, unflavored",
         "carb": "Oats, raw",
-        "fat": "Nuts, almonds",
+        "fat": "Milk, whole, 3.25% milkfat",
         "extra": "Bananas, raw"
       },
       {
@@ -536,131 +536,43 @@
         "track": "Sweet — Oats",
         "protein": "Whey protein isolate, unflavored",
         "carb": "Oats, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "B03",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Blueberries, raw"
-      },
-      {
-        "id": "B04",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Nuts, almond butter, without salt",
-        "extra": "Mangos, raw"
-      },
-      {
-        "id": "B05",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Oats, raw",
         "fat": "Seeds, chia seeds, dried",
         "extra": "Peaches, raw"
       },
       {
-        "id": "B06",
+        "id": "B03",
         "track": "Sweet — Oats",
-        "protein": "Whey protein isolate, unflavored",
+        "protein": "Whey protein concentrate, unflavored",
         "carb": "Oats, raw",
-        "fat": "Nuts, cashew nuts, raw",
+        "fat": "Peanut butter, smooth, without salt",
+        "extra": "Bananas, raw"
+      },
+      {
+        "id": "B04",
+        "track": "Sweet — Granola",
+        "protein": "Greek yogurt, 5% fat (whole milk)",
+        "carb": "Granola, homemade",
+        "fat": "Nuts, almonds",
+        "extra": "Strawberries, raw"
+      },
+      {
+        "id": "B05",
+        "track": "Sweet — Granola",
+        "protein": "Greek yogurt, 5% fat (whole milk)",
+        "carb": "Granola, homemade",
+        "fat": "Seeds, chia seeds, dried",
         "extra": "Blackberries, raw"
+      },
+      {
+        "id": "B06",
+        "track": "Sweet — Granola",
+        "protein": "Yogurt, Greek, plain, whole milk",
+        "carb": "Granola, homemade",
+        "fat": "Peanut butter, smooth, without salt",
+        "extra": "Strawberries, raw"
       },
       {
         "id": "B07",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Nuts, almonds",
-        "extra": "Blueberries, raw"
-      },
-      {
-        "id": "B08",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": "Bananas, raw"
-      },
-      {
-        "id": "B09",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Nuts, hazelnuts",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "B10",
-        "track": "Sweet — Oats",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Oats, raw",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Mangos, raw"
-      },
-      {
-        "id": "B11",
-        "track": "Sweet — Granola",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, almonds",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "B12",
-        "track": "Sweet — Granola",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Blueberries, raw"
-      },
-      {
-        "id": "B13",
-        "track": "Sweet — Granola",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Granola, homemade",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Blackberries, raw"
-      },
-      {
-        "id": "B14",
-        "track": "Sweet — Granola",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": "Mangos, raw"
-      },
-      {
-        "id": "B15",
-        "track": "Sweet — Granola",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, almonds",
-        "extra": "Bananas, raw"
-      },
-      {
-        "id": "B16",
-        "track": "Sweet — Granola",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Granola, homemade",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "B17",
-        "track": "Sweet — Granola",
-        "protein": "Whey protein isolate, unflavored (mixed with milk)",
-        "carb": "Granola, homemade",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Blueberries, raw"
-      },
-      {
-        "id": "B18",
         "track": "Sweet — Granola",
         "protein": "Whey protein concentrate, unflavored (mixed with milk)",
         "carb": "Granola, homemade",
@@ -668,7 +580,7 @@
         "extra": "Blackberries, raw"
       },
       {
-        "id": "B19",
+        "id": "B08",
         "track": "Sweet — Yogurt",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Oats, raw",
@@ -676,7 +588,7 @@
         "extra": "Strawberries, raw"
       },
       {
-        "id": "B20",
+        "id": "B09",
         "track": "Sweet — Yogurt",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Oats, raw",
@@ -684,15 +596,7 @@
         "extra": "Bananas, raw"
       },
       {
-        "id": "B21",
-        "track": "Sweet — Yogurt",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Oats, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Blueberries, raw"
-      },
-      {
-        "id": "B22",
+        "id": "B10",
         "track": "Sweet — Yogurt",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Oats, raw",
@@ -700,15 +604,7 @@
         "extra": "Peaches, raw"
       },
       {
-        "id": "B23",
-        "track": "Sweet — Yogurt",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Oats, raw",
-        "fat": "Nuts, hazelnuts",
-        "extra": "Kiwifruit, green, raw"
-      },
-      {
-        "id": "B24",
+        "id": "B11",
         "track": "Sweet — Yogurt",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Bananas, raw",
@@ -716,7 +612,7 @@
         "extra": null
       },
       {
-        "id": "B25",
+        "id": "B12",
         "track": "Sweet — Yogurt",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Oats, raw",
@@ -724,236 +620,164 @@
         "extra": "Blackberries, raw"
       },
       {
+        "id": "B13",
+        "track": "Savory — Scrambled Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, white",
+        "fat": "Butter, without salt",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B14",
+        "track": "Savory — Scrambled Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, multi-grain",
+        "fat": "Avocados, raw",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B15",
+        "track": "Savory — Scrambled Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Cheese, feta",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B16",
+        "track": "Savory — Scrambled Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, white",
+        "fat": "Cheese, cheddar",
+        "extra": "Mushrooms, white, cooked, boiled"
+      },
+      {
+        "id": "B17",
+        "track": "Savory — Scrambled Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, multi-grain",
+        "fat": "Cheese, gouda",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B18",
+        "track": "Savory — Hard Boiled",
+        "protein": "Egg, whole, cooked, hard-boiled",
+        "carb": "Bread, white",
+        "fat": "Cheese, cheddar",
+        "extra": "Cucumber, with peel, raw"
+      },
+      {
+        "id": "B19",
+        "track": "Savory — Hard Boiled",
+        "protein": "Egg, whole, cooked, hard-boiled",
+        "carb": "Bread, multi-grain",
+        "fat": "Butter, without salt",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B20",
+        "track": "Savory — Hard Boiled",
+        "protein": "Egg, whole, cooked, hard-boiled",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Cheese, feta",
+        "extra": "Lettuce, romaine, raw"
+      },
+      {
+        "id": "B21",
+        "track": "Savory — Egg Whites",
+        "protein": "Egg, white, raw, fresh",
+        "carb": "Bread, multi-grain",
+        "fat": "Avocados, raw",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B22",
+        "track": "Savory — Egg Whites",
+        "protein": "Egg, white, raw, fresh",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Cheese, feta",
+        "extra": "Cucumber, with peel, raw"
+      },
+      {
+        "id": "B23",
+        "track": "Savory — Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, multi-grain",
+        "fat": "Cheese, gouda",
+        "extra": "Cucumber, with peel, raw"
+      },
+      {
+        "id": "B24",
+        "track": "Savory — Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, white",
+        "fat": "Avocados, raw",
+        "extra": "Tomatoes, red, raw"
+      },
+      {
+        "id": "B25",
+        "track": "Savory — Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Cheese, cheddar",
+        "extra": "Lettuce, romaine, raw"
+      },
+      {
         "id": "B26",
-        "track": "Sweet — Yogurt",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Oats, raw",
-        "fat": "Nuts, almonds",
-        "extra": "Blueberries, raw"
+        "track": "Savory — Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Cheese, feta",
+        "extra": "Tomatoes, red, raw"
       },
       {
         "id": "B27",
-        "track": "Sweet — Yogurt",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Oats, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": "Strawberries, raw"
+        "track": "Savory — Fava Beans",
+        "protein": "Broadbeans (fava beans), cooked",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Tomatoes, red, raw"
       },
       {
         "id": "B28",
-        "track": "Sweet — Yogurt",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Oats, raw",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Mangos, raw"
+        "track": "Savory — Fava Beans",
+        "protein": "Broadbeans (fava beans), cooked",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Cucumber, with peel, raw"
       },
       {
         "id": "B29",
-        "track": "Sweet — Cottage",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Bananas, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": null
+        "track": "Savory — Parmesan Eggs",
+        "protein": "Egg, whole, cooked, scrambled",
+        "carb": "Bread, white",
+        "fat": "Cheese, parmesan, hard",
+        "extra": "Tomatoes, red, raw"
       },
       {
         "id": "B30",
-        "track": "Sweet — Cottage",
+        "track": "Savory — Cottage Cheese",
         "protein": "Cheese, cottage, creamed",
-        "carb": "Oats, raw",
-        "fat": "Nuts, almonds",
-        "extra": "Strawberries, raw"
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Tomatoes, red, raw"
       },
       {
         "id": "B31",
-        "track": "Sweet — Cottage",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Apples, raw, with skin",
-        "fat": "Nuts, walnuts, english",
-        "extra": null
+        "track": "Savory — Tuna",
+        "protein": "Fish, tuna, light, canned in water",
+        "carb": "Bread, multi-grain",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Tomatoes, red, raw"
       },
       {
         "id": "B32",
-        "track": "Sweet — Cottage",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Oats, raw",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Blackberries, raw"
-      },
-      {
-        "id": "B33",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, white",
-        "fat": "Butter, without salt",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B34",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, multi-grain",
-        "fat": "Avocados, raw",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B35",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
-        "fat": "Cheese, feta",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B36",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Avocados, raw",
-        "extra": "Cucumber, with peel, raw"
-      },
-      {
-        "id": "B37",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, white",
-        "fat": "Cheese, cheddar",
-        "extra": "Mushrooms, white, cooked, boiled"
-      },
-      {
-        "id": "B38",
-        "track": "Savory — Scrambled Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, multi-grain",
-        "fat": "Cheese, gouda",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B39",
-        "track": "Savory — Hard Boiled",
-        "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
-        "fat": "Avocados, raw",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B40",
-        "track": "Savory — Hard Boiled",
-        "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Bread, white",
-        "fat": "Cheese, cheddar",
-        "extra": "Cucumber, with peel, raw"
-      },
-      {
-        "id": "B41",
-        "track": "Savory — Hard Boiled",
-        "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Bread, multi-grain",
-        "fat": "Butter, without salt",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B42",
-        "track": "Savory — Hard Boiled",
-        "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Cheese, feta",
-        "extra": "Lettuce, romaine, raw"
-      },
-      {
-        "id": "B43",
-        "track": "Savory — Egg Whites",
-        "protein": "Egg, white, raw, fresh",
-        "carb": "Bread, multi-grain",
-        "fat": "Avocados, raw",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B44",
-        "track": "Savory — Egg Whites",
-        "protein": "Egg, white, raw, fresh",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Cheese, feta",
-        "extra": "Cucumber, with peel, raw"
-      },
-      {
-        "id": "B45",
-        "track": "Savory — Turkey",
-        "protein": "Turkey breast, deli slices",
-        "carb": "Bread, multi-grain",
-        "fat": "Cheese, gouda",
-        "extra": "Cucumber, with peel, raw"
-      },
-      {
-        "id": "B46",
-        "track": "Savory — Turkey",
-        "protein": "Turkey breast, deli slices",
-        "carb": "Bread, white",
-        "fat": "Avocados, raw",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B47",
-        "track": "Savory — Turkey",
-        "protein": "Turkey breast, deli slices",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Cheese, cheddar",
-        "extra": "Lettuce, romaine, raw"
-      },
-      {
-        "id": "B48",
-        "track": "Savory — Turkey",
-        "protein": "Turkey breast, deli slices",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
-        "fat": "Cheese, feta",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B49",
-        "track": "Savory — Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
+        "track": "Savory — Tuna",
+        "protein": "Fish, tuna, light, canned in water",
         "carb": "Bread, Egyptian baladi (eish baladi)",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B50",
-        "track": "Savory — Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Oil, olive, salad or cooking",
         "extra": "Cucumber, with peel, raw"
-      },
-      {
-        "id": "B51",
-        "track": "Savory — Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
-        "carb": "Bread, white",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B55",
-        "track": "Savory — Parmesan Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, multi-grain",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Mushrooms, white, cooked, boiled"
-      },
-      {
-        "id": "B56",
-        "track": "Savory — Parmesan Eggs",
-        "protein": "Egg, whole, cooked, scrambled",
-        "carb": "Bread, white",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw"
-      },
-      {
-        "id": "B57",
-        "track": "Savory — Parmesan Eggs",
-        "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Lettuce, romaine, raw"
       }
     ],
     "lunch": [
@@ -970,22 +794,13 @@
         "id": "L02",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L03",
-        "track": "Chicken Breast",
-        "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Pasta, whole-wheat, cooked",
         "fat": "Cheese, parmesan, hard",
         "extra": "Tomatoes, red, raw",
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "L04",
+        "id": "L03",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Quinoa, cooked",
@@ -994,7 +809,7 @@
         "sauce": null
       },
       {
-        "id": "L05",
+        "id": "L04",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Potatoes, boiled, without skin",
@@ -1003,7 +818,7 @@
         "sauce": null
       },
       {
-        "id": "L06",
+        "id": "L05",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Sweet potato, baked in skin",
@@ -1012,7 +827,7 @@
         "sauce": null
       },
       {
-        "id": "L07",
+        "id": "L06",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Rice, basmati, cooked",
@@ -1021,16 +836,7 @@
         "sauce": null
       },
       {
-        "id": "L08",
-        "track": "Chicken Breast",
-        "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Zucchini, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L09",
+        "id": "L07",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1039,16 +845,7 @@
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "L10",
-        "track": "Chicken Breast",
-        "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, sunflower, linoleic",
-        "extra": "Carrots, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L11",
+        "id": "L08",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Sweet potato, baked in skin",
@@ -1057,16 +854,7 @@
         "sauce": null
       },
       {
-        "id": "L12",
-        "track": "Chicken Breast",
-        "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Peppers, sweet, red, raw",
-        "sauce": "Sauce, teriyaki, ready-to-serve"
-      },
-      {
-        "id": "L13",
+        "id": "L09",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Rice, basmati, cooked",
@@ -1075,7 +863,7 @@
         "sauce": null
       },
       {
-        "id": "L14",
+        "id": "L10",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Quinoa, cooked",
@@ -1084,7 +872,7 @@
         "sauce": null
       },
       {
-        "id": "L15",
+        "id": "L11",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Potatoes, boiled, without skin",
@@ -1093,7 +881,7 @@
         "sauce": null
       },
       {
-        "id": "L16",
+        "id": "L12",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Sweet potato, baked in skin",
@@ -1102,9 +890,45 @@
         "sauce": null
       },
       {
-        "id": "L17",
+        "id": "L13",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
+        "carb": "Pasta, whole-wheat, cooked",
+        "fat": "Cheese, parmesan, hard",
+        "extra": "Tomatoes, red, raw",
+        "sauce": "Tomato sauce, canned, no salt added"
+      },
+      {
+        "id": "L14",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Rice, basmati, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Broccoli, cooked, boiled",
+        "sauce": null
+      },
+      {
+        "id": "L15",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Potatoes, boiled, without skin",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Spinach, cooked, boiled",
+        "sauce": null
+      },
+      {
+        "id": "L16",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Quinoa, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Peppers, sweet, red, raw",
+        "sauce": null
+      },
+      {
+        "id": "L17",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
         "carb": "Pasta, whole-wheat, cooked",
         "fat": "Cheese, parmesan, hard",
         "extra": "Tomatoes, red, raw",
@@ -1112,51 +936,6 @@
       },
       {
         "id": "L18",
-        "track": "Chicken Thighs",
-        "protein": "Chicken thighs, meat only, cooked, roasted",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Avocados, raw",
-        "extra": "Peas, green, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L19",
-        "track": "Beef 95%",
-        "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Broccoli, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L20",
-        "track": "Beef 95%",
-        "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Potatoes, boiled, without skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L21",
-        "track": "Beef 95%",
-        "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Peppers, sweet, red, raw",
-        "sauce": null
-      },
-      {
-        "id": "L22",
-        "track": "Beef 95%",
-        "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L23",
         "track": "Beef 95%",
         "protein": "Beef, ground, 95% lean, cooked, broiled",
         "carb": "Sweet potato, baked in skin",
@@ -1165,43 +944,7 @@
         "sauce": null
       },
       {
-        "id": "L24",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cauliflower, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L25",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Potatoes, boiled, without skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Peas, green, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L26",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Quinoa, cooked",
-        "fat": "Avocados, raw",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L27",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Sweet potato, baked in skin",
-        "fat": "Oil, sunflower, linoleic",
-        "extra": "Broccoli, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L28",
+        "id": "L19",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
         "carb": "Rice, basmati, cooked",
@@ -1210,7 +953,7 @@
         "sauce": null
       },
       {
-        "id": "L29",
+        "id": "L20",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
         "carb": "Potatoes, boiled, without skin",
@@ -1219,7 +962,7 @@
         "sauce": null
       },
       {
-        "id": "L30",
+        "id": "L21",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
         "carb": "Bread, Egyptian baladi (eish baladi)",
@@ -1228,7 +971,7 @@
         "sauce": null
       },
       {
-        "id": "L31",
+        "id": "L22",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
         "carb": "Rice, basmati, cooked",
@@ -1237,7 +980,7 @@
         "sauce": null
       },
       {
-        "id": "L32",
+        "id": "L23",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
         "carb": "Quinoa, cooked",
@@ -1246,7 +989,7 @@
         "sauce": null
       },
       {
-        "id": "L33",
+        "id": "L24",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
         "carb": "Sweet potato, baked in skin",
@@ -1255,7 +998,7 @@
         "sauce": null
       },
       {
-        "id": "L34",
+        "id": "L25",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
         "carb": "Potatoes, boiled, without skin",
@@ -1264,7 +1007,7 @@
         "sauce": null
       },
       {
-        "id": "L35",
+        "id": "L26",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
         "carb": "Rice, basmati, cooked",
@@ -1273,7 +1016,7 @@
         "sauce": null
       },
       {
-        "id": "L36",
+        "id": "L27",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
         "carb": "Quinoa, cooked",
@@ -1282,7 +1025,7 @@
         "sauce": null
       },
       {
-        "id": "L37",
+        "id": "L28",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
         "carb": "Potatoes, boiled, without skin",
@@ -1291,16 +1034,16 @@
         "sauce": null
       },
       {
-        "id": "L38",
+        "id": "L29",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
         "carb": "Sweet potato, baked in skin",
-        "fat": "Oil, sunflower, linoleic",
+        "fat": "Oil, olive, salad or cooking",
         "extra": "Zucchini, cooked, boiled",
         "sauce": null
       },
       {
-        "id": "L39",
+        "id": "L30",
         "track": "Tuna",
         "protein": "Fish, tuna, light, canned in water",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1309,7 +1052,7 @@
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "L40",
+        "id": "L31",
         "track": "Tuna",
         "protein": "Fish, tuna, light, canned in water",
         "carb": "Rice, basmati, cooked",
@@ -1318,25 +1061,7 @@
         "sauce": null
       },
       {
-        "id": "L41",
-        "track": "Tuna",
-        "protein": "Fish, tuna, light, canned in water",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Peppers, sweet, red, raw",
-        "sauce": null
-      },
-      {
-        "id": "L42",
-        "track": "Tuna",
-        "protein": "Fish, tuna, white, canned in oil",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L43",
+        "id": "L32",
         "track": "Tuna",
         "protein": "Fish, tuna, white, canned in oil",
         "carb": "Rice, white, long-grain, cooked",
@@ -1345,7 +1070,7 @@
         "sauce": null
       },
       {
-        "id": "L44",
+        "id": "L33",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Rice, white, long-grain, cooked",
@@ -1354,7 +1079,7 @@
         "sauce": "Sauce, teriyaki, ready-to-serve"
       },
       {
-        "id": "L45",
+        "id": "L34",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1363,7 +1088,7 @@
         "sauce": null
       },
       {
-        "id": "L46",
+        "id": "L35",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Quinoa, cooked",
@@ -1372,16 +1097,7 @@
         "sauce": null
       },
       {
-        "id": "L47",
-        "track": "Shrimp",
-        "protein": "Shrimp, cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": null,
-        "extra": "Peppers, sweet, red, raw",
-        "sauce": "Soy sauce, from soy and wheat (shoyu)"
-      },
-      {
-        "id": "L48",
+        "id": "L36",
         "track": "Legumes",
         "protein": "Lentils, cooked, boiled",
         "carb": "Rice, basmati, cooked",
@@ -1390,7 +1106,7 @@
         "sauce": null
       },
       {
-        "id": "L49",
+        "id": "L37",
         "track": "Legumes",
         "protein": "Lentils, cooked, boiled",
         "carb": "Bread, Egyptian baladi (eish baladi)",
@@ -1399,7 +1115,7 @@
         "sauce": null
       },
       {
-        "id": "L50",
+        "id": "L38",
         "track": "Legumes",
         "protein": "Chickpeas, cooked, boiled",
         "carb": "Rice, basmati, cooked",
@@ -1408,25 +1124,7 @@
         "sauce": null
       },
       {
-        "id": "L51",
-        "track": "Legumes",
-        "protein": "Chickpeas, cooked, boiled",
-        "carb": "Quinoa, cooked",
-        "fat": "Avocados, raw",
-        "extra": "Tomatoes, red, raw",
-        "sauce": null
-      },
-      {
-        "id": "L52",
-        "track": "Legumes",
-        "protein": "Chickpeas, cooked, boiled",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cucumber, with peel, raw",
-        "sauce": null
-      },
-      {
-        "id": "L53",
+        "id": "L39",
         "track": "Legumes",
         "protein": "Beans, kidney, cooked, boiled",
         "carb": "Rice, white, long-grain, cooked",
@@ -1435,34 +1133,43 @@
         "sauce": null
       },
       {
-        "id": "L54",
-        "track": "Legumes",
-        "protein": "Beans, kidney, cooked, boiled",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "L55",
+        "id": "L40",
         "track": "Turkey",
         "protein": "Turkey breast, deli slices",
         "carb": "Bread, multi-grain",
+        "fat": "Cheese, gouda",
+        "extra": "Cucumber, with peel, raw",
+        "sauce": null
+      },
+      {
+        "id": "L41",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, white",
         "fat": "Avocados, raw",
+        "extra": "Tomatoes, red, raw",
+        "sauce": null
+      },
+      {
+        "id": "L42",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Cheese, cheddar",
         "extra": "Lettuce, romaine, raw",
         "sauce": null
       },
       {
-        "id": "L56",
+        "id": "L43",
         "track": "Turkey",
         "protein": "Turkey breast, deli slices",
-        "carb": "Quinoa, cooked",
-        "fat": "Cheese, mozzarella, whole milk",
-        "extra": "Spinach, cooked, boiled",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Cheese, feta",
+        "extra": "Tomatoes, red, raw",
         "sauce": null
       },
       {
-        "id": "L57",
+        "id": "L44",
         "track": "Eggs",
         "protein": "Egg, whole, cooked, hard-boiled",
         "carb": "Potatoes, boiled, without skin",
@@ -1471,7 +1178,7 @@
         "sauce": null
       },
       {
-        "id": "L58",
+        "id": "L45",
         "track": "Eggs",
         "protein": "Egg, whole, cooked, hard-boiled",
         "carb": "Bread, multi-grain",
@@ -1480,7 +1187,7 @@
         "sauce": null
       },
       {
-        "id": "L59",
+        "id": "L46",
         "track": "Fava Beans",
         "protein": "Broadbeans (fava beans), cooked",
         "carb": "Bread, Egyptian baladi (eish baladi)",
@@ -1489,16 +1196,7 @@
         "sauce": null
       },
       {
-        "id": "L60",
-        "track": "Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Onions, raw",
-        "sauce": null
-      },
-      {
-        "id": "L61",
+        "id": "L47",
         "track": "BBQ",
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Potatoes, boiled, without skin",
@@ -1507,7 +1205,7 @@
         "sauce": "Sauce, BBQ, generic"
       },
       {
-        "id": "L62",
+        "id": "L48",
         "track": "BBQ",
         "protein": "Beef, ground, 95% lean, cooked, broiled",
         "carb": "Potatoes, boiled, without skin",
@@ -1516,76 +1214,13 @@
         "sauce": "Sauce, BBQ, generic"
       },
       {
-        "id": "L63",
+        "id": "L49",
         "track": "BBQ",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Sweet potato, baked in skin",
         "fat": "Oil, olive, salad or cooking",
         "extra": "Corn, sweet, yellow, cooked, boiled",
         "sauce": "Sauce, BBQ, generic"
-      },
-      {
-        "id": "L64",
-        "track": "Hot Sauce",
-        "protein": "Shrimp, cooked",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Peppers, sweet, green, raw",
-        "sauce": "Hot sauce (Tabasco), ready-to-serve"
-      },
-      {
-        "id": "L65",
-        "track": "Hot Sauce",
-        "protein": "Fish, tilapia, cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cabbage, cooked, boiled",
-        "sauce": "Hot sauce (Tabasco), ready-to-serve"
-      },
-      {
-        "id": "L66",
-        "track": "Pasta + Tomato",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L67",
-        "track": "Pasta + Tomato",
-        "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L68",
-        "track": "Pasta + Tomato",
-        "protein": "Fish, tuna, light, canned in water",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L69",
-        "track": "Pasta + Tomato",
-        "protein": "Lentils, cooked, boiled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "L70",
-        "track": "Pasta + Tomato",
-        "protein": "Chickpeas, cooked, boiled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": "Tomato sauce, canned, no salt added"
       }
     ],
     "dinner": [
@@ -1595,17 +1230,17 @@
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Rice, basmati, cooked",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Zucchini, cooked, boiled",
+        "extra": "Broccoli, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D02",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Sweet potato, baked in skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
+        "carb": "Pasta, whole-wheat, cooked",
+        "fat": "Cheese, parmesan, hard",
+        "extra": "Tomatoes, red, raw",
+        "sauce": "Tomato sauce, canned, no salt added"
       },
       {
         "id": "D03",
@@ -1613,7 +1248,7 @@
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Quinoa, cooked",
         "fat": "Avocados, raw",
-        "extra": "Broccoli, cooked, boiled",
+        "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
@@ -1622,44 +1257,44 @@
         "protein": "Chicken breast, skinless, boneless, grilled",
         "carb": "Potatoes, boiled, without skin",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Cauliflower, cooked, boiled",
+        "extra": "Broccoli, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D05",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Rice, white, long-grain, cooked",
+        "carb": "Sweet potato, baked in skin",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Eggplant, cooked, boiled",
+        "extra": "Cauliflower, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D06",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
+        "carb": "Rice, basmati, cooked",
+        "fat": "Avocados, raw",
+        "extra": "Peas, green, cooked, boiled",
+        "sauce": null
       },
       {
         "id": "D07",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Mushrooms, white, cooked, boiled",
-        "sauce": null
+        "carb": "Pasta, whole-wheat, cooked",
+        "fat": "Cheese, mozzarella, whole milk",
+        "extra": "Tomatoes, red, raw",
+        "sauce": "Tomato sauce, canned, no salt added"
       },
       {
         "id": "D08",
         "track": "Chicken Breast",
         "protein": "Chicken breast, skinless, boneless, grilled",
-        "carb": "Potatoes, boiled, without skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Corn, sweet, yellow, cooked, boiled",
-        "sauce": "Sauce, BBQ, generic"
+        "carb": "Sweet potato, baked in skin",
+        "fat": "Avocados, raw",
+        "extra": "Spinach, cooked, boiled",
+        "sauce": null
       },
       {
         "id": "D09",
@@ -1667,11 +1302,29 @@
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Rice, basmati, cooked",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Broccoli, cooked, boiled",
+        "extra": "Cauliflower, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D10",
+        "track": "Chicken Thighs",
+        "protein": "Chicken thighs, meat only, cooked, roasted",
+        "carb": "Quinoa, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Broccoli, cooked, boiled",
+        "sauce": null
+      },
+      {
+        "id": "D11",
+        "track": "Chicken Thighs",
+        "protein": "Chicken thighs, meat only, cooked, roasted",
+        "carb": "Potatoes, boiled, without skin",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Carrots, cooked, boiled",
+        "sauce": null
+      },
+      {
+        "id": "D12",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Sweet potato, baked in skin",
@@ -1680,25 +1333,16 @@
         "sauce": null
       },
       {
-        "id": "D11",
-        "track": "Chicken Thighs",
-        "protein": "Chicken thighs, meat only, cooked, roasted",
-        "carb": "Potatoes, boiled, without skin",
-        "fat": "Avocados, raw",
-        "extra": "Cauliflower, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "D12",
+        "id": "D13",
         "track": "Chicken Thighs",
         "protein": "Chicken thighs, meat only, cooked, roasted",
         "carb": "Pasta, whole-wheat, cooked",
         "fat": "Cheese, parmesan, hard",
-        "extra": "Zucchini, cooked, boiled",
+        "extra": "Tomatoes, red, raw",
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "D13",
+        "id": "D14",
         "track": "Beef 95%",
         "protein": "Beef, ground, 95% lean, cooked, broiled",
         "carb": "Rice, basmati, cooked",
@@ -1707,16 +1351,25 @@
         "sauce": null
       },
       {
-        "id": "D14",
+        "id": "D15",
         "track": "Beef 95%",
         "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Quinoa, cooked",
+        "carb": "Potatoes, boiled, without skin",
         "fat": "Oil, olive, salad or cooking",
         "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
-        "id": "D15",
+        "id": "D16",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Quinoa, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Peppers, sweet, red, raw",
+        "sauce": null
+      },
+      {
+        "id": "D17",
         "track": "Beef 95%",
         "protein": "Beef, ground, 95% lean, cooked, broiled",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1725,43 +1378,16 @@
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "D16",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Potatoes, boiled, without skin",
+        "id": "D18",
+        "track": "Beef 95%",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Sweet potato, baked in skin",
         "fat": "Oil, olive, salad or cooking",
         "extra": "Carrots, cooked, boiled",
         "sauce": null
       },
       {
-        "id": "D17",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cauliflower, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "D18",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Sweet potato, baked in skin",
-        "fat": "Oil, sunflower, linoleic",
-        "extra": "Zucchini, cooked, boiled",
-        "sauce": null
-      },
-      {
         "id": "D19",
-        "track": "Beef 80%",
-        "protein": "Beef, ground, 80% lean, cooked, broiled",
-        "carb": "Sweet potato, baked in skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Beans, snap, green, cooked",
-        "sauce": "Sauce, BBQ, generic"
-      },
-      {
-        "id": "D20",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
         "carb": "Rice, basmati, cooked",
@@ -1770,7 +1396,7 @@
         "sauce": null
       },
       {
-        "id": "D21",
+        "id": "D20",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
         "carb": "Potatoes, boiled, without skin",
@@ -1779,20 +1405,29 @@
         "sauce": null
       },
       {
-        "id": "D22",
+        "id": "D21",
         "track": "Beef Liver",
         "protein": "Beef, liver, cooked, braised",
-        "carb": "Rice, white, long-grain, cooked",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Peppers, sweet, red, raw",
+        "extra": "Tomatoes, red, raw",
+        "sauce": null
+      },
+      {
+        "id": "D22",
+        "track": "Salmon",
+        "protein": "Fish, salmon, Atlantic, farmed, cooked",
+        "carb": "Rice, basmati, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Asparagus, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D23",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
+        "carb": "Quinoa, cooked",
+        "fat": "Avocados, raw",
         "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
@@ -1809,58 +1444,49 @@
         "id": "D25",
         "track": "Salmon",
         "protein": "Fish, salmon, Atlantic, farmed, cooked",
-        "carb": "Quinoa, cooked",
-        "fat": "Avocados, raw",
+        "carb": "Potatoes, boiled, without skin",
+        "fat": "Oil, olive, salad or cooking",
         "extra": "Zucchini, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D26",
-        "track": "Salmon",
-        "protein": "Fish, salmon, Atlantic, farmed, cooked",
-        "carb": "Potatoes, boiled, without skin",
+        "track": "Tilapia",
+        "protein": "Fish, tilapia, cooked",
+        "carb": "Rice, basmati, cooked",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Asparagus, cooked, boiled",
+        "extra": "Broccoli, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D27",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
-        "carb": "Rice, basmati, cooked",
+        "carb": "Quinoa, cooked",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Cauliflower, cooked, boiled",
+        "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D28",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
-        "carb": "Sweet potato, baked in skin",
+        "carb": "Potatoes, boiled, without skin",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Broccoli, cooked, boiled",
+        "extra": "Cauliflower, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D29",
         "track": "Tilapia",
         "protein": "Fish, tilapia, cooked",
-        "carb": "Quinoa, cooked",
-        "fat": "Oil, sunflower, linoleic",
-        "extra": "Spinach, cooked, boiled",
+        "carb": "Sweet potato, baked in skin",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Zucchini, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D30",
-        "track": "Tilapia",
-        "protein": "Fish, tilapia, cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cabbage, cooked, boiled",
-        "sauce": "Hot sauce (Tabasco), ready-to-serve"
-      },
-      {
-        "id": "D31",
         "track": "Tuna",
         "protein": "Fish, tuna, light, canned in water",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1869,43 +1495,34 @@
         "sauce": "Tomato sauce, canned, no salt added"
       },
       {
-        "id": "D32",
+        "id": "D31",
         "track": "Tuna",
         "protein": "Fish, tuna, light, canned in water",
         "carb": "Rice, basmati, cooked",
+        "fat": "Avocados, raw",
+        "extra": "Cucumber, with peel, raw",
+        "sauce": null
+      },
+      {
+        "id": "D32",
+        "track": "Tuna",
+        "protein": "Fish, tuna, white, canned in oil",
+        "carb": "Rice, white, long-grain, cooked",
         "fat": "Oil, olive, salad or cooking",
         "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
         "id": "D33",
-        "track": "Tuna",
-        "protein": "Fish, tuna, white, canned in oil",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Tomatoes, red, raw",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "D34",
-        "track": "Tuna",
-        "protein": "Fish, tuna, white, canned in oil",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Broccoli, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "D35",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Rice, white, long-grain, cooked",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
+        "extra": "Broccoli, cooked, boiled",
+        "sauce": "Sauce, teriyaki, ready-to-serve"
       },
       {
-        "id": "D36",
+        "id": "D34",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Pasta, whole-wheat, cooked",
@@ -1914,25 +1531,16 @@
         "sauce": null
       },
       {
-        "id": "D37",
+        "id": "D35",
         "track": "Shrimp",
         "protein": "Shrimp, cooked",
         "carb": "Quinoa, cooked",
         "fat": "Avocados, raw",
-        "extra": "Broccoli, cooked, boiled",
+        "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
-        "id": "D38",
-        "track": "Shrimp",
-        "protein": "Shrimp, cooked",
-        "carb": "Rice, basmati, cooked",
-        "fat": null,
-        "extra": "Peppers, sweet, red, raw",
-        "sauce": "Soy sauce, from soy and wheat (shoyu)"
-      },
-      {
-        "id": "D39",
+        "id": "D36",
         "track": "Legumes",
         "protein": "Lentils, cooked, boiled",
         "carb": "Rice, basmati, cooked",
@@ -1941,7 +1549,7 @@
         "sauce": null
       },
       {
-        "id": "D40",
+        "id": "D37",
         "track": "Legumes",
         "protein": "Lentils, cooked, boiled",
         "carb": "Bread, Egyptian baladi (eish baladi)",
@@ -1950,121 +1558,112 @@
         "sauce": null
       },
       {
-        "id": "D41",
+        "id": "D38",
         "track": "Legumes",
         "protein": "Chickpeas, cooked, boiled",
-        "carb": "Rice, white, long-grain, cooked",
+        "carb": "Rice, basmati, cooked",
         "fat": "Oil, olive, salad or cooking",
         "extra": "Spinach, cooked, boiled",
         "sauce": null
       },
       {
-        "id": "D42",
+        "id": "D39",
         "track": "Legumes",
-        "protein": "Chickpeas, cooked, boiled",
-        "carb": "Quinoa, cooked",
+        "protein": "Beans, kidney, cooked, boiled",
+        "carb": "Rice, white, long-grain, cooked",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Tomatoes, red, raw",
+        "sauce": null
+      },
+      {
+        "id": "D40",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, multi-grain",
+        "fat": "Cheese, gouda",
+        "extra": "Cucumber, with peel, raw",
+        "sauce": null
+      },
+      {
+        "id": "D41",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, white",
         "fat": "Avocados, raw",
         "extra": "Tomatoes, red, raw",
         "sauce": null
       },
       {
+        "id": "D42",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, brown, whole grain",
+        "fat": "Cheese, cheddar",
+        "extra": "Lettuce, romaine, raw",
+        "sauce": null
+      },
+      {
         "id": "D43",
-        "track": "Legumes",
-        "protein": "Beans, kidney, cooked, boiled",
-        "carb": "Rice, basmati, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Carrots, cooked, boiled",
+        "track": "Turkey",
+        "protein": "Turkey breast, deli slices",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "fat": "Cheese, feta",
+        "extra": "Tomatoes, red, raw",
         "sauce": null
       },
       {
         "id": "D44",
         "track": "Eggs",
         "protein": "Egg, whole, cooked, hard-boiled",
-        "carb": "Broadbeans (fava beans), cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Cucumber, with peel, raw",
-        "sauce": null
-      },
-      {
-        "id": "D45",
-        "track": "Eggs",
-        "protein": "Egg, whole, cooked, hard-boiled",
         "carb": "Potatoes, boiled, without skin",
         "fat": "Avocados, raw",
         "extra": "Tomatoes, red, raw",
         "sauce": null
       },
       {
+        "id": "D45",
+        "track": "Eggs",
+        "protein": "Egg, whole, cooked, hard-boiled",
+        "carb": "Bread, multi-grain",
+        "fat": "Cheese, cheddar",
+        "extra": "Lettuce, romaine, raw",
+        "sauce": null
+      },
+      {
         "id": "D46",
-        "track": "Egg Whites",
-        "protein": "Egg whites, cooked (omelette/scrambled)",
-        "carb": "Sweet potato, baked in skin",
+        "track": "Fava Beans",
+        "protein": "Broadbeans (fava beans), cooked",
+        "carb": "Bread, Egyptian baladi (eish baladi)",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
+        "extra": "Tomatoes, red, raw",
         "sauce": null
       },
       {
         "id": "D47",
-        "track": "Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
+        "track": "BBQ",
+        "protein": "Chicken breast, skinless, boneless, grilled",
+        "carb": "Potatoes, boiled, without skin",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Tomatoes, red, raw",
-        "sauce": null
+        "extra": "Corn, sweet, yellow, cooked, boiled",
+        "sauce": "Sauce, BBQ, generic"
       },
       {
         "id": "D48",
-        "track": "Fava Beans",
-        "protein": "Broadbeans (fava beans), cooked",
-        "carb": "Rice, basmati, cooked",
+        "track": "BBQ",
+        "protein": "Beef, ground, 95% lean, cooked, broiled",
+        "carb": "Potatoes, boiled, without skin",
         "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
+        "extra": "Beans, snap, green, cooked",
+        "sauce": "Sauce, BBQ, generic"
       },
       {
         "id": "D49",
-        "track": "Beef Liver",
-        "protein": "Beef, liver, cooked, braised",
-        "carb": "Rice, white, long-grain, cooked",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": null
-      },
-      {
-        "id": "D50",
-        "track": "Beef Liver",
-        "protein": "Beef, liver, cooked, braised",
-        "carb": "Bread, Egyptian baladi (eish baladi)",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Tomatoes, red, raw",
-        "sauce": null
-      },
-      {
-        "id": "D51",
-        "track": "Beef Liver",
-        "protein": "Beef, liver, cooked, braised",
-        "carb": "Potatoes, boiled, without skin",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": "Onions, raw",
-        "sauce": null
-      },
-      {
-        "id": "D52",
-        "track": "Pasta + Tomato",
-        "protein": "Beef, ground, 95% lean, cooked, broiled",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Spinach, cooked, boiled",
-        "sauce": "Tomato sauce, canned, no salt added"
-      },
-      {
-        "id": "D53",
-        "track": "Pasta + Tomato",
+        "track": "BBQ",
         "protein": "Chicken thighs, meat only, cooked, roasted",
-        "carb": "Pasta, whole-wheat, cooked",
-        "fat": "Cheese, parmesan, hard",
-        "extra": "Mushrooms, white, cooked, boiled",
-        "sauce": "Tomato sauce, canned, no salt added"
+        "carb": "Sweet potato, baked in skin",
+        "fat": "Oil, olive, salad or cooking",
+        "extra": "Corn, sweet, yellow, cooked, boiled",
+        "sauce": "Sauce, BBQ, generic"
       }
     ],
     "snack": [
@@ -2072,116 +1671,52 @@
         "id": "S01",
         "track": "Whey Shake",
         "protein": "Whey protein isolate, unflavored",
-        "carb": "Bananas, raw",
+        "carb": "Skimmed milk (fat free)",
         "fat": "Nuts, almonds",
-        "extra": null
+        "extra": "Blackberries, raw"
       },
       {
         "id": "S02",
         "track": "Whey Shake",
         "protein": "Whey protein isolate, unflavored",
-        "carb": "Apples, raw, with skin",
+        "carb": "Skimmed milk (fat free)",
         "fat": "Peanut butter, smooth, without salt",
-        "extra": null
+        "extra": "Bananas, raw"
       },
       {
         "id": "S03",
         "track": "Whey Shake",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Blueberries, raw"
+        "protein": "Whey protein concentrate, unflavored",
+        "carb": "Apples, raw, with skin",
+        "fat": "Milk, whole, 3.25% milkfat",
+        "extra": "Bananas, raw"
       },
       {
         "id": "S04",
         "track": "Whey Shake",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Bananas, raw",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": null
+        "protein": "Whey protein concentrate, unflavored",
+        "carb": "Granola, homemade",
+        "fat": "Milk, whole, 3.25% milkfat",
+        "extra": "Strawberries, raw"
       },
       {
         "id": "S05",
-        "track": "Whey Shake",
-        "protein": "Whey protein isolate, unflavored",
-        "carb": "Mangos, raw",
-        "fat": "Nuts, almonds",
+        "track": "Yogurt Bowl",
+        "protein": "Greek yogurt, 5% fat (whole milk)",
+        "carb": "Bananas, raw",
+        "fat": "Peanut butter, smooth, without salt",
         "extra": null
       },
       {
         "id": "S06",
-        "track": "Whey Shake",
-        "protein": "Whey protein isolate, unflavored",
+        "track": "Yogurt Bowl",
+        "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Blackberries, raw",
-        "fat": "Nuts, hazelnuts",
+        "fat": "Nuts, cashew nuts, raw",
         "extra": null
       },
       {
         "id": "S07",
-        "track": "Whey Shake",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Bananas, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": null
-      },
-      {
-        "id": "S08",
-        "track": "Whey Shake",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Apples, raw, with skin",
-        "fat": "Nuts, almonds",
-        "extra": null
-      },
-      {
-        "id": "S09",
-        "track": "Whey Shake",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "S10",
-        "track": "Whey Shake",
-        "protein": "Whey protein concentrate, unflavored",
-        "carb": "Blackberries, raw",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": null
-      },
-      {
-        "id": "S11",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Blueberries, raw",
-        "fat": "Nuts, almonds",
-        "extra": null
-      },
-      {
-        "id": "S12",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Strawberries, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": null
-      },
-      {
-        "id": "S13",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Bananas, raw",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": null
-      },
-      {
-        "id": "S14",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Blackberries, raw",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": null
-      },
-      {
-        "id": "S15",
         "track": "Yogurt Bowl",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Cherries, sweet, raw",
@@ -2189,7 +1724,7 @@
         "extra": null
       },
       {
-        "id": "S16",
+        "id": "S08",
         "track": "Yogurt Bowl",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Peaches, raw",
@@ -2197,7 +1732,7 @@
         "extra": null
       },
       {
-        "id": "S17",
+        "id": "S09",
         "track": "Yogurt Bowl",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Kiwifruit, green, raw",
@@ -2205,111 +1740,7 @@
         "extra": null
       },
       {
-        "id": "S18",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Pomegranates, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": null
-      },
-      {
-        "id": "S19",
-        "track": "Yogurt Bowl",
-        "protein": "Greek yogurt, 5% fat (whole milk)",
-        "carb": "Pineapple, raw",
-        "fat": "Nuts, pistachio nuts, raw",
-        "extra": null
-      },
-      {
-        "id": "S20",
-        "track": "Yogurt Bowl",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Blueberries, raw",
-        "fat": "Nuts, almonds",
-        "extra": null
-      },
-      {
-        "id": "S21",
-        "track": "Yogurt Bowl",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Strawberries, raw",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": null
-      },
-      {
-        "id": "S22",
-        "track": "Yogurt Bowl",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Bananas, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": null
-      },
-      {
-        "id": "S23",
-        "track": "Yogurt Bowl",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Blackberries, raw",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": null
-      },
-      {
-        "id": "S24",
-        "track": "Cottage Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Strawberries, raw",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": null
-      },
-      {
-        "id": "S25",
-        "track": "Cottage Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Bananas, raw",
-        "fat": "Nuts, almonds",
-        "extra": null
-      },
-      {
-        "id": "S26",
-        "track": "Cottage Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Blueberries, raw",
-        "fat": "Nuts, walnuts, english",
-        "extra": null
-      },
-      {
-        "id": "S27",
-        "track": "Cottage Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Apples, raw, with skin",
-        "fat": "Peanut butter, smooth, without salt",
-        "extra": null
-      },
-      {
-        "id": "S28",
-        "track": "Cottage Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Blackberries, raw",
-        "fat": "Nuts, cashew nuts, raw",
-        "extra": null
-      },
-      {
-        "id": "S29",
-        "track": "Tuna Savory",
-        "protein": "Fish, tuna, light, canned in water",
-        "carb": "Bread, multi-grain",
-        "fat": "Avocados, raw",
-        "extra": null
-      },
-      {
-        "id": "S30",
-        "track": "Tuna Savory",
-        "protein": "Fish, tuna, light, canned in water",
-        "carb": "Bread, brown, whole grain",
-        "fat": "Oil, olive, salad or cooking",
-        "extra": null
-      },
-      {
-        "id": "S31",
+        "id": "S10",
         "track": "Egg Savory",
         "protein": "Egg, whole, cooked, hard-boiled",
         "carb": "Bread, multi-grain",
@@ -2317,7 +1748,7 @@
         "extra": null
       },
       {
-        "id": "S32",
+        "id": "S11",
         "track": "Egg Savory",
         "protein": "Egg, whole, cooked, hard-boiled",
         "carb": "Bread, brown, whole grain",
@@ -2325,7 +1756,7 @@
         "extra": null
       },
       {
-        "id": "S33",
+        "id": "S12",
         "track": "Dark Choc",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Strawberries, raw",
@@ -2333,15 +1764,7 @@
         "extra": null
       },
       {
-        "id": "S34",
-        "track": "Dark Choc",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Strawberries, raw",
-        "fat": "Chocolate, dark, 70-85% cacao",
-        "extra": null
-      },
-      {
-        "id": "S35",
+        "id": "S13",
         "track": "Dark Choc",
         "protein": "Whey protein isolate, unflavored",
         "carb": "Bananas, raw",
@@ -2349,7 +1772,7 @@
         "extra": null
       },
       {
-        "id": "S36",
+        "id": "S14",
         "track": "Dark Choc",
         "protein": "Whey protein concentrate, unflavored",
         "carb": "Pears, raw",
@@ -2357,7 +1780,7 @@
         "extra": null
       },
       {
-        "id": "S37",
+        "id": "S15",
         "track": "Protein Bar",
         "protein": "Protein bar, average",
         "carb": "Bananas, raw",
@@ -2365,7 +1788,7 @@
         "extra": null
       },
       {
-        "id": "S38",
+        "id": "S16",
         "track": "Protein Bar",
         "protein": "Protein bar, average",
         "carb": "Apples, raw, with skin",
@@ -2373,7 +1796,7 @@
         "extra": null
       },
       {
-        "id": "S39",
+        "id": "S17",
         "track": "Turkey Savory",
         "protein": "Turkey breast, deli slices",
         "carb": "Bread, multi-grain",
@@ -2381,7 +1804,7 @@
         "extra": null
       },
       {
-        "id": "S40",
+        "id": "S18",
         "track": "Turkey Savory",
         "protein": "Turkey breast, deli slices",
         "carb": "Bread, brown, whole grain",
@@ -2389,7 +1812,7 @@
         "extra": null
       },
       {
-        "id": "S41",
+        "id": "S19",
         "track": "Peanuts",
         "protein": "Peanuts, dry-roasted, without salt",
         "carb": "Apples, raw, with skin",
@@ -2397,7 +1820,7 @@
         "extra": null
       },
       {
-        "id": "S42",
+        "id": "S20",
         "track": "Peanuts",
         "protein": "Peanuts, dry-roasted, without salt",
         "carb": "Bananas, raw",
@@ -2405,7 +1828,7 @@
         "extra": null
       },
       {
-        "id": "S43",
+        "id": "S21",
         "track": "Peanuts",
         "protein": "Peanuts, dry-roasted, without salt",
         "carb": "Oranges, raw",
@@ -2413,28 +1836,12 @@
         "extra": null
       },
       {
-        "id": "S44",
+        "id": "S22",
         "track": "Granola Bowl",
         "protein": "Greek yogurt, 5% fat (whole milk)",
         "carb": "Granola, homemade",
         "fat": "Nuts, almonds",
         "extra": "Blueberries, raw"
-      },
-      {
-        "id": "S45",
-        "track": "Granola Bowl",
-        "protein": "Yogurt, Greek, plain, whole milk",
-        "carb": "Granola, homemade",
-        "fat": "Nuts, walnuts, english",
-        "extra": "Strawberries, raw"
-      },
-      {
-        "id": "S46",
-        "track": "Granola Bowl",
-        "protein": "Cheese, cottage, creamed",
-        "carb": "Granola, homemade",
-        "fat": "Seeds, chia seeds, dried",
-        "extra": "Blackberries, raw"
       }
     ]
   }

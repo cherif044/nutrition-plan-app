@@ -1105,6 +1105,7 @@
       "fish"
     ],
     "meal_tags": [
+      "breakfast",
       "lunch",
       "dinner",
       "snack"
@@ -3530,6 +3531,143 @@
     "max_serving_g": 200,
     "fdc_id": 168390,
     "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "garlic_raw",
+    "name": "Garlic, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 149,
+    "protein_g_per_100g": 6.36,
+    "carb_g_per_100g": 33.06,
+    "fat_g_per_100g": 0.5,
+    "fiber_g_per_100g": 2.1,
+    "sodium_mg_per_100g": 17,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable",
+      "allium"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 136,
+    "min_serving_g": 5,
+    "max_serving_g": 200,
+    "fdc_id": 169230,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "ginger_root_raw",
+    "name": "Ginger root, raw",
+    "macro_role": "carb",
+    "calories_per_100g": 80,
+    "protein_g_per_100g": 1.82,
+    "carb_g_per_100g": 17.77,
+    "fat_g_per_100g": 0.75,
+    "fiber_g_per_100g": 2,
+    "sodium_mg_per_100g": 13,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable",
+      "root_vegetable",
+      "ginger"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 2,
+    "min_serving_g": 5,
+    "max_serving_g": 30,
+    "fdc_id": 169231,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "kale_cooked_boiled",
+    "name": "Kale, cooked, boiled",
+    "macro_role": "carb",
+    "calories_per_100g": 36,
+    "protein_g_per_100g": 2.94,
+    "carb_g_per_100g": 5.3,
+    "fat_g_per_100g": 1.21,
+    "fiber_g_per_100g": 4,
+    "sodium_mg_per_100g": 16,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [],
+    "categories": [
+      "vegetables",
+      "vegetable",
+      "leafy_greens",
+      "kale"
+    ],
+    "meal_tags": [
+      "lunch",
+      "dinner"
+    ],
+    "default_serving_g": 118,
+    "min_serving_g": 5,
+    "max_serving_g": 200,
+    "fdc_id": 169238,
+    "sub_category": "non_starchy_veg",
+    "cuisine_tag": "mediterranean",
+    "diet_tags": [
+      "vegetarian",
+      "vegan"
+    ]
+  },
+  {
+    "id": "seeds_sesame_seeds_whole_dried",
+    "name": "Seeds, sesame seeds, whole, dried",
+    "macro_role": "fat",
+    "calories_per_100g": 573,
+    "protein_g_per_100g": 17.73,
+    "carb_g_per_100g": 23.45,
+    "fat_g_per_100g": 49.67,
+    "fiber_g_per_100g": 11.8,
+    "sodium_mg_per_100g": 11,
+    "is_vegan": true,
+    "is_vegetarian": true,
+    "allergens": [
+      "sesame"
+    ],
+    "categories": [
+      "nuts_and_seeds",
+      "nuts",
+      "seed",
+      "sesame"
+    ],
+    "meal_tags": [
+      "breakfast",
+      "snack"
+    ],
+    "default_serving_g": 144,
+    "min_serving_g": 5,
+    "max_serving_g": 40,
+    "fdc_id": 170150,
+    "sub_category": "nuts_seeds",
     "cuisine_tag": "mediterranean",
     "diet_tags": [
       "vegetarian",
