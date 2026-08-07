@@ -628,7 +628,7 @@ function dailyMetricBounds(key, targets, serverBounds = null) {
     const protein = dailyMetricBounds('proteinG', targets, serverBounds);
     const fat = dailyMetricBounds('fatG', targets, serverBounds);
     return {
-      min: (calories.min - protein.max * 4 - fat.max * 9) / 4,
+      min: Math.max(0, (calories.min - protein.max * 4 - fat.max * 9) / 4),
       max: (calories.max - protein.min * 4 - fat.min * 9) / 4,
     };
   }

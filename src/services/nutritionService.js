@@ -227,23 +227,26 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
 
   return profiles.map((profile, index) => {
     const calories = dailyTargets.calories * profile.idealCaloriePercent;
-    const proteinG = protein.windows[index];
-    const fatG = fat.windows[index];
+    const calorieWindow = {
+      min: calories * (1 - NUTRITION.mealSwapDailyCalorieWindowPercent),
+      max: calories * (1 + NUTRITION.mealSwapDailyCalorieWindowPercent),
+    };
+    const proportionalProteinG = scaleRangeByPercent(dailyRanges.proteinG, profile.idealCaloriePercent);
+    const proportionalFatG = scaleRangeByPercent(dailyRanges.fatG, profile.idealCaloriePercent);
+    const proteinG = unionRanges(protein.windows[index], proportionalProteinG);
+    const fatG = unionRanges(fat.windows[index], proportionalFatG);
     return {
-      calories: {
-        min: calories * (1 - NUTRITION.mealSwapDailyCalorieWindowPercent),
-        max: calories * (1 + NUTRITION.mealSwapDailyCalorieWindowPercent),
-      },
+      calories: calorieWindow,
       proteinG,
       fatG,
       carbG: {
-        min: (
-          calories -
+        min: Math.max(0, (
+          calorieWindow.min -
           proteinG.max * NUTRITION.proteinKcalPerGram -
           fatG.max * NUTRITION.fatKcalPerGram
-        ) / NUTRITION.carbKcalPerGram,
+        ) / NUTRITION.carbKcalPerGram),
         max: (
-          calories -
+          calorieWindow.max -
           proteinG.min * NUTRITION.proteinKcalPerGram -
           fatG.min * NUTRITION.fatKcalPerGram
         ) / NUTRITION.carbKcalPerGram,
@@ -259,9 +262,27 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
           minScale: fat.minScale,
           maxScale: fat.maxScale,
         },
+        proportional: {
+          proteinG: proportionalProteinG,
+          fatG: proportionalFatG,
+        },
       },
     };
   });
+}
+
+function scaleRangeByPercent(range, percent) {
+  return {
+    min: range.min * percent,
+    max: range.max * percent,
+  };
+}
+
+function unionRanges(left, right) {
+  return {
+    min: Math.min(left.min, right.min),
+    max: Math.max(left.max, right.max),
+  };
 }
 
 function rawMacroWindowFor(profile, dailyCalories, macro) {

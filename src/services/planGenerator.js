@@ -531,11 +531,11 @@ function computeDailyPlanBounds(dailyTarget) {
   const proteinG = rangedMacro('proteinG');
   const fatG = rangedMacro('fatG');
   const carbG = {
-    min: (
+    min: Math.max(0, (
       calories.min -
       proteinG.max * NUTRITION.proteinKcalPerGram -
       fatG.max * NUTRITION.fatKcalPerGram
-    ) / NUTRITION.carbKcalPerGram,
+    ) / NUTRITION.carbKcalPerGram),
     max: (
       calories.max -
       proteinG.min * NUTRITION.proteinKcalPerGram -

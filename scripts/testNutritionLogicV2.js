@@ -298,31 +298,26 @@ check('1f / Section 8 Scaled per-meal windows', () => {
     const dailyTargets = calculateNutritionDetails(input).targets;
     const meals = buildMealTargets(dailyTargets, input);
     const sums = sumMealWindowBounds(meals);
-    close(sums.proteinG.min, dailyTargets.macroRanges.proteinG.min, 1e-7);
-    close(sums.proteinG.max, dailyTargets.macroRanges.proteinG.max, 1e-7);
-    close(sums.fatG.min, dailyTargets.macroRanges.fatG.min, 1e-7);
-    close(sums.fatG.max, dailyTargets.macroRanges.fatG.max, 1e-7);
-    close(sums.carbG.min, dailyTargets.macroRanges.carbG.min, 1e-7);
-    close(sums.carbG.max, dailyTargets.macroRanges.carbG.max, 1e-7);
+    const dailyBounds = computeDailyPlanBounds(dailyTargets);
+    assertRangeCovers(sums.proteinG, dailyBounds.proteinG);
+    assertRangeCovers(sums.fatG, dailyBounds.fatG);
+    assertRangeCovers(sums.carbG, dailyBounds.carbG);
     for (const meal of meals) {
+      const windows = meal.targets.macroWindows;
       assert(meal.targets.macroWindows.proteinG.min > 0);
       assert(meal.targets.macroWindows.proteinG.min < meal.targets.macroWindows.proteinG.max);
       assert(meal.targets.macroWindows.fatG.min > 0);
       assert(meal.targets.macroWindows.fatG.min < meal.targets.macroWindows.fatG.max);
+      assert(meal.targets.macroWindows.carbG.min >= 0);
+      assert(meal.targets.macroWindows.carbG.min < meal.targets.macroWindows.carbG.max);
       assert.notEqual(
         meal.targets.macroWindows.scaling.protein.minScale,
         meal.targets.macroWindows.scaling.protein.maxScale,
       );
-      close(
-        meal.targets.macroWindows.scaling.protein.raw.min *
-          meal.targets.macroWindows.scaling.protein.minScale,
-        meal.targets.macroWindows.proteinG.min,
-      );
-      close(
-        meal.targets.macroWindows.scaling.protein.raw.max *
-          meal.targets.macroWindows.scaling.protein.maxScale,
-        meal.targets.macroWindows.proteinG.max,
-      );
+      assertRangeCovers(windows.proteinG, scaledRawRange(windows.scaling.protein));
+      assertRangeCovers(windows.fatG, scaledRawRange(windows.scaling.fat));
+      assertRangeCovers(windows.proteinG, windows.scaling.proportional.proteinG);
+      assertRangeCovers(windows.fatG, windows.scaling.proportional.fatG);
     }
   }
 
@@ -340,11 +335,13 @@ check('1f / Section 8 Scaled per-meal windows', () => {
   const extremeTargets = calculateNutritionDetails(extremeInput).targets;
   const extremeMeals = buildMealTargets(extremeTargets, extremeInput);
   const extremeSums = sumMealWindowBounds(extremeMeals);
-  close(extremeSums.proteinG.min, extremeTargets.macroRanges.proteinG.min, 1e-7);
-  close(extremeSums.proteinG.max, extremeTargets.macroRanges.proteinG.max, 1e-7);
+  const extremeBounds = computeDailyPlanBounds(extremeTargets);
+  assertRangeCovers(extremeSums.proteinG, extremeBounds.proteinG);
+  assertRangeCovers(extremeSums.fatG, extremeBounds.fatG);
+  assertRangeCovers(extremeSums.carbG, extremeBounds.carbG);
   assert(extremeMeals.every((meal) => meal.targets.macroWindows.proteinG.min > 0));
   assert(extremeMeals.every((meal) => meal.targets.macroWindows.fatG.min > 0));
-  return 'Three varied clients plus an extreme client reconcile raw windows to daily ranges with separate min/max scales.';
+  return 'Three varied clients plus an extreme client widen meal windows while still covering daily macro bounds.';
 });
 
 check('1g / Section 9 Two hard constraints', () => {
@@ -461,6 +458,24 @@ function sumMealWindowBounds(meals) {
       fatG: { min: 0, max: 0 },
       carbG: { min: 0, max: 0 },
     },
+  );
+}
+
+function scaledRawRange(scaling) {
+  return {
+    min: scaling.raw.min * scaling.minScale,
+    max: scaling.raw.max * scaling.maxScale,
+  };
+}
+
+function assertRangeCovers(actual, expected, tolerance = 1e-7) {
+  assert(
+    actual.min <= expected.min + tolerance,
+    `expected min ${actual.min} to cover ${expected.min}`,
+  );
+  assert(
+    actual.max >= expected.max - tolerance,
+    `expected max ${actual.max} to cover ${expected.max}`,
   );
 }
 
