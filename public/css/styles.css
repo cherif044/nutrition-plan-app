@@ -646,6 +646,16 @@ input:focus, select:focus {
 
 .metric small { display: block; margin-top: 3px; }
 
+.metric-range {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 /* ── Meal card ────────────────────────────────────────────────────────── */
 
 .meal-card {

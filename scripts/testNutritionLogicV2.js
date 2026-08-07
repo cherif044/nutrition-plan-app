@@ -16,7 +16,9 @@ const {
   maintenanceCalories,
 } = require('../src/services/nutritionService');
 const {
+  computeDailyPlanBounds,
   computeMealBounds,
+  dailyTotalsWithinPlanBounds,
   normalizeInput,
   validateMealSwap,
 } = require('../src/services/planGenerator');
@@ -117,6 +119,50 @@ check('1c / Section 5 Daily macro gram ranges', () => {
   close(point.proteinG * 4 + point.carbG * 4 + point.fatG * 9, 2500);
   assert(point.macroRanges.proteinG.min < point.macroRanges.proteinG.max);
   return 'Ranges are non-inverted at 40kg, 100kg, and 180kg; display point remains the recommended default.';
+});
+
+check('1c.1 Whole-plan daily macro windows', () => {
+  const targets = calculateMacroTargets({
+    weightKg: 80,
+    proteinPerKg: 2,
+    fatPerKg: 0.7,
+  }, 2405);
+  const bounds = computeDailyPlanBounds(targets);
+
+  close(bounds.calories.min, 2405 * 0.95);
+  close(bounds.calories.max, 2405 * 1.05);
+  close(bounds.proteinG.min, 80 * 1.8);
+  close(bounds.proteinG.max, 80 * 2.2);
+  close(bounds.fatG.min, 80 * 0.66);
+  close(bounds.fatG.max, 80 * 1.0);
+  close(bounds.carbG.min, (2405 * 0.95 - (80 * 2.2 * 4) - (80 * 1.0 * 9)) / 4);
+  close(bounds.carbG.max, (2405 * 1.05 - (80 * 1.8 * 4) - (80 * 0.66 * 9)) / 4);
+
+  assert.equal(dailyTotalsWithinPlanBounds({
+    calories: 2384,
+    proteinG: 161,
+    carbG: 311,
+    fatG: 62,
+  }, targets), true, 'example plan should pass the whole-plan windows');
+  assert.equal(dailyTotalsWithinPlanBounds({
+    calories: 2384,
+    proteinG: 143.9,
+    carbG: 311,
+    fatG: 62,
+  }, targets), false, 'protein below 1.8g/kg should fail');
+  assert.equal(dailyTotalsWithinPlanBounds({
+    calories: 2384,
+    proteinG: 161,
+    carbG: 311,
+    fatG: 80.1,
+  }, targets), false, 'fat above 1.0g/kg should fail');
+  assert.equal(dailyTotalsWithinPlanBounds({
+    calories: 2526,
+    proteinG: 161,
+    carbG: 311,
+    fatG: 62,
+  }, targets), false, 'calories outside ±5% should fail');
+  return 'Whole-plan calories use ±5%, protein/fat use body-weight ranges, and carbs are derived from the remaining calorie window.';
 });
 
 check('1d / Section 6 Meal-calorie distribution', () => {

@@ -233,7 +233,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     }));
   }
 
-  output.append(renderSummary(plan.dailyTargets));
+  output.append(renderSummary(plan.dailyTargets, plan.diagnostics?.bounds));
 
   if (editMode) {
     showEditBar(planId, planName);
@@ -340,12 +340,13 @@ function renderPlanNotice({ tone, title, messages, diagnostics }) {
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 
-function renderSummary(targets) {
+function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
   const metrics = summary.querySelector('.metrics');
 
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    const bounds = dailyMetricBounds(key, targets, serverBounds);
     const metric = document.createElement('div');
     metric.className = 'metric';
     metric.dataset.metric = key;
@@ -357,6 +358,7 @@ function renderSummary(targets) {
         <span class="daily-target daily-target-${key}">${formatNumber(targets[key])}</span>
       </strong>
       <small>${labels[key][1]}</small>
+      <em class="metric-range">${formatAllowedRange(bounds, labels[key][1])}</em>
       <div class="flag-detail"></div>
     `;
     metrics.append(metric);
@@ -385,8 +387,8 @@ function refreshRedFlags() {
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
     const tgt = dailyTargets[key];
     const diff = actual[key] - tgt;
-    const pct = Math.abs(diff) / Math.max(1, tgt);
-    const flagged = !dailyMetricFitsTarget(key, actual[key], tgt);
+    const bounds = dailyMetricBounds(key, dailyTargets);
+    const flagged = !dailyMetricFitsTarget(key, actual[key], dailyTargets);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
     if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
@@ -397,8 +399,9 @@ function refreshRedFlags() {
     const flagDetail = metricEl?.querySelector('.flag-detail');
     if (flagDetail) {
       if (flagged) {
-        const sign = diff > 0 ? '+' : '';
-        flagDetail.textContent = `${sign}${Math.round(pct * 100)}% off target`;
+        const direction = diff > 0 ? 'high' : 'short';
+        const amount = actual[key] < bounds.min ? bounds.min - actual[key] : actual[key] - bounds.max;
+        flagDetail.textContent = `${formatNumber(amount)} ${labels[key][1]} ${direction}`;
         flagDetail.hidden = false;
       } else {
         flagDetail.hidden = true;
@@ -591,21 +594,50 @@ function addTotals(left, right) {
   };
 }
 
-function dailyMetricFitsTarget(key, actual, target) {
-  if (!Number.isFinite(actual) || !Number.isFinite(target)) return false;
-  const weightKg = Number(currentPlanInput?.weightKg);
-  if (key === 'calories') {
-    return Math.abs(actual - target) <= target * DAILY_CALORIE_WINDOW_PERCENT;
+function dailyMetricFitsTarget(key, actual, targets) {
+  if (!Number.isFinite(actual) || !targets) return false;
+  const bounds = dailyMetricBounds(key, targets);
+  return actual >= bounds.min && actual <= bounds.max;
+}
+
+function dailyMetricBounds(key, targets, serverBounds = null) {
+  const serverRange = serverBounds?.[key];
+  if (serverRange && Number.isFinite(Number(serverRange.min)) && Number.isFinite(Number(serverRange.max))) {
+    return { min: Number(serverRange.min), max: Number(serverRange.max) };
   }
+
+  const target = Number(targets?.[key]);
+  const range = targets?.macroRanges?.[key];
+  if ((key === 'proteinG' || key === 'fatG') && range) {
+    return { min: Number(range.min), max: Number(range.max) };
+  }
+
+  const weightKg = Number(currentPlanInput?.weightKg);
   if (key === 'proteinG' && Number.isFinite(weightKg)) {
-    return actual >= weightKg * PROTEIN_RANGE_PER_KG.min &&
-      actual <= weightKg * PROTEIN_RANGE_PER_KG.max;
+    return { min: weightKg * PROTEIN_RANGE_PER_KG.min, max: weightKg * PROTEIN_RANGE_PER_KG.max };
   }
   if (key === 'fatG' && Number.isFinite(weightKg)) {
-    return actual >= weightKg * FAT_RANGE_PER_KG.min &&
-      actual <= weightKg * FAT_RANGE_PER_KG.max;
+    return { min: weightKg * FAT_RANGE_PER_KG.min, max: weightKg * FAT_RANGE_PER_KG.max };
   }
-  return actual >= 0;
+
+  const calories = {
+    min: Number(targets?.calories) * (1 - DAILY_CALORIE_WINDOW_PERCENT),
+    max: Number(targets?.calories) * (1 + DAILY_CALORIE_WINDOW_PERCENT),
+  };
+  if (key === 'carbG') {
+    const protein = dailyMetricBounds('proteinG', targets, serverBounds);
+    const fat = dailyMetricBounds('fatG', targets, serverBounds);
+    return {
+      min: (calories.min - protein.max * 4 - fat.max * 9) / 4,
+      max: (calories.max - protein.min * 4 - fat.min * 9) / 4,
+    };
+  }
+
+  return calories;
+}
+
+function formatAllowedRange(bounds, unit) {
+  return `Allowed ${formatNumber(bounds.min)}-${formatNumber(bounds.max)} ${unit}`;
 }
 
 function normalizeStateItem(item) {

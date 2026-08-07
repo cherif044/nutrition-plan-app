@@ -188,25 +188,14 @@ function debugOptimizer(message, payload = undefined) {
 }
 
 function optimizeTemplateDay(meals, dailyTargets) {
-  const missingSlots = meals
-    .filter((meal) => isRequiredMainSlot(meal) && meal.items.length === 0)
-    .map((meal) => meal.name);
   if (meals.some((meal) => meal.target?.macroWindows)) {
-    const errors = missingSlots.length > 0
-      ? [`Impossible with current templates: no feasible ready templates for ${missingSlots.join(', ')}.`]
-      : [];
+    const totals = totalsForMeals(meals);
+    const diagnostics = buildPlanDiagnostics(totals, dailyTargets, meals);
     return {
       meals,
-      warnings: [],
-      errors,
-      diagnostics: {
-        status: errors.length > 0 ? 'error' : 'pass',
-        warnings: [],
-        errors,
-        missingSlots,
-        totals: totalsForMeals(meals),
-        target: dailyTargets,
-      },
+      warnings: diagnostics.warnings,
+      errors: diagnostics.errors,
+      diagnostics,
     };
   }
 
@@ -525,34 +514,91 @@ function calculateResidual(dayTotals, dailyTarget) {
   };
 }
 
-function residualTolerances(dailyTarget) {
+function computeDailyPlanBounds(dailyTarget) {
+  const targetTolerance = (key) => ({
+    min: dailyTarget[key] - dailyTarget[key] * NUTRITION.totalMacroTolerancePercent,
+    max: dailyTarget[key] + dailyTarget[key] * NUTRITION.totalMacroTolerancePercent,
+  });
+  const rangedMacro = (key) => {
+    const range = dailyTarget.macroRanges?.[key];
+    if (!range) return targetTolerance(key);
+    return {
+      min: Number(range.min),
+      max: Number(range.max),
+    };
+  };
+  const calories = targetTolerance('calories');
+  const proteinG = rangedMacro('proteinG');
+  const fatG = rangedMacro('fatG');
+  const carbG = {
+    min: (
+      calories.min -
+      proteinG.max * NUTRITION.proteinKcalPerGram -
+      fatG.max * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+    max: (
+      calories.max -
+      proteinG.min * NUTRITION.proteinKcalPerGram -
+      fatG.min * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+  };
+
   return {
-    calories: dailyTarget.calories * NUTRITION.totalMacroTolerancePercent,
-    proteinG: dailyTarget.proteinG * NUTRITION.totalMacroTolerancePercent,
-    carbG: dailyTarget.carbG * NUTRITION.totalMacroTolerancePercent,
-    fatG: dailyTarget.fatG * NUTRITION.totalMacroTolerancePercent,
+    calories,
+    proteinG,
+    carbG,
+    fatG,
+  };
+}
+
+function residualTolerances(dailyTarget) {
+  const bounds = computeDailyPlanBounds(dailyTarget);
+  return {
+    calories: Math.max(dailyTarget.calories - bounds.calories.min, bounds.calories.max - dailyTarget.calories),
+    proteinG: Math.max(dailyTarget.proteinG - bounds.proteinG.min, bounds.proteinG.max - dailyTarget.proteinG),
+    carbG: Math.max(dailyTarget.carbG - bounds.carbG.min, bounds.carbG.max - dailyTarget.carbG),
+    fatG: Math.max(dailyTarget.fatG - bounds.fatG.min, bounds.fatG.max - dailyTarget.fatG),
   };
 }
 
 function calculateResidualScore(dayTotals, dailyTarget, tolerances = residualTolerances(dailyTarget)) {
+  const bounds = computeDailyPlanBounds(dailyTarget);
   const residual = calculateResidual(dayTotals, dailyTarget);
-  return (
+  const violationScore = ['calories', 'proteinG', 'carbG', 'fatG'].reduce((score, key) => (
+    score + planBoundsViolationAmount(dayTotals[key], bounds[key]) / Math.max(1, tolerances[key])
+  ), 0);
+  const targetClosenessScore = (
     Math.abs(residual.calories) / Math.max(1, tolerances.calories) +
     Math.abs(residual.proteinG) / Math.max(1, tolerances.proteinG) +
     Math.abs(residual.carbG) / Math.max(1, tolerances.carbG) +
     Math.abs(residual.fatG) / Math.max(1, tolerances.fatG)
-  );
+  ) * 0.01;
+  return violationScore + targetClosenessScore;
+}
+
+function planBoundsViolationAmount(total, bounds) {
+  if (total < bounds.min) return bounds.min - total;
+  if (total > bounds.max) return total - bounds.max;
+  return 0;
 }
 
 function residualWithinTolerance(dayTotals, dailyTarget, tolerances = residualTolerances(dailyTarget)) {
-  const residual = calculateResidual(dayTotals, dailyTarget);
-  return Object.entries(residual).every(([key, value]) => Math.abs(value) <= tolerances[key]);
+  const bounds = computeDailyPlanBounds(dailyTarget);
+  return Object.entries(bounds).every(([key, range]) => planBoundsViolationAmount(dayTotals[key], range) <= 0);
+}
+
+function dailyTotalsWithinPlanBounds(dayTotals, dailyTarget) {
+  return residualWithinTolerance(dayTotals, dailyTarget);
 }
 
 function worstResidualMacro(residual, dailyTarget) {
   const tolerances = residualTolerances(dailyTarget);
+  const bounds = computeDailyPlanBounds(dailyTarget);
   return ['proteinG', 'carbG', 'fatG', 'calories']
-    .sort((a, b) => Math.abs(residual[b]) / tolerances[b] - Math.abs(residual[a]) / tolerances[a])[0];
+    .sort((a, b) => (
+      planBoundsViolationAmount(dailyTarget[b] - residual[b], bounds[b]) / tolerances[b] -
+      planBoundsViolationAmount(dailyTarget[a] - residual[a], bounds[a]) / tolerances[a]
+    ))[0];
 }
 
 function macroFieldForKey(key) {
@@ -565,15 +611,17 @@ function macroFieldForKey(key) {
 }
 
 function pushesMacroOutsideTolerance(currentTotals, candidateTotals, dailyTarget, tolerances) {
+  const bounds = computeDailyPlanBounds(dailyTarget);
   return ['calories', 'proteinG', 'carbG', 'fatG'].some((key) => {
-    const currentInside = Math.abs(currentTotals[key] - dailyTarget[key]) <= tolerances[key];
-    const candidateInside = Math.abs(candidateTotals[key] - dailyTarget[key]) <= tolerances[key];
+    const currentInside = planBoundsViolationAmount(currentTotals[key], bounds[key]) <= 0;
+    const candidateInside = planBoundsViolationAmount(candidateTotals[key], bounds[key]) <= 0;
     return currentInside && !candidateInside;
   });
 }
 
 function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
   const tolerances = residualTolerances(dailyTarget);
+  const bounds = computeDailyPlanBounds(dailyTarget);
   const residual = calculateResidual(dayTotals, dailyTarget);
   const residualPct = calculateResidualPercent(dayTotals, dailyTarget);
   const warnings = [];
@@ -583,10 +631,10 @@ function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
     .map((meal) => meal.name);
 
   const calorieRatio = dayTotals.calories / Math.max(1, dailyTarget.calories);
-  const proteinShortfall = Math.max(0, residual.proteinG);
+  const proteinShortfall = Math.max(0, bounds.proteinG.min - dayTotals.proteinG);
   const proteinShortfallThreshold = Math.max(
     NUTRITION.hardErrorProteinShortfallG,
-    dailyTarget.proteinG * NUTRITION.hardErrorProteinShortfallPercent,
+    bounds.proteinG.min * NUTRITION.hardErrorProteinShortfallPercent,
   );
   const onlyNonMainCalories =
     meals.some((meal) => !isRequiredMainSlot(meal) && meal.items.length > 0) &&
@@ -611,17 +659,19 @@ function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
     errors.push('Impossible with current templates: only snack/non-main calories were generated while required main meals are missing.');
   }
   for (const key of ['carbG', 'fatG']) {
-    if (Math.abs(residual[key]) > tolerances[key] * NUTRITION.hardErrorMacroToleranceMultiplier) {
+    const violationAmount = planBoundsViolationAmount(dayTotals[key], bounds[key]);
+    if (violationAmount > tolerances[key] * NUTRITION.hardErrorMacroToleranceMultiplier) {
       const label = key === 'carbG' ? 'Carbs' : 'Fat';
       const direction = residual[key] > 0 ? 'short' : 'high';
       errors.push(
-        `${label} remains ${direction} by ${Math.round(Math.abs(residual[key]))}g because selected templates hit serving or macro-density limits.`,
+        `${label} remains ${direction} by ${Math.round(violationAmount)}g because selected templates hit serving or macro-density limits.`,
       );
     }
   }
 
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-    if (Math.abs(residual[key]) <= tolerances[key]) continue;
+    const violationAmount = planBoundsViolationAmount(dayTotals[key], bounds[key]);
+    if (violationAmount <= 0) continue;
     const label = {
       calories: 'Calories',
       proteinG: 'Protein',
@@ -630,9 +680,8 @@ function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
     }[key];
     const unit = key === 'calories' ? 'kcal' : 'g';
     const direction = residual[key] > 0 ? 'short' : 'high';
-    const amount = Math.abs(residual[key]);
     const message =
-      `${label} remains ${direction} by ${Math.round(amount)}${unit}. ${structuralCauseFor(key, residual[key], meals)}`;
+      `${label} remains ${direction} by ${Math.round(violationAmount)}${unit}. ${structuralCauseFor(key, residual[key], meals)}`;
     if (errors.length === 0) {
       warnings.push(message);
     }
@@ -653,6 +702,7 @@ function buildPlanDiagnostics(dayTotals, dailyTarget, meals) {
     missingSlots,
     residual,
     residualPct,
+    bounds,
     totals: dayTotals,
     target: dailyTarget,
   };
@@ -2977,6 +3027,8 @@ module.exports = {
   getFoods,
   normalizeInput,
   rebalanceMeal,
+  computeDailyPlanBounds,
+  dailyTotalsWithinPlanBounds,
   computeMealBounds,
   validateMealSwap,
   filterFoodsForChatbox,
