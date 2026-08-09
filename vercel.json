@@ -8,11 +8,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": [
-        "data/**",
-        "public/**",
-        "node_modules/zxcvbn/dist/zxcvbn.js"
-      ]
+      "includeFiles": "{data/**,public/**,node_modules/zxcvbn/dist/zxcvbn.js}"
     }
   }
 }
