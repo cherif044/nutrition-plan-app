@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>NutriPlan — Smart Nutrition Planning</title>
+    <title>Pinch — Smart Nutrition Planning</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
@@ -14,10 +14,16 @@
 
       <nav class="site-nav">
         <a class="site-nav__brand" href="/">
-          <div>
-            <p class="eyebrow">NutriPlan</p>
-            <h1>Nutrition Plan</h1>
-          </div>
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 12-10 1 8-2 13-7 13" />
+              <path d="M7 14c2-1 4-1 7-4" />
+            </svg>
+          </span>
+          <span>
+            <strong>Pinch</strong>
+            <small>Nutrition Plan</small>
+          </span>
         </a>
         <div class="site-nav__actions" id="nav-actions">
           <a class="btn btn-ghost" href="/login">Log in</a>
@@ -27,7 +33,7 @@
 
       <section class="hero">
         <span class="hero__eyebrow">Ready-meal nutrition planning</span>
-        <h2>Your personalised nutrition plan, built from fixed meal options</h2>
+        <h2>Build your daily nutrition plan</h2>
         <p>
           Enter your body stats, set your goal, and get a complete daily meal plan with ready meals,
           target-fitting portions, calories, and macros.
@@ -120,9 +126,9 @@
             const { user } = await res.json();
             const nav = document.getElementById('nav-actions');
             nav.innerHTML = `
-              <span style="color:var(--muted);font-size:.875rem;font-weight:600">Hi, ${escapeHtml(user.firstname)}</span>
-              <a class="btn btn-ghost" href="/explorer">Explorer</a>
-              <button class="btn btn-ghost" id="logout-btn">Log out</button>
+              <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
+              <a class="planner-nav__link" href="/explorer">Explorer</a>
+              <button class="planner-nav__link" id="logout-btn" type="button">Log out</button>
             `;
             document.getElementById('logout-btn').addEventListener('click', async () => {
               await fetch('/api/auth/logout', { method: 'POST' });

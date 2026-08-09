@@ -1,20 +1,40 @@
+const plannerCtx = (() => {
+  const p = new URLSearchParams(location.search);
+  const planId = p.get('planId');
+  const folderId = p.get('folderId');
+  if (!planId && !folderId) return null;
+  return { planId, folderId, folderName: null };
+})();
+
+function iconSvg(name, size = 16) {
+  const attrs = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`;
+  const icons = {
+    home: '<path d="m3 10 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+    arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    rotate: '<path d="M3 12a9 9 0 0 1 15.5-6.2"/><path d="M18.5 2.5v3.8h-3.8"/>',
+    save: '<path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+  };
+  return `<svg ${attrs}>${icons[name] || ''}</svg>`;
+}
+
 // Auth guard
 (async () => {
   try {
     const res = await fetch('/api/auth/me');
     if (!res.ok) { window.location.replace('/login'); return; }
     const { user } = await res.json();
-    const navUser = document.getElementById('planner-nav-user');
+      const navUser = document.getElementById('planner-nav-user');
     if (navUser) {
       const backHref = plannerCtx?.folderId
         ? `/explorer?folderId=${plannerCtx.folderId}`
         : '/explorer';
-      const backLabel = plannerCtx?.planId ? '← Back' : 'Explorer';
+      const backLabel = plannerCtx?.planId ? 'Explorer' : 'Explorer';
       navUser.innerHTML = `
         <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
-        <a class="btn btn-ghost" href="/" style="min-height:36px;font-size:.82rem;">Home</a>
-        <a class="btn btn-ghost" href="${backHref}" style="min-height:36px;font-size:.82rem;">${backLabel}</a>
-        <button class="btn btn-ghost" id="logout-btn" style="min-height:36px;font-size:.82rem;">Log out</button>
+        <a class="planner-nav__link" href="/" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
+        <a class="planner-nav__link" href="${backHref}" aria-label="${backLabel}">${iconSvg('arrowLeft')}<span>${backLabel}</span></a>
+        <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
       `;
       document.getElementById('logout-btn').addEventListener('click', async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
@@ -26,7 +46,7 @@
       const eyebrow = document.getElementById('planner-eyebrow');
       const title = document.getElementById('planner-title');
       if (eyebrow) eyebrow.textContent = 'Edit Plan';
-      if (title) title.textContent = 'Edit Mode';
+      if (title) title.textContent = 'Your inputs';
       loadPlanForEdit(plannerCtx.planId);
     } else if (plannerCtx?.folderId) {
       fetch(`/api/folders/${plannerCtx.folderId}`)
@@ -35,7 +55,7 @@
           if (!folder) return;
           plannerCtx.folderName = folder.name;
           const eyebrow = document.getElementById('planner-eyebrow');
-          if (eyebrow) eyebrow.textContent = `Saving to: ${folder.name}`;
+          if (eyebrow) eyebrow.textContent = `Saving to ${folder.name}`;
         })
         .catch(() => {});
     }
@@ -52,6 +72,9 @@ const summaryTemplate = document.querySelector('#summary-template');
 const mealTemplate = document.querySelector('#meal-template');
 const submitButton = form.querySelector('button[type="submit"]');
 const freeformButton = document.querySelector('#freeform-btn');
+const inputsToggle = document.querySelector('#inputs-toggle');
+const inputChipRow = document.querySelector('#input-chip-row');
+const saveBarSlot = document.querySelector('#save-bar-slot');
 const ramadanToggle = form.elements.ramadanMode;
 const mealsSelect = form.elements.numberOfMeals;
 const distributionSelect = form.elements.mealDistribution;
@@ -83,14 +106,7 @@ loadAllFoods();
 const mealStates = [];
 let dailyTargets = null;
 let currentPlanInput = null;
-
-const plannerCtx = (() => {
-  const p = new URLSearchParams(location.search);
-  const planId = p.get('planId');
-  const folderId = p.get('folderId');
-  if (!planId && !folderId) return null;
-  return { planId, folderId, folderName: null };
-})();
+let pendingAvoidFoodIds = null;
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   const text = await response.text();
@@ -121,6 +137,8 @@ async function generateAndRender(apiUrl) {
       throw new Error(payload.error || 'Unable to generate a nutrition plan.');
     }
     renderPlan(payload);
+    switchPlannerView('plan', { push: true });
+    setInputsExpanded(false);
   } catch (error) {
     message.textContent = error.message;
   } finally {
@@ -137,8 +155,19 @@ freeformButton?.addEventListener('click', () => {
   generateAndRender('/api/generate-plan-freeform');
 });
 
+inputsToggle?.addEventListener('click', () => {
+  setInputsExpanded(!form.classList.contains('inputs-card--expanded'));
+});
+
+form.addEventListener('input', syncInputSummary);
+form.addEventListener('change', syncInputSummary);
 ramadanToggle?.addEventListener('change', syncRamadanControls);
 syncRamadanControls();
+syncInputSummary();
+if (!plannerCtx?.planId) {
+  switchPlannerView('input', { push: false });
+  setInputsExpanded(true);
+}
 loadPreferenceOptions();
 
 function readForm() {
@@ -153,12 +182,73 @@ function readForm() {
     goal: data.get('goal'),
     numberOfMeals: data.get('numberOfMeals'),
     mealDistribution: data.get('mealDistribution'),
-    dietType: DEFAULT_PLAN_OPTIONS.dietType,
+    dietType: data.get('dietType') || DEFAULT_PLAN_OPTIONS.dietType,
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
-    milkType: DEFAULT_PLAN_OPTIONS.milkType,
-    coffeesPerDay: DEFAULT_PLAN_OPTIONS.coffeesPerDay,
-    ramadanMode: DEFAULT_PLAN_OPTIONS.ramadanMode,
+    milkType: data.get('milkType') || DEFAULT_PLAN_OPTIONS.milkType,
+    coffeesPerDay: data.get('coffeesPerDay') || DEFAULT_PLAN_OPTIONS.coffeesPerDay,
+    ramadanMode: data.get('ramadanMode') === 'on',
   };
+}
+
+function switchPlannerView(view, { push = false } = {}) {
+  const isPlan = view === 'plan';
+  document.body.classList.toggle('is-plan-view', isPlan);
+  document.body.classList.toggle('is-input-view', !isPlan);
+  if (emptyState) emptyState.hidden = isPlan;
+  if (saveBarSlot && !isPlan) saveBarSlot.innerHTML = '';
+  updateSubmitIdleLabel();
+
+  if (push) {
+    const url = new URL(window.location.href);
+    if (isPlan) url.searchParams.set('view', 'plan');
+    else url.searchParams.delete('view');
+    history.pushState({ plannerView: view }, '', url);
+  }
+}
+
+function setInputsExpanded(expanded) {
+  const shouldExpand = Boolean(expanded) || !document.body.classList.contains('is-plan-view');
+  form.classList.toggle('inputs-card--expanded', shouldExpand);
+  form.classList.toggle('inputs-card--collapsed', !shouldExpand);
+  inputsToggle?.setAttribute('aria-expanded', String(shouldExpand));
+  const label = inputsToggle?.querySelector('span');
+  if (label) label.textContent = shouldExpand ? 'Close' : 'Edit inputs';
+  updateSubmitIdleLabel();
+}
+
+function updateSubmitIdleLabel() {
+  if (submitButton?.disabled) return;
+  const label = submitButton?.querySelector('span:last-child');
+  if (label) {
+    label.textContent = document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan';
+  }
+}
+
+function syncInputSummary() {
+  if (!inputChipRow) return;
+  const input = readForm();
+  const chips = [
+    ['Goal', goalLabel(input.goal)],
+    ['Meals', `${input.numberOfMeals} / day`],
+    ['Diet', titleCase(input.dietType)],
+    ['Activity', titleCase(input.activityLevel)],
+    ['Weight', `${formatNumber(input.weightKg)} kg`],
+  ];
+  inputChipRow.innerHTML = chips
+    .map(([label, value]) => `<span class="input-chip"><small>${label}</small>${escapeHtml(value)}</span>`)
+    .join('');
+}
+
+function goalLabel(value) {
+  if (value === 'lose_weight') return 'Lose weight';
+  if (value === 'gain_weight') return 'Gain weight';
+  return 'Maintain';
+}
+
+function titleCase(value) {
+  return String(value || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 // ── Foods catalog ────────────────────────────────────────────────────────────
@@ -193,7 +283,12 @@ async function loadPlanForEdit(planId) {
 function populateFormFromInput(input) {
   const set = (name, val) => {
     const el = form.elements[name];
-    if (el && val !== undefined && val !== null) el.value = val;
+    if (!el || val === undefined || val === null) return;
+    if (el.type === 'checkbox') {
+      el.checked = Boolean(val);
+    } else {
+      el.value = val;
+    }
   };
   set('weightKg', input.weightKg);
   set('heightCm', input.heightCm);
@@ -204,7 +299,16 @@ function populateFormFromInput(input) {
   set('goal', input.goal);
   set('numberOfMeals', input.numberOfMeals);
   set('mealDistribution', input.mealDistribution);
+  set('dietType', input.dietType);
+  set('milkType', input.milkType);
+  set('coffeesPerDay', input.coffeesPerDay);
+  set('ramadanMode', input.ramadanMode);
+  if (Array.isArray(input.avoidFoods)) {
+    pendingAvoidFoodIds = input.avoidFoods;
+    hydrateAvoidFoodPreferences();
+  }
   syncRamadanControls();
+  syncInputSummary();
 }
 
 // ── Render plan ──────────────────────────────────────────────────────────────
@@ -215,6 +319,9 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
   currentPlanInput = plan.input || null;
   output.hidden = false;
   emptyState.hidden = true;
+  switchPlannerView('plan', { push: false });
+  setInputsExpanded(false);
+  syncInputSummary();
 
   if (isImpossiblePlan(plan)) {
     output.append(renderPlanNotice({
@@ -241,6 +348,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     showEditBar(planId, planName);
   } else if (plannerCtx?.folderId) {
     showFolderSaveBar(plannerCtx.folderId);
+  } else if (saveBarSlot) {
+    saveBarSlot.innerHTML = '';
   }
 
   plan.meals.forEach((meal, mealIndex) => {
@@ -353,13 +462,13 @@ function renderSummary(targets, serverBounds = null) {
     metric.className = 'metric';
     metric.dataset.metric = key;
     metric.innerHTML = `
-      <span>${labels[key][0]}</span>
+      <div class="metric__top">
+        <span>${labels[key][0]}</span>
+      </div>
       <strong>
         <span class="daily-actual daily-actual-${key}">—</span>
-        <span class="daily-sep"> / </span>
-        <span class="daily-target daily-target-${key}">${formatNumber(targets[key])}</span>
       </strong>
-      <small>${labels[key][1]}</small>
+      <div class="metric-bar" aria-hidden="true"><i></i></div>
       <em class="metric-range">${formatAllowedRange(bounds, labels[key][1])}</em>
       <div class="flag-detail"></div>
     `;
@@ -388,8 +497,6 @@ function refreshRedFlags() {
 
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
     const tgt = dailyTargets[key];
-    const diff = actual[key] - tgt;
-    const bounds = dailyMetricBounds(key, dailyTargets);
     const flagged = !dailyMetricFitsTarget(key, actual[key], dailyTargets);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
@@ -398,19 +505,20 @@ function refreshRedFlags() {
     const actualEl = summaryEl.querySelector(`.daily-actual-${key}`);
     if (actualEl) actualEl.textContent = formatNumber(actual[key]);
 
+    const percent = tgt > 0 ? (actual[key] / tgt) * 100 : 0;
+    const barEl = metricEl?.querySelector('.metric-bar i');
+    if (barEl) barEl.style.width = `${Math.min(Math.max(percent, 0), 100)}%`;
+
     const flagDetail = metricEl?.querySelector('.flag-detail');
     if (flagDetail) {
       if (flagged) {
-        const direction = diff > 0 ? 'high' : 'short';
-        const amount = actual[key] < bounds.min ? bounds.min - actual[key] : actual[key] - bounds.max;
-        flagDetail.textContent = `${formatNumber(amount)} ${labels[key][1]} ${direction}`;
+        flagDetail.textContent = `${labels[key][0]} outside the accepted range`;
         flagDetail.hidden = false;
       } else {
         flagDetail.hidden = true;
       }
     }
   }
-
 }
 
 // ── Meal card rendering ──────────────────────────────────────────────────────
@@ -459,31 +567,23 @@ function refreshMealCardHeader(card, state) {
   card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
 
   const values = {
-    calories: { unit: 'kcal', actual: totals.calories, target: state.target.calories },
-    proteinG: { unit: 'g', actual: totals.proteinG, target: state.target.proteinG },
-    carbG: { unit: 'g', actual: totals.carbG, target: state.target.carbG },
-    fatG: { unit: 'g', actual: totals.fatG, target: state.target.fatG },
+    calories: { actual: totals.calories },
+    proteinG: { actual: totals.proteinG },
+    carbG: { actual: totals.carbG },
+    fatG: { actual: totals.fatG },
   };
 
   for (const [key, value] of Object.entries(values)) {
     const actualEl = card.querySelector(`.meal-actual-${key}`);
-    const targetEl = card.querySelector(`.meal-target-${key}`);
-    if (actualEl) actualEl.textContent = `${formatNumber(value.actual)} ${value.unit}`;
-    if (targetEl) targetEl.textContent = `${formatNumber(value.target)} ${value.unit}`;
+    if (actualEl) actualEl.textContent = formatNumber(value.actual);
   }
 }
 
 function mealCardMetaText(state) {
   const optionCount = readyMealOptions(state).length;
-  const optionLabel = optionCount > 0 ? `Meal ${state.mealOptionIndex + 1} of ${optionCount}` : 'No ready meal';
-  const templateLabel = state.templateName ? `Ready meal: ${state.templateName}` : 'Ready meal: None';
-  return `${templateLabel} ${separator} ${optionLabel} ${separator} ${mealTemplateStatusLabel(state)}`;
-}
-
-function mealTemplateStatusLabel(state) {
-  if (state.items.length === 0 || state.candidateSource === 'failed') return 'Failed';
-  if (state.isApproximate) return 'Approximate fit';
-  return 'Macro fit';
+  const total = Math.max(optionCount, 1);
+  const current = Math.min(Math.max((Number(state.mealOptionIndex) || 0) + 1, 1), total);
+  return `${current} of ${total}`;
 }
 
 function renderFoodList(state) {
@@ -1397,14 +1497,16 @@ function compactRejectedProposal(proposal) {
 function showEditBar(planId, initialName) {
   const existing = document.getElementById('edit-bar');
   if (existing) existing.remove();
+  if (!saveBarSlot) return;
 
   const bar = document.createElement('div');
   bar.id = 'edit-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
+    <span class="save-action-bar__label">${plannerCtx?.folderName ? escapeHtml(plannerCtx.folderName) : 'Saved plan'}</span>
     <input class="save-action-bar__name" type="text" value="${escapeHtml(initialName)}" placeholder="Plan name" autocomplete="off" />
-    <button class="btn btn-primary save-action-bar__save" type="button">Save changes</button>
-    <button class="btn btn-ghost save-action-bar__discard" type="button">Discard</button>
+    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard</button>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
     <p class="save-action-bar__msg message" aria-live="polite"></p>
   `;
 
@@ -1424,12 +1526,11 @@ function showEditBar(planId, initialName) {
       body: JSON.stringify({ name, planData }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan changes.');
-    btn.disabled = false; btn.textContent = 'Save changes';
+    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save changes`;
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
     msgEl.textContent = 'Saved!';
-    document.getElementById('planner-title').textContent = name;
     setTimeout(() => { msgEl.textContent = ''; msgEl.style.color = ''; }, 2000);
   });
 
@@ -1439,15 +1540,16 @@ function showEditBar(planId, initialName) {
     }
   });
 
-  output.prepend(bar);
+  saveBarSlot.replaceChildren(bar);
 }
 
 function showFolderSaveBar(folderId) {
   const existing = document.getElementById('folder-save-bar');
   if (existing) existing.remove();
+  if (!saveBarSlot) return;
 
   const folderLabel = plannerCtx?.folderName
-    ? `Saving to: <strong>${escapeHtml(plannerCtx.folderName)}</strong>`
+    ? escapeHtml(plannerCtx.folderName)
     : 'Save plan';
 
   const bar = document.createElement('div');
@@ -1455,8 +1557,9 @@ function showFolderSaveBar(folderId) {
   bar.className = 'save-action-bar';
   bar.innerHTML = `
     <span class="save-action-bar__label">${folderLabel}</span>
-    <input class="save-action-bar__name" type="text" placeholder="Plan name (e.g. Cut Phase Week 1)" autocomplete="off" />
-    <button class="btn btn-primary save-action-bar__save" type="button">Save plan</button>
+    <input class="save-action-bar__name" type="text" placeholder="Cutting plan — week 1" autocomplete="off" />
+    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard</button>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
     <p class="save-action-bar__msg message" aria-live="polite"></p>
   `;
 
@@ -1476,7 +1579,7 @@ function showFolderSaveBar(folderId) {
       body: JSON.stringify({ name, planData }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan.');
-    btn.disabled = false; btn.textContent = 'Save plan';
+    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save changes`;
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
@@ -1484,7 +1587,18 @@ function showFolderSaveBar(folderId) {
     setTimeout(() => { window.location.href = `/explorer?folderId=${folderId}`; }, 900);
   });
 
-  output.prepend(bar);
+  bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
+    output.innerHTML = '';
+    output.hidden = true;
+    mealStates.length = 0;
+    dailyTargets = null;
+    currentPlanInput = null;
+    switchPlannerView('input', { push: true });
+    setInputsExpanded(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  saveBarSlot.replaceChildren(bar);
 }
 
 function buildPlanData() {
@@ -1599,6 +1713,7 @@ async function loadPreferenceOptions() {
     }
 
     preferenceOptions = { avoidFoods: payload.allergyOptions || [] };
+    hydrateAvoidFoodPreferences();
 
     for (const field of preferenceFields) {
       setupPreferencePicker(field);
@@ -1606,6 +1721,16 @@ async function loadPreferenceOptions() {
   } catch (error) {
     message.textContent = error.message;
   }
+}
+
+function hydrateAvoidFoodPreferences() {
+  if (!Array.isArray(pendingAvoidFoodIds) || !preferenceOptions.avoidFoods?.length) return;
+  const optionsById = new Map(preferenceOptions.avoidFoods.map((option) => [option.id, option]));
+  preferenceState.avoidFoods = pendingAvoidFoodIds.map((id) => (
+    optionsById.get(id) || { id, label: titleCase(id), type: 'food' }
+  ));
+  pendingAvoidFoodIds = null;
+  preferenceFields.forEach((field) => field._renderTokens?.());
 }
 
 function setupPreferencePicker(field) {
@@ -1616,6 +1741,7 @@ function setupPreferencePicker(field) {
   const suggestions = field.querySelector('.suggestions');
   const combobox = field.querySelector('.token-input');
 
+  field._renderTokens = renderTokens;
   renderTokens();
 
   input.addEventListener('input', () => renderSuggestions());
@@ -1739,7 +1865,9 @@ function normalizeText(value) {
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
   if (freeformButton) freeformButton.disabled = isLoading;
-  submitButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Generate plan';
+  submitButton.querySelector('span:last-child').textContent = isLoading
+    ? 'Generating plan…'
+    : (document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan');
   if (freeformButton) {
     freeformButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Build your own meals instead';
   }
