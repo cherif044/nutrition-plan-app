@@ -155,25 +155,6 @@
 
             <section class="panel input-section">
               <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3v7"/><path d="M8 3v7"/><path d="M4 7h4"/><path d="M6 10v11"/><path d="M17 3v18"/><path d="M14 3h6"/></svg></span>Preferences</h2>
-              <div class="field-grid">
-                <label>
-                  <span>Diet type</span>
-                  <select name="dietType">
-                    <option value="standard" selected>Standard</option>
-                    <option value="vegetarian">Vegetarian</option>
-                    <option value="vegan">Vegan</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Milk type</span>
-                  <select name="milkType">
-                    <option value="skimmed" selected>Skimmed</option>
-                    <option value="semi_skimmed">Semi-skimmed</option>
-                    <option value="whole">Whole</option>
-                    <option value="none">None</option>
-                  </select>
-                </label>
-              </div>
               <div class="preference-field" data-picker="avoidFoods">
                 <span>Avoid foods</span>
                 <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
@@ -184,17 +165,6 @@
                 <small>Type to search, Enter to add</small>
                 <div class="suggestions" role="listbox" hidden></div>
               </div>
-              <label class="compact-field">
-                <span>Coffees per day</span>
-                <input type="number" name="coffeesPerDay" min="0" max="12" step="1" value="2" />
-              </label>
-              <label class="switch-row ramadan-card">
-                <span>
-                  <strong>Ramadan split</strong>
-                  <small>Split meals across Suhoor and Iftar</small>
-                </span>
-                <input type="checkbox" name="ramadanMode" />
-              </label>
             </section>
 
             <div class="inputs-card__actions">
@@ -238,21 +208,14 @@
     <template id="meal-template">
       <article class="meal-card panel">
         <div class="meal-card__header">
-          <span class="meal-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
-              <path d="M3 8h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z" />
-              <path d="M6 2v2" />
-              <path d="M10 2v2" />
-              <path d="M14 2v2" />
-            </svg>
-          </span>
+          <span class="meal-card__icon" aria-hidden="true"></span>
           <div>
             <div class="meal-card__title-line">
               <h2></h2>
             </div>
             <p class="meal-card__meta"></p>
           </div>
+          <span class="meal-card__kcal"><b class="meal-actual-calories"></b> kcal</span>
           <div class="meal-card__actions">
             <button class="meal-cycle-btn meal-cycle-btn--prev" type="button" aria-label="Previous ready meal">‹</button>
             <button class="meal-cycle-btn meal-cycle-btn--next" type="button" aria-label="Next ready meal">›</button>
@@ -263,30 +226,27 @@
             </label>
           </div>
         </div>
-        <div class="meal-card__totals">
-          <div class="meal-metric" data-meal-metric="calories">
-            <span>Calories</span>
-            <strong class="meal-actual-calories"></strong>
+        <div class="food-table">
+          <div class="food-list-head">
+            <span class="food-col-title">Food</span>
+            <span class="food-cell food-cell--portion">Portion</span>
+            <span class="food-cell food-cell--cal">Calories</span>
+            <span class="food-cell food-cell--protein">Protein</span>
+            <span class="food-cell food-cell--carb">Carbs</span>
+            <span class="food-cell food-cell--fat">Fat</span>
+            <span class="food-actions-spacer" aria-hidden="true"></span>
           </div>
-          <div class="meal-metric" data-meal-metric="proteinG">
-            <span>Protein</span>
-            <strong class="meal-actual-proteinG"></strong>
-          </div>
-          <div class="meal-metric" data-meal-metric="carbG">
-            <span>Carbs</span>
-            <strong class="meal-actual-carbG"></strong>
-          </div>
-          <div class="meal-metric" data-meal-metric="fatG">
-            <span>Fats</span>
-            <strong class="meal-actual-fatG"></strong>
+          <div class="food-list"></div>
+          <div class="meal-card__totals">
+            <span class="food-col-title meal-card__totals-label">Meal totals</span>
+            <span class="food-cell food-cell--portion"></span>
+            <span class="food-cell food-cell--cal meal-metric" data-meal-metric="calories"><strong class="meal-actual-calories"></strong></span>
+            <span class="food-cell food-cell--protein meal-metric" data-meal-metric="proteinG"><strong class="meal-actual-proteinG"></strong></span>
+            <span class="food-cell food-cell--carb meal-metric" data-meal-metric="carbG"><strong class="meal-actual-carbG"></strong></span>
+            <span class="food-cell food-cell--fat meal-metric" data-meal-metric="fatG"><strong class="meal-actual-fatG"></strong></span>
+            <span class="food-actions-spacer" aria-hidden="true"></span>
           </div>
         </div>
-        <div class="food-list-head">
-          <span>Food</span>
-          <span>Portion</span>
-          <span>Macros</span>
-        </div>
-        <div class="food-list"></div>
         <div class="meal-add-tray" hidden>
           <button class="meal-add-food-btn" type="button" aria-label="Add food">
             <span aria-hidden="true">+</span>

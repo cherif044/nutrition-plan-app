@@ -56,11 +56,21 @@
         user-select: none;
       }
       .folder-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(18,121,111,0.09); }
-      .folder-icon { font-size: 1.5rem; flex-shrink: 0; }
+      .folder-icon, .plan-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+        border-radius: 10px;
+        background: var(--ref-accent);
+        color: var(--ref-primary);
+      }
+      .plan-icon { width: 30px; height: 30px; border-radius: 9px; }
       .folder-name { font-weight: 700; font-size: 0.9rem; word-break: break-word; flex: 1; }
       .folder-card .item-menu-btn { position: absolute; top: 8px; right: 8px; }
 
-      .plans-section h3 { font-size: 0.88rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+      .plans-section h3 { font-size: 0.82rem; font-weight: 650; color: var(--ref-muted-fg); letter-spacing: 0; margin-bottom: 10px; }
       .plan-list { display: grid; gap: 8px; }
       .plan-row {
         background: var(--panel);
@@ -87,6 +97,9 @@
         border-radius: 5px; line-height: 1;
       }
       .item-menu-btn:hover { background: var(--subtle); color: var(--ink); }
+      @media (max-width: 600px) {
+        .item-menu-btn { min-width: 32px; min-height: 32px; }
+      }
 
       .context-menu {
         position: fixed; z-index: 300;
@@ -144,7 +157,8 @@
         font-size: 0.86rem; font-weight: 600; color: var(--ink);
       }
       .tree-item:hover { background: var(--subtle); }
-      .tree-item.selected { background: var(--accent-soft); color: var(--accent-strong); border: 1px solid #95c8bf; }
+      .tree-item.selected { background: var(--ref-accent); color: var(--ref-accent-fg); border: 1px solid #7fa99b; }
+      .tree-item__icon { display: inline-flex; color: var(--ref-primary); }
       .tree-item-children { padding-left: 18px; }
       .tree-empty { padding: 12px; color: var(--muted); font-size: 0.84rem; text-align: center; }
     </style>
@@ -186,13 +200,30 @@
       </div>
 
       <div class="explorer-empty" id="empty-state" hidden>
-        <strong style="font-size:1.1rem;">This folder is empty</strong>
+        <span class="explorer-empty__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5h5l2 2.5h9a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+          </svg>
+        </span>
+        <strong>This folder is empty</strong>
         <p>Create a folder or add a new plan to get started.</p>
+        <div class="explorer-empty__actions">
+          <button class="btn btn-ghost" type="button" data-empty-action="new-folder">+ New folder</button>
+          <button class="btn btn-primary" type="button" data-empty-action="new-plan">+ New plan</button>
+        </div>
       </div>
 
       <div class="explorer-empty" id="root-empty" hidden>
-        <strong style="font-size:1.1rem;">No folders yet</strong>
+        <span class="explorer-empty__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5h5l2 2.5h9a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+          </svg>
+        </span>
+        <strong>No folders yet</strong>
         <p>Create your first folder to organize your plans.</p>
+        <div class="explorer-empty__actions">
+          <button class="btn btn-primary" type="button" data-empty-action="new-folder">+ New folder</button>
+        </div>
       </div>
     </main>
 
@@ -230,6 +261,12 @@
     </div>
 
     <script>
+      const svg = (body) => `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+      const ICONS = {
+        folder: svg('<path d="M4 5h5l2 2.5h9a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/>'),
+        file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>'),
+      };
+
       const params = new URLSearchParams(location.search);
       const folderId = params.get('folderId') || null;
       const pageMessage = document.getElementById('page-message');
@@ -283,11 +320,12 @@
           return;
         }
 
+
         subfolders.forEach((folder) => {
           const card = document.createElement('div');
           card.className = 'folder-card';
           card.innerHTML = `
-            <span class="folder-icon">📁</span>
+            <span class="folder-icon" aria-hidden="true">${ICONS.folder}</span>
             <span class="folder-name">${esc(folder.name)}</span>
             <button class="item-menu-btn" type="button" title="Folder options" data-folder-id="${folder.id}" data-folder-name="${esc(folder.name)}">⋯</button>
           `;
@@ -308,7 +346,7 @@
             const row = document.createElement('div');
             row.className = 'plan-row';
             row.innerHTML = `
-              <span class="plan-icon">📄</span>
+              <span class="plan-icon" aria-hidden="true">${ICONS.file}</span>
               <div class="plan-info">
                 <div class="plan-row-name">${esc(plan.name)}</div>
                 <div class="plan-row-date">${new Date(plan.updated_at || plan.created_at).toLocaleDateString()}</div>
@@ -370,6 +408,15 @@
         a.textContent = text;
         return a;
       }
+
+      // Empty-state CTAs mirror the toolbar actions so the call to action sits
+      // with the message rather than only in the header.
+      document.querySelectorAll('[data-empty-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (btn.dataset.emptyAction === 'new-folder') openFolderModal();
+          else if (currentFolderId) window.location.href = `/planner?folderId=${currentFolderId}`;
+        });
+      });
 
       function updateActions() {
         const actions = document.getElementById('explorer-actions');
@@ -533,7 +580,7 @@
           item.className = 'tree-item';
           item.style.paddingLeft = (10 + depth * 18) + 'px';
           item.dataset.folderId = node.id;
-          item.innerHTML = `📁 ${esc(node.name)}`;
+          item.innerHTML = `<span class="tree-item__icon" aria-hidden="true">${ICONS.folder}</span>${esc(node.name)}`;
           item.addEventListener('click', () => {
             container.querySelectorAll('.tree-item').forEach((el) => el.classList.remove('selected'));
             item.classList.add('selected');

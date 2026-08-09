@@ -15,10 +15,10 @@
   --panel:         rgba(255, 255, 255, 0.78);
   --subtle:        rgba(255, 255, 255, 0.5);
 
-  --accent:        #0d9488;
-  --accent-soft:   rgba(13, 148, 136, 0.09);
-  --accent-strong: #0f766e;
-  --accent-glow:   rgba(13, 148, 136, 0.22);
+  --accent:        #0f6e56;
+  --accent-soft:   rgba(15, 110, 86, 0.09);
+  --accent-strong: #085041;
+  --accent-glow:   rgba(15, 110, 86, 0.2);
 
   --warn:          #d97706;
   --danger:        #dc2626;
@@ -801,8 +801,6 @@ input:focus, select:focus {
   letter-spacing: 0.08em;
 }
 
-.food-list-head span:nth-child(2) { text-align: right; }
-.food-list-head span:nth-child(3) { text-align: right; }
 
 /* ── Food item ────────────────────────────────────────────────────────── */
 
@@ -2044,9 +2042,6 @@ body.is-input-view .planner-save-slot {
 }
 
 body.is-plan-view .inputs-card {
-  position: sticky;
-  top: 108px;
-  z-index: 20;
   width: min(1040px, 100%);
   margin: 0 auto 44px;
 }
@@ -2609,9 +2604,6 @@ select:focus,
   letter-spacing: 0;
 }
 
-.food-list-head span:nth-child(2) {
-  display: none;
-}
 
 .food-list {
   gap: 0;
@@ -2779,7 +2771,6 @@ select:focus,
   }
 
   body.is-plan-view .inputs-card {
-    top: 8px;
     margin-bottom: 24px;
   }
 
@@ -2851,17 +2842,35 @@ select:focus,
 /* ── Reference parity pass from nutri-plan.zip ────────────────────────── */
 
 :root {
-  --ref-bg: oklch(0.985 0.012 155);
-  --ref-fg: oklch(0.24 0.02 160);
+  /* Brand — deep forest green. Plain hex so older mobile Safari (no oklch /
+     color-mix support) still renders borders and surfaces. */
+  --ref-bg: #f5fbf8;
+  --ref-fg: #17241f;
   --ref-card: #fff;
-  --ref-primary: oklch(0.66 0.15 152);
-  --ref-muted: oklch(0.96 0.012 155);
-  --ref-muted-fg: oklch(0.52 0.022 158);
-  --ref-accent: oklch(0.94 0.045 155);
-  --ref-accent-fg: oklch(0.32 0.05 158);
-  --ref-border: oklch(0.9 0.015 155);
-  --ref-danger: oklch(0.6 0.19 25);
-  --ref-warning: oklch(0.75 0.13 75);
+  --ref-primary: #0f6e56;
+  --ref-primary-strong: #085041;
+  --ref-muted: #eff5f2;
+  --ref-muted-fg: #5f7268;
+  --ref-accent: #e1f5ee;
+  --ref-accent-fg: #1f5344;
+  --ref-border: #dce7e1;
+  --ref-danger: #d14343;
+  --ref-warning: #d99a2b;
+
+  /* Macro identity — one hue per macro, used everywhere a macro is shown.
+     `-ink` variants are the text-safe shades, base is for bars and dots. */
+  --macro-cal: #0f6e56;
+  --macro-cal-ink: #0b5744;
+  --macro-cal-soft: #e1f5ee;
+  --macro-protein: #d2603a;
+  --macro-protein-ink: #a8482a;
+  --macro-protein-soft: #fbeee8;
+  --macro-carb: #dda02c;
+  --macro-carb-ink: #8a5d11;
+  --macro-carb-soft: #fcf4e3;
+  --macro-fat: #3e86b4;
+  --macro-fat-ink: #2c6285;
+  --macro-fat-soft: #e9f2f8;
 }
 
 body {
@@ -2881,8 +2890,8 @@ body.is-plan-view {
   min-height: 56px;
   height: 56px;
   padding: 0 24px;
-  border-bottom-color: color-mix(in srgb, var(--ref-border) 70%, transparent);
-  background: color-mix(in srgb, var(--ref-bg) 80%, transparent);
+  border-bottom-color: rgba(220, 231, 225, 0.7);
+  background: rgba(245, 251, 248, 0.86);
   box-shadow: none;
 }
 
@@ -2964,7 +2973,7 @@ body.is-input-view .setup-intro {
   min-height: 26px;
   margin: 0 0 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ref-primary) 10%, transparent);
+  background: rgba(15, 110, 86, 0.1);
   color: var(--ref-primary);
   padding: 4px 10px;
   font-size: 11px;
@@ -3070,7 +3079,7 @@ body.is-plan-view .inputs-card {
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--ref-primary) 10%, transparent);
+  background: rgba(15, 110, 86, 0.1);
   color: var(--ref-primary);
 }
 
@@ -3116,7 +3125,7 @@ body.is-plan-view .inputs-card {
 }
 
 .input-chip small {
-  color: color-mix(in srgb, var(--ref-muted-fg) 70%, transparent);
+  color: rgba(95, 114, 104, 0.7);
   font-size: 11px;
   font-weight: 400;
 }
@@ -3133,7 +3142,7 @@ body.is-plan-view .inputs-card {
 }
 
 .inputs-card__toggle:hover {
-  background: color-mix(in srgb, var(--ref-accent) 40%, transparent);
+  background: rgba(225, 245, 238, 0.6);
 }
 
 .inputs-card__toggle b {
@@ -3212,7 +3221,7 @@ label > span,
 }
 
 small {
-  color: color-mix(in srgb, var(--ref-muted-fg) 80%, transparent);
+  color: rgba(95, 114, 104, 0.8);
   font-size: 11px;
   font-weight: 400;
 }
@@ -3249,7 +3258,7 @@ input:focus,
 select:focus,
 .token-input:focus-within {
   border-color: var(--ref-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ref-primary) 25%, transparent), 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 2px rgba(15, 110, 86, 0.22), 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .segmented {
@@ -3283,7 +3292,7 @@ select:focus,
 }
 
 .token strong {
-  color: color-mix(in srgb, var(--ref-accent-fg) 60%, transparent);
+  color: rgba(31, 83, 68, 0.6);
 }
 
 .compact-field {
@@ -3344,9 +3353,9 @@ select:focus,
 
 .plan-notice {
   display: block;
-  border: 1px solid color-mix(in srgb, var(--ref-warning) 40%, transparent);
+  border: 1px solid rgba(217, 154, 43, 0.42);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--ref-warning) 10%, transparent);
+  background: rgba(217, 154, 43, 0.12);
   padding: 16px !important;
 }
 
@@ -3610,17 +3619,8 @@ select:focus,
   letter-spacing: 0.04em;
 }
 
-.food-list-head span:nth-child(1)::after {
-  content: "";
-}
 
-.food-list-head span:nth-child(3) {
-  display: block;
-}
 
-.food-list-head span:nth-child(3)::before {
-  content: "Portion · ";
-}
 
 .food-list {
   gap: 0;
@@ -3633,7 +3633,7 @@ select:focus,
 }
 
 .food-item:hover {
-  background: color-mix(in srgb, var(--ref-muted) 60%, transparent);
+  background: #f4f8f6;
 }
 
 .food-main,
@@ -3681,7 +3681,7 @@ select:focus,
   border-bottom: 0;
   border-left: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--ref-muted) 40%, transparent);
+  background: #f7faf9;
   padding: 16px;
 }
 
@@ -3699,7 +3699,7 @@ select:focus,
   gap: 8px;
   border-color: var(--ref-border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--ref-card) 95%, transparent);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.13);
   padding: 12px;
   backdrop-filter: blur(12px);
@@ -3825,8 +3825,8 @@ select:focus,
   justify-content: space-between;
   gap: 16px;
   min-height: 56px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ref-border) 70%, transparent);
-  background: color-mix(in srgb, var(--ref-bg) 80%, transparent);
+  border-bottom: 1px solid rgba(220, 231, 225, 0.7);
+  background: rgba(245, 251, 248, 0.86);
   padding: 0 24px;
 }
 
@@ -3879,7 +3879,7 @@ select:focus,
   align-items: center;
   min-height: 26px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ref-primary) 10%, transparent);
+  background: rgba(15, 110, 86, 0.1);
   color: var(--ref-primary);
   padding: 4px 10px;
   font-size: 11px;
@@ -4024,8 +4024,8 @@ body:has(.explorer-toolbar) .planner-nav {
 
 .folder-card:hover,
 .plan-row:hover {
-  border-color: color-mix(in srgb, var(--ref-primary) 45%, var(--ref-border)) !important;
-  background: color-mix(in srgb, var(--ref-accent) 35%, var(--ref-card));
+  border-color: #7fa99b !important;
+  background: #f3faf7;
   box-shadow: 0 4px 14px rgba(26, 44, 33, 0.08) !important;
 }
 
@@ -4420,5 +4420,870 @@ body:has(.explorer-toolbar) .planner-nav {
   .food-macros,
   .food-macros strong {
     font-size: 11px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Design system pass — brand green, macro colour coding, iconography
+   Colour carries meaning here: brand green = action, macro hues = data,
+   neutral grey = structure only.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sentence case, two-tier numbers ──────────────────────────────────── */
+
+.food-list-head,
+.metric span,
+.meal-card__totals span,
+.plans-section h3 {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Section icons: tinted squares, matching the meal-card treatment ──── */
+
+.panel h2 span,
+.input-section h2 span {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ref-accent);
+  color: var(--ref-primary);
+}
+
+/* ── Segmented control: selected state reads as selected ──────────────── */
+
+.segmented input:checked + span {
+  background: var(--ref-primary);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.segmented input:focus-visible + span {
+  outline: 2px solid var(--ref-primary);
+  outline-offset: 2px;
+}
+
+/* ── Input chips: goal reads as a status badge ────────────────────────── */
+
+.input-chip[data-tone="brand"] {
+  background: var(--ref-accent);
+  color: var(--ref-accent-fg);
+}
+
+.input-chip[data-tone="brand"] small {
+  color: rgba(31, 83, 68, 0.65);
+}
+
+/* ── Daily totals: calorie ring hero + macro bars ─────────────────────── */
+
+.metrics {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+
+.metric--ring {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.cal-ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+}
+
+.cal-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.cal-ring__track,
+.cal-ring__value {
+  fill: none;
+  stroke-width: 11;
+}
+
+.cal-ring__track {
+  stroke: var(--ref-muted);
+}
+
+.cal-ring__value {
+  stroke: var(--macro-cal);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s var(--ease-smooth), stroke 0.2s var(--ease-out);
+}
+
+.metric--ring.metric--flagged .cal-ring__value {
+  stroke: var(--ref-danger);
+}
+
+.cal-ring__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+}
+
+.cal-ring__center strong {
+  display: block;
+  margin: 0;
+  color: var(--macro-cal-ink);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.metric--ring.metric--flagged .cal-ring__center strong {
+  color: var(--ref-danger);
+}
+
+.cal-ring__unit {
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cal-ring__caption {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.cal-ring__caption span {
+  color: var(--ref-fg);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cal-ring__caption b {
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.macro-bars {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metric--macro {
+  border: 1px solid var(--ref-border);
+  border-radius: 12px;
+  background: var(--ref-card);
+  padding: 10px 12px;
+}
+
+.metric--macro .metric__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric--macro .metric__top span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ref-muted-fg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.macro-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ref-muted-fg);
+}
+
+.metric--macro .metric__top strong {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric--macro .metric__top strong small {
+  color: var(--ref-muted-fg);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.metric--macro .metric-bar {
+  height: 7px;
+  margin-top: 9px;
+  border-radius: 999px;
+  background: var(--ref-muted);
+}
+
+.metric--macro .metric-bar i {
+  border-radius: 999px;
+}
+
+/* Per-macro identity — the single highest-signal use of colour on the page. */
+
+.metric[data-metric="proteinG"] .macro-dot,
+.metric[data-metric="proteinG"] .metric-bar i { background: var(--macro-protein); }
+.metric[data-metric="proteinG"] .metric__top strong { color: var(--macro-protein-ink); }
+
+.metric[data-metric="carbG"] .macro-dot,
+.metric[data-metric="carbG"] .metric-bar i { background: var(--macro-carb); }
+.metric[data-metric="carbG"] .metric__top strong { color: var(--macro-carb-ink); }
+
+.metric[data-metric="fatG"] .macro-dot,
+.metric[data-metric="fatG"] .metric-bar i { background: var(--macro-fat); }
+.metric[data-metric="fatG"] .metric__top strong { color: var(--macro-fat-ink); }
+
+.metric--macro.metric--flagged {
+  border-color: rgba(209, 67, 67, 0.4);
+  background: #fffafa;
+}
+
+.metric--macro.metric--flagged .metric-bar i { background: var(--ref-danger); }
+.metric--macro.metric--flagged .metric__top strong { color: var(--ref-danger); }
+
+/* ── Meal card header ─────────────────────────────────────────────────── */
+
+.meal-card__icon {
+  border-radius: 12px;
+  background: var(--ref-accent);
+  color: var(--ref-accent-fg);
+}
+
+.meal-card[data-meal-type="breakfast"] .meal-card__icon { background: var(--macro-carb-soft); color: var(--macro-carb-ink); }
+.meal-card[data-meal-type="snack"]     .meal-card__icon { background: var(--macro-protein-soft); color: var(--macro-protein-ink); }
+.meal-card[data-meal-type="lunch"]     .meal-card__icon { background: var(--macro-cal-soft); color: var(--macro-cal-ink); }
+.meal-card[data-meal-type="dinner"]    .meal-card__icon { background: var(--macro-fat-soft); color: var(--macro-fat-ink); }
+
+.meal-card__kcal {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ref-muted);
+  color: var(--ref-muted-fg);
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.meal-card__kcal b {
+  color: var(--ref-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* ── Meal totals footer strip ─────────────────────────────────────────── */
+
+.meal-card__totals {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--ref-border);
+  background: #f7faf9;
+  padding: 12px 20px;
+}
+
+.meal-card__totals-label {
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.meal-metric {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+  text-align: center;
+}
+
+.meal-card__totals span {
+  color: var(--ref-muted-fg);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.meal-card__totals strong {
+  color: var(--ref-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.meal-metric[data-meal-metric="calories"] strong { color: var(--macro-cal-ink); }
+.meal-metric[data-meal-metric="proteinG"] strong { color: var(--macro-protein-ink); }
+.meal-metric[data-meal-metric="carbG"]    strong { color: var(--macro-carb-ink); }
+.meal-metric[data-meal-metric="fatG"]     strong { color: var(--macro-fat-ink); }
+
+/* ── Food rows: tinted icon per food group ────────────────────────────── */
+
+.food-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  align-self: center;
+  border-radius: 9px;
+  background: var(--ref-muted);
+  color: var(--ref-muted-fg);
+}
+
+.food-icon[data-tone="protein"] { background: var(--macro-protein-soft); color: var(--macro-protein-ink); }
+.food-icon[data-tone="carb"]    { background: var(--macro-carb-soft);    color: var(--macro-carb-ink); }
+.food-icon[data-tone="fat"]     { background: var(--macro-fat-soft);     color: var(--macro-fat-ink); }
+
+
+/* ── Explorer empty states ────────────────────────────────────────────── */
+
+.explorer-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border: 1px solid var(--ref-border);
+  border-radius: 12px;
+  background: var(--ref-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  padding: 36px 20px !important;
+}
+
+.explorer-empty[hidden] { display: none; }
+
+.explorer-empty__icon {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--ref-accent);
+  color: var(--ref-primary);
+}
+
+.explorer-empty strong {
+  color: var(--ref-fg) !important;
+  font-size: 14px !important;
+  font-weight: 650;
+}
+
+.explorer-empty p {
+  margin-top: 2px !important;
+  font-size: 13px !important;
+}
+
+.explorer-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── Nav + breadcrumbs: active state carries the brand ────────────────── */
+
+.planner-nav__link[aria-current="page"],
+.site-nav__actions a[aria-current="page"] {
+  color: var(--ref-primary);
+  font-weight: 650;
+}
+
+.breadcrumb strong {
+  font-weight: 650;
+}
+
+.breadcrumb span {
+  color: var(--ref-muted-fg);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .metrics {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .metric--ring {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .cal-ring {
+    width: 104px;
+    height: 104px;
+  }
+
+  .cal-ring__center strong { font-size: 24px; }
+
+  .cal-ring__caption {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .metric--ring .flag-detail { grid-column: 1 / -1; }
+
+  .meal-card__totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .meal-card__totals-label {
+    grid-column: 1 / -1;
+  }
+
+
+  .food-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    align-self: start;
+    margin-top: 1px;
+  }
+}
+
+@media (max-width: 400px) {
+  .meal-card__totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 12px;
+  }
+}
+
+/* ── Inputs card: no trailing dead space when collapsed ───────────────── */
+
+.inputs-card {
+  gap: 0;
+}
+
+.inputs-card > .message {
+  padding: 0 16px 12px;
+}
+
+.inputs-card > .message:empty {
+  display: none;
+}
+
+/* ── Touch targets on phones ──────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .switch-row input[type="checkbox"] {
+    width: 48px;
+    height: 28px;
+  }
+
+  .food-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .breadcrumb a,
+  .breadcrumb strong,
+  .auth-switch a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
+}
+
+/* ── Spacing: segmented control is followed by its own field row ───────── */
+
+.segmented + .field-grid,
+.segmented + label,
+.segmented + .preference-field {
+  margin-top: 12px;
+}
+
+/* ── Remaining ALL-CAPS labels → sentence case ────────────────────────── */
+
+.eyebrow,
+.hero__eyebrow,
+.proposal-compare span,
+.food-list-head {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Meal food table — one column grid shared by the header, every food row and
+   the meal-totals footer, so headings, values and totals stay in line.
+   The actions column is always reserved: toggling AI mode fills it instead of
+   reflowing the table.
+══════════════════════════════════════════════════════════════════════════ */
+
+.food-table {
+  --col-portion: 68px;
+  --col-macro: 62px;
+  --col-actions: 74px;
+  --table-pad: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.food-list-head,
+.food-item,
+.meal-card__totals {
+  display: grid;
+  grid-template-columns:
+    minmax(110px, 1fr)
+    var(--col-portion)
+    var(--col-macro)
+    var(--col-macro)
+    var(--col-macro)
+    var(--col-actions);
+  grid-template-areas: "title portion cal prot carb fat actions";
+  align-items: center;
+  gap: 0 10px;
+  min-width: 580px;
+  margin: 0;
+  padding: 0 var(--table-pad);
+}
+
+/* The four macro columns share one track size. */
+.food-list-head,
+.food-item,
+.meal-card__totals {
+  grid-template-columns:
+    minmax(110px, 1fr)
+    var(--col-portion)
+    repeat(4, var(--col-macro))
+    var(--col-actions);
+}
+
+.food-title,
+.food-col-title { grid-area: title; }
+.food-cell--portion { grid-area: portion; }
+.food-cell--cal { grid-area: cal; }
+.food-cell--protein { grid-area: prot; }
+.food-cell--carb { grid-area: carb; }
+.food-cell--fat { grid-area: fat; }
+.food-actions,
+.food-actions-spacer { grid-area: actions; }
+
+/* ── Column header ────────────────────────────────────────────────────── */
+
+.food-list-head {
+  border-bottom: 1px solid var(--ref-border);
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.food-list-head .food-cell {
+  text-align: right;
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────────── */
+
+.food-list {
+  display: block;
+  gap: 0;
+  padding: 0;
+}
+
+.food-item {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  transition: background 0.2s var(--ease-out);
+}
+
+.food-item + .food-item {
+  margin-top: 0;
+  border-top: 1px solid rgba(220, 231, 225, 0.6);
+}
+
+.food-item:hover {
+  background: #f7faf9;
+  box-shadow: none;
+}
+
+.food-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.food-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.food-name {
+  min-width: 0;
+  color: var(--ref-fg);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.food-cell {
+  min-width: 0;
+  color: var(--ref-muted-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.food-item .food-cell--portion { color: var(--ref-fg); font-weight: 650; }
+.food-item .food-cell--cal     { color: var(--macro-cal-ink); }
+.food-item .food-cell--protein { color: var(--macro-protein-ink); }
+.food-item .food-cell--carb    { color: var(--macro-carb-ink); }
+.food-item .food-cell--fat     { color: var(--macro-fat-ink); }
+
+/* ── Actions column (always reserved) ─────────────────────────────────── */
+
+.food-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.food-actions:empty {
+  /* keeps the column width without drawing anything */
+  display: block;
+}
+
+.food-icon-btn {
+  border: 1px solid var(--ref-border);
+  background: var(--ref-card);
+}
+
+/* ── Meal totals footer ───────────────────────────────────────────────── */
+
+.meal-card__totals {
+  border-top: 1px solid var(--ref-border);
+  background: #f7faf9;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.meal-card__totals-label {
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.meal-metric {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  text-align: right;
+}
+
+.meal-card__totals strong {
+  display: inline;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Changed-row highlight (AI mode applies one row at a time) ────────── */
+
+.food-item--changed {
+  animation: rowChanged 1.5s var(--ease-smooth) both;
+}
+
+.food-item--entering {
+  animation: rowEnter 0.3s var(--ease-smooth) both;
+}
+
+@keyframes rowChanged {
+  0%   { background: var(--macro-cal-soft); }
+  70%  { background: var(--macro-cal-soft); }
+  100% { background: transparent; }
+}
+
+@keyframes rowEnter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Phones: name on its own line, numeric columns stay aligned ───────── */
+
+@media (max-width: 700px) {
+  .food-table {
+    --col-actions: 74px;
+    --table-pad: 14px;
+    overflow-x: visible;
+  }
+
+  .food-list-head,
+  .food-item,
+  .meal-card__totals {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) var(--col-actions);
+    grid-template-areas:
+      "title   title title title title actions"
+      "portion cal   prot  carb  fat   actions";
+    min-width: 0;
+    gap: 5px 5px;
+  }
+
+  .food-list-head {
+    font-size: 10px;
+  }
+
+  /* Header cells would otherwise inherit the 11px value size and collide. */
+  .food-list-head .food-cell {
+    font-size: 10px;
+  }
+
+  /* "Calories" is the one label too wide for a fifth of a phone screen. The
+     full word stays in the DOM for screen readers. */
+  .food-list-head .food-cell--cal {
+    font-size: 0;
+  }
+
+  .food-list-head .food-cell--cal::after {
+    content: "Cal";
+    font-size: 10px;
+  }
+
+  .food-list-head .food-col-title {
+    display: none;
+  }
+
+  .food-cell {
+    font-size: 11px;
+  }
+
+  .food-name {
+    font-size: 13px;
+  }
+
+  .food-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+  }
+
+  .food-actions {
+    gap: 4px;
+  }
+
+  .meal-card__totals strong {
+    font-size: 12px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Page background — soft brand-tinted depth. Fixed so it never scrolls with
+   content, and kept far below text contrast so readability is untouched.
+══════════════════════════════════════════════════════════════════════════ */
+
+body {
+  position: relative;
+  background: var(--ref-bg);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 10% -12%, rgba(15, 110, 86, 0.14), transparent 62%),
+    radial-gradient(45rem 32rem at 102% 4%, rgba(62, 134, 180, 0.10), transparent 62%),
+    radial-gradient(50rem 38rem at 50% 108%, rgba(221, 160, 44, 0.08), transparent 60%);
+}
+
+/* Faint grid, fading out before it reaches the content it sits behind. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(15, 110, 86, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 110, 86, 0.055) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(85% 70% at 50% 0%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(85% 70% at 50% 0%, #000 0%, transparent 78%);
+}
+
+/* Cards sit on the texture, so they need to stay opaque and lifted. */
+.summary,
+.meal-card,
+.inputs-card,
+.input-section,
+.plan-notice,
+.explorer-empty,
+.folder-card,
+.plan-row,
+.stats-bar__item,
+.feature-card {
+  position: relative;
+  z-index: 0;
+}
+
+/* ── Narrow phones: abbreviate the two widest column headings ──────────── */
+/* Full words stay in the DOM, so screen readers still announce them. */
+
+@media (max-width: 400px) {
+  .food-list-head .food-cell--portion,
+  .food-list-head .food-cell--protein {
+    font-size: 0;
+  }
+
+  .food-list-head .food-cell--portion::after {
+    content: "Port";
+    font-size: 10px;
+  }
+
+  .food-list-head .food-cell--protein::after {
+    content: "Prot";
+    font-size: 10px;
   }
 }

@@ -14,8 +14,74 @@ function iconSvg(name, size = 16) {
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     rotate: '<path d="M3 12a9 9 0 0 1 15.5-6.2"/><path d="M18.5 2.5v3.8h-3.8"/>',
     save: '<path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+    sunrise: '<path d="M12 2v6"/><path d="m5 10-1.5-1.5"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19 10 1.5-1.5"/><path d="M8 18a4 4 0 0 1 8 0"/><path d="M3 22h18"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.3 17.7-1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    apple: '<path d="M12 8c-1-2-3-3-5-2-2.5 1.2-3 5 0 10 1 1.7 2 3 3.5 3 .8 0 1-.4 1.5-.4s.7.4 1.5.4c1.5 0 2.5-1.3 3.5-3 3-5 2.5-8.8 0-10-2-1-4 0-5 2Z"/><path d="M12 8V5"/><path d="M12 5c1.5 0 2.5-1 2.5-2.5"/>',
+    fish: '<path d="M3 12c3-4 7-6 12-6 3 0 6 2 6 6s-3 6-6 6c-5 0-9-2-12-6Z"/><path d="M3 12c1.5 1.5 2 3 2 5"/><path d="M3 12c1.5-1.5 2-3 2-5"/><circle cx="16" cy="10.5" r="0.6" fill="currentColor"/>',
+    bread: '<path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4c0 1.2-1 2-2 2v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-6c-1 0-2-.8-2-2Z"/>',
+    salad: '<path d="M4 13h16a8 8 0 0 1-16 0Z"/><path d="M6 20h12"/><path d="M12 10c0-2 1.5-3.5 3.5-3.5"/><path d="M10 10c-.5-1.5-2-2.5-3.5-2"/>',
+    milk: '<path d="M9 2h6"/><path d="M9 2v3L7 8v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8l-2-3V2"/><path d="M7 13h10"/>',
+    egg: '<path d="M12 2c3.5 0 7 6 7 11a7 7 0 0 1-14 0c0-5 3.5-11 7-11Z"/>',
+    nut: '<path d="M12 3c4 0 7 3.5 7 8s-3 10-7 10-7-5.5-7-10 3-8 7-8Z"/><path d="M12 6v12"/>',
+    oil: '<path d="M10 3h4v3l4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l4-4V3Z"/><path d="M9 16h6"/>',
+    coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z"/><path d="M6 2v2"/><path d="M10 2v2"/><path d="M14 2v2"/>',
+    meat: '<path d="M13.5 3a5.5 5.5 0 0 1 5 8.2c-.6 1.1-1.7 1.8-3 1.9l-.6 2.4-2.6 1.3-1.2-1.2-5.4 5.4a2 2 0 0 1-2.8-2.8l5.4-5.4-1.2-1.2 1.3-2.6 2.4-.6c.1-1.3.8-2.4 1.9-3 .8-.4 1.7-.6 2.8-.4Z"/>',
+    powder: '<path d="M9 4h6a1 1 0 0 1 1 1v3H8V5a1 1 0 0 1 1-1Z"/><path d="M7 8h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M9 13h6"/>',
+    folder: '<path d="M4 5h5l2 2.5h9a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>',
+    user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
+    sliders: '<path d="M4 6h10"/><path d="M18 6h2"/><path d="M4 12h4"/><path d="M12 12h8"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>',
   };
   return `<svg ${attrs}>${icons[name] || ''}</svg>`;
+}
+
+// ── Meal + food iconography ──────────────────────────────────────────────────
+// Colour and icon are meaning-bearing: meal type for the card header, food
+// group for each row. Anything unmatched falls back to the neutral plate icon.
+
+const MEAL_ICONS = {
+  breakfast: 'sunrise',
+  suhoor: 'sunrise',
+  snack: 'apple',
+  lunch: 'sun',
+  dinner: 'moon',
+  iftar: 'moon',
+};
+
+function mealIconName(tag) {
+  return MEAL_ICONS[String(tag || '').toLowerCase()] || 'salad';
+}
+
+function mealTypeKey(tag) {
+  const key = String(tag || '').toLowerCase();
+  if (key === 'suhoor') return 'breakfast';
+  if (key === 'iftar') return 'dinner';
+  return MEAL_ICONS[key] ? key : 'other';
+}
+
+// Order matters — the first match wins, so the more specific patterns lead.
+const FOOD_ICON_RULES = [
+  [/whey|protein (powder|concentrate|isolate)|supplement/i, 'powder', 'protein'],
+  [/coffee|espresso|tea\b/i, 'coffee', 'carb'],
+  [/milk|yog(h)?urt|labneh|cheese|cream/i, 'milk', 'protein'],
+  [/egg/i, 'egg', 'protein'],
+  [/fish|tuna|salmon|shrimp|prawn|sardine|seafood/i, 'fish', 'protein'],
+  [/chicken|beef|lamb|turkey|meat|steak|liver|mince/i, 'meat', 'protein'],
+  [/oil|butter|ghee|tahini|mayonnaise/i, 'oil', 'fat'],
+  [/nut|almond|peanut|walnut|cashew|pistachio|seed|sesame|avocado/i, 'nut', 'fat'],
+  [/bread|rice|pasta|oat|cereal|potato|corn|flour|toast|bun|couscous|barley|wheat/i, 'bread', 'carb'],
+  [/apple|banana|orange|berry|berries|grape|melon|mango|date|fruit|peach|pear|kiwi/i, 'apple', 'carb'],
+  [/tomato|lettuce|salad|cucumber|pepper|onion|carrot|spinach|broccoli|vegetable|greens|bean|lentil|chickpea/i, 'salad', 'carb'],
+];
+
+function foodIcon(food) {
+  const name = `${food?.name || ''} ${food?.category || ''}`;
+  for (const [pattern, icon, tone] of FOOD_ICON_RULES) {
+    if (pattern.test(name)) return { icon, tone };
+  }
+  return { icon: 'salad', tone: 'neutral' };
 }
 
 // Auth guard
@@ -228,14 +294,13 @@ function syncInputSummary() {
   if (!inputChipRow) return;
   const input = readForm();
   const chips = [
-    ['Goal', goalLabel(input.goal)],
+    ['Goal', goalLabel(input.goal), 'brand'],
     ['Meals', `${input.numberOfMeals} / day`],
-    ['Diet', titleCase(input.dietType)],
     ['Activity', titleCase(input.activityLevel)],
     ['Weight', `${formatNumber(input.weightKg)} kg`],
   ];
   inputChipRow.innerHTML = chips
-    .map(([label, value]) => `<span class="input-chip"><small>${label}</small>${escapeHtml(value)}</span>`)
+    .map(([label, value, tone]) => `<span class="input-chip"${tone ? ` data-tone="${tone}"` : ''}><small>${label}</small>${escapeHtml(value)}</span>`)
     .join('');
 }
 
@@ -451,29 +516,62 @@ function renderPlanNotice({ tone, title, messages, diagnostics }) {
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 
+const RING_RADIUS = 52;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
   const metrics = summary.querySelector('.metrics');
 
-  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
-    const bounds = dailyMetricBounds(key, targets, serverBounds);
-    const metric = document.createElement('div');
-    metric.className = 'metric';
-    metric.dataset.metric = key;
-    metric.innerHTML = `
-      <div class="metric__top">
-        <span>${labels[key][0]}</span>
+  const calorieBounds = dailyMetricBounds('calories', targets, serverBounds);
+  const ring = document.createElement('div');
+  ring.className = 'metric metric--ring';
+  ring.dataset.metric = 'calories';
+  ring.innerHTML = `
+    <div class="cal-ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="cal-ring__track" cx="60" cy="60" r="${RING_RADIUS}"></circle>
+        <circle class="cal-ring__value" cx="60" cy="60" r="${RING_RADIUS}"
+          stroke-dasharray="${RING_CIRCUMFERENCE.toFixed(1)}"
+          stroke-dashoffset="${RING_CIRCUMFERENCE.toFixed(1)}"></circle>
+      </svg>
+      <div class="cal-ring__center">
+        <strong class="daily-actual daily-actual-calories">—</strong>
+        <span class="cal-ring__unit">kcal</span>
       </div>
-      <strong>
-        <span class="daily-actual daily-actual-${key}">—</span>
-      </strong>
+    </div>
+    <div class="cal-ring__caption">
+      <span>Calories</span>
+      <b>of ${formatNumber(targets.calories)} target</b>
+      <em class="metric-range">${formatAllowedRange(calorieBounds, labels.calories[1])}</em>
+    </div>
+    <div class="flag-detail"></div>
+  `;
+  metrics.append(ring);
+
+  const macroList = document.createElement('div');
+  macroList.className = 'macro-bars';
+  for (const key of ['proteinG', 'carbG', 'fatG']) {
+    const bounds = dailyMetricBounds(key, targets, serverBounds);
+    const row = document.createElement('div');
+    row.className = 'metric metric--macro';
+    row.dataset.metric = key;
+    row.innerHTML = `
+      <div class="metric__top">
+        <span><i class="macro-dot" aria-hidden="true"></i>${labels[key][0]}</span>
+        <strong>
+          <span class="daily-actual daily-actual-${key}">—</span>
+          <small>/ ${formatNumber(targets[key])}${labels[key][1]}</small>
+        </strong>
+      </div>
       <div class="metric-bar" aria-hidden="true"><i></i></div>
       <em class="metric-range">${formatAllowedRange(bounds, labels[key][1])}</em>
       <div class="flag-detail"></div>
     `;
-    metrics.append(metric);
+    macroList.append(row);
   }
+  metrics.append(macroList);
 
   return summary;
 }
@@ -506,8 +604,14 @@ function refreshRedFlags() {
     if (actualEl) actualEl.textContent = formatNumber(actual[key]);
 
     const percent = tgt > 0 ? (actual[key] / tgt) * 100 : 0;
+    const clamped = Math.min(Math.max(percent, 0), 100);
     const barEl = metricEl?.querySelector('.metric-bar i');
-    if (barEl) barEl.style.width = `${Math.min(Math.max(percent, 0), 100)}%`;
+    if (barEl) barEl.style.width = `${clamped}%`;
+
+    const ringEl = metricEl?.querySelector('.cal-ring__value');
+    if (ringEl) {
+      ringEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - clamped / 100));
+    }
 
     const flagDetail = metricEl?.querySelector('.flag-detail');
     if (flagDetail) {
@@ -527,6 +631,8 @@ function renderMealCard(state) {
   const card = mealTemplate.content.firstElementChild.cloneNode(true);
   card.querySelector('h2').textContent = state.name;
   card.dataset.mealIndex = state.mealIndex;
+  card.dataset.mealType = mealTypeKey(state.tag);
+  card.querySelector('.meal-card__icon').innerHTML = iconSvg(mealIconName(state.tag), 20);
   state.cardEl = card;
 
   refreshMealCardHeader(card, state);
@@ -566,16 +672,11 @@ function refreshMealCardHeader(card, state) {
   const totals = computeTotals(state.items);
   card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
 
-  const values = {
-    calories: { actual: totals.calories },
-    proteinG: { actual: totals.proteinG },
-    carbG: { actual: totals.carbG },
-    fatG: { actual: totals.fatG },
-  };
-
-  for (const [key, value] of Object.entries(values)) {
-    const actualEl = card.querySelector(`.meal-actual-${key}`);
-    if (actualEl) actualEl.textContent = formatNumber(value.actual);
+  // The calorie figure appears twice — header chip and meal-totals footer.
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    card.querySelectorAll(`.meal-actual-${key}`).forEach((el) => {
+      el.textContent = formatNumber(totals[key]);
+    });
   }
 }
 
@@ -586,56 +687,109 @@ function mealCardMetaText(state) {
   return `${current} of ${total}`;
 }
 
+// Reconciles the rendered rows against state.items in place. Rows that did not
+// change keep their DOM nodes untouched, so applying a swap in AI mode only
+// repaints the row that actually moved instead of rebuilding the whole meal.
 function renderFoodList(state) {
   const foodList = state.cardEl?.querySelector('.food-list');
   if (!foodList) return;
-  foodList.innerHTML = '';
-  state.items.forEach((_, itemIndex) => {
-    foodList.append(renderFoodItem(state, itemIndex));
+
+  const rows = [...foodList.children];
+
+  state.items.forEach((item, itemIndex) => {
+    const existing = rows[itemIndex];
+    if (!existing) {
+      const row = renderFoodItem(state, itemIndex);
+      row.classList.add('food-item--entering');
+      foodList.append(row);
+      return;
+    }
+    if (updateFoodRow(existing, state, itemIndex)) {
+      existing.classList.remove('food-item--changed');
+      void existing.offsetWidth;
+      existing.classList.add('food-item--changed');
+    }
   });
+
+  rows.slice(state.items.length).forEach((row) => row.remove());
+}
+
+function foodRowSignature(item) {
+  return [
+    item.food?.id ?? item.food?.name ?? '',
+    item.food?.name ?? '',
+    Number(item.quantityG) || 0,
+    item.customFood ? '1' : '0',
+  ].join('|');
+}
+
+// Returns true when anything visible actually changed.
+function updateFoodRow(row, state, itemIndex) {
+  const item = state.items[itemIndex];
+  row.dataset.itemIndex = itemIndex;
+  setRowActions(row, state, itemIndex);
+
+  const signature = foodRowSignature(item);
+  if (row.dataset.signature === signature) return false;
+  row.dataset.signature = signature;
+
+  const food = item.food;
+  const totals = itemTotals(food, item.quantityG);
+  const { icon, tone } = foodIcon(food);
+
+  const iconEl = row.querySelector('.food-icon');
+  iconEl.dataset.tone = tone;
+  iconEl.innerHTML = iconSvg(icon, 15);
+  row.querySelector('.food-name').textContent = food.name;
+
+  const cells = {
+    '.food-cell--portion': formatPortion(item),
+    '.food-cell--cal': formatNumber(totals.calories),
+    '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
+    '.food-cell--carb': `${formatNumber(totals.carbG)}g`,
+    '.food-cell--fat': `${formatNumber(totals.fatG)}g`,
+  };
+  for (const [selector, value] of Object.entries(cells)) {
+    row.querySelector(selector).textContent = value;
+  }
+  return true;
+}
+
+// The actions column is always present in the grid, so toggling AI mode fills
+// or empties it without moving a single other column.
+function setRowActions(row, state, itemIndex) {
+  const slot = row.querySelector('.food-actions');
+  const wanted = Boolean(state.editModeEnabled);
+  if ((slot.dataset.filled === '1') === wanted) return;
+
+  const name = escapeHtml(state.items[itemIndex].food.name);
+  slot.dataset.filled = wanted ? '1' : '0';
+  slot.innerHTML = state.editModeEnabled ? `
+    <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><span aria-hidden="true">⇄</span></button>
+    <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><span aria-hidden="true">⌫</span></button>
+  ` : '';
+  slot.querySelector('.food-swap-btn')?.addEventListener('click', () => showSwapFoodAction(state, Number(row.dataset.itemIndex)));
+  slot.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, Number(row.dataset.itemIndex)));
 }
 
 // ── Food item rendering ──────────────────────────────────────────────────────
 
 function renderFoodItem(state, itemIndex) {
-  const item = state.items[itemIndex];
-  const food = item.food;
-
   const row = document.createElement('div');
-  row.className = `food-item${state.editModeEnabled ? ' food-item--edit' : ''}`;
-  row.dataset.itemIndex = itemIndex;
-
-  const totals = itemTotals(food, item.quantityG);
-
+  row.className = 'food-item';
   row.innerHTML = `
-    <div class="food-main">
-      <div class="food-title">
-        <div class="food-name">${escapeHtml(food.name)}</div>
-        ${food.nameAr ? `<div class="food-ar">${escapeHtml(food.nameAr)}</div>` : ''}
-      </div>
-      <div class="food-grams-readout">${escapeHtml(formatPortion(item))}</div>
-      <div class="food-macros">
-        <strong class="item-kcal">${formatNumber(totals.calories)} kcal</strong>
-        <span class="item-p">P ${formatNumber(totals.proteinG)}g</span>
-        <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
-        <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
-      </div>
-      ${state.editModeEnabled ? `
-        <div class="food-actions">
-          <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${escapeHtml(food.name)}">
-            <span aria-hidden="true">⇄</span>
-          </button>
-          <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${escapeHtml(food.name)}">
-            <span aria-hidden="true">⌫</span>
-          </button>
-        </div>
-      ` : ''}
+    <div class="food-title">
+      <span class="food-icon" aria-hidden="true"></span>
+      <span class="food-name"></span>
     </div>
+    <div class="food-cell food-cell--portion"></div>
+    <div class="food-cell food-cell--cal"></div>
+    <div class="food-cell food-cell--protein"></div>
+    <div class="food-cell food-cell--carb"></div>
+    <div class="food-cell food-cell--fat"></div>
+    <div class="food-actions" data-filled="0"></div>
   `;
-
-  row.querySelector('.food-swap-btn')?.addEventListener('click', () => showSwapFoodAction(state, itemIndex));
-  row.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, itemIndex));
-
+  updateFoodRow(row, state, itemIndex);
   return row;
 }
 
@@ -1205,6 +1359,7 @@ async function attemptGuidedRebalance(state, {
 function showProposal(state, proposal) {
   state.pendingProposal = proposal;
   const panel = actionPanel(state);
+  clearFeedbackTimer(state);
   resetActionPanel(panel);
   panel.hidden = false;
   const currentTotals = computeTotals(state.items);
@@ -1241,6 +1396,8 @@ function showProposal(state, proposal) {
 
 function showDeclineRetry(state, proposal) {
   const panel = actionPanel(state);
+  clearFeedbackTimer(state);
+  resetActionPanel(panel);
   const canTryAnotherMeal = proposal.source === 'alternate_meal' && state.mealOptions.length > 0;
   panel.innerHTML = `
     <p class="meal-action-title">Suggestion declined</p>
@@ -1296,6 +1453,7 @@ function actionPanel(state) {
 
 function showActionMessage(state, text) {
   const panel = actionPanel(state);
+  clearFeedbackTimer(state);
   panel.hidden = false;
   resetActionPanel(panel);
   panel.innerHTML = `<p class="meal-action-message">${escapeHtml(text)}</p>`;
@@ -1306,8 +1464,18 @@ function resetActionPanel(panel) {
   panel.removeAttribute('role');
 }
 
+const FEEDBACK_DISMISS_MS = 5000;
+
+function clearFeedbackTimer(state) {
+  if (state.feedbackTimer) {
+    window.clearTimeout(state.feedbackTimer);
+    state.feedbackTimer = null;
+  }
+}
+
 function showActionFeedback(state, { tone = 'success', message, cardClass = '' }) {
   const panel = actionPanel(state);
+  clearFeedbackTimer(state);
   panel.hidden = false;
   panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger');
   panel.classList.add(tone === 'danger' ? 'meal-action-panel--danger' : 'meal-action-panel--success');
@@ -1322,6 +1490,16 @@ function showActionFeedback(state, { tone = 'success', message, cardClass = '' }
       state.cardEl?.classList.remove(cardClass);
     }, 700);
   }
+
+  // Confirmations are transient — clear themselves so the panel never sticks.
+  state.feedbackTimer = window.setTimeout(() => {
+    state.feedbackTimer = null;
+    if (panel.classList.contains('meal-action-panel--success') || panel.classList.contains('meal-action-panel--danger')) {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      resetActionPanel(panel);
+    }
+  }, FEEDBACK_DISMISS_MS);
 }
 
 function renderFoodSearchResults(state, query, resultsEl, onSelect) {
@@ -1873,10 +2051,12 @@ function setLoading(isLoading) {
   }
 }
 
+// Ramadan mode is no longer exposed in the form; the guard keeps the meal
+// controls usable if it is ever reintroduced.
 function syncRamadanControls() {
   const disabled = Boolean(ramadanToggle?.checked);
-  mealsSelect.disabled = disabled;
-  distributionSelect.disabled = disabled;
+  if (mealsSelect) mealsSelect.disabled = disabled;
+  if (distributionSelect) distributionSelect.disabled = disabled;
 }
 
 function formatNumber(value, decimals = 0) {
