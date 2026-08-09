@@ -262,7 +262,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         .filter((option) => mealOptionFitsTarget(option, meal.target)),
       mealOptionIndex: 0,
       mealOptionsLoaded: (meal.mealOptions || []).length > 0,
-      aiModeEnabled: false,
+      editModeEnabled: false,
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
@@ -428,7 +428,7 @@ function renderMealCard(state) {
   card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
   card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
   card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
-  card.querySelector('.ai-mode-toggle').addEventListener('change', (event) => {
+  card.querySelector('.edit-mode-toggle').addEventListener('change', (event) => {
     setMealAiMode(state, event.target.checked);
   });
   refreshMealCustomizationControls(state);
@@ -438,21 +438,20 @@ function renderMealCard(state) {
 }
 
 function setMealAiMode(state, enabled) {
-  state.aiModeEnabled = Boolean(enabled);
+  state.editModeEnabled = Boolean(enabled);
   renderFoodList(state);
   refreshMealCustomizationControls(state);
-  if (!state.aiModeEnabled) {
+  if (!state.editModeEnabled) {
     const panel = actionPanel(state);
     panel.hidden = true;
     panel.innerHTML = '';
     state.pendingProposal = null;
-    if (chatPanel.currentState === state) chatPanel.close();
   }
 }
 
 function refreshMealCustomizationControls(state) {
   const tray = state.cardEl?.querySelector('.meal-add-tray');
-  if (tray) tray.hidden = !state.aiModeEnabled;
+  if (tray) tray.hidden = !state.editModeEnabled;
 }
 
 function refreshMealCardHeader(card, state) {
@@ -503,7 +502,7 @@ function renderFoodItem(state, itemIndex) {
   const food = item.food;
 
   const row = document.createElement('div');
-  row.className = `food-item${state.aiModeEnabled ? ' food-item--ai' : ''}`;
+  row.className = `food-item${state.editModeEnabled ? ' food-item--edit' : ''}`;
   row.dataset.itemIndex = itemIndex;
 
   const totals = itemTotals(food, item.quantityG);
@@ -521,7 +520,7 @@ function renderFoodItem(state, itemIndex) {
         <span class="item-c">C ${formatNumber(totals.carbG)}g</span>
         <span class="item-f">F ${formatNumber(totals.fatG)}g</span>
       </div>
-      ${state.aiModeEnabled ? `
+      ${state.editModeEnabled ? `
         <div class="food-actions">
           <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${escapeHtml(food.name)}">
             <span aria-hidden="true">⇄</span>
@@ -816,6 +815,7 @@ function mealOptionRequestItems(items) {
 
 function showAddFoodAction(state) {
   const panel = actionPanel(state);
+  resetActionPanel(panel);
   panel.hidden = false;
   panel.innerHTML = `
     <p class="meal-action-title">Add food to ${escapeHtml(state.name)}</p>
@@ -868,7 +868,10 @@ function showAddFoodAction(state) {
       action: 'add_food',
       attemptedItems: attempted,
       title: `Add ${food.name}`,
-      failureReason: `Adding ${food.name} could not be fit by deterministic rebalance.`,
+      failureReason: 'Cannot add this food.',
+      successMessage: 'Food added successfully.',
+      failureMessage: 'Cannot add this food.',
+      feedbackTone: 'success',
     });
   });
 
@@ -884,7 +887,10 @@ function showAddFoodAction(state) {
       action: 'add_custom_food',
       attemptedItems: attempted,
       title: `Add ${food.name}`,
-      failureReason: `Adding custom food ${food.name} could not be fit by deterministic rebalance.`,
+      failureReason: 'Cannot add this food.',
+      successMessage: 'Food added successfully.',
+      failureMessage: 'Cannot add this food.',
+      feedbackTone: 'success',
     });
   });
 }
@@ -892,7 +898,11 @@ function showAddFoodAction(state) {
 function showRemoveFoodAction(state, itemIndex = null) {
   const foods = state.items.filter((item) => item.food);
   if (foods.length <= 1) {
-    showActionMessage(state, 'This meal needs at least one food.');
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: 'Cannot delete this food.',
+      cardClass: 'meal-card--flash-delete',
+    });
     return;
   }
 
@@ -904,12 +914,16 @@ function showRemoveFoodAction(state, itemIndex = null) {
       action: 'remove_food',
       attemptedItems: attempted,
       title: `Remove ${item.food.name}`,
-      failureReason: `Removing ${item.food.name} could not be fit by deterministic rebalance.`,
+      failureReason: 'Cannot delete this food.',
+      successMessage: 'Food deleted.',
+      failureMessage: 'Cannot delete this food.',
+      feedbackTone: 'delete',
     });
     return;
   }
 
   const panel = actionPanel(state);
+  resetActionPanel(panel);
   panel.hidden = false;
   panel.innerHTML = `
     <p class="meal-action-title">Remove one food</p>
@@ -927,7 +941,10 @@ function showRemoveFoodAction(state, itemIndex = null) {
         action: 'remove_food',
         attemptedItems: attempted,
         title: `Remove ${item.food.name}`,
-        failureReason: `Removing ${item.food.name} could not be fit by deterministic rebalance.`,
+        failureReason: 'Cannot delete this food.',
+        successMessage: 'Food deleted.',
+        failureMessage: 'Cannot delete this food.',
+        feedbackTone: 'delete',
       });
     });
     list.append(btn);
@@ -948,6 +965,7 @@ function showSwapFoodAction(state, itemIndex = null) {
   ]).filter(foodAllowedForCurrentPreferences);
 
   const panel = actionPanel(state);
+  resetActionPanel(panel);
   panel.hidden = false;
   panel.innerHTML = `
     <p class="meal-action-title">Swap ${escapeHtml(item.food.name)}</p>
@@ -1004,7 +1022,10 @@ function attemptSwapFood(state, itemIndex, alt) {
     action: 'swap_food',
     attemptedItems: attempted,
     title: `Swap ${item.food.name}`,
-    failureReason: `Swapping ${item.food.name} for ${alt.name} could not be fit by deterministic rebalance.`,
+    failureReason: 'Cannot swap this food.',
+    successMessage: 'Food swapped successfully.',
+    failureMessage: 'Cannot swap this food.',
+    feedbackTone: 'success',
   });
 }
 
@@ -1013,13 +1034,23 @@ async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced 
     action: 'rebalance',
     attemptedItems: state.items,
     title: previewTitle,
-    useAiFallback: false,
     failureReason: 'No combination can solve this meal with the current foods. Change one of the foods.',
   });
 }
 
-async function attemptGuidedRebalance(state, { action, attemptedItems, title, failureReason, useAiFallback = true, rejectedProposal = null, userFeedback = '' }) {
-  showActionMessage(state, 'Checking meal fit...');
+async function attemptGuidedRebalance(state, {
+  action,
+  attemptedItems,
+  title,
+  failureReason,
+  successMessage = '',
+  failureMessage = '',
+  feedbackTone = 'success',
+} = {}) {
+  const shouldApplyImmediately = state.editModeEnabled && ['add_food', 'add_custom_food', 'remove_food', 'swap_food'].includes(action);
+  if (!shouldApplyImmediately) {
+    showActionMessage(state, 'Checking meal fit...');
+  }
   const payloadItems = mealActionItems(attemptedItems);
   try {
     const res = await fetch('/api/rebalance-meal', {
@@ -1038,6 +1069,15 @@ async function attemptGuidedRebalance(state, { action, attemptedItems, title, fa
     if (!res.ok) throw new Error(payload.error || 'Unable to rebalance this meal.');
     if (res.ok && payload.success) {
       const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
+      if (shouldApplyImmediately) {
+        applyMealItems(state, proposedItems, { source: 'deterministic' });
+        showActionFeedback(state, {
+          tone: feedbackTone === 'delete' ? 'danger' : 'success',
+          message: successMessage || 'Meal updated.',
+          cardClass: feedbackTone === 'delete' ? 'meal-card--flash-delete' : 'meal-card--flash-success',
+        });
+        return;
+      }
       showProposal(state, {
         title,
         message: 'Deterministic rebalance found a valid fit.',
@@ -1048,62 +1088,24 @@ async function attemptGuidedRebalance(state, { action, attemptedItems, title, fa
       });
       return;
     }
-    if (useAiFallback) {
-      await requestGuidedAiSuggestion(state, { action, attemptedItems, failureReason, rejectedProposal, userFeedback });
-    } else {
-      showActionMessage(state, failureReason || 'No combination can solve this meal with the current foods. Change one of the foods.');
-    }
-  } catch (error) {
-    showActionMessage(state, error.message || 'Unable to rebalance this meal.');
-  }
-}
-
-async function requestGuidedAiSuggestion(state, { action, attemptedItems, failureReason, rejectedProposal = null, userFeedback = '' }) {
-  showActionMessage(state, 'Deterministic rebalance failed. Asking AI for food-level changes...');
-  try {
-    const res = await fetch('/api/guided-meal-suggestion', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action,
-        mealTag: state.tag,
-        mealTarget: state.target,
-        currentItems: mealActionItems(state.items),
-        attemptedItems: mealActionItems(attemptedItems),
-        failureReason,
-        rejectedProposal: compactRejectedProposal(rejectedProposal),
-        userFeedback,
-        userPreferences: getUserPreferences(),
-        dailyContext: {
-          dailyTargets,
-          weightKg: Number(currentPlanInput?.weightKg),
-        },
-      }),
-      signal: AbortSignal.timeout(50_000),
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: failureMessage || failureReason || 'This change cannot be applied.',
+      cardClass: 'meal-card--flash-fail',
     });
-    const payload = await readJsonResponse(res, 'AI suggestion failed.');
-    if (!res.ok) throw new Error(payload.error || 'AI suggestion failed.');
-    if (payload.status === 'proposal' && Array.isArray(payload.proposedItems)) {
-      const proposedItems = payload.proposedItems.map(itemFromGuidedProposal).filter((item) => item.food);
-      showProposal(state, {
-        title: 'Suggested food change',
-        message: payload.message,
-        proposedItems,
-        proposedTotals: payload.proposedTotals || computeTotals(proposedItems),
-        source: 'ai',
-        retryContext: { action, attemptedItems, failureReason },
-      });
-    } else {
-      showActionMessage(state, payload.message || 'No valid food-level suggestion was found.');
-    }
   } catch (error) {
-    showActionMessage(state, error.message || 'No valid AI suggestion was found.');
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: failureMessage || error.message || 'This change cannot be applied.',
+      cardClass: 'meal-card--flash-fail',
+    });
   }
 }
 
 function showProposal(state, proposal) {
   state.pendingProposal = proposal;
   const panel = actionPanel(state);
+  resetActionPanel(panel);
   panel.hidden = false;
   const currentTotals = computeTotals(state.items);
   panel.innerHTML = `
@@ -1140,24 +1142,13 @@ function showProposal(state, proposal) {
 function showDeclineRetry(state, proposal) {
   const panel = actionPanel(state);
   const canTryAnotherMeal = proposal.source === 'alternate_meal' && state.mealOptions.length > 0;
-  const canRetryAi = proposal.retryContext?.attemptedItems && proposal.retryContext?.action !== 'rebalance';
   panel.innerHTML = `
     <p class="meal-action-title">Suggestion declined</p>
-    ${canRetryAi ? "<label class=\"decline-feedback\">What didn't you like? <input type=\"text\" placeholder=\"Optional feedback\" /></label>" : ''}
     <div class="proposal-actions">
-      ${canRetryAi ? '<button class="btn btn-primary retry-ai" type="button">Try again</button>' : ''}
       ${canTryAnotherMeal ? '<button class="btn btn-primary retry-alternate" type="button">Next ready meal</button>' : ''}
       <button class="btn btn-ghost close-action" type="button">Close</button>
     </div>
   `;
-  panel.querySelector('.retry-ai')?.addEventListener('click', () => {
-    const feedback = panel.querySelector('input').value.trim();
-    requestGuidedAiSuggestion(state, {
-      ...(proposal.retryContext || {}),
-      rejectedProposal: proposal,
-      userFeedback: feedback,
-    });
-  });
   panel.querySelector('.retry-alternate')?.addEventListener('click', () => handleTryAnotherMeal(state));
   panel.querySelector('.close-action').addEventListener('click', () => {
     panel.hidden = true;
@@ -1168,12 +1159,16 @@ function showDeclineRetry(state, proposal) {
 
 function applyProposal(state) {
   if (!state.pendingProposal) return;
-  state.items = state.pendingProposal.proposedItems.map(normalizeStateItem);
+  applyMealItems(state, state.pendingProposal.proposedItems, state.pendingProposal);
+}
+
+function applyMealItems(state, items, options = {}) {
+  state.items = items.map(normalizeStateItem);
   state.isOriginalTemplate = false;
-  state.numberOfSwaps = state.pendingProposal.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
-  if (state.pendingProposal.source === 'alternate_meal') {
-    state.templateName = state.pendingProposal.templateName || state.pendingProposal.title.replace(/^Try\s+/, '');
-    state.isApproximate = Boolean(state.pendingProposal.isApproximate);
+  state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
+  if (options.source === 'alternate_meal') {
+    state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
+    state.isApproximate = Boolean(options.isApproximate);
   } else {
     state.originalMealOption = normalizeMealOption({
       templateId: state.templateId || null,
@@ -1202,7 +1197,31 @@ function actionPanel(state) {
 function showActionMessage(state, text) {
   const panel = actionPanel(state);
   panel.hidden = false;
+  resetActionPanel(panel);
   panel.innerHTML = `<p class="meal-action-message">${escapeHtml(text)}</p>`;
+}
+
+function resetActionPanel(panel) {
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger');
+  panel.removeAttribute('role');
+}
+
+function showActionFeedback(state, { tone = 'success', message, cardClass = '' }) {
+  const panel = actionPanel(state);
+  panel.hidden = false;
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger');
+  panel.classList.add(tone === 'danger' ? 'meal-action-panel--danger' : 'meal-action-panel--success');
+  panel.setAttribute('role', tone === 'danger' ? 'alert' : 'status');
+  panel.innerHTML = `<p class="meal-action-message">${escapeHtml(message)}</p>`;
+
+  if (cardClass && state.cardEl) {
+    state.cardEl.classList.remove('meal-card--flash-success', 'meal-card--flash-delete', 'meal-card--flash-fail');
+    void state.cardEl.offsetWidth;
+    state.cardEl.classList.add(cardClass);
+    window.setTimeout(() => {
+      state.cardEl?.classList.remove(cardClass);
+    }, 700);
+  }
 }
 
 function renderFoodSearchResults(state, query, resultsEl, onSelect) {
@@ -1514,327 +1533,12 @@ function buildPlanData() {
   };
 }
 
-// ── AI Chatbox ───────────────────────────────────────────────────────────────
-
-function resetChat(state, notify = false) {
+function resetChat(state) {
   state.chatWorkingItems = null;
   state.chatPrevWorkingItems = null;
   state.chatHistory = [];
   state.chatTurnCount = 0;
   state.chatMessages = [];
-  if (notify) {
-    const node = buildMessageNode('assistant', 'Meal updated — chat restarted.');
-    state.chatMessages.push(node);
-  }
-  if (chatPanel.currentState === state) chatPanel.syncFromState();
-}
-
-// ── AI Chat Panel singleton ───────────────────────────────────────────────────
-
-function buildMessageNode(role, text, opts = {}) {
-  const wrap = document.createElement('div');
-  wrap.className = 'chatbox-message-group';
-  const bubble = document.createElement('div');
-  bubble.className = `chatbox-msg chatbox-msg--${role}`;
-  bubble.textContent = text;
-  wrap.append(bubble);
-  if (role === 'assistant' && opts.snapshot?.length && opts.mealTarget) {
-    wrap.append(buildSnapshotTable(opts.snapshot, opts.snapshotTotals, opts.mealTarget));
-  }
-  return wrap;
-}
-
-function buildDraftTable(state) {
-  const workingItems = state.chatWorkingItems;
-  const displayItems = workingItems || state.items.filter((i) => i.food).map((i) => ({
-    foodId: i.food.id,
-    name: i.food.name,
-    grams: i.quantityG,
-    calories: parseFloat((i.food.caloriesPer100g * i.quantityG / 100).toFixed(1)),
-    proteinG: parseFloat((i.food.proteinGPer100g * i.quantityG / 100).toFixed(1)),
-    carbG: parseFloat((i.food.carbGPer100g * i.quantityG / 100).toFixed(1)),
-    fatG: parseFloat((i.food.fatGPer100g * i.quantityG / 100).toFixed(1)),
-  }));
-
-  const prevItems = state.chatPrevWorkingItems || (workingItems
-    ? state.items.filter((i) => i.food).map((i) => ({ foodId: i.food.id, grams: i.quantityG }))
-    : null);
-  const prevMap = prevItems ? new Map(prevItems.map((i) => [i.foodId, i])) : null;
-
-  const table = document.createElement('table');
-  table.className = 'chatbox-snapshot';
-  table.innerHTML = '<thead><tr><th>Food</th><th>g</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr></thead>';
-
-  const tbody = document.createElement('tbody');
-  let totals = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
-
-  for (const item of displayItems) {
-    const tr = document.createElement('tr');
-    let diff = 'unchanged';
-    let prevGrams = null;
-    if (prevMap) {
-      const prev = prevMap.get(item.foodId);
-      if (!prev) {
-        diff = 'added';
-      } else if (Math.abs(item.grams - prev.grams) > 0.5) {
-        diff = 'modified';
-        prevGrams = prev.grams;
-      }
-    }
-    if (diff === 'added') tr.className = 'draft-row--added';
-    if (diff === 'modified') tr.className = 'draft-row--modified';
-    const gramsCell = diff === 'modified' ? `${prevGrams}→${item.grams}` : item.grams;
-    tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${gramsCell}</td><td>${formatNumber(item.calories)}</td><td>${formatNumber(item.proteinG)}</td><td>${formatNumber(item.carbG)}</td><td>${formatNumber(item.fatG)}</td>`;
-    tbody.append(tr);
-    totals.calories += item.calories;
-    totals.proteinG += item.proteinG;
-    totals.carbG += item.carbG;
-    totals.fatG += item.fatG;
-  }
-  table.append(tbody);
-
-  const tfoot = document.createElement('tfoot');
-  const target = state.target;
-  const allOk = target && ['calories', 'proteinG', 'carbG', 'fatG'].every(
-    (k) => Math.abs((totals[k] - target[k]) / Math.max(1, target[k])) <= 0.05,
-  );
-  const tfootr = document.createElement('tr');
-  tfootr.className = allOk ? 'snapshot-ok' : 'snapshot-off';
-  tfootr.innerHTML = `<td>Total</td><td>—</td><td>${formatNumber(totals.calories)}</td><td>${formatNumber(totals.proteinG)}</td><td>${formatNumber(totals.carbG)}</td><td>${formatNumber(totals.fatG)}</td>`;
-  tfoot.append(tfootr);
-  table.append(tfoot);
-  return table;
-}
-
-const chatPanel = (() => {
-  let currentState = null;
-  const panelEl = document.getElementById('ai-chat-panel');
-  if (!panelEl) {
-    return {
-      open() {},
-      close() {},
-      async openAndSend() {},
-      syncFromState() {},
-      refreshDraftTable() {},
-      get currentState() { return null; },
-    };
-  }
-  const titleEl = panelEl.querySelector('.ai-chat-panel__title');
-  const messagesEl = panelEl.querySelector('.ai-chat-panel__messages');
-  const statusEl = panelEl.querySelector('.ai-chat-panel__status');
-  const inputEl = panelEl.querySelector('.ai-chat-panel__input');
-  const sendBtn = panelEl.querySelector('.ai-chat-panel__send-btn');
-  const draftTableEl = panelEl.querySelector('.ai-chat-panel__draft-table');
-  const revertBtn = panelEl.querySelector('.ai-chat-panel__revert-btn');
-  const applyBtn = panelEl.querySelector('.ai-chat-panel__apply-btn');
-  const closeBtn = panelEl.querySelector('.ai-chat-panel__close');
-
-  function open(state) {
-    currentState = state;
-    titleEl.textContent = `${state.name}`;
-    syncFromState();
-    panelEl.hidden = false;
-    inputEl.focus();
-  }
-
-  function close() {
-    panelEl.hidden = true;
-  }
-
-  function syncFromState() {
-    if (!currentState) return;
-    messagesEl.innerHTML = '';
-    for (const node of currentState.chatMessages) {
-      messagesEl.append(node.cloneNode(true));
-    }
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    refreshDraftTable();
-  }
-
-  function refreshDraftTable() {
-    if (!currentState) return;
-    draftTableEl.innerHTML = '';
-    draftTableEl.append(buildDraftTable(currentState));
-    applyBtn.hidden = !currentState.chatWorkingItems;
-  }
-
-  function removeRevertButton() {
-    messagesEl.querySelector('.chat-revert-btn')?.remove();
-    if (currentState) {
-      const stored = currentState.chatMessages.find((n) => n.querySelector?.('.chat-revert-btn'));
-      stored?.querySelector('.chat-revert-btn')?.remove();
-    }
-  }
-
-  function addRevertButton() {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-ghost chat-revert-btn';
-    btn.textContent = '↩ Revert last changes';
-    btn.addEventListener('click', () => {
-      if (!currentState?.chatPrevWorkingItems) return;
-      const isOriginal = !currentState.chatPrevWorkingItems[0]?.calories;
-      currentState.chatWorkingItems = isOriginal ? null : currentState.chatPrevWorkingItems;
-      currentState.chatPrevWorkingItems = null;
-      btn.remove();
-      refreshDraftTable();
-    });
-    // Add to live DOM and stored node
-    messagesEl.append(btn);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    const lastStored = currentState.chatMessages[currentState.chatMessages.length - 1];
-    if (lastStored) lastStored.append(btn.cloneNode(true));
-  }
-
-  function pushMessage(role, text, opts = {}) {
-    const node = buildMessageNode(role, text, opts);
-    currentState.chatMessages.push(node);
-    messagesEl.append(node.cloneNode(true));
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  async function sendMessage() {
-    if (!currentState) return;
-    const state = currentState;
-    const userText = inputEl.value.trim();
-    if (!userText) return;
-
-    removeRevertButton();
-    inputEl.value = '';
-    inputEl.disabled = true;
-    sendBtn.disabled = true;
-
-    pushMessage('user', userText);
-    statusEl.hidden = false;
-
-    try {
-      const sourceItems = state.chatWorkingItems
-        ? state.chatWorkingItems.map((pi) => ({ food: foodsById.get(pi.foodId), quantityG: pi.grams }))
-        : state.items.filter((item) => item.food);
-
-      const currentItems = sourceItems.filter((item) => item.food).map((item) => ({
-        name: item.food.name,
-        grams: item.quantityG,
-        foodId: item.food.id,
-        macroRole: item.food.macroRole,
-        categories: item.food.categories || [],
-        calories: parseFloat((item.food.caloriesPer100g * item.quantityG / 100).toFixed(1)),
-        proteinG: parseFloat((item.food.proteinGPer100g * item.quantityG / 100).toFixed(1)),
-        carbG: parseFloat((item.food.carbGPer100g * item.quantityG / 100).toFixed(1)),
-        fatG: parseFloat((item.food.fatGPer100g * item.quantityG / 100).toFixed(1)),
-      }));
-
-      const currentTotals = computeTotals(sourceItems);
-
-      state.chatHistory.push({ role: 'user', content: userText });
-      state.chatTurnCount += 1;
-
-      const res = await fetch('/api/meal-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mealTag: state.tag,
-          mealTarget: state.target,
-          currentItems,
-          currentTotals,
-          userPreferences: getUserPreferences(),
-          conversationHistory: state.chatHistory.slice(0, -1),
-          userMessage: userText,
-        }),
-        signal: AbortSignal.timeout(50_000),
-      });
-
-      const payload = await readJsonResponse(res, 'AI request failed.');
-      if (!res.ok) throw new Error(payload.error || 'AI request failed');
-
-      state.chatHistory.push({ role: 'assistant', content: payload.message || '' });
-
-      if (payload.status === 'negotiating') {
-        pushMessage('assistant', payload.message);
-      } else if (payload.status === 'ready') {
-        const madeChanges = Array.isArray(payload.proposedItems) && payload.proposedItems.length > 0;
-        if (madeChanges) {
-          state.chatPrevWorkingItems = state.chatWorkingItems
-            ? [...state.chatWorkingItems]
-            : state.items.filter((i) => i.food).map((i) => ({ foodId: i.food.id, name: i.food.name, grams: i.quantityG }));
-          state.chatWorkingItems = payload.proposedItems;
-          refreshDraftTable();
-        }
-        pushMessage('assistant', payload.message);
-        if (madeChanges) addRevertButton();
-      } else {
-        pushMessage('assistant', payload.message || "I couldn't process that. Please try again.");
-      }
-
-    } catch (err) {
-      console.error('[meal-chat error]', err);
-      pushMessage('assistant', 'Sorry, I had trouble processing that. Please try again.');
-    } finally {
-      statusEl.hidden = true;
-      inputEl.disabled = false;
-      sendBtn.disabled = false;
-      inputEl.focus();
-    }
-  }
-
-  async function openAndSend(state, text) {
-    open(state);
-    inputEl.value = text;
-    await sendMessage();
-  }
-
-  closeBtn.addEventListener('click', close);
-  sendBtn.addEventListener('click', sendMessage);
-  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
-
-
-  applyBtn.addEventListener('click', () => {
-    if (!currentState?.chatWorkingItems) return;
-    const state = currentState;
-    state.items = state.chatWorkingItems.map((pi) => {
-      const food = foodsById.get(pi.foodId);
-      return { food, quantityG: pi.grams, alternatives: [], broaderAlternatives: [], nearestAlternatives: [], component: null, swapOptions: food ? [food] : [], swapIndex: 0, isEmpty: false };
-    }).filter((i) => i.food);
-    renderFoodList(state);
-    refreshMealCardHeader(state.cardEl, state);
-    refreshRedFlags();
-    resetChat(state);
-  });
-
-  return { open, close, openAndSend, syncFromState, refreshDraftTable, get currentState() { return currentState; } };
-})();
-
-function buildSnapshotTable(snapshot, totals, mealTarget) {
-  const tol = 0.05;
-  const ok = totals && ['calories', 'proteinG', 'carbG', 'fatG'].every(
-    (k) => Math.abs((totals[k] - mealTarget[k]) / Math.max(1, mealTarget[k])) <= tol,
-  );
-
-  const table = document.createElement('table');
-  table.className = 'chatbox-snapshot';
-
-  const thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th>Food</th><th>g</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr>';
-  table.append(thead);
-
-  const tbody = document.createElement('tbody');
-  for (const row of snapshot) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${row.name}</td><td>${row.grams}</td><td>${formatNumber(row.calories)}</td><td>${formatNumber(row.proteinG)}</td><td>${formatNumber(row.carbG)}</td><td>${formatNumber(row.fatG)}</td>`;
-    tbody.append(tr);
-  }
-  table.append(tbody);
-
-  if (totals) {
-    const tfoot = document.createElement('tfoot');
-    const tr = document.createElement('tr');
-    tr.className = ok ? 'snapshot-ok' : 'snapshot-off';
-    tr.innerHTML = `<td>Total</td><td>—</td><td>${formatNumber(totals.calories)}</td><td>${formatNumber(totals.proteinG)}</td><td>${formatNumber(totals.carbG)}</td><td>${formatNumber(totals.fatG)}</td>`;
-    tfoot.append(tr);
-    table.append(tfoot);
-  }
-
-  return table;
 }
 
 function getUserPreferences() {

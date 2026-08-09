@@ -167,9 +167,9 @@
             <p class="meal-card__meta"></p>
           </div>
           <div class="meal-card__actions">
-            <label class="ai-mode-switch">
-              <span>AI mode</span>
-              <input class="ai-mode-toggle" type="checkbox" />
+            <label class="edit-mode-switch">
+              <span>Edit</span>
+              <input class="edit-mode-toggle" type="checkbox" />
               <i aria-hidden="true"></i>
             </label>
           </div>
@@ -210,26 +210,6 @@
         <div class="meal-action-panel" hidden></div>
       </article>
     </template>
-
-    <div id="ai-chat-panel" class="ai-chat-panel" hidden>
-      <div class="ai-chat-panel__header">
-        <span class="ai-chat-panel__title"></span>
-        <button type="button" class="ai-chat-panel__close">✕</button>
-      </div>
-      <div class="ai-chat-panel__messages"></div>
-      <div class="ai-chat-panel__status" hidden>AI is thinking...</div>
-      <div class="ai-chat-panel__input-row">
-        <input type="text" class="ai-chat-panel__input" placeholder="Ask about this meal..." autocomplete="off" />
-        <button type="button" class="btn btn-primary ai-chat-panel__send-btn">Send</button>
-      </div>
-      <div class="ai-chat-panel__draft">
-        <div class="ai-chat-panel__draft-header">
-          <span>Chat Meal</span>
-        </div>
-        <div class="ai-chat-panel__draft-table"></div>
-        <button type="button" class="btn btn-primary ai-chat-panel__apply-btn" hidden>Apply to Meal</button>
-      </div>
-    </div>
 
     <script src="/js/app.js" defer></script>
   </body>

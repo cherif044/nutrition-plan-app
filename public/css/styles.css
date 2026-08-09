@@ -837,7 +837,7 @@ input:focus, select:focus {
   row-gap: 8px;
 }
 
-.food-item:not(.food-item--ai) .food-main {
+.food-item:not(.food-item--edit) .food-main {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "title grams"
@@ -1110,7 +1110,7 @@ input:focus, select:focus {
   border-radius: 8px !important;
 }
 
-.ai-mode-switch {
+.edit-mode-switch {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1120,14 +1120,14 @@ input:focus, select:focus {
   -webkit-user-select: none;
 }
 
-.ai-mode-switch span {
+.edit-mode-switch span {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 850;
   white-space: nowrap;
 }
 
-.ai-mode-switch input {
+.edit-mode-switch input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1135,7 +1135,7 @@ input:focus, select:focus {
   pointer-events: none;
 }
 
-.ai-mode-switch i {
+.edit-mode-switch i {
   position: relative;
   display: inline-block;
   width: 44px;
@@ -1146,7 +1146,7 @@ input:focus, select:focus {
   transition: background 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
 }
 
-.ai-mode-switch i::after {
+.edit-mode-switch i::after {
   content: "";
   position: absolute;
   top: 3px;
@@ -1159,16 +1159,16 @@ input:focus, select:focus {
   transition: transform 0.2s var(--ease-spring);
 }
 
-.ai-mode-switch input:checked + i {
+.edit-mode-switch input:checked + i {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   box-shadow: 0 6px 16px rgba(13, 148, 136, 0.22), inset 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
-.ai-mode-switch input:checked + i::after {
+.edit-mode-switch input:checked + i::after {
   transform: translateX(18px);
 }
 
-.ai-mode-switch input:focus-visible + i {
+.edit-mode-switch input:focus-visible + i {
   outline: 3px solid rgba(13, 148, 136, 0.18);
   outline-offset: 3px;
 }
@@ -1185,6 +1185,24 @@ input:focus, select:focus {
 }
 
 .meal-action-panel[hidden] { display: none; }
+
+.meal-action-panel--success {
+  border-color: rgba(22, 163, 74, 0.28);
+  background: rgba(240, 253, 244, 0.86);
+}
+
+.meal-action-panel--success .meal-action-message {
+  color: #166534;
+}
+
+.meal-action-panel--danger {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: rgba(254, 242, 242, 0.9);
+}
+
+.meal-action-panel--danger .meal-action-message {
+  color: var(--danger);
+}
 
 .meal-action-title {
   margin: 0 0 10px;
@@ -1494,217 +1512,14 @@ input:focus, select:focus {
   padding: 3px;
 }
 
-/* ── AI Chat Panel ────────────────────────────────────────────────────── */
-
-.ai-chat-panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: min(380px, 90vw);
-  height: 100dvh;
-  background: rgba(255, 255, 255, 0.84);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border-left: 1px solid var(--glass-border);
-  box-shadow: -12px 0 48px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  z-index: 200;
-  animation: slideInRight 0.3s var(--ease-smooth) both;
+.meal-card--flash-success {
+  animation: mealFlashSuccess 0.7s var(--ease-smooth) both;
 }
 
-.ai-chat-panel[hidden] { display: none; }
-
-.ai-chat-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.5);
+.meal-card--flash-delete,
+.meal-card--flash-fail {
+  animation: mealFlashDanger 0.7s var(--ease-smooth) both;
 }
-
-.ai-chat-panel__title {
-  font-weight: 800;
-  font-size: 0.88rem;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-
-.ai-chat-panel__close {
-  background: rgba(0, 0, 0, 0.05);
-  border: 0;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--muted);
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s var(--ease-spring);
-}
-
-.ai-chat-panel__close:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: var(--ink);
-  transform: scale(1.1);
-}
-
-.ai-chat-panel__messages {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  scroll-behavior: smooth;
-}
-
-.ai-chat-panel__status {
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-style: italic;
-  padding: 0 16px 8px;
-  flex-shrink: 0;
-}
-
-.ai-chat-panel__input-row {
-  display: flex;
-  gap: 6px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.ai-chat-panel__input {
-  flex: 1;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  padding: 0 12px;
-  height: 38px;
-  font-size: 0.85rem;
-  background: rgba(255, 255, 255, 0.8);
-  color: var(--ink);
-  outline: none;
-  transition: all 0.15s var(--ease-out);
-}
-
-.ai-chat-panel__input:focus {
-  border-color: var(--accent);
-  background: #fff;
-  box-shadow: 0 0 0 2px var(--accent-glow);
-}
-
-.ai-chat-panel__draft {
-  border-top: 1px solid var(--line);
-  padding: 12px 16px 16px;
-  flex-shrink: 0;
-  max-height: 40vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.ai-chat-panel__draft-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.ai-chat-panel__draft-header > span {
-  font-weight: 700;
-  font-size: 0.73rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-
-.ai-chat-panel__revert-btn { font-size: 0.76rem; padding: 2px 8px; height: auto; }
-.ai-chat-panel__apply-btn { width: 100%; margin-top: 10px; font-size: 0.85rem; }
-
-/* ── Chat bubbles ─────────────────────────────────────────────────────── */
-
-.chat-revert-btn { font-size: 0.75rem; padding: 3px 10px; height: auto; margin-top: 6px; display: block; }
-
-.chatbox-msg {
-  padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  max-width: 86%;
-  word-break: break-word;
-  animation: bubblePop 0.25s var(--ease-spring) both;
-}
-
-.chatbox-msg--user {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
-  color: #fff;
-  align-self: flex-end;
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.25);
-}
-
-.chatbox-msg--assistant {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
-  color: var(--ink);
-  align-self: flex-start;
-  border-bottom-left-radius: 4px;
-  border: 1px solid var(--line);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-/* ── Chatbox snapshot table ───────────────────────────────────────────── */
-
-.chatbox-snapshot {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.72rem;
-  margin-top: 6px;
-  color: var(--ink);
-}
-
-.chatbox-snapshot th, .chatbox-snapshot td {
-  padding: 3px 6px;
-  text-align: right;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.chatbox-snapshot th:first-child, .chatbox-snapshot td:first-child {
-  text-align: left;
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chatbox-snapshot thead th { color: var(--muted); font-weight: 600; }
-
-.chatbox-snapshot tfoot tr.snapshot-ok td {
-  font-weight: 700;
-  color: #16a34a;
-  border-top: 2px solid #16a34a;
-  border-bottom: none;
-}
-
-.chatbox-snapshot tfoot tr.snapshot-off td {
-  font-weight: 700;
-  color: var(--danger);
-  border-top: 2px solid var(--danger);
-  border-bottom: none;
-}
-
-.draft-row--added td:first-child::before { content: '+ '; color: #16a34a; font-weight: 700; }
-.draft-row--added { background: rgba(22, 163, 74, 0.06); }
-.draft-row--modified td:first-child::before { content: '↕ '; color: #d97706; font-weight: 700; }
-.draft-row--modified { background: rgba(217, 119, 6, 0.06); }
 
 /* ── Auth & Welcome pages ─────────────────────────────────────────────── */
 
@@ -2005,6 +1820,20 @@ input:focus, select:focus {
   100% { transform: scale(1); }
 }
 
+@keyframes mealFlashSuccess {
+  0%   { box-shadow: var(--shadow); transform: translateY(0); }
+  35%  { box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18), 0 18px 42px rgba(22, 163, 74, 0.18); transform: translateY(-2px); }
+  100% { box-shadow: var(--shadow); transform: translateY(0); }
+}
+
+@keyframes mealFlashDanger {
+  0%   { box-shadow: var(--shadow); transform: translateX(0); }
+  18%  { transform: translateX(-4px); }
+  36%  { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18), 0 18px 42px rgba(220, 38, 38, 0.16); transform: translateX(4px); }
+  54%  { transform: translateX(-2px); }
+  100% { box-shadow: var(--shadow); transform: translateX(0); }
+}
+
 /* ── Responsive — Tablet ──────────────────────────────────────────────── */
 
 @media (max-width: 960px) {
@@ -2036,7 +1865,7 @@ input:focus, select:focus {
       "macros actions";
     row-gap: 8px;
   }
-  .food-item:not(.food-item--ai) .food-main {
+  .food-item:not(.food-item--edit) .food-main {
     grid-template-areas:
       "title grams"
       "macros macros";
@@ -2052,7 +1881,6 @@ input:focus, select:focus {
   .meal-action-panel { margin-left: 16px; margin-right: 16px; }
 
   .planner-nav__brand h1 { font-size: 1.1rem; }
-  .ai-chat-panel { width: 100%; }
 }
 
 @media (max-width: 480px) {
