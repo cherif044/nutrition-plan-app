@@ -1,4 +1,5 @@
 const { Sequelize } = require('sequelize');
+const pg = require('pg');
 
 const databaseUrl = process.env.DATABASE_URL;
 const dbSsl = process.env.DB_SSL;
@@ -22,6 +23,7 @@ function shouldUseSsl() {
 
 const commonOptions = {
   dialect: 'postgres',
+  dialectModule: pg,
   pool: { max: 10, idle: 30000 },
   logging: false,
 };
