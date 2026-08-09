@@ -8,6 +8,7 @@ node_modules/
 .env
 .env.local
 .northflank-env.json
+.vercel.env
 npm-debug.log*
 .idea/
 
