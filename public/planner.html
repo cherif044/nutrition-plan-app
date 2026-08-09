@@ -118,14 +118,6 @@
 
           <section class="panel">
             <h2><span>03</span> Preferences</h2>
-            <label>
-              <span>Diet type</span>
-              <select name="dietType">
-                <option value="standard" selected>Standard</option>
-                <option value="vegetarian">Vegetarian</option>
-                <option value="vegan">Vegan</option>
-              </select>
-            </label>
             <div class="preference-field" data-picker="avoidFoods">
               <span>Avoid foods <small>(allergies &amp; dislikes)</small></span>
               <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
@@ -135,23 +127,6 @@
               <input type="hidden" name="avoidFoods" />
               <div class="suggestions" role="listbox" hidden></div>
             </div>
-            <div class="field-grid">
-              <label>
-                <span>Milk type</span>
-                <select name="milkType">
-                  <option value="skimmed" selected>Skimmed (fat free)</option>
-                  <option value="whole">Whole milk (3.25%)</option>
-                </select>
-              </label>
-              <label>
-                <span>Coffees per day</span>
-                <input type="number" name="coffeesPerDay" min="0" step="1" value="1" />
-              </label>
-            </div>
-            <label class="switch-row">
-              <span>Ramadan split</span>
-              <input type="checkbox" name="ramadanMode" />
-            </label>
           </section>
 
           <button class="generate-button" type="submit">

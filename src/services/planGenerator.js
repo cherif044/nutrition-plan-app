@@ -852,7 +852,7 @@ function normalizeInput(input = {}) {
     dietType,
     allergies: normalizeList(input.allergies),
     dislikes: normalizeList(input.dislikes),
-    milkType: String(input.milkType || '').trim(),
+    milkType: String(input.milkType || 'skimmed').trim(),
     coffeesPerDay: Number.isFinite(coffeesPerDay) ? Math.max(0, coffeesPerDay) : 0,
     avoidFoods: normalizeList(input.avoidFoods ?? []),
     ramadanMode: Boolean(input.ramadanMode),

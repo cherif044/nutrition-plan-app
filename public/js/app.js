@@ -56,6 +56,12 @@ const ramadanToggle = form.elements.ramadanMode;
 const mealsSelect = form.elements.numberOfMeals;
 const distributionSelect = form.elements.mealDistribution;
 const preferenceFields = document.querySelectorAll('.preference-field');
+const DEFAULT_PLAN_OPTIONS = Object.freeze({
+  dietType: 'standard',
+  milkType: 'skimmed',
+  coffeesPerDay: 0,
+  ramadanMode: false,
+});
 
 const labels = {
   calories: ['Calories', 'kcal'],
@@ -131,7 +137,7 @@ freeformButton?.addEventListener('click', () => {
   generateAndRender('/api/generate-plan-freeform');
 });
 
-ramadanToggle.addEventListener('change', syncRamadanControls);
+ramadanToggle?.addEventListener('change', syncRamadanControls);
 syncRamadanControls();
 loadPreferenceOptions();
 
@@ -147,11 +153,11 @@ function readForm() {
     goal: data.get('goal'),
     numberOfMeals: data.get('numberOfMeals'),
     mealDistribution: data.get('mealDistribution'),
-    dietType: data.get('dietType'),
+    dietType: DEFAULT_PLAN_OPTIONS.dietType,
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
-    milkType: data.get('milkType'),
-    coffeesPerDay: data.get('coffeesPerDay'),
-    ramadanMode: data.has('ramadanMode'),
+    milkType: DEFAULT_PLAN_OPTIONS.milkType,
+    coffeesPerDay: DEFAULT_PLAN_OPTIONS.coffeesPerDay,
+    ramadanMode: DEFAULT_PLAN_OPTIONS.ramadanMode,
   };
 }
 
@@ -198,10 +204,6 @@ function populateFormFromInput(input) {
   set('goal', input.goal);
   set('numberOfMeals', input.numberOfMeals);
   set('mealDistribution', input.mealDistribution);
-  set('dietType', input.dietType);
-  set('milkType', input.milkType);
-  set('coffeesPerDay', input.coffeesPerDay);
-  if (input.ramadanMode) form.elements.ramadanMode.checked = true;
   syncRamadanControls();
 }
 
@@ -1837,7 +1839,7 @@ function buildSnapshotTable(snapshot, totals, mealTarget) {
 
 function getUserPreferences() {
   return {
-    dietType: form.elements.dietType?.value || 'standard',
+    dietType: DEFAULT_PLAN_OPTIONS.dietType,
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
   };
 }
@@ -2040,7 +2042,7 @@ function setLoading(isLoading) {
 }
 
 function syncRamadanControls() {
-  const disabled = ramadanToggle.checked;
+  const disabled = Boolean(ramadanToggle?.checked);
   mealsSelect.disabled = disabled;
   distributionSelect.disabled = disabled;
 }
