@@ -12,6 +12,7 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
+const foodIconsDir = path.join(__dirname, '..', 'new_stage_data', 'icons');
 
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
@@ -23,6 +24,7 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api', generationRoutes);
 
+app.use('/food-icons', express.static(foodIconsDir));
 app.use(express.static(publicDir));
 app.get('/js/zxcvbn.browser.js', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'zxcvbn', 'dist', 'zxcvbn.js'));

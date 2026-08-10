@@ -282,6 +282,8 @@ function getPreferenceOptions(foods) {
   const foodOptions = foods.map((food) => ({
     id: `food:${food.id}`,
     label: food.name,
+    foodId: food.id,
+    iconUrl: food.iconUrl || null,
     type: 'food',
     aliases: [food.id, food.name, food.nameAr, ...food.categories].filter(Boolean),
     description: food.nameAr || 'Individual food item.',

@@ -85,6 +85,56 @@ function foodIcon(food) {
   return { icon: 'salad', tone: 'neutral' };
 }
 
+function foodIconUrl(food) {
+  if (food?.iconUrl) return food.iconUrl;
+  if (!food?.id || food.custom) return '';
+  return `/food-icons/${encodeURIComponent(`${food.id}.png`)}`;
+}
+
+function foodFromPreferenceOption(option) {
+  if (!option || option.type !== 'food') return null;
+  const id = option.foodId || String(option.id || '').replace(/^food:/, '');
+  return foodsById.get(id) || {
+    id,
+    name: option.label,
+    iconUrl: option.iconUrl || null,
+    categories: option.aliases || [],
+  };
+}
+
+function setFoodMedia(el, food, fallbackSize = 15) {
+  if (!el) return;
+
+  const { icon, tone } = foodIcon(food);
+  const src = foodIconUrl(food);
+  el.dataset.tone = tone;
+  el.classList.remove('food-icon--image');
+  el.innerHTML = '';
+
+  const renderFallback = () => {
+    el.classList.remove('food-icon--image');
+    el.innerHTML = iconSvg(icon, fallbackSize);
+  };
+
+  if (!src) {
+    renderFallback();
+    return;
+  }
+
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.addEventListener('error', renderFallback, { once: true });
+  el.classList.add('food-icon--image');
+  el.append(img);
+}
+
+function foodMediaPlaceholder(extraClass = '') {
+  return `<span class="food-icon${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true"></span>`;
+}
+
 function produceGroup(food) {
   const categories = new Set(food?.categories || []);
   if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
@@ -842,11 +892,9 @@ function updateFoodRow(row, state, itemIndex) {
 
   const food = item.food;
   const totals = itemTotals(food, item.quantityG);
-  const { icon, tone } = foodIcon(food);
 
   const iconEl = row.querySelector('.food-icon');
-  iconEl.dataset.tone = tone;
-  iconEl.innerHTML = iconSvg(icon, 15);
+  setFoodMedia(iconEl, food, 15);
   row.querySelector('.food-name').textContent = food.name;
 
   const cells = {
@@ -1240,7 +1288,14 @@ function showAddFoodAction(state) {
     renderFoodSearchResults(state, search.value, results, (food) => {
       selectedFood = food;
       selectedEl.hidden = false;
-      selectedEl.innerHTML = `<strong>${escapeHtml(food.name)}</strong><span>${formatNumber(food.caloriesPer100g)} kcal/100g</span>`;
+      selectedEl.innerHTML = `
+        ${foodMediaPlaceholder('guided-selected-food__icon')}
+        <span class="guided-selected-food__body">
+          <strong>${escapeHtml(food.name)}</strong>
+          <small>${formatNumber(food.caloriesPer100g)} kcal/100g</small>
+        </span>
+      `;
+      setFoodMedia(selectedEl.querySelector('.food-icon'), food, 15);
       submit.disabled = false;
     });
   });
@@ -1322,7 +1377,12 @@ function showRemoveFoodAction(state, itemIndex = null) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'suggestion-action-btn';
-    btn.innerHTML = `<strong>${escapeHtml(item.food.name)}</strong><em>${formatNumber(item.quantityG)}g</em>`;
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('suggestion-food-icon')}
+      <strong>${escapeHtml(item.food.name)}</strong>
+      <em>${formatNumber(item.quantityG)}g</em>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), item.food, 15);
     btn.addEventListener('click', () => {
       const attempted = state.items.filter((candidate) => candidate !== item);
       attemptGuidedRebalance(state, {
@@ -1376,7 +1436,12 @@ function showSwapFoodAction(state, itemIndex = null) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'suggestion-action-btn';
-    btn.innerHTML = `<strong>${escapeHtml(alt.name)}</strong><em>Swap</em>`;
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('suggestion-food-icon')}
+      <strong>${escapeHtml(alt.name)}</strong>
+      <em>Swap</em>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
     btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
     list.append(btn);
   });
@@ -1586,7 +1651,13 @@ function showProposal(state, proposal) {
     const totals = itemTotals(item.food, item.quantityG);
     const row = document.createElement('div');
     row.className = 'proposal-item';
-    row.innerHTML = `<strong>${escapeHtml(item.food.name)}</strong><span>${escapeHtml(formatPortion(item))}</span><em>${formatNumber(totals.calories)} kcal · P ${formatNumber(totals.proteinG)}g · C ${formatNumber(totals.carbG)}g · F ${formatNumber(totals.fatG)}g</em>`;
+    row.innerHTML = `
+      ${foodMediaPlaceholder('proposal-food-icon')}
+      <strong>${escapeHtml(item.food.name)}</strong>
+      <span class="proposal-item__portion">${escapeHtml(formatPortion(item))}</span>
+      <em>${formatNumber(totals.calories)} kcal · P ${formatNumber(totals.proteinG)}g · C ${formatNumber(totals.carbG)}g · F ${formatNumber(totals.fatG)}g</em>
+    `;
+    setFoodMedia(row.querySelector('.food-icon'), item.food, 15);
     list.append(row);
   });
   panel.querySelector('.proposal-apply').addEventListener('click', () => applyProposal(state));
@@ -1755,12 +1826,14 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect) {
     btn.type = 'button';
     btn.className = 'suggestion-item';
     btn.innerHTML = `
-      <span>
+      ${foodMediaPlaceholder('suggestion-food-icon')}
+      <span class="suggestion-item__body">
         <strong>${escapeHtml(food.name)}</strong>
         <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${escapeHtml(food.macroRole || 'mixed')}</small>
       </span>
       <em>Select</em>
     `;
+    setFoodMedia(btn.querySelector('.food-icon'), food, 15);
     btn.addEventListener('click', () => {
       resultsEl.hidden = true;
       onSelect(food);
@@ -2324,9 +2397,11 @@ function setupPreferencePicker(field) {
     hidden.value = preferenceState[key].map((o) => o.id).join(',');
     for (const option of preferenceState[key]) {
       const token = document.createElement('button');
+      const food = foodFromPreferenceOption(option);
       token.className = 'token';
       token.type = 'button';
-      token.innerHTML = `<span>${escapeHtml(option.label)}</span><strong aria-hidden="true">x</strong>`;
+      token.innerHTML = `${food ? foodMediaPlaceholder('token-food-icon') : ''}<span>${escapeHtml(option.label)}</span><strong aria-hidden="true">x</strong>`;
+      if (food) setFoodMedia(token.querySelector('.food-icon'), food, 12);
       token.setAttribute('aria-label', `Remove ${option.label}`);
       token.addEventListener('click', () => {
         preferenceState[key] = preferenceState[key].filter((item) => item.id !== option.id);
@@ -2362,16 +2437,19 @@ function setupPreferencePicker(field) {
     } else {
       for (const { option } of matches) {
         const item = document.createElement('button');
+        const food = foodFromPreferenceOption(option);
         item.type = 'button';
         item.dataset.optionId = option.id;
         item.className = 'suggestion-item';
         item.innerHTML = `
-          <span>
+          ${food ? foodMediaPlaceholder('suggestion-food-icon') : ''}
+          <span class="suggestion-item__body">
             <strong>${escapeHtml(option.label)}</strong>
             <small>${escapeHtml(option.description || option.type)}</small>
           </span>
           <em>${escapeHtml(option.type)}</em>
         `;
+        if (food) setFoodMedia(item.querySelector('.food-icon'), food, 15);
         item.addEventListener('click', () => {
           addPreference(option);
           input.value = '';

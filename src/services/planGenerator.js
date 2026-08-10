@@ -3120,6 +3120,7 @@ function filterFoodsForChatbox({ foods, mealTag, userInput }) {
   return balanced.map((f) => ({
     id: f.id,
     name: f.name,
+    iconUrl: f.iconUrl || null,
     macroRole: f.macroRole,
     minServingG: f.minServingG,
     maxServingG: f.maxServingG,

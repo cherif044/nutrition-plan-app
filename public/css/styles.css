@@ -6150,6 +6150,112 @@ body.is-pdf-export .summary {
   order: 99;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Food image icons — circular PNGs from new_stage_data/icons.
+══════════════════════════════════════════════════════════════════════════ */
+
+.food-icon {
+  overflow: hidden;
+  border-radius: 999px !important;
+}
+
+.food-icon--image {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.food-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.suggestion-item {
+  justify-content: flex-start;
+}
+
+.suggestion-item .food-icon,
+.suggestion-action-btn .food-icon,
+.guided-selected-food .food-icon,
+.proposal-item .food-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  align-self: center;
+}
+
+.suggestion-item__body,
+.guided-selected-food__body {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.suggestion-item__body strong,
+.suggestion-item__body small,
+.guided-selected-food__body strong,
+.guided-selected-food__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guided-selected-food {
+  justify-content: flex-start;
+}
+
+.guided-selected-food .guided-selected-food__body {
+  color: inherit;
+  font-size: inherit;
+}
+
+.guided-selected-food__body small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.suggestion-action-btn strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-item {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+}
+
+.proposal-item em {
+  grid-column: 2 / -1;
+}
+
+.token .food-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+@media (max-width: 700px) {
+  .suggestion-item .food-icon,
+  .suggestion-action-btn .food-icon,
+  .guided-selected-food .food-icon,
+  .proposal-item .food-icon {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+  }
+
+  .proposal-item {
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+  }
+}
+
 @media print {
   @page {
     margin: 12mm;

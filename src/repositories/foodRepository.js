@@ -2,6 +2,14 @@ const fs = require('fs');
 const path = require('path');
 
 let cache;
+const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'new_stage_data', 'icons');
+
+function foodIconUrlForId(id) {
+  const fileName = `${id}.png`;
+  return fs.existsSync(path.join(FOOD_ICON_DIR, fileName))
+    ? `/food-icons/${encodeURIComponent(fileName)}`
+    : null;
+}
 
 function loadFoods() {
   if (cache) return cache;
@@ -35,9 +43,12 @@ function normalizeFood(food) {
     }
   }
 
+  const id = String(food.id);
+
   return {
-    id: String(food.id),
+    id,
     name: String(food.name),
+    iconUrl: foodIconUrlForId(id),
     nameAr: food.name_ar ? String(food.name_ar) : '',
     macroRole: String(food.macro_role),
     caloriesPer100g: Number(food.calories_per_100g),
