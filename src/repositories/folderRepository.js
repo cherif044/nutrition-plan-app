@@ -13,11 +13,18 @@ async function getFolderById(folderId, userId) {
 }
 
 async function getRootContents(userId) {
-  const subfolders = await Folder.findAll({
-    where: { parent_id: null, user_id: userId },
-    order: [['name', 'ASC']],
-  });
-  return { folder: null, subfolders, plans: [] };
+  const [subfolders, plans] = await Promise.all([
+    Folder.findAll({
+      where: { parent_id: null, user_id: userId },
+      order: [['name', 'ASC']],
+    }),
+    Plan.findAll({
+      where: { user_id: userId, folder_id: null },
+      attributes: ['id', 'folder_id', 'name', 'created_at', 'updated_at'],
+      order: [['created_at', 'DESC']],
+    }),
+  ]);
+  return { folder: null, subfolders, plans };
 }
 
 async function getFolderContents(folderId, userId) {
@@ -30,8 +37,8 @@ async function getFolderContents(folderId, userId) {
       order: [['name', 'ASC']],
     }),
     Plan.findAll({
-      where: { folder_id: folderId },
-      attributes: ['id', 'name', 'created_at', 'updated_at'],
+      where: { user_id: userId, folder_id: folderId },
+      attributes: ['id', 'folder_id', 'name', 'created_at', 'updated_at'],
       order: [['created_at', 'DESC']],
     }),
   ]);

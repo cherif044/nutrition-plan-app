@@ -21,11 +21,13 @@ CREATE INDEX IF NOT EXISTS idx_folders_user_parent ON folders(user_id, parent_id
 
 CREATE TABLE IF NOT EXISTS plans (
   id         BIGSERIAL PRIMARY KEY,
-  folder_id  BIGINT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+  user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  folder_id  BIGINT REFERENCES folders(id) ON DELETE CASCADE,
   name       VARCHAR(200) NOT NULL,
   plan_data  JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_plans_user_folder ON plans(user_id, folder_id);
 CREATE INDEX IF NOT EXISTS idx_plans_folder ON plans(folder_id);

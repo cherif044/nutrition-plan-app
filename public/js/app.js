@@ -2,8 +2,9 @@ const plannerCtx = (() => {
   const p = new URLSearchParams(location.search);
   const planId = p.get('planId');
   const folderId = p.get('folderId');
+  const exportPdf = p.get('export') === 'pdf';
   if (!planId && !folderId) return null;
-  return { planId, folderId, folderName: null };
+  return { planId, folderId, folderName: null, exportPdf };
 })();
 
 function iconSvg(name, size = 16) {
@@ -82,6 +83,13 @@ function foodIcon(food) {
     if (pattern.test(name)) return { icon, tone };
   }
   return { icon: 'salad', tone: 'neutral' };
+}
+
+function produceGroup(food) {
+  const categories = new Set(food?.categories || []);
+  if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
+  if (categories.has('vegetables') || categories.has('vegetable')) return 'vegetable';
+  return null;
 }
 
 // Auth guard
@@ -176,6 +184,7 @@ const mealStates = [];
 let dailyTargets = null;
 let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
+let pdfExportScheduled = false;
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   const text = await response.text();
@@ -410,15 +419,23 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     }));
   }
 
-  output.append(renderSummary(plan.dailyTargets, plan.diagnostics?.bounds));
+  const summaryEl = renderSummary(plan.dailyTargets, plan.diagnostics?.bounds);
+  if (!plannerCtx?.exportPdf) {
+    output.append(summaryEl);
+  }
 
-  if (editMode) {
+  if (plannerCtx?.exportPdf) {
+    document.body.classList.add('is-pdf-export');
+    if (saveBarSlot) {
+      saveBarSlot.innerHTML = '';
+      reserveSpaceForSaveBar();
+    }
+  } else if (editMode) {
     showEditBar(planId, planName);
   } else if (plannerCtx?.folderId) {
-    showFolderSaveBar(plannerCtx.folderId);
-  } else if (saveBarSlot) {
-    saveBarSlot.innerHTML = '';
-    reserveSpaceForSaveBar();
+    showPlanSaveBar(plannerCtx.folderId);
+  } else {
+    showPlanSaveBar(null);
   }
 
   plan.meals.forEach((meal, mealIndex) => {
@@ -479,7 +496,21 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     output.append(card);
   });
 
+  if (plannerCtx?.exportPdf) {
+    output.append(summaryEl);
+  }
+
   refreshRedFlags();
+  if (plannerCtx?.exportPdf) schedulePdfExport();
+}
+
+function schedulePdfExport() {
+  if (pdfExportScheduled) return;
+  pdfExportScheduled = true;
+  document.title = 'Pinch meal plan export';
+  window.setTimeout(() => {
+    window.print();
+  }, 700);
 }
 
 function isImpossiblePlan(plan) {
@@ -732,6 +763,7 @@ function updateFoodRow(row, state, itemIndex) {
   const item = state.items[itemIndex];
   row.dataset.itemIndex = itemIndex;
   setRowActions(row, state, itemIndex);
+  setProduceCycleControl(row, state, itemIndex);
 
   const signature = foodRowSignature(item);
   if (row.dataset.signature === signature) return false;
@@ -772,8 +804,30 @@ function setRowActions(row, state, itemIndex) {
     <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><span aria-hidden="true">⇄</span></button>
     <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><span aria-hidden="true">⌫</span></button>
   ` : '';
-  slot.querySelector('.food-swap-btn')?.addEventListener('click', () => showSwapFoodAction(state, Number(row.dataset.itemIndex)));
+  slot.querySelector('.food-swap-btn')?.addEventListener('click', () => {
+    const nextIndex = Number(row.dataset.itemIndex);
+    if (produceGroup(state.items[nextIndex]?.food)) {
+      handleCycleProduceSwap(state, nextIndex);
+      return;
+    }
+    showSwapFoodAction(state, nextIndex);
+  });
   slot.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, Number(row.dataset.itemIndex)));
+}
+
+function setProduceCycleControl(row, state, itemIndex) {
+  const item = state.items[itemIndex];
+  const btn = row.querySelector('.produce-cycle-btn');
+  if (!btn) return;
+
+  const group = produceGroup(item?.food);
+  btn.hidden = !group;
+  if (!group) return;
+
+  const label = `Next ${group} for ${item.food.name}`;
+  btn.dataset.group = group;
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
 }
 
 // ── Food item rendering ──────────────────────────────────────────────────────
@@ -785,6 +839,7 @@ function renderFoodItem(state, itemIndex) {
     <div class="food-title">
       <span class="food-icon" aria-hidden="true"></span>
       <span class="food-name"></span>
+      <button class="produce-cycle-btn" type="button" hidden aria-label="Next produce"><span aria-hidden="true">&rsaquo;</span></button>
     </div>
     <div class="food-cell food-cell--portion"></div>
     <div class="food-cell food-cell--cal"></div>
@@ -793,6 +848,10 @@ function renderFoodItem(state, itemIndex) {
     <div class="food-cell food-cell--fat"></div>
     <div class="food-actions" data-filled="0"></div>
   `;
+  row.querySelector('.produce-cycle-btn').addEventListener('click', (event) => {
+    event.stopPropagation();
+    handleCycleProduceSwap(state, Number(row.dataset.itemIndex));
+  });
   updateFoodRow(row, state, itemIndex);
   return row;
 }
@@ -1287,6 +1346,71 @@ function attemptSwapFood(state, itemIndex, alt) {
   });
 }
 
+async function handleCycleProduceSwap(state, itemIndex) {
+  const item = state.items[itemIndex];
+  const group = produceGroup(item?.food);
+  if (!group) return;
+
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  const btn = row?.querySelector('.produce-cycle-btn');
+  if (btn?.disabled) return;
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/produce-swap-options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        itemIndex,
+        currentItems: mealActionItems(state.items),
+        mealTarget: state.target,
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+        },
+        userPreferences: getUserPreferences(),
+        limit: 20,
+      }),
+    });
+    const payload = await readJsonResponse(res, 'Unable to swap produce.');
+    if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
+
+    const option = firstUsableProduceOption(payload.options);
+    if (!option?.items?.length) {
+      showActionFeedback(state, {
+        tone: 'danger',
+        message: `No other ${group} fits this meal window right now.`,
+        cardClass: 'meal-card--flash-fail',
+      });
+      return;
+    }
+
+    const nextName = option.food?.name || `${group} option`;
+    applyMealItems(state, option.items, { source: 'produce_swap' });
+    showActionFeedback(state, {
+      tone: 'success',
+      message: `Swapped to ${nextName}.`,
+      cardClass: 'meal-card--flash-success',
+    });
+  } catch (error) {
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: error.message || 'Unable to swap produce.',
+      cardClass: 'meal-card--flash-fail',
+    });
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function firstUsableProduceOption(options) {
+  return (options || []).find((option) => (
+    option?.food?.id &&
+    Array.isArray(option.items) &&
+    option.items.length > 0
+  ));
+}
+
 async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
   await attemptGuidedRebalance(state, {
     action: 'rebalance',
@@ -1752,14 +1876,16 @@ function showEditBar(planId, initialName) {
   reserveSpaceForSaveBar();
 }
 
-function showFolderSaveBar(folderId) {
+function showPlanSaveBar(folderId = null) {
   const existing = document.getElementById('folder-save-bar');
   if (existing) existing.remove();
   if (!saveBarSlot) return;
 
-  const folderLabel = plannerCtx?.folderName
+  const folderLabel = folderId && plannerCtx?.folderName
     ? escapeHtml(plannerCtx.folderName)
-    : 'Save plan';
+    : 'Home';
+  const saveUrl = folderId ? `/api/folders/${folderId}/plans` : '/api/plans';
+  const explorerUrl = folderId ? `/explorer?folderId=${folderId}` : '/explorer';
 
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
@@ -1782,7 +1908,7 @@ function showFolderSaveBar(folderId) {
     const btn = bar.querySelector('.save-action-bar__save');
     btn.disabled = true; btn.textContent = 'Saving…';
 
-    const res = await fetch(`/api/folders/${folderId}/plans`, {
+    const res = await fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, planData }),
@@ -1793,7 +1919,7 @@ function showFolderSaveBar(folderId) {
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
     msgEl.textContent = `"${name}" saved!`;
-    setTimeout(() => { window.location.href = `/explorer?folderId=${folderId}`; }, 900);
+    setTimeout(() => { window.location.href = explorerUrl; }, 900);
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
@@ -1866,9 +1992,11 @@ function resetChat(state) {
 }
 
 function getUserPreferences() {
+  const input = readForm();
   return {
-    dietType: DEFAULT_PLAN_OPTIONS.dietType,
+    dietType: input.dietType || DEFAULT_PLAN_OPTIONS.dietType,
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
+    dislikes: preferenceState.avoidFoods.map((o) => o.id),
   };
 }
 

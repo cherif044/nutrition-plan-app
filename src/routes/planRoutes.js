@@ -1,9 +1,10 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
-const { getPlan, updatePlanHandler, deletePlanHandler, duplicatePlanHandler } = require('../controllers/planController');
+const { createPlanHandler, getPlan, updatePlanHandler, deletePlanHandler, duplicatePlanHandler } = require('../controllers/planController');
 
 const router = express.Router();
 
+router.post('/', requireAuth, createPlanHandler);
 router.get('/:id', requireAuth, getPlan);
 router.put('/:id', requireAuth, updatePlanHandler);
 router.delete('/:id', requireAuth, deletePlanHandler);

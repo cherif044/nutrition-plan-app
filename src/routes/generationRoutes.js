@@ -8,6 +8,7 @@ const {
   generatePlanFreeformHandler,
   rebalanceMealHandler,
   mealOptionsHandler,
+  produceSwapOptionsHandler,
   mealChatHandler,
   guidedMealSuggestionHandler,
 } = require('../controllers/generationController');
@@ -21,6 +22,7 @@ router.post('/generate-plan', requireAuth, generatePlanHandler);
 router.post('/generate-plan-freeform', requireAuth, generatePlanFreeformHandler);
 router.post('/rebalance-meal', requireAuth, rebalanceMealHandler);
 router.post('/meal-options', requireAuth, mealOptionsHandler);
+router.post('/produce-swap-options', requireAuth, produceSwapOptionsHandler);
 router.post('/meal-chat', requireAuth, mealChatHandler);
 router.post('/guided-meal-suggestion', requireAuth, guidedMealSuggestionHandler);
 

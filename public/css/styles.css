@@ -5054,6 +5054,36 @@ body:has(.explorer-toolbar) .planner-nav {
   line-height: 1.3;
 }
 
+.produce-cycle-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ref-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+
+.produce-cycle-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.produce-cycle-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.produce-cycle-btn[hidden] {
+  display: none;
+}
+
 .food-cell {
   min-width: 0;
   color: var(--ref-muted-fg);
@@ -5420,5 +5450,153 @@ body.is-plan-view {
 
   body.is-plan-view {
     padding-bottom: 24px;
+  }
+}
+
+/* ── Saved plan PDF export ────────────────────────────────────────────── */
+
+body.is-pdf-export .planner-nav,
+body.is-pdf-export .setup-intro,
+body.is-pdf-export #plan-form,
+body.is-pdf-export .planner-save-slot,
+body.is-pdf-export .meal-card__actions,
+body.is-pdf-export .meal-add-tray,
+body.is-pdf-export .meal-action-panel,
+body.is-pdf-export .produce-cycle-btn,
+body.is-pdf-export .food-actions {
+  display: none !important;
+}
+
+body.is-pdf-export {
+  min-height: 100vh;
+  padding-bottom: 32px !important;
+}
+
+body.is-pdf-export .app-shell {
+  width: min(1120px, calc(100% - 32px));
+  padding-top: 28px;
+}
+
+body.is-pdf-export .workspace {
+  display: block;
+}
+
+body.is-pdf-export .workspace,
+body.is-pdf-export .results,
+body.is-pdf-export #plan-output {
+  display: block;
+  width: 100%;
+  max-width: 1040px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+body.is-pdf-export #plan-output {
+  display: grid;
+  gap: 18px;
+  padding: 18px 0 0;
+}
+
+body.is-pdf-export .food-table {
+  overflow: visible;
+}
+
+body.is-pdf-export .food-list-head,
+body.is-pdf-export .food-item,
+body.is-pdf-export .meal-card__totals {
+  min-width: 0;
+  grid-template-columns:
+    minmax(180px, 1fr)
+    var(--col-portion)
+    repeat(4, var(--col-macro));
+  grid-template-areas: "title portion cal prot carb fat";
+}
+
+body.is-pdf-export .summary {
+  order: 99;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html {
+    background: var(--ref-bg) !important;
+  }
+
+  body {
+    background: var(--ref-bg) !important;
+    padding: 0 !important;
+  }
+
+  .planner-nav,
+  .setup-intro,
+  #plan-form,
+  .planner-save-slot,
+  .meal-card__actions,
+  .meal-add-tray,
+  .meal-action-panel,
+  .produce-cycle-btn,
+  .food-actions {
+    display: none !important;
+  }
+
+  body::before,
+  body::after {
+    position: fixed !important;
+  }
+
+  .app-shell {
+    width: 100% !important;
+    max-width: 1040px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .workspace,
+  .results {
+    display: block !important;
+    width: 100% !important;
+    max-width: 1040px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  #plan-output {
+    display: grid !important;
+    gap: 14px !important;
+    width: 100% !important;
+    max-width: 1040px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .summary,
+  .meal-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0 !important;
+    box-shadow: 0 3px 10px rgba(26, 44, 33, 0.12) !important;
+  }
+
+  .food-table {
+    overflow: visible !important;
+  }
+
+  .food-list-head,
+  .food-item,
+  .meal-card__totals {
+    min-width: 0 !important;
+    grid-template-columns:
+      minmax(180px, 1fr)
+      var(--col-portion)
+      repeat(4, var(--col-macro)) !important;
+    grid-template-areas: "title portion cal prot carb fat" !important;
   }
 }

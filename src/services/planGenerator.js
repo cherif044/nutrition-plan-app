@@ -2531,6 +2531,13 @@ function getCuisineGroup(food) {
   return 'neutral';
 }
 
+function produceGroup(food) {
+  const categories = new Set(food?.categories || []);
+  if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
+  if (categories.has('vegetables') || categories.has('vegetable')) return 'vegetable';
+  return null;
+}
+
 function cuisineCompatible(groupA, groupB) {
   if (groupA === 'neutral' || groupB === 'neutral') return true;
   return groupA === groupB;
@@ -2972,6 +2979,108 @@ function rebalanceMeal({ mealTarget, items: rawItems, mealBounds, dailyContext }
   };
 }
 
+function getProduceSwapOptions({
+  itemIndex,
+  currentItems,
+  mealTarget,
+  dailyContext,
+  userPreferences = {},
+  limit = 20,
+}) {
+  if (!Number.isInteger(itemIndex) || !Array.isArray(currentItems) || !mealTarget || !dailyContext) {
+    throw new Error('itemIndex, currentItems, mealTarget, and dailyContext are required.');
+  }
+
+  const resolvedItems = resolveMealActionItems(currentItems);
+  const currentItem = resolvedItems[itemIndex];
+  const group = produceGroup(currentItem?.food);
+  if (!currentItem || !group) {
+    return { group: null, options: [] };
+  }
+
+  const foods = loadFoods();
+  const safeInput = {
+    dietType: userPreferences?.dietType || 'standard',
+    avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
+    allergies: [],
+    dislikes: Array.isArray(userPreferences?.dislikes) ? userPreferences.dislikes : [],
+  };
+
+  let allowedFoods;
+  try {
+    allowedFoods = filterFoods(foods, safeInput);
+  } catch {
+    const avoided = new Set(safeInput.avoidFoods.map(String));
+    allowedFoods = foods.filter((food) => !avoided.has(food.id));
+  }
+
+  const sortedGroupFoods = allowedFoods
+    .filter((food) => produceGroup(food) === group)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (sortedGroupFoods.length <= 1) {
+    return { group, options: [] };
+  }
+
+  const startIndex = Math.max(0, sortedGroupFoods.findIndex((food) => food.id === currentItem.food.id));
+  const orderedCandidates = [];
+  for (let offset = 1; offset <= sortedGroupFoods.length; offset += 1) {
+    const candidate = sortedGroupFoods[(startIndex + offset) % sortedGroupFoods.length];
+    if (candidate.id !== currentItem.food.id) orderedCandidates.push(candidate);
+  }
+
+  const options = [];
+  for (const candidate of orderedCandidates) {
+    if (options.length >= limit) break;
+
+    const replacementQuantityG = clampServing(candidate, currentItem.quantityG);
+    const attemptedItems = currentItems.map((rawItem, index) => {
+      if (index === itemIndex) {
+        return { foodId: candidate.id, quantityG: replacementQuantityG };
+      }
+      return {
+        foodId: rawItem.foodId ?? rawItem.food?.id,
+        quantityG: rawItem.quantityG,
+        customFood: rawItem.customFood || null,
+      };
+    });
+
+    let result;
+    try {
+      result = rebalanceMeal({ mealTarget, items: attemptedItems, dailyContext });
+    } catch {
+      continue;
+    }
+    if (!result.success) continue;
+
+    options.push({
+      food: candidate,
+      items: hydrateProduceSwapItems(attemptedItems, result.items),
+      totals: result.totals,
+    });
+  }
+
+  return { group, options };
+}
+
+function hydrateProduceSwapItems(requestItems, solvedItems) {
+  const foods = loadFoods();
+  const foodById = new Map(foods.map((food) => [food.id, food]));
+  const requestById = new Map(requestItems.map((item) => [String(item.foodId), item]));
+
+  return (solvedItems || []).map((item) => {
+    const foodId = String(item.foodId);
+    const request = requestById.get(foodId);
+    const food = foodById.get(foodId) || resolveFoodForMealAction(request || item, foodById);
+    if (!food) return null;
+    return {
+      food,
+      quantityG: item.quantityG,
+      customFood: request?.customFood || null,
+    };
+  }).filter(Boolean);
+}
+
 function adjustPortions(initialItems, target) {
   return solvePortionsLeastSquares(initialItems, target, {
     maxIterations: NUTRITION.maxPortionAdjustmentIterations * 4,
@@ -3031,7 +3140,9 @@ module.exports = {
   dailyTotalsWithinPlanBounds,
   computeMealBounds,
   validateMealSwap,
+  getProduceSwapOptions,
   filterFoodsForChatbox,
+  filterFoods,
   generateAlternateMealOptions,
   solvePortionsLeastSquares,
   findBestPortionGridFit,

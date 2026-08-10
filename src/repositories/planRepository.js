@@ -5,8 +5,18 @@ function stripMeta(plan) {
   return rest;
 }
 
-async function createPlan(folderId, name, planData) {
-  const plan = await Plan.create({ folder_id: folderId, name: name.trim(), plan_data: planData });
+async function createPlan(userId, folderId, name, planData) {
+  if (folderId !== null && folderId !== undefined) {
+    const folder = await Folder.findOne({ where: { id: folderId, user_id: userId } });
+    if (!folder) throw Object.assign(new Error('Folder not found.'), { status: 404 });
+  }
+
+  const plan = await Plan.create({
+    user_id: userId,
+    folder_id: folderId || null,
+    name: name.trim(),
+    plan_data: planData,
+  });
   const { plan_data: _, ...rest } = plan.toJSON();
   return rest;
 }
@@ -21,18 +31,15 @@ async function getPlansByFolder(folderId) {
 
 async function getPlanById(planId, userId) {
   const plan = await Plan.findOne({
-    where: { id: planId },
-    include: [{ model: Folder, where: { user_id: userId }, required: true, attributes: [] }],
+    where: { id: planId, user_id: userId },
   });
   if (!plan) return null;
-  const { Folder: _f, ...rest } = plan.toJSON();
-  return rest;
+  return plan.toJSON();
 }
 
 async function updatePlan(planId, userId, { name, planData }) {
   const plan = await Plan.findOne({
-    where: { id: planId },
-    include: [{ model: Folder, where: { user_id: userId }, required: true, attributes: [] }],
+    where: { id: planId, user_id: userId },
   });
   if (!plan) return null;
 
@@ -46,8 +53,7 @@ async function updatePlan(planId, userId, { name, planData }) {
 
 async function deletePlan(planId, userId) {
   const plan = await Plan.findOne({
-    where: { id: planId },
-    include: [{ model: Folder, where: { user_id: userId }, required: true, attributes: [] }],
+    where: { id: planId, user_id: userId },
   });
   if (!plan) return false;
   await plan.destroy();
@@ -58,11 +64,14 @@ async function duplicatePlan(planId, userId, targetFolderId, newName) {
   const source = await getPlanById(planId, userId);
   if (!source) throw Object.assign(new Error('Plan not found.'), { status: 404 });
 
-  const targetFolder = await Folder.findOne({ where: { id: targetFolderId, user_id: userId } });
-  if (!targetFolder) throw Object.assign(new Error('Target folder not found.'), { status: 404 });
+  if (targetFolderId !== null && targetFolderId !== undefined) {
+    const targetFolder = await Folder.findOne({ where: { id: targetFolderId, user_id: userId } });
+    if (!targetFolder) throw Object.assign(new Error('Target folder not found.'), { status: 404 });
+  }
 
   const plan = await Plan.create({
-    folder_id: targetFolderId,
+    user_id: userId,
+    folder_id: targetFolderId || null,
     name: (newName || source.name).trim(),
     plan_data: source.plan_data,
   });

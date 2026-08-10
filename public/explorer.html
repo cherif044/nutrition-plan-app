@@ -220,9 +220,10 @@
           </svg>
         </span>
         <strong>No folders yet</strong>
-        <p>Create your first folder to organize your plans.</p>
+        <p>Create a folder or add a plan at Home.</p>
         <div class="explorer-empty__actions">
-          <button class="btn btn-primary" type="button" data-empty-action="new-folder">+ New folder</button>
+          <button class="btn btn-ghost" type="button" data-empty-action="new-folder">+ New folder</button>
+          <button class="btn btn-primary" type="button" data-empty-action="new-plan">+ New plan</button>
         </div>
       </div>
     </main>
@@ -340,7 +341,7 @@
           grid.append(card);
         });
 
-        if (plans.length && currentFolderId) {
+        if (plans.length) {
           plansSection.hidden = false;
           plans.forEach((plan) => {
             const row = document.createElement('div');
@@ -355,7 +356,7 @@
             `;
             row.addEventListener('click', (e) => {
               if (e.target.closest('.item-menu-btn')) return;
-              window.location.href = `/planner?planId=${plan.id}&folderId=${currentFolderId}`;
+              window.location.href = plannerHref(plan.id);
             });
             row.querySelector('.item-menu-btn').addEventListener('click', (e) => {
               e.stopPropagation();
@@ -409,12 +410,18 @@
         return a;
       }
 
+      function plannerHref(planId) {
+        return currentFolderId
+          ? `/planner?planId=${planId}&folderId=${currentFolderId}`
+          : `/planner?planId=${planId}`;
+      }
+
       // Empty-state CTAs mirror the toolbar actions so the call to action sits
       // with the message rather than only in the header.
       document.querySelectorAll('[data-empty-action]').forEach((btn) => {
         btn.addEventListener('click', () => {
           if (btn.dataset.emptyAction === 'new-folder') openFolderModal();
-          else if (currentFolderId) window.location.href = `/planner?folderId=${currentFolderId}`;
+          else window.location.href = currentFolderId ? `/planner?folderId=${currentFolderId}` : '/planner';
         });
       });
 
@@ -428,16 +435,14 @@
         newFolderBtn.addEventListener('click', () => openFolderModal());
         actions.append(newFolderBtn);
 
-        if (currentFolderId) {
-          const newPlanBtn = document.createElement('button');
-          newPlanBtn.className = 'btn btn-primary';
-          newPlanBtn.type = 'button';
-          newPlanBtn.textContent = '+ New plan';
-          newPlanBtn.addEventListener('click', () => {
-            window.location.href = `/planner?folderId=${currentFolderId}`;
-          });
-          actions.append(newPlanBtn);
-        }
+        const newPlanBtn = document.createElement('button');
+        newPlanBtn.className = 'btn btn-primary';
+        newPlanBtn.type = 'button';
+        newPlanBtn.textContent = '+ New plan';
+        newPlanBtn.addEventListener('click', () => {
+          window.location.href = currentFolderId ? `/planner?folderId=${currentFolderId}` : '/planner';
+        });
+        actions.append(newPlanBtn);
       }
 
       // ── Context menus ──────────────────────────────────────────────────────
@@ -479,12 +484,17 @@
         e.stopPropagation();
         ctxMenu.innerHTML = `
           <button data-action="open">Open</button>
+          <button data-action="export">Export as PDF</button>
           <button data-action="dup">Duplicate</button>
           <button data-action="delete" class="danger">Delete</button>
         `;
         ctxMenu.querySelector('[data-action="open"]').addEventListener('click', () => {
           ctxMenu.hidden = true;
-          window.location.href = `/planner?planId=${planId}&folderId=${currentFolderId}`;
+          window.location.href = plannerHref(planId);
+        });
+        ctxMenu.querySelector('[data-action="export"]').addEventListener('click', () => {
+          ctxMenu.hidden = true;
+          window.open(`${plannerHref(planId)}&export=pdf`, '_blank', 'noopener');
         });
         ctxMenu.querySelector('[data-action="dup"]').addEventListener('click', () => {
           ctxMenu.hidden = true;
@@ -558,7 +568,7 @@
 
       async function openDupModal(planId, planName) {
         dupPlanId = planId;
-        selectedDupFolderId = null;
+        selectedDupFolderId = undefined;
         document.getElementById('dup-name-input').value = planName + ' (copy)';
         document.getElementById('dup-modal-error').textContent = '';
 
@@ -566,12 +576,22 @@
         const { tree } = await res.json();
         const treeEl = document.getElementById('dup-tree');
         treeEl.innerHTML = '';
-        if (!tree.length) {
-          treeEl.innerHTML = '<div class="tree-empty">No folders yet. Create a folder first.</div>';
-        } else {
-          renderTree(tree, treeEl, 0);
-        }
+        renderRootTreeItem(treeEl);
+        renderTree(tree, treeEl, 0);
         document.getElementById('dup-modal').hidden = false;
+      }
+
+      function renderRootTreeItem(container) {
+        const item = document.createElement('div');
+        item.className = 'tree-item';
+        item.dataset.folderId = '';
+        item.innerHTML = `<span class="tree-item__icon" aria-hidden="true">${ICONS.file}</span>Home`;
+        item.addEventListener('click', () => {
+          container.querySelectorAll('.tree-item').forEach((el) => el.classList.remove('selected'));
+          item.classList.add('selected');
+          selectedDupFolderId = null;
+        });
+        container.append(item);
       }
 
       function renderTree(nodes, container, depth) {
@@ -601,7 +621,7 @@
       document.getElementById('dup-modal-save').addEventListener('click', async () => {
         const errEl = document.getElementById('dup-modal-error');
         errEl.textContent = '';
-        if (!selectedDupFolderId) { errEl.textContent = 'Select a destination folder.'; return; }
+        if (selectedDupFolderId === undefined) { errEl.textContent = 'Select a destination.'; return; }
         const newName = document.getElementById('dup-name-input').value.trim();
         if (!newName) { errEl.textContent = 'Enter a name for the copy.'; return; }
 

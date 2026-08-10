@@ -26,7 +26,8 @@ CREATE TABLE folders (
 
 CREATE TABLE plans (
   id         BIGSERIAL   PRIMARY KEY,
-  folder_id  BIGINT      NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+  user_id    BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  folder_id  BIGINT      REFERENCES folders(id) ON DELETE CASCADE,
   name       VARCHAR     NOT NULL,
   plan_data  JSONB       NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),

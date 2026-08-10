@@ -79,9 +79,12 @@ async function savePlanInFolder(req, res, next) {
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
 
-    const plan = await createPlan(folder.id, name, planData);
+    const plan = await createPlan(req.user.id, folder.id, name, planData);
     res.status(201).json({ plan });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 }
 
 module.exports = {
