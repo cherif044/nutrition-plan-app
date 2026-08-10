@@ -167,6 +167,9 @@ const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
 
 let foodsById = new Map();
+// Declared up here because reserveSpaceForSaveBar() runs during init, before
+// the function that uses it appears further down the file.
+let saveBarResizeObserver = null;
 loadAllFoods();
 
 const mealStates = [];
@@ -261,7 +264,7 @@ function switchPlannerView(view, { push = false } = {}) {
   document.body.classList.toggle('is-plan-view', isPlan);
   document.body.classList.toggle('is-input-view', !isPlan);
   if (emptyState) emptyState.hidden = isPlan;
-  if (saveBarSlot && !isPlan) saveBarSlot.innerHTML = '';
+  if (saveBarSlot && !isPlan) { saveBarSlot.innerHTML = ''; reserveSpaceForSaveBar(); }
   updateSubmitIdleLabel();
 
   if (push) {
@@ -415,6 +418,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     showFolderSaveBar(plannerCtx.folderId);
   } else if (saveBarSlot) {
     saveBarSlot.innerHTML = '';
+    reserveSpaceForSaveBar();
   }
 
   plan.meals.forEach((meal, mealIndex) => {
@@ -1447,6 +1451,32 @@ function applyMealItems(state, items, options = {}) {
   state.pendingProposal = null;
 }
 
+// The save bar is sticky at the bottom, so the page has to reserve exactly its
+// height or the bar sits on top of the last meal card. Its height varies with
+// viewport and validation messages, so measure it rather than guessing.
+function reserveSpaceForSaveBar() {
+  const bar = saveBarSlot?.querySelector('.save-action-bar');
+  if (!bar) {
+    document.body.style.removeProperty('--save-bar-height');
+    saveBarResizeObserver?.disconnect();
+    saveBarResizeObserver = null;
+    return;
+  }
+
+  const apply = () => {
+    document.body.style.setProperty('--save-bar-height', `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  };
+  apply();
+
+  saveBarResizeObserver?.disconnect();
+  if (typeof ResizeObserver === 'function') {
+    saveBarResizeObserver = new ResizeObserver(apply);
+    saveBarResizeObserver.observe(bar);
+  } else {
+    window.addEventListener('resize', apply);
+  }
+}
+
 function actionPanel(state) {
   return state.cardEl.querySelector('.meal-action-panel');
 }
@@ -1719,6 +1749,7 @@ function showEditBar(planId, initialName) {
   });
 
   saveBarSlot.replaceChildren(bar);
+  reserveSpaceForSaveBar();
 }
 
 function showFolderSaveBar(folderId) {
@@ -1777,6 +1808,7 @@ function showFolderSaveBar(folderId) {
   });
 
   saveBarSlot.replaceChildren(bar);
+  reserveSpaceForSaveBar();
 }
 
 function buildPlanData() {

@@ -5157,16 +5157,37 @@ body:has(.explorer-toolbar) .planner-nav {
     overflow-x: visible;
   }
 
-  .food-list-head,
+  /* Phones drop the column header entirely and label each value inline, so a
+     number never has to be matched back to a heading further up the card. */
+  .food-list-head {
+    display: none;
+  }
+
   .food-item,
   .meal-card__totals {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) var(--col-actions);
+    grid-template-columns: repeat(4, minmax(0, 1fr)) var(--col-actions);
     grid-template-areas:
-      "title   title title title title actions"
-      "portion cal   prot  carb  fat   actions";
+      "title title title portion actions"
+      "cal   prot  carb  fat     actions";
     min-width: 0;
-    gap: 5px 5px;
+    gap: 6px 8px;
   }
+
+  .food-item .food-cell--cal,
+  .food-item .food-cell--protein,
+  .food-item .food-cell--carb,
+  .food-item .food-cell--fat,
+  .meal-card__totals .food-cell--cal,
+  .meal-card__totals .food-cell--protein,
+  .meal-card__totals .food-cell--carb,
+  .meal-card__totals .food-cell--fat {
+    text-align: left;
+  }
+
+  .food-cell--cal::after { content: " kcal"; opacity: 0.65; }
+  .food-cell--protein::before { content: "P "; opacity: 0.65; }
+  .food-cell--carb::before { content: "C "; opacity: 0.65; }
+  .food-cell--fat::before { content: "F "; opacity: 0.65; }
 
   .food-list-head {
     font-size: 10px;
@@ -5285,5 +5306,119 @@ body::after {
   .food-list-head .food-cell--protein::after {
     content: "Prot";
     font-size: 10px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Avoid-foods suggestions — in-flow, not an overlay.
+   As an absolutely-positioned dropdown it both covered the Generate button and
+   got clipped by the inputs card's `overflow: hidden`. Laying it out in the
+   normal flow makes the card grow instead, so nothing overlaps or is cut off.
+══════════════════════════════════════════════════════════════════════════ */
+
+.preference-field .suggestions {
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: auto;
+  max-height: min(260px, 38vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
+  border: 1px solid var(--ref-border);
+  border-radius: 10px;
+  background: var(--ref-card);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  animation: none;
+}
+
+.preference-field .suggestions[hidden] {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Save bar — a column flex container turns `flex-basis` into a HEIGHT, which
+   stretched the name field to 220px and pushed the bar over the plan.
+══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 680px) {
+  .save-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .save-action-bar__name {
+    grid-column: 1 / -1;
+    flex: 0 0 auto;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .save-action-bar__discard,
+  .save-action-bar__save {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+
+  .save-action-bar__msg {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Reserve the sticky save bar's measured height so it never covers the plan. */
+
+body.is-plan-view {
+  padding-bottom: calc(var(--save-bar-height, 0px) + 16px);
+}
+
+/* ── Mobile row breathing room + totals emphasis ──────────────────────── */
+
+@media (max-width: 700px) {
+  .food-item {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .food-item .food-cell--portion {
+    text-align: right;
+    font-size: 12px;
+  }
+
+  .meal-card__totals .food-cell--portion {
+    display: none;
+  }
+
+  .meal-card__totals-label {
+    align-self: center;
+  }
+
+  .meal-card__totals strong {
+    font-size: 13px;
+  }
+}
+
+/* Totals carry the same unit as the rows they sum. */
+
+.meal-card__totals .food-cell--protein strong::after,
+.meal-card__totals .food-cell--carb strong::after,
+.meal-card__totals .food-cell--fat strong::after {
+  content: "g";
+}
+
+/* ── Save bar: docked on phones rather than floating over the plan ─────── */
+/* A 148px sticky bar eats a fifth of a phone screen and covers meal cards as
+   you scroll. On mobile it sits at the end of the plan instead; the sticky
+   treatment stays on larger screens where there is room for it. */
+
+@media (max-width: 700px) {
+  .planner-save-slot {
+    position: static;
+    margin-top: 24px;
+  }
+
+  body.is-plan-view {
+    padding-bottom: 24px;
   }
 }
