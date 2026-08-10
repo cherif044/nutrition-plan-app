@@ -128,7 +128,6 @@
             nav.innerHTML = `
               <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
               <a class="planner-nav__link" href="/dashboard">Home</a>
-              <a class="planner-nav__link" href="/explorer">Explorer</a>
               <button class="planner-nav__link" id="logout-btn" type="button">Log out</button>
             `;
             document.getElementById('logout-btn').addEventListener('click', async () => {

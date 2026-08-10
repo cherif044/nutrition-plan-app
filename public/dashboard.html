@@ -58,10 +58,14 @@
             <div class="dashboard-customer-plans" id="selected-customer-plans" hidden></div>
           </section>
 
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="recent-title">
+          <section class="dashboard-section dashboard-panel-card" aria-labelledby="general-title">
             <header class="dashboard-section__header">
-              <h2 id="recent-title">Recent plans</h2>
+              <h2 id="general-title">General plans</h2>
             </header>
+            <label class="dashboard-search">
+              <span class="sr-only">Search general plans</span>
+              <input id="general-plan-search" type="search" placeholder="Search general plans" autocomplete="off" />
+            </label>
             <div class="dashboard-plan-grid" id="recent-plans"></div>
           </section>
         </div>
@@ -74,10 +78,6 @@
             <a class="dashboard-action-tile" href="/planner">
               <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true"></span>
               <span>New plan</span>
-            </a>
-            <a class="dashboard-action-tile" href="/explorer">
-              <span class="dashboard-icon-square" data-tone="carb" aria-hidden="true"></span>
-              <span>Browse folders</span>
             </a>
           </div>
         </section>

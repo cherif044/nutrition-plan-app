@@ -65,7 +65,6 @@ async function initNav() {
   document.getElementById('planner-nav-user').innerHTML = `
     <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
     <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
-    <a class="planner-nav__link" href="/explorer" aria-label="Explorer">${iconSvg('folder')}<span>Explorer</span></a>
     <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
   `;
   document.getElementById('logout-btn').addEventListener('click', async () => {

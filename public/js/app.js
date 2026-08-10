@@ -100,14 +100,9 @@ function produceGroup(food) {
     const { user } = await res.json();
       const navUser = document.getElementById('planner-nav-user');
     if (navUser) {
-      const backHref = plannerCtx?.folderId
-        ? `/explorer?folderId=${plannerCtx.folderId}`
-        : '/explorer';
-      const backLabel = plannerCtx?.planId ? 'Explorer' : 'Explorer';
       navUser.innerHTML = `
         <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
         <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
-        <a class="planner-nav__link" href="${backHref}" aria-label="${backLabel}">${iconSvg('folder')}<span>${backLabel}</span></a>
         <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
       `;
       document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -1965,9 +1960,9 @@ function showPlanSaveBar(folderId = null) {
 
   const folderLabel = folderId && plannerCtx?.folderName
     ? escapeHtml(plannerCtx.folderName)
-    : 'Home';
+    : 'General';
   const saveUrl = folderId ? `/api/folders/${folderId}/plans` : '/api/plans';
-  const explorerUrl = folderId ? `/explorer?folderId=${folderId}` : '/explorer';
+  const dashboardUrl = '/dashboard';
 
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
@@ -2011,7 +2006,7 @@ function showPlanSaveBar(folderId = null) {
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
     msgEl.textContent = `"${name}" saved!`;
-    setTimeout(() => { window.location.href = explorerUrl; }, 900);
+    setTimeout(() => { window.location.href = dashboardUrl; }, 900);
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {

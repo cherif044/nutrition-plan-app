@@ -13,6 +13,7 @@ function iconSvg(name, size = 16) {
 
 const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 let allCustomers = [];
+let allGeneralPlans = [];
 let selectedCustomerId = null;
 let customerPlanRequestId = 0;
 const relativeUnits = [
@@ -90,7 +91,7 @@ function planHref(plan) {
 
 function folderBreadcrumb(plan) {
   const path = Array.isArray(plan.folderPath) ? plan.folderPath : [];
-  return ['Home', ...path.map((item) => item.name)].join(' / ');
+  return ['General', ...path.map((item) => item.name)].join(' / ');
 }
 
 function renderStats(stats = {}) {
@@ -99,24 +100,33 @@ function renderStats(stats = {}) {
   document.getElementById('stat-active-plans').textContent = Number(stats.activePlans || 0).toLocaleString();
 }
 
-function renderRecentPlans(plans = []) {
+function renderGeneralPlans(plans = allGeneralPlans) {
   const container = document.getElementById('recent-plans');
+  const search = document.getElementById('general-plan-search');
+  const query = search?.value.trim().toLowerCase() || '';
+  const visiblePlans = query
+    ? plans.filter((plan) => {
+      const haystack = [plan.name, folderBreadcrumb(plan)].join(' ').toLowerCase();
+      return haystack.includes(query);
+    })
+    : plans;
+
   container.innerHTML = '';
 
-  if (!plans.length) {
+  if (!visiblePlans.length) {
     const empty = document.createElement('div');
     empty.className = 'explorer-empty dashboard-empty';
     empty.innerHTML = `
       <span class="explorer-empty__icon" aria-hidden="true">${iconSvg('file', 20)}</span>
-      <strong>No opened plans yet</strong>
-      <p>Open a saved plan and it will appear here.</p>
+      <strong>${query ? 'No matching plans' : 'No general plans yet'}</strong>
+      <p>${query ? 'Try another plan name.' : 'Plans without a customer will appear here.'}</p>
     `;
     container.append(empty);
     return;
   }
 
-  plans.slice(0, 3).forEach((plan) => {
-    const openedAt = plan.last_opened_at || plan.updated_at || plan.created_at;
+  visiblePlans.forEach((plan) => {
+    const updatedAt = plan.updated_at || plan.created_at;
     const indicator = indicatorFor(plan);
     const card = document.createElement('a');
     card.className = 'dashboard-plan-card';
@@ -127,7 +137,7 @@ function renderRecentPlans(plans = []) {
         <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
         <span class="dashboard-plan-card__path">${escapeHtml(folderBreadcrumb(plan))}</span>
         <span class="dashboard-plan-card__footer">
-          <span>${escapeHtml(formatRelativeTime(openedAt))}</span>
+          <span>${escapeHtml(formatRelativeTime(updatedAt))}</span>
           ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
           ${indicator ? `
             <span class="dashboard-plan-card__indicator metric metric--macro" data-metric="${escapeHtml(indicator.metric)}">
@@ -140,6 +150,46 @@ function renderRecentPlans(plans = []) {
     `;
     container.append(card);
   });
+}
+
+function addGeneralPlans(plans, folderPath, bucket) {
+  (plans || []).forEach((plan) => {
+    if (plan.customer_id) return;
+    bucket.push({ ...plan, folderPath });
+  });
+}
+
+async function loadGeneralPlans() {
+  const bucket = [];
+  const rootRes = await fetch('/api/folders');
+  if (!rootRes.ok) throw new Error('Failed to load general plans.');
+  const rootData = await rootRes.json();
+  addGeneralPlans(rootData.plans, [], bucket);
+
+  const treeRes = await fetch('/api/folders/tree');
+  if (treeRes.ok) {
+    const { tree } = await treeRes.json();
+    await loadFolderPlans(tree || [], [], bucket);
+  }
+
+  allGeneralPlans = bucket.sort((a, b) => {
+    const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+    const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+  renderGeneralPlans();
+}
+
+async function loadFolderPlans(nodes, parentPath, bucket) {
+  for (const node of nodes) {
+    const path = [...parentPath, { id: node.id, name: node.name }];
+    const res = await fetch(`/api/folders/${encodeURIComponent(node.id)}`);
+    if (res.ok) {
+      const data = await res.json();
+      addGeneralPlans(data.plans, path, bucket);
+    }
+    await loadFolderPlans(node.children || [], path, bucket);
+  }
 }
 
 function renderCustomers(customers = []) {
@@ -250,7 +300,6 @@ async function initNav() {
   document.getElementById('planner-nav-user').innerHTML = `
     <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
     <a class="planner-nav__link" href="/dashboard" aria-label="Home" aria-current="page">${iconSvg('home')}<span>Home</span></a>
-    <a class="planner-nav__link" href="/explorer" aria-label="Explorer">${iconSvg('folder')}<span>Explorer</span></a>
     <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
   `;
 
@@ -271,14 +320,14 @@ async function initDashboard() {
     if (!res.ok) throw new Error('Failed to load dashboard.');
     const data = await res.json();
     renderStats(data.stats);
-    renderRecentPlans(data.recentPlans);
     renderCustomers(data.customers);
+    await loadGeneralPlans();
     document.getElementById('customer-search')?.addEventListener('input', renderCustomerList);
+    document.getElementById('general-plan-search')?.addEventListener('input', () => renderGeneralPlans());
   } catch {
     document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
   }
 }
 
 document.querySelector('.dashboard-action-tile [data-tone="protein"]').innerHTML = iconSvg('plus', 17);
-document.querySelector('.dashboard-action-tile [data-tone="carb"]').innerHTML = iconSvg('folder', 17);
 initDashboard();
