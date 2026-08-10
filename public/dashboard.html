@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Dashboard — Pinch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body class="dashboard-page">
+    <main class="app-shell">
+      <nav class="planner-nav">
+        <div class="planner-nav__brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 12-10 1 8-2 13-7 13" />
+              <path d="M7 14c2-1 4-1 7-4" />
+            </svg>
+          </span>
+          <span>
+            <strong>Pinch</strong>
+            <small>Dashboard</small>
+          </span>
+        </div>
+        <div class="planner-nav__user" id="planner-nav-user"></div>
+      </nav>
+
+      <section class="dashboard-shell" aria-labelledby="dashboard-title">
+        <h1 id="dashboard-title" class="sr-only">Dashboard</h1>
+
+        <section class="dashboard-stats" aria-label="Plan statistics">
+          <div class="dashboard-stat-card" data-tone="cal">
+            <span>Total plans</span>
+            <strong id="stat-total-plans">—</strong>
+          </div>
+          <div class="dashboard-stat-card" data-tone="protein">
+            <span>Total customers</span>
+            <strong id="stat-customers">—</strong>
+          </div>
+          <div class="dashboard-stat-card" data-tone="fat">
+            <span>Current active plans</span>
+            <strong id="stat-active-plans">—</strong>
+          </div>
+        </section>
+
+        <div class="dashboard-main-row">
+          <section class="dashboard-section dashboard-panel-card" aria-labelledby="customers-title">
+            <header class="dashboard-section__header">
+              <h2 id="customers-title">Customers</h2>
+            </header>
+            <label class="dashboard-search">
+              <span class="sr-only">Search customers</span>
+              <input id="customer-search" type="search" placeholder="Search customers" autocomplete="off" />
+            </label>
+            <div class="dashboard-customer-grid" id="customers-list"></div>
+            <div class="dashboard-customer-plans" id="selected-customer-plans" hidden></div>
+          </section>
+
+          <section class="dashboard-section dashboard-panel-card" aria-labelledby="recent-title">
+            <header class="dashboard-section__header">
+              <h2 id="recent-title">Recent plans</h2>
+            </header>
+            <div class="dashboard-plan-grid" id="recent-plans"></div>
+          </section>
+        </div>
+
+        <section class="dashboard-section" aria-labelledby="actions-title">
+          <header class="dashboard-section__header">
+            <h2 id="actions-title">Quick actions</h2>
+          </header>
+          <div class="dashboard-action-grid">
+            <a class="dashboard-action-tile" href="/planner">
+              <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true"></span>
+              <span>New plan</span>
+            </a>
+            <a class="dashboard-action-tile" href="/explorer">
+              <span class="dashboard-icon-square" data-tone="carb" aria-hidden="true"></span>
+              <span>Browse folders</span>
+            </a>
+          </div>
+        </section>
+
+        <p id="dashboard-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="/js/dashboard.js" defer></script>
+  </body>
+</html>

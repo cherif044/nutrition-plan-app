@@ -20,7 +20,7 @@ async function getRootContents(userId) {
     }),
     Plan.findAll({
       where: { user_id: userId, folder_id: null },
-      attributes: ['id', 'folder_id', 'name', 'created_at', 'updated_at'],
+      attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'created_at', 'updated_at'],
       order: [['created_at', 'DESC']],
     }),
   ]);
@@ -38,7 +38,7 @@ async function getFolderContents(folderId, userId) {
     }),
     Plan.findAll({
       where: { user_id: userId, folder_id: folderId },
-      attributes: ['id', 'folder_id', 'name', 'created_at', 'updated_at'],
+      attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'created_at', 'updated_at'],
       order: [['created_at', 'DESC']],
     }),
   ]);

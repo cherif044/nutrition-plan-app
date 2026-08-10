@@ -106,8 +106,8 @@ function produceGroup(food) {
       const backLabel = plannerCtx?.planId ? 'Explorer' : 'Explorer';
       navUser.innerHTML = `
         <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
-        <a class="planner-nav__link" href="/" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
-        <a class="planner-nav__link" href="${backHref}" aria-label="${backLabel}">${iconSvg('arrowLeft')}<span>${backLabel}</span></a>
+        <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
+        <a class="planner-nav__link" href="${backHref}" aria-label="${backLabel}">${iconSvg('folder')}<span>${backLabel}</span></a>
         <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
       `;
       document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -145,6 +145,7 @@ const emptyState = document.querySelector('#empty-state');
 const summaryTemplate = document.querySelector('#summary-template');
 const mealTemplate = document.querySelector('#meal-template');
 const submitButton = form.querySelector('button[type="submit"]');
+const preGenerationCustomerPicker = document.querySelector('#pre-generation-customer-picker');
 const freeformButton = document.querySelector('#freeform-btn');
 const inputsToggle = document.querySelector('#inputs-toggle');
 const inputChipRow = document.querySelector('#input-chip-row');
@@ -159,6 +160,14 @@ const DEFAULT_PLAN_OPTIONS = Object.freeze({
   coffeesPerDay: 0,
   ramadanMode: false,
 });
+const PROFILE_SYNC_FIELDS = new Map([
+  ['age', 'age'],
+  ['sex', 'sex'],
+  ['weightKg', 'weightKg'],
+  ['heightCm', 'heightCm'],
+  ['activityLevel', 'activityLevel'],
+  ['goal', 'goal'],
+]);
 
 const labels = {
   calories: ['Calories', 'kcal'],
@@ -185,6 +194,11 @@ let dailyTargets = null;
 let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
+let suppressProfileTouchTracking = false;
+const touchedProfileFields = new Set();
+const preGenerationCustomerState = preGenerationCustomerPicker
+  ? bindCustomerPicker(preGenerationCustomerPicker)
+  : { selected: null, exactMatch: null, requestId: 0 };
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   const text = await response.text();
@@ -203,6 +217,8 @@ async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
 
 async function generateAndRender(apiUrl) {
   message.textContent = '';
+  const saveDetailsOk = await validatePreGenerationSaveDetails();
+  if (!saveDetailsOk) return;
   setLoading(true);
   try {
     const response = await fetch(apiUrl, {
@@ -239,6 +255,8 @@ inputsToggle?.addEventListener('click', () => {
 
 form.addEventListener('input', syncInputSummary);
 form.addEventListener('change', syncInputSummary);
+form.addEventListener('input', markProfileFieldTouched);
+form.addEventListener('change', markProfileFieldTouched);
 ramadanToggle?.addEventListener('change', syncRamadanControls);
 syncRamadanControls();
 syncInputSummary();
@@ -266,6 +284,58 @@ function readForm() {
     coffeesPerDay: data.get('coffeesPerDay') || DEFAULT_PLAN_OPTIONS.coffeesPerDay,
     ramadanMode: data.get('ramadanMode') === 'on',
   };
+}
+
+function readPreGenerationPlanName() {
+  return form.elements.planName?.value.trim() || '';
+}
+
+async function validatePreGenerationSaveDetails() {
+  const planName = readPreGenerationPlanName();
+  if (!planName) {
+    message.textContent = 'Enter a plan name before generating.';
+    form.elements.planName?.focus();
+    return false;
+  }
+
+  const customerInput = form.elements.customerName;
+  const customerName = customerInput?.value.trim() || '';
+  const makeActive = Boolean(form.elements.makeActive?.checked);
+  if (makeActive && !customerName && !preGenerationCustomerState.selected) {
+    message.textContent = 'Choose or enter a customer before making a plan active.';
+    customerInput?.focus();
+    return false;
+  }
+
+  if (customerName && !preGenerationCustomerState.selected) {
+    await refreshCustomerMatches(
+      customerName,
+      preGenerationCustomerState,
+      preGenerationCustomerPicker.querySelector('.save-customer-picker__results'),
+      preGenerationCustomerPicker.querySelector('.save-customer-picker__match'),
+    );
+    if (preGenerationCustomerState.exactMatch) {
+      message.textContent = `${preGenerationCustomerState.exactMatch.name} already exists — use this customer?`;
+      customerInput?.focus();
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function preGenerationSavePayload() {
+  return {
+    name: readPreGenerationPlanName(),
+    customerPayload: buildCustomerPayload(preGenerationCustomerPicker, preGenerationCustomerState),
+    isActive: Boolean(form.elements.makeActive?.checked),
+  };
+}
+
+function markProfileFieldTouched(event) {
+  if (suppressProfileTouchTracking) return;
+  const field = PROFILE_SYNC_FIELDS.get(event.target?.name);
+  if (field) touchedProfileFields.add(field);
 }
 
 function switchPlannerView(view, { push = false } = {}) {
@@ -350,6 +420,9 @@ async function loadPlanForEdit(planId) {
     if (plan.plan_data?.input) {
       populateFormFromInput(plan.plan_data.input);
     }
+    if (form.elements.planName) form.elements.planName.value = plan.name || '';
+    if (form.elements.makeActive) form.elements.makeActive.checked = Boolean(plan.is_active);
+    initializeCustomerPickerFromPlan(plan);
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
   } catch {
@@ -358,6 +431,7 @@ async function loadPlanForEdit(planId) {
 }
 
 function populateFormFromInput(input) {
+  suppressProfileTouchTracking = true;
   const set = (name, val) => {
     const el = form.elements[name];
     if (!el || val === undefined || val === null) return;
@@ -384,6 +458,8 @@ function populateFormFromInput(input) {
     pendingAvoidFoodIds = input.avoidFoods;
     hydrateAvoidFoodPreferences();
   }
+  suppressProfileTouchTracking = false;
+  touchedProfileFields.clear();
   syncRamadanControls();
   syncInputSummary();
 }
@@ -1849,13 +1925,19 @@ function showEditBar(planId, initialName) {
     if (!name) { msgEl.textContent = 'Enter a plan name.'; return; }
 
     const planData = buildPlanData();
+    const { customerPayload, isActive } = preGenerationSavePayload();
     const btn = bar.querySelector('.save-action-bar__save');
     btn.disabled = true; btn.textContent = 'Saving…';
 
     const res = await fetch(`/api/plans/${planId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, planData }),
+      body: JSON.stringify({
+        name,
+        planData,
+        customer: customerPayload?.customer || null,
+        isActive,
+      }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan changes.');
     btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save changes`;
@@ -1892,29 +1974,39 @@ function showPlanSaveBar(folderId = null) {
   bar.className = 'save-action-bar';
   bar.innerHTML = `
     <span class="save-action-bar__label">${folderLabel}</span>
-    <input class="save-action-bar__name" type="text" placeholder="Cutting plan — week 1" autocomplete="off" />
+    <span class="save-action-bar__summary">${escapeHtml(readPreGenerationPlanName())}</span>
     <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard</button>
-    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
     <p class="save-action-bar__msg message" aria-live="polite"></p>
   `;
 
   bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
-    const name = bar.querySelector('.save-action-bar__name').value.trim();
     const msgEl = bar.querySelector('.save-action-bar__msg');
     msgEl.textContent = '';
-    if (!name) { msgEl.textContent = 'Enter a plan name first.'; return; }
+    const saveDetailsOk = await validatePreGenerationSaveDetails();
+    if (!saveDetailsOk) {
+      msgEl.textContent = message.textContent;
+      setInputsExpanded(true);
+      return;
+    }
 
     const planData = buildPlanData();
+    const { name, customerPayload, isActive } = preGenerationSavePayload();
     const btn = bar.querySelector('.save-action-bar__save');
     btn.disabled = true; btn.textContent = 'Saving…';
 
     const res = await fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, planData }),
+      body: JSON.stringify({
+        name,
+        planData,
+        customer: customerPayload?.customer || null,
+        isActive,
+      }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan.');
-    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save changes`;
+    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
 
     if (!res.ok) { msgEl.textContent = data.error; return; }
     msgEl.style.color = 'var(--accent)';
@@ -1935,6 +2027,135 @@ function showPlanSaveBar(folderId = null) {
 
   saveBarSlot.replaceChildren(bar);
   reserveSpaceForSaveBar();
+}
+
+function bindCustomerPicker(bar) {
+  const state = { selected: null, exactMatch: null, requestId: 0 };
+  const input = bar.querySelector('.save-action-bar__customer');
+  const results = bar.querySelector('.save-customer-picker__results');
+  const match = bar.querySelector('.save-customer-picker__match');
+  if (!input || !results || !match) return state;
+
+  input.addEventListener('input', () => {
+    state.selected = null;
+    refreshCustomerMatches(input.value.trim(), state, results, match);
+  });
+
+  input.addEventListener('focus', () => {
+    refreshCustomerMatches(input.value.trim(), state, results, match);
+  });
+
+  return state;
+}
+
+async function refreshCustomerMatches(query, state, resultsEl, matchEl) {
+  const requestId = ++state.requestId;
+  resultsEl.hidden = true;
+  matchEl.hidden = true;
+  matchEl.innerHTML = '';
+  if (!query) {
+    state.exactMatch = null;
+    return;
+  }
+
+  try {
+    const [listRes, matchRes] = await Promise.all([
+      fetch(`/api/customers?query=${encodeURIComponent(query)}`),
+      fetch(`/api/customers/match?name=${encodeURIComponent(query)}`),
+    ]);
+    if (requestId !== state.requestId) return;
+
+    const listData = await readJsonResponse(listRes, 'Unable to search customers.');
+    const matchData = await readJsonResponse(matchRes, 'Unable to check customer.');
+    state.exactMatch = matchData.customer || null;
+
+    renderCustomerExactMatch(query, state, matchEl);
+    renderCustomerResults(listData.customers || [], state, resultsEl, matchEl);
+  } catch {
+    resultsEl.hidden = true;
+  }
+}
+
+function renderCustomerExactMatch(query, state, matchEl) {
+  if (!state.exactMatch || state.selected?.id === state.exactMatch.id) return;
+  matchEl.innerHTML = `
+    <span>${escapeHtml(state.exactMatch.name)} already exists.</span>
+    <button type="button">Use this customer</button>
+  `;
+  matchEl.querySelector('button').addEventListener('click', () => {
+    selectCustomer(state.exactMatch, state, matchEl.closest('.save-customer-picker'));
+  });
+  matchEl.hidden = false;
+}
+
+function renderCustomerResults(customers, state, resultsEl, matchEl) {
+  resultsEl.innerHTML = '';
+  customers.slice(0, 6).forEach((customer) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'save-customer-result';
+    btn.innerHTML = `
+      <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('user', 15)}</span>
+      <span><strong>${escapeHtml(customer.name)}</strong><small>${customer.goal ? escapeHtml(goalLabel(customer.goal)) : 'Customer'}</small></span>
+    `;
+    btn.addEventListener('click', () => {
+      selectCustomer(customer, state, resultsEl.closest('.save-customer-picker'));
+      matchEl.hidden = true;
+    });
+    resultsEl.append(btn);
+  });
+  resultsEl.hidden = customers.length === 0;
+}
+
+function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId } = {}) {
+  state.selected = customer;
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const results = picker?.querySelector('.save-customer-picker__results');
+  const match = picker?.querySelector('.save-customer-picker__match');
+  if (input) input.value = customer.name;
+  if (picker === preGenerationCustomerPicker && hydrateProfile) applyCustomerProfileToForm(customer);
+  if (results) results.hidden = true;
+  if (match) {
+    match.innerHTML = `<span>Using ${escapeHtml(customer.name)}</span>`;
+    match.hidden = false;
+  }
+}
+
+function initializeCustomerPickerFromPlan(plan) {
+  const customer = plan?.Customer || plan?.customer || null;
+  if (!customer || !preGenerationCustomerPicker) return;
+  selectCustomer(customer, preGenerationCustomerState, preGenerationCustomerPicker, { hydrateProfile: false });
+}
+
+function applyCustomerProfileToForm(customer) {
+  if (!customer) return;
+  suppressProfileTouchTracking = true;
+  setFormValue('age', customer.age);
+  setFormValue('sex', customer.sex);
+  setFormValue('weightKg', customer.weight);
+  setFormValue('heightCm', customer.height);
+  setFormValue('activityLevel', customer.activity_level);
+  suppressProfileTouchTracking = false;
+  syncInputSummary();
+}
+
+function setFormValue(name, value) {
+  if (value === undefined || value === null || value === '') return;
+  const field = form.elements[name];
+  if (!field) return;
+  field.value = value;
+}
+
+function buildCustomerPayload(bar, state) {
+  const name = bar.querySelector('.save-action-bar__customer')?.value.trim() || '';
+  const touchedFields = Array.from(touchedProfileFields);
+  if (!name && !state.selected) return null;
+
+  if (state.selected) {
+    return { customer: { id: state.selected.id, touchedFields } };
+  }
+
+  return { customer: { name, touchedFields } };
 }
 
 function buildPlanData() {

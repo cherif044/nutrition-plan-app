@@ -72,6 +72,26 @@
 
           <div class="inputs-card__body" id="inputs-card-body">
             <section class="panel input-section">
+              <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg></span>Save details</h2>
+              <label>
+                <span>Plan name</span>
+                <input type="text" name="planName" placeholder="Cutting plan - week 1" autocomplete="off" required />
+              </label>
+              <div class="save-customer-picker" id="pre-generation-customer-picker">
+                <label class="save-customer-picker__field">
+                  <span>Customer</span>
+                  <input class="save-action-bar__customer" type="search" name="customerName" placeholder="No customer" autocomplete="off" />
+                </label>
+                <div class="save-customer-picker__match" hidden></div>
+                <div class="save-customer-picker__results" hidden></div>
+                <label class="save-active-toggle">
+                  <input class="save-action-bar__active" type="checkbox" name="makeActive" />
+                  <span>Make active</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="panel input-section">
               <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span>Body data</h2>
               <div class="field-grid">
                 <label>

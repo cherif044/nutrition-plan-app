@@ -96,11 +96,11 @@
     </main>
 
     <script>
-      // Redirect logged-in users straight to their explorer
+      // Redirect logged-in users straight to their dashboard
       (async () => {
         try {
           const res = await fetch('/api/auth/me');
-          if (res.ok) { window.location.replace('/explorer'); }
+          if (res.ok) { window.location.replace('/dashboard'); }
         } catch { /* stay on welcome page */ }
       })();
 
@@ -109,7 +109,7 @@
         try {
           const res = await fetch('/api/auth/me');
           if (res.ok) {
-            window.location.href = '/explorer';
+            window.location.href = '/dashboard';
           } else {
             window.location.href = '/login';
           }
@@ -127,6 +127,7 @@
             const nav = document.getElementById('nav-actions');
             nav.innerHTML = `
               <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
+              <a class="planner-nav__link" href="/dashboard">Home</a>
               <a class="planner-nav__link" href="/explorer">Explorer</a>
               <button class="planner-nav__link" id="logout-btn" type="button">Log out</button>
             `;

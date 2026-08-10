@@ -75,11 +75,11 @@ async function savePlanInFolder(req, res, next) {
     const folder = await getFolderById(req.params.id, req.user.id);
     if (!folder) return res.status(404).json({ error: 'Folder not found.' });
 
-    const { name, planData } = req.body;
+    const { name, planData, customer = null, isActive = false } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
 
-    const plan = await createPlan(req.user.id, folder.id, name, planData);
+    const plan = await createPlan(req.user.id, folder.id, name, planData, { customer, isActive });
     res.status(201).json({ plan });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });

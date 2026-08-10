@@ -6,7 +6,7 @@ const messageEl = document.getElementById('form-message');
 (async () => {
   try {
     const res = await fetch('/api/auth/me');
-    if (res.ok) window.location.replace('/explorer');
+    if (res.ok) window.location.replace('/dashboard');
   } catch { /* not logged in */ }
 })();
 
@@ -88,7 +88,7 @@ form.addEventListener('submit', async (event) => {
       ? `Account created! Welcome, ${escapeHtml(payload.user.firstname)}.`
       : `Welcome back, ${escapeHtml(payload.user.firstname)}!`;
 
-    setTimeout(() => window.location.replace('/explorer'), 600);
+    setTimeout(() => window.location.replace('/dashboard'), 600);
   } catch {
     messageEl.textContent = 'Network error. Please try again.';
   } finally {
