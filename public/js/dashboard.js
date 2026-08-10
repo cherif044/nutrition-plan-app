@@ -7,6 +7,7 @@ function iconSvg(name, size = 16) {
     file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
     user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   };
   return `<svg ${attrs}>${icons[name] || ''}</svg>`;
 }
@@ -16,6 +17,8 @@ let allCustomers = [];
 let allGeneralPlans = [];
 let selectedCustomerId = null;
 let customerPlanRequestId = 0;
+let selectedCustomerForPlans = null;
+let dashboardMenu = null;
 const relativeUnits = [
   ['year', 31536000000],
   ['month', 2592000000],
@@ -89,6 +92,10 @@ function planHref(plan) {
   return `/planner?planId=${encodeURIComponent(plan.id)}${folderParam}`;
 }
 
+function planExportHref(plan) {
+  return `${planHref(plan)}&export=pdf`;
+}
+
 function folderBreadcrumb(plan) {
   const path = Array.isArray(plan.folderPath) ? plan.folderPath : [];
   return ['General', ...path.map((item) => item.name)].join(' / ');
@@ -128,25 +135,35 @@ function renderGeneralPlans(plans = allGeneralPlans) {
   visiblePlans.forEach((plan) => {
     const updatedAt = plan.updated_at || plan.created_at;
     const indicator = indicatorFor(plan);
-    const card = document.createElement('a');
+    const card = document.createElement('article');
     card.className = 'dashboard-plan-card';
-    card.href = planHref(plan);
     card.innerHTML = `
-      <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('file', 17)}</span>
-      <span class="dashboard-plan-card__body">
-        <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
-        <span class="dashboard-plan-card__path">${escapeHtml(folderBreadcrumb(plan))}</span>
-        <span class="dashboard-plan-card__footer">
-          <span>${escapeHtml(formatRelativeTime(updatedAt))}</span>
-          ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
-          ${indicator ? `
-            <span class="dashboard-plan-card__indicator metric metric--macro" data-metric="${escapeHtml(indicator.metric)}">
-              <span class="metric__top"><span><i class="macro-dot" aria-hidden="true"></i>${escapeHtml(indicator.label)}</span></span>
-              <span class="metric-bar" aria-hidden="true"><i></i></span>
-            </span>
-          ` : ''}
+      <a class="dashboard-plan-card__link" href="${escapeHtml(planHref(plan))}">
+        <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('file', 17)}</span>
+        <span class="dashboard-plan-card__body">
+          <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
+          <span class="dashboard-plan-card__path">${escapeHtml(folderBreadcrumb(plan))}</span>
+          <span class="dashboard-plan-card__footer">
+            <span>${escapeHtml(formatRelativeTime(updatedAt))}</span>
+            ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
+            ${indicator ? `
+              <span class="dashboard-plan-card__indicator metric metric--macro" data-metric="${escapeHtml(indicator.metric)}">
+                <span class="metric__top"><span><i class="macro-dot" aria-hidden="true"></i>${escapeHtml(indicator.label)}</span></span>
+                <span class="metric-bar" aria-hidden="true"><i></i></span>
+              </span>
+            ` : ''}
+          </span>
         </span>
-      </span>
+      </a>
+      <button
+        class="dashboard-plan-menu-btn"
+        type="button"
+        title="Plan options"
+        aria-label="Plan options for ${escapeHtml(plan.name)}"
+        data-plan-id="${escapeHtml(plan.id)}"
+        data-plan-name="${escapeHtml(plan.name)}"
+        data-export-href="${escapeHtml(planExportHref(plan))}"
+      >${iconSvg('more', 18)}</button>
     `;
     container.append(card);
   });
@@ -223,6 +240,7 @@ function renderCustomerList() {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'dashboard-customer-card dashboard-list-row';
+    row.dataset.customerId = customer.id;
     if (String(customer.id) === String(selectedCustomerId)) row.classList.add('is-selected');
     row.innerHTML = `
       <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true">${iconSvg('user', 17)}</span>
@@ -240,6 +258,7 @@ function renderCustomerList() {
 async function loadCustomerPlans(customer, row) {
   if (String(selectedCustomerId) === String(customer.id)) return;
   selectedCustomerId = customer.id;
+  selectedCustomerForPlans = customer;
   const requestId = ++customerPlanRequestId;
   document.querySelectorAll('.dashboard-customer-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
   row?.classList.add('is-selected');
@@ -267,14 +286,24 @@ async function loadCustomerPlans(customer, row) {
     const list = document.createElement('div');
     list.className = 'dashboard-customer-plan-list';
     plans.forEach((plan) => {
-      const link = document.createElement('a');
-      link.className = 'dashboard-customer-plan-row';
-      link.href = planHref(plan);
-      link.innerHTML = `
-        <span>${escapeHtml(plan.name)}</span>
-        ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
+      const rowEl = document.createElement('div');
+      rowEl.className = 'dashboard-customer-plan-row';
+      rowEl.innerHTML = `
+        <a class="dashboard-customer-plan-row__link" href="${escapeHtml(planHref(plan))}">
+          <span>${escapeHtml(plan.name)}</span>
+          ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
+        </a>
+        <button
+          class="dashboard-plan-menu-btn dashboard-plan-menu-btn--inline"
+          type="button"
+          title="Plan options"
+          aria-label="Plan options for ${escapeHtml(plan.name)}"
+          data-plan-id="${escapeHtml(plan.id)}"
+          data-plan-name="${escapeHtml(plan.name)}"
+          data-export-href="${escapeHtml(planExportHref(plan))}"
+        >${iconSvg('more', 17)}</button>
       `;
-      list.append(link);
+      list.append(rowEl);
     });
     panel.replaceChildren(title, list);
   } catch {
@@ -287,6 +316,86 @@ async function loadCustomerPlans(customer, row) {
     error.textContent = 'Failed to load customer plans.';
     panel.replaceChildren(title, error);
   }
+}
+
+function ensureDashboardMenu() {
+  if (dashboardMenu) return dashboardMenu;
+  dashboardMenu = document.createElement('div');
+  dashboardMenu.className = 'dashboard-context-menu';
+  dashboardMenu.hidden = true;
+  document.body.append(dashboardMenu);
+  return dashboardMenu;
+}
+
+function hideDashboardMenu() {
+  if (dashboardMenu) dashboardMenu.hidden = true;
+}
+
+function positionDashboardMenu(button) {
+  const menu = ensureDashboardMenu();
+  menu.hidden = false;
+  const buttonRect = button.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let left = buttonRect.right - menuRect.width;
+  let top = buttonRect.bottom + 6;
+
+  if (left < 8) left = 8;
+  if (left + menuRect.width > window.innerWidth - 8) left = window.innerWidth - menuRect.width - 8;
+  if (top + menuRect.height > window.innerHeight - 8) top = buttonRect.top - menuRect.height - 6;
+
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+}
+
+async function refreshDashboard() {
+  const res = await fetch('/api/dashboard');
+  if (!res.ok) throw new Error('Failed to load dashboard.');
+  const data = await res.json();
+  renderStats(data.stats);
+  renderCustomers(data.customers);
+  await loadGeneralPlans();
+
+  if (!selectedCustomerForPlans) return;
+  const refreshedCustomer = data.customers.find((customer) => String(customer.id) === String(selectedCustomerForPlans.id));
+  if (!refreshedCustomer) {
+    selectedCustomerId = null;
+    selectedCustomerForPlans = null;
+    document.getElementById('selected-customer-plans').hidden = true;
+    return;
+  }
+
+  const selectedRow = [...document.querySelectorAll('.dashboard-customer-card')]
+    .find((el) => String(el.dataset.customerId) === String(refreshedCustomer.id));
+  selectedCustomerId = null;
+  await loadCustomerPlans(refreshedCustomer, selectedRow);
+}
+
+function showPlanMenu(button) {
+  const menu = ensureDashboardMenu();
+  const { planId, planName, exportHref } = button.dataset;
+  menu.innerHTML = `
+    <button type="button" data-action="export">Export as PDF</button>
+    <button type="button" class="danger" data-action="delete">Delete</button>
+  `;
+
+  menu.querySelector('[data-action="export"]').addEventListener('click', () => {
+    hideDashboardMenu();
+    window.open(exportHref, '_blank', 'noopener');
+  });
+
+  menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+    hideDashboardMenu();
+    if (!confirm(`Delete plan "${planName}"?`)) return;
+    const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, { method: 'DELETE' });
+    if (!res.ok) {
+      document.getElementById('dashboard-message').textContent = 'Failed to delete plan.';
+      return;
+    }
+    document.getElementById('dashboard-message').textContent = 'Plan deleted.';
+    await refreshDashboard();
+  });
+
+  positionDashboardMenu(button);
 }
 
 async function initNav() {
@@ -328,6 +437,23 @@ async function initDashboard() {
     document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
   }
 }
+
+document.addEventListener('click', (event) => {
+  const menuButton = event.target.closest('.dashboard-plan-menu-btn');
+  if (menuButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    showPlanMenu(menuButton);
+    return;
+  }
+  if (!event.target.closest('.dashboard-context-menu')) hideDashboardMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') hideDashboardMenu();
+});
+
+window.addEventListener('scroll', hideDashboardMenu, true);
 
 document.querySelector('.dashboard-action-tile [data-tone="protein"]').innerHTML = iconSvg('plus', 17);
 initDashboard();
