@@ -201,8 +201,6 @@ const distributionSelect = form.elements.mealDistribution;
 const preferenceFields = document.querySelectorAll('.preference-field');
 const DEFAULT_PLAN_OPTIONS = Object.freeze({
   dietType: 'standard',
-  milkType: 'skimmed',
-  coffeesPerDay: 0,
   ramadanMode: false,
 });
 const PROFILE_SYNC_FIELDS = new Map([
@@ -325,8 +323,6 @@ function readForm() {
     mealDistribution: data.get('mealDistribution'),
     dietType: data.get('dietType') || DEFAULT_PLAN_OPTIONS.dietType,
     avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
-    milkType: data.get('milkType') || DEFAULT_PLAN_OPTIONS.milkType,
-    coffeesPerDay: data.get('coffeesPerDay') || DEFAULT_PLAN_OPTIONS.coffeesPerDay,
     ramadanMode: data.get('ramadanMode') === 'on',
   };
 }
@@ -496,8 +492,6 @@ function populateFormFromInput(input) {
   set('numberOfMeals', input.numberOfMeals);
   set('mealDistribution', input.mealDistribution);
   set('dietType', input.dietType);
-  set('milkType', input.milkType);
-  set('coffeesPerDay', input.coffeesPerDay);
   set('ramadanMode', input.ramadanMode);
   if (Array.isArray(input.avoidFoods)) {
     pendingAvoidFoodIds = input.avoidFoods;

@@ -15,8 +15,6 @@ const baseInput = {
   numberOfMeals: 3,
   mealDistribution: 'balanced',
   dietType: 'standard',
-  milkType: 'skimmed',
-  coffeesPerDay: 1,
   allergies: [],
   dislikes: [],
   avoidFoods: [],

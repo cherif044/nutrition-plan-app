@@ -38,7 +38,7 @@ function run() {
   testGeneratedPlanUsesOnlyReadyMeals();
   testDistributionReadyMealSlotTyping();
   testMealOptionsUseOnlyReadyMeals();
-  testCoffeeMilkAllowance();
+  testCoffeeFieldsAreIgnored();
   testReadyMealUiWithFoodCustomization();
   testAiFoodEditEndpointsEnabled();
 
@@ -158,18 +158,12 @@ function testDistributionReadyMealSlotTyping() {
   }
 }
 
-function testCoffeeMilkAllowance() {
-  const skimmedPlan = generatePlan({ ...baseInput, coffeesPerDay: 1, milkType: 'skimmed' });
-  const skimmedCoffee = findCoffeeMilkAllowance(skimmedPlan);
-  assert(skimmedCoffee, 'one coffee should add a milk allowance item');
-  assert.equal(skimmedCoffee.food.id, 'skimmed_milk_fat_free');
-  assert.equal(skimmedCoffee.quantityG, 50);
-
-  const wholePlan = generatePlan({ ...baseInput, coffeesPerDay: 2, milkType: 'whole' });
-  const wholeCoffee = findCoffeeMilkAllowance(wholePlan);
-  assert(wholeCoffee, 'two coffees should add a milk allowance item');
-  assert.equal(wholeCoffee.food.id, 'milk_whole_3_25_milkfat');
-  assert.equal(wholeCoffee.quantityG, 100);
+function testCoffeeFieldsAreIgnored() {
+  const plan = generatePlan({ ...baseInput, coffeesPerDay: 3, milkType: 'whole' });
+  assert.equal(plan.input.coffeesPerDay, undefined, 'coffee count should not be part of normalized input');
+  assert.equal(plan.input.milkType, undefined, 'milk type should not be part of normalized input');
+  assert.equal(findCoffeeMilkAllowance(plan), undefined, 'coffee fields should never add a meal item');
+  plan.meals.forEach((meal) => assertWithinTolerance(meal.items, meal.target, `coffee ignored ${meal.name}`));
 }
 
 function findCoffeeMilkAllowance(plan) {

@@ -12,7 +12,6 @@ const cases = [
   named('breakfast-heavy', { mealDistribution: 'breakfast_heavy' }, { mayMiss: true }),
   named('lunch-heavy', { mealDistribution: 'lunch_heavy' }, { mayMiss: true }),
   named('dinner-heavy', { mealDistribution: 'dinner_heavy' }, { mayMiss: true }),
-  named('coffee allowance guarded', { coffeesPerDay: 4, milkType: 'whole' }),
   named('vegetarian constrained', { dietType: 'vegetarian' }, { mayMiss: true }),
   named('vegan constrained', { dietType: 'vegan' }, { mayMiss: true }),
   named('avoid dairy constrained', { avoidFoods: ['dairy'] }, { mayMiss: true }),

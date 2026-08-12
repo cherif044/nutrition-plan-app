@@ -36,11 +36,6 @@ const MEAL_OPTION_LIMIT = 250;
 const EXACT_PORTION_SEARCH_STEP_G = 1;
 const EXACT_PORTION_SEARCH_MAX_VISITS = 250000;
 const EXACT_PORTION_SEARCH_MAX_MS = 60;
-const COFFEE_MILK_GRAMS_PER_COFFEE = 50;
-const MILK_TYPE_FOOD_IDS = {
-  skimmed: 'skimmed_milk_fat_free',
-  whole: 'milk_whole_3_25_milkfat',
-};
 
 function getFoods() {
   return loadFoods();
@@ -81,14 +76,7 @@ function _generatePlanInternal(rawInput, useTemplates) {
           .map((meal) => meal.unavailableReason),
       };
 
-  const coffeeApplied = applyCoffeeMilkAllowance({
-    meals: optimization.meals,
-    input,
-    allowedFoods,
-    dailyTargets,
-  });
-
-  const meals = coffeeApplied.meals.map((meal) => {
+  const meals = optimization.meals.map((meal) => {
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
     const seedTarget = meal.seedTarget ?? meal.target;
@@ -168,8 +156,8 @@ function _generatePlanInternal(rawInput, useTemplates) {
     },
     meals,
     ...(optimization.diagnostics ? { diagnostics: optimization.diagnostics } : {}),
-    ...([...optimization.warnings, ...coffeeApplied.warnings].length > 0 ? {
-      warnings: [...optimization.warnings, ...coffeeApplied.warnings],
+    ...(optimization.warnings.length > 0 ? {
+      warnings: optimization.warnings,
     } : {}),
     ...(optimization.errors?.length > 0 ? {
       errors: optimization.errors,
@@ -224,80 +212,6 @@ function optimizeTemplateDay(meals, dailyTargets) {
     warnings: diagnostics.warnings,
     errors: diagnostics.errors,
     diagnostics,
-  };
-}
-
-function applyCoffeeMilkAllowance({ meals, input, allowedFoods, dailyTargets }) {
-  const coffeesPerDay = Number(input.coffeesPerDay) || 0;
-  if (coffeesPerDay <= 0) {
-    return { meals, warnings: [] };
-  }
-
-  const milkFoodId = MILK_TYPE_FOOD_IDS[input.milkType] || MILK_TYPE_FOOD_IDS.skimmed;
-  const allowedById = new Map(allowedFoods.map((food) => [food.id, food]));
-  const milkFood = allowedById.get(milkFoodId);
-
-  if (!milkFood) {
-    return {
-      meals,
-      warnings: ['Coffee milk was skipped because the selected milk does not match the current diet or avoid-food rules.'],
-    };
-  }
-
-  const targetIndexes = [
-    meals.findIndex((meal) => meal.tag === 'breakfast' && meal.items.length > 0),
-    ...meals.map((meal, index) => (meal.items.length > 0 ? index : -1)),
-  ].filter((index, position, all) => index >= 0 && all.indexOf(index) === position);
-
-  if (targetIndexes.length === 0) {
-    return {
-      meals,
-      warnings: ['Coffee milk was skipped because no generated meal could receive it.'],
-    };
-  }
-
-  const quantityG = roundToNearest(coffeesPerDay * COFFEE_MILK_GRAMS_PER_COFFEE, 5);
-  const coffeeLabel = `${coffeesPerDay} coffee${coffeesPerDay === 1 ? '' : 's'} milk allowance`;
-
-  for (const targetIndex of targetIndexes) {
-    const meal = meals[targetIndex];
-    const item = {
-      food: milkFood,
-      quantityG,
-      alternatives: [],
-      broaderAlternatives: [],
-      nearestAlternatives: [],
-      component: {
-        source: 'coffee_milk_allowance',
-        ingredientName: coffeeLabel,
-        readyMealId: meal.readyMealId ?? meal.templateId ?? null,
-      },
-      totals: macrosForFoodPortion(milkFood, quantityG),
-    };
-    const nextItems = [...meal.items, item];
-    const nextTotals = sumTargets(nextItems.map((mealItem) => (
-      mealItem.totals ?? macrosForFoodPortion(mealItem.food, mealItem.quantityG)
-    )));
-    const validation = validateMealSwap({
-      dailyTargets,
-      weightKg: input.weightKg,
-      mealTarget: meal.target,
-      proposedMealTotals: nextTotals,
-    });
-    if (!validation.valid) continue;
-    return {
-      meals: meals.map((candidateMeal, index) => (
-        index === targetIndex
-          ? { ...candidateMeal, items: nextItems, totals: nextTotals }
-          : candidateMeal
-      )),
-      warnings: [],
-    };
-  }
-
-  return {
-    meals,
-    warnings: ['Coffee milk was skipped because adding it would push the meal outside the required v9 macro windows.'],
   };
 }
 
@@ -793,7 +707,6 @@ function normalizeInput(input = {}) {
     input.fatPerKg === null
     ? NUTRITION.fatPerKg.default
     : Number(input.fatPerKg);
-  const coffeesPerDay = Number.parseInt(input.coffeesPerDay ?? 0, 10);
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     throw new Error('Enter a valid weight.');
@@ -872,8 +785,6 @@ function normalizeInput(input = {}) {
     dietType,
     allergies: normalizeList(input.allergies),
     dislikes: normalizeList(input.dislikes),
-    milkType: String(input.milkType || 'skimmed').trim(),
-    coffeesPerDay: Number.isFinite(coffeesPerDay) ? Math.max(0, coffeesPerDay) : 0,
     avoidFoods: normalizeList(input.avoidFoods ?? []),
     ramadanMode: Boolean(input.ramadanMode),
   };
