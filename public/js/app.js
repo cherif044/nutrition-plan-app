@@ -673,6 +673,10 @@ function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
   const metrics = summary.querySelector('.metrics');
+  const rangeNote = summary.querySelector('.summary__ranges');
+  if (rangeNote) {
+    rangeNote.innerHTML = dailyRangeNoteHtml(targets, serverBounds);
+  }
 
   const calorieBounds = dailyMetricBounds('calories', targets, serverBounds);
   const ring = document.createElement('div');
@@ -724,6 +728,21 @@ function renderSummary(targets, serverBounds = null) {
   metrics.append(macroList);
 
   return summary;
+}
+
+function dailyRangeNoteHtml(targets, serverBounds = null) {
+  if (!targets) return '';
+  return [
+    ['Calories', dailyMetricBounds('calories', targets, serverBounds), labels.calories[1], 'calories'],
+    ['Protein', dailyMetricBounds('proteinG', targets, serverBounds), labels.proteinG[1], 'proteinG'],
+    ['Carbs', dailyMetricBounds('carbG', targets, serverBounds), labels.carbG[1], 'carbG'],
+    ['Fat', dailyMetricBounds('fatG', targets, serverBounds), labels.fatG[1], 'fatG'],
+  ].map(([label, range, unit, metric]) => `
+    <span class="summary__range-chip" data-metric="${metric}">
+      <b>${label}</b>
+      <span>${formatRangeValue(range, unit)}</span>
+    </span>
+  `).join('');
 }
 
 // ── Red flags (daily level) ──────────────────────────────────────────────────
@@ -821,6 +840,11 @@ function refreshMealCustomizationControls(state) {
 function refreshMealCardHeader(card, state) {
   const totals = computeTotals(state.items);
   card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
+  const rangeNote = card.querySelector('.meal-card__ranges');
+  if (rangeNote) {
+    rangeNote.innerHTML = mealRangeNoteHtml(state.target);
+    rangeNote.hidden = !rangeNote.innerHTML;
+  }
 
   // The calorie figure appears twice — header chip and meal-totals footer.
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
@@ -835,6 +859,54 @@ function mealCardMetaText(state) {
   const total = Math.max(optionCount, 1);
   const current = Math.min(Math.max((Number(state.mealOptionIndex) || 0) + 1, 1), total);
   return `${current} of ${total}`;
+}
+
+function mealRangeNoteHtml(target) {
+  const ranges = mealDisplayRanges(target);
+  if (!ranges) return '';
+  return [
+    ['Calories', ranges.calories, 'kcal', 'calories'],
+    ['Protein', ranges.proteinG, 'g', 'proteinG'],
+    ['Carbs', ranges.carbG, 'g', 'carbG'],
+    ['Fat', ranges.fatG, 'g', 'fatG'],
+  ].map(([label, range, unit, metric]) => `
+    <span class="meal-card__range-chip" data-metric="${metric}">
+      <b>${label}</b>
+      <span>${formatRangeValue(range, unit)}</span>
+    </span>
+  `).join('');
+}
+
+function mealDisplayRanges(target) {
+  if (!target?.macroWindows) {
+    return null;
+  }
+
+  const windows = target.macroWindows;
+  if (!windows.calories || !windows.proteinG || !windows.fatG) return null;
+  const carbRange = {
+    min: Math.max(0, (
+      windows.calories.min -
+      windows.proteinG.max * 4 -
+      windows.fatG.max * 9
+    ) / 4),
+    max: (
+      windows.calories.max -
+      windows.proteinG.min * 4 -
+      windows.fatG.min * 9
+    ) / 4,
+  };
+  return {
+    calories: windows.calories,
+    proteinG: windows.proteinG,
+    carbG: carbRange,
+    fatG: windows.fatG,
+  };
+}
+
+function formatRangeValue(range, unit) {
+  const decimals = unit === 'kcal' ? 0 : 1;
+  return `${formatNumber(range.min, decimals)}-${formatNumber(range.max, decimals)} ${unit}`;
 }
 
 // Reconciles the rendered rows against state.items in place. Rows that did not

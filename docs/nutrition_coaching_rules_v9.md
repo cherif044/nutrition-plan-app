@@ -116,16 +116,16 @@ Total daily calories are split across meals as a percentage. Four patterns: Bala
 
 ## 7. Per-Meal Macro Ratio Table — Database-Derived (fixed, client-independent)
 
-Each meal type has its own naturally-occurring protein/fat/carb ratio **range**, derived from the meal bundle database. This table is fixed — it does not change per client or per plan. It is deliberately a range, not a single point value: a range gives Section 8's scaling room to land the final per-meal window inside realistic, database-matching territory for a wider spread of clients, instead of forcing an exact ratio that can drift from what real meal bundles look like.
+Each meal type has its own naturally-occurring protein/fat/carb ratio **range**, derived from the meal bundle database. The ranges below use rounded central database percentiles so they represent normal database meals without letting extreme outliers define the policy. This table is fixed — it does not change per client or per plan. It is deliberately a range, not a single point value: a range gives Section 8's scaling room to land the final per-meal window inside realistic, database-matching territory for a wider spread of clients, instead of forcing an exact ratio that can drift from what real meal bundles look like.
 
 | Meal type | Protein % of meal calories | Fat % of meal calories | Carb % of meal calories |
 |---|---|---|---|
-| Breakfast | 16% – 24% | 33% – 52% | 28% – 51% |
-| Lunch | 20% – 28% | 29% – 41% | 34% – 46% |
-| Dinner | 20% – 27% | 27% – 40% | 35% – 45% |
-| Snack | 15% – 24% | 39% – 63% | 20% – 34% |
+| Breakfast | 16% – 30% | 25% – 54% | 22% – 54% |
+| Lunch | 18% – 33% | 21% – 49% | 25% – 54% |
+| Dinner | 18% – 33% | 21% – 49% | 25% – 54% |
+| Snack | 13% – 30% | 22% – 54% | 20% – 54% |
 
-**Protein floor rule:** regardless of the natural range above, no meal's protein % may fall below a set minimum floor (e.g. 20%). Where a meal type's lower bound is below the floor (breakfast, snack), the floor overrides it.
+**Protein floor rule:** regardless of the natural range above, no meal's protein % may fall below a set minimum floor (e.g. 20%). Where a meal type's lower bound is below the floor, the floor overrides it.
 
 **Carb note:** carbs are the flexible macro. They are not scaled or stored as an independent range. They absorb whatever calories remain after protein and fat. The implied daily carb swing across the two edge cases (all meals hitting protein/fat maxes vs. all hitting mins) is considered acceptable by design — both poles produce nutritionally valid days within the daily calorie range.
 
@@ -320,25 +320,25 @@ Balanced 3-meal split: 25% breakfast / 40% lunch / 35% dinner.
 
 | Meal | Protein % range | Raw protein window |
 |---|---|---|
-| Breakfast | 16%–24% of 750 kcal | [750×0.16÷4, 750×0.24÷4] = [30.0, 45.0]g |
-| Lunch | 20%–28% of 1200 kcal | [1200×0.20÷4, 1200×0.28÷4] = [60.0, 84.0]g |
-| Dinner | 20%–27% of 1050 kcal | [1050×0.20÷4, 1050×0.27÷4] = [52.5, 70.9]g |
-| **Sum** | | **[142.5, 199.9]g** |
+| Breakfast | 20%–30% of 750 kcal (20% floor applied) | [750×0.20÷4, 750×0.30÷4] = [37.5, 56.3]g |
+| Lunch | 20%–33% of 1200 kcal (20% floor applied) | [1200×0.20÷4, 1200×0.33÷4] = [60.0, 99.0]g |
+| Dinner | 20%–33% of 1050 kcal (20% floor applied) | [1050×0.20÷4, 1050×0.33÷4] = [52.5, 86.6]g |
+| **Sum** | | **[150.0, 241.9]g** |
 
 ---
 
 ### Step 5 — Scale protein windows (Section 8 Steps 3–5)
 ```
-min_scale = 180 ÷ 142.5 = 1.263
-max_scale = 220 ÷ 199.9 = 1.101
+min_scale = 180 ÷ 150.0 = 1.200
+max_scale = 220 ÷ 241.9 = 0.910
 ```
 
 | Meal | Scaled protein window |
 |---|---|
-| Breakfast | [30.0 × 1.263, 45.0 × 1.101] = [37.9, 49.5]g |
-| Lunch | [60.0 × 1.263, 84.0 × 1.101] = [75.8, 92.5]g |
-| Dinner | [52.5 × 1.263, 70.9 × 1.101] = [66.3, 78.1]g |
-| **Sum** | **[180.0, 220.1] ≈ [180, 220]g** ✓ |
+| Breakfast | [37.5 × 1.200, 56.3 × 0.910] = [45.0, 51.2]g |
+| Lunch | [60.0 × 1.200, 99.0 × 0.910] = [72.0, 90.0]g |
+| Dinner | [52.5 × 1.200, 86.6 × 0.910] = [63.0, 78.8]g |
+| **Sum** | **[180.0, 220.0] ≈ [180, 220]g** ✓ |
 
 Repeat the same process for fat to produce scaled fat windows (omitted here for brevity).
 
@@ -346,11 +346,11 @@ Repeat the same process for fat to produce scaled fat windows (omitted here for 
 
 ### Step 6 — Infeasibility check (Section 8 Step 6)
 
-For breakfast (worst case: protein max 49.5g, fat max e.g. 43.3g after fat scaling):
+For breakfast (worst case: protein max 51.2g, fat max e.g. 26.9g after fat scaling):
 ```
-49.5 × 4 + 43.3 × 9 = 198 + 389.7 = 587.7 kcal
+51.2 × 4 + 26.9 × 9 = 204.8 + 242.1 = 446.9 kcal
 Calorie window max = 787.5 kcal
-Room for carbs = 787.5 − 587.7 = 199.8 kcal = 49.95g  ✓ (not negative)
+Room for carbs = 787.5 − 446.9 = 340.6 kcal = 85.15g  ✓ (not negative)
 ```
 All meals pass → feasible, proceed.
 
@@ -360,9 +360,9 @@ All meals pass → feasible, proceed.
 
 | Meal | Protein window | Fat window | Calorie window |
 |---|---|---|---|
-| Breakfast | [37.9, 49.5]g | [X, Y]g | [712.5, 787.5] kcal |
-| Lunch | [75.8, 92.5]g | [X, Y]g | [1140, 1260] kcal |
-| Dinner | [66.3, 78.1]g | [X, Y]g | [997.5, 1102.5] kcal |
+| Breakfast | [45.0, 51.2]g | [X, Y]g | [712.5, 787.5] kcal |
+| Lunch | [72.0, 90.0]g | [X, Y]g | [1140, 1260] kcal |
+| Dinner | [63.0, 78.8]g | [X, Y]g | [997.5, 1102.5] kcal |
 
 No carb range stored.
 
@@ -370,7 +370,7 @@ No carb range stored.
 
 ### Step 8 — Filter a candidate breakfast (Section 9)
 
-Candidate: protein=42g, fat=28g, carbs=?
+Candidate: protein=48g, fat=28g, carbs=?
 
 **Constraint A:**
 ```
@@ -380,31 +380,31 @@ Must land in [712.5, 787.5] — checked after Constraint C
 
 **Constraint B:**
 ```
-Protein: 42g BETWEEN 37.9 AND 49.5 ✓
+Protein: 48g BETWEEN 45.0 AND 51.2 ✓
 Fat: 28g BETWEEN X AND Y ✓ (assume yes)
 ```
 
 **Constraint C:**
 ```
-required_carbs_min = (712.5 − 42×4 − 28×9) ÷ 4 = (712.5 − 168 − 252) ÷ 4 = 292.5 ÷ 4 = 73.1g
-required_carbs_max = (787.5 − 42×4 − 28×9) ÷ 4 = (787.5 − 168 − 252) ÷ 4 = 367.5 ÷ 4 = 91.9g
+required_carbs_min = (712.5 − 48×4 − 28×9) ÷ 4 = (712.5 − 192 − 252) ÷ 4 = 268.5 ÷ 4 = 67.1g
+required_carbs_max = (787.5 − 48×4 − 28×9) ÷ 4 = (787.5 − 192 − 252) ÷ 4 = 343.5 ÷ 4 = 85.9g
 
 Candidate carbs must be BETWEEN 73.1g AND 91.9g
 ```
 
 If candidate has carbs=80g → passes all three ✓
-Actual calories = 42×4 + 28×9 + 80×4 = 168 + 252 + 320 = 740 kcal ✓ (inside [712.5, 787.5])
+Actual calories = 48×4 + 28×9 + 80×4 = 192 + 252 + 320 = 764 kcal ✓ (inside [712.5, 787.5])
 
 ---
 
 ### Step 9 — Ranking among valid candidates (Section 9 Step 5)
 
-Protein target = midpoint of [37.9, 49.5] = 43.7g
+Protein target = midpoint of [45.0, 51.2] = 48.1g
 Calorie target = 750 kcal
 
 Among all passing candidates, rank by:
 1. |candidate.calories − 750|  (closest first)
-2. |candidate.protein − 43.7|
+2. |candidate.protein − 48.1|
 3. |candidate.fat − fat_target|
 
 Pick the top-ranked candidate for the initial plan.
@@ -413,13 +413,13 @@ Pick the top-ranked candidate for the initial plan.
 
 ### The guarantee
 
-Every breakfast in range → hits [712.5, 787.5] kcal and [37.9, 49.5]g protein
-Every lunch in range   → hits [1140, 1260] kcal and [75.8, 92.5]g protein
-Every dinner in range  → hits [997.5, 1102.5] kcal and [66.3, 78.1]g protein
+Every breakfast in range → hits [712.5, 787.5] kcal and [45.0, 51.2]g protein
+Every lunch in range   → hits [1140, 1260] kcal and [72.0, 90.0]g protein
+Every dinner in range  → hits [997.5, 1102.5] kcal and [63.0, 78.8]g protein
 
 ```
 Day calories : 712.5+1140+997.5 to 787.5+1260+1102.5 = [2850, 3150] = 3000 ±5% ✓
-Day protein  : 37.9+75.8+66.3 to 49.5+92.5+78.1 = [180, 220]g ✓
+Day protein  : 45.0+72.0+63.0 to 51.2+90.0+78.8 = [180, 220]g ✓
 Day fat      : guaranteed by same construction ✓
 ```
 

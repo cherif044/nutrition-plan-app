@@ -189,24 +189,24 @@ check('1d / Section 6 Meal-calorie distribution', () => {
 check('1e / Section 7 Fixed macro-ratio range table', () => {
   assert.deepEqual(NUTRITION.mealMacroRatioRanges, {
     breakfast: {
-      protein: { min: 0.16, max: 0.24 },
-      fat: { min: 0.33, max: 0.52 },
-      carb: { min: 0.28, max: 0.51 },
+      protein: { min: 0.16, max: 0.30 },
+      fat: { min: 0.25, max: 0.54 },
+      carb: { min: 0.22, max: 0.54 },
     },
     lunch: {
-      protein: { min: 0.20, max: 0.28 },
-      fat: { min: 0.29, max: 0.41 },
-      carb: { min: 0.34, max: 0.46 },
+      protein: { min: 0.18, max: 0.33 },
+      fat: { min: 0.21, max: 0.49 },
+      carb: { min: 0.25, max: 0.54 },
     },
     dinner: {
-      protein: { min: 0.20, max: 0.27 },
-      fat: { min: 0.27, max: 0.40 },
-      carb: { min: 0.35, max: 0.45 },
+      protein: { min: 0.18, max: 0.33 },
+      fat: { min: 0.21, max: 0.49 },
+      carb: { min: 0.25, max: 0.54 },
     },
     snack: {
-      protein: { min: 0.15, max: 0.24 },
-      fat: { min: 0.39, max: 0.63 },
-      carb: { min: 0.20, max: 0.34 },
+      protein: { min: 0.13, max: 0.30 },
+      fat: { min: 0.22, max: 0.54 },
+      carb: { min: 0.20, max: 0.54 },
     },
   });
   for (const ranges of Object.values(NUTRITION.mealMacroRatioRanges)) {

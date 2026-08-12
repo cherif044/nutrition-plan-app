@@ -4479,6 +4479,51 @@ body:has(.explorer-toolbar) .planner-nav {
 
 /* ── Daily totals: calorie ring hero + macro bars ─────────────────────── */
 
+.summary__ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 14px;
+}
+
+.summary__ranges::before {
+  content: "Allowed";
+  align-self: center;
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.summary__range-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 26px;
+  border: 1px solid var(--ref-border);
+  border-radius: 8px;
+  background: var(--ref-card);
+  color: var(--ref-muted-fg);
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.summary__range-chip b {
+  color: var(--ref-fg);
+  font-weight: 650;
+}
+
+.summary__range-chip span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 650;
+}
+
+.summary__range-chip[data-metric="calories"] span { color: var(--macro-cal-ink); }
+.summary__range-chip[data-metric="proteinG"] span { color: var(--macro-protein-ink); }
+.summary__range-chip[data-metric="carbG"] span { color: var(--macro-carb-ink); }
+.summary__range-chip[data-metric="fatG"] span { color: var(--macro-fat-ink); }
+
 .metrics {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -4695,6 +4740,57 @@ body:has(.explorer-toolbar) .planner-nav {
   font-size: 13px;
   font-weight: 650;
 }
+
+.meal-card__ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid rgba(127, 169, 155, 0.18);
+  background: #fbfdfc;
+  padding: 10px 20px;
+}
+
+.meal-card__ranges[hidden] {
+  display: none;
+}
+
+.meal-card__ranges::before {
+  content: "Allowed";
+  align-self: center;
+  color: var(--ref-muted-fg);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.meal-card__range-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 26px;
+  border: 1px solid var(--ref-border);
+  border-radius: 8px;
+  background: var(--ref-card);
+  color: var(--ref-muted-fg);
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.meal-card__range-chip b {
+  color: var(--ref-fg);
+  font-weight: 650;
+}
+
+.meal-card__range-chip span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 650;
+}
+
+.meal-card__range-chip[data-metric="calories"] span { color: var(--macro-cal-ink); }
+.meal-card__range-chip[data-metric="proteinG"] span { color: var(--macro-protein-ink); }
+.meal-card__range-chip[data-metric="carbG"] span { color: var(--macro-carb-ink); }
+.meal-card__range-chip[data-metric="fatG"] span { color: var(--macro-fat-ink); }
 
 /* ── Meal totals footer strip ─────────────────────────────────────────── */
 
