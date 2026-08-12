@@ -85,6 +85,7 @@ function _generatePlanInternal(rawInput, useTemplates) {
     meals: optimization.meals,
     input,
     allowedFoods,
+    dailyTargets,
   });
 
   const meals = coffeeApplied.meals.map((meal) => {
@@ -226,7 +227,7 @@ function optimizeTemplateDay(meals, dailyTargets) {
   };
 }
 
-function applyCoffeeMilkAllowance({ meals, input, allowedFoods }) {
+function applyCoffeeMilkAllowance({ meals, input, allowedFoods, dailyTargets }) {
   const coffeesPerDay = Number(input.coffeesPerDay) || 0;
   if (coffeesPerDay <= 0) {
     return { meals, warnings: [] };
@@ -243,12 +244,12 @@ function applyCoffeeMilkAllowance({ meals, input, allowedFoods }) {
     };
   }
 
-  const mealIndex = meals.findIndex((meal) => meal.tag === 'breakfast' && meal.items.length > 0);
-  const targetIndex = mealIndex >= 0
-    ? mealIndex
-    : meals.findIndex((meal) => meal.items.length > 0);
+  const targetIndexes = [
+    meals.findIndex((meal) => meal.tag === 'breakfast' && meal.items.length > 0),
+    ...meals.map((meal, index) => (meal.items.length > 0 ? index : -1)),
+  ].filter((index, position, all) => index >= 0 && all.indexOf(index) === position);
 
-  if (targetIndex < 0) {
+  if (targetIndexes.length === 0) {
     return {
       meals,
       warnings: ['Coffee milk was skipped because no generated meal could receive it.'],
@@ -257,27 +258,46 @@ function applyCoffeeMilkAllowance({ meals, input, allowedFoods }) {
 
   const quantityG = roundToNearest(coffeesPerDay * COFFEE_MILK_GRAMS_PER_COFFEE, 5);
   const coffeeLabel = `${coffeesPerDay} coffee${coffeesPerDay === 1 ? '' : 's'} milk allowance`;
-  const item = {
-    food: milkFood,
-    quantityG,
-    alternatives: [],
-    broaderAlternatives: [],
-    nearestAlternatives: [],
-    component: {
-      source: 'coffee_milk_allowance',
-      ingredientName: coffeeLabel,
-      readyMealId: meals[targetIndex].readyMealId ?? meals[targetIndex].templateId ?? null,
-    },
-    totals: macrosForFoodPortion(milkFood, quantityG),
-  };
+
+  for (const targetIndex of targetIndexes) {
+    const meal = meals[targetIndex];
+    const item = {
+      food: milkFood,
+      quantityG,
+      alternatives: [],
+      broaderAlternatives: [],
+      nearestAlternatives: [],
+      component: {
+        source: 'coffee_milk_allowance',
+        ingredientName: coffeeLabel,
+        readyMealId: meal.readyMealId ?? meal.templateId ?? null,
+      },
+      totals: macrosForFoodPortion(milkFood, quantityG),
+    };
+    const nextItems = [...meal.items, item];
+    const nextTotals = sumTargets(nextItems.map((mealItem) => (
+      mealItem.totals ?? macrosForFoodPortion(mealItem.food, mealItem.quantityG)
+    )));
+    const validation = validateMealSwap({
+      dailyTargets,
+      weightKg: input.weightKg,
+      mealTarget: meal.target,
+      proposedMealTotals: nextTotals,
+    });
+    if (!validation.valid) continue;
+    return {
+      meals: meals.map((candidateMeal, index) => (
+        index === targetIndex
+          ? { ...candidateMeal, items: nextItems, totals: nextTotals }
+          : candidateMeal
+      )),
+      warnings: [],
+    };
+  }
 
   return {
-    meals: meals.map((meal, index) => (
-      index === targetIndex
-        ? { ...meal, items: [...meal.items, item] }
-        : meal
-    )),
-    warnings: [],
+    meals,
+    warnings: ['Coffee milk was skipped because adding it would push the meal outside the required v9 macro windows.'],
   };
 }
 
@@ -1650,10 +1670,7 @@ function readyMealCandidatesForMeal({ mealTag, allowedFoods, target }) {
     }))
     .filter(Boolean)
     .filter((candidate) => totalsWithinMealTolerance(candidate.totals, target))
-    .sort((a, b) => (
-      a.score - b.score ||
-      a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true })
-    ));
+    .sort((a, b) => compareRankedMealCandidates(a, b, target));
 }
 
 function selectReadyMealDayCombination(candidateSets, dailyTargets) {
@@ -1823,6 +1840,7 @@ function solveReadyMealCandidate(readyMeal, allowedFoodByName, target, options =
     items: withTotals,
     totals: fit.totals,
     fit,
+    rankTuple: mealRankTuple(fit.totals, target, acceptanceBounds),
     score: fit.score + servingRealismPenalty(withTotals) * 0.25,
   };
 }
@@ -2365,12 +2383,15 @@ function computeMealBounds(target, options = {}) {
 }
 
 function cloneMacroBounds(bounds) {
-  return {
+  const cloned = {
     calories: { ...bounds.calories },
     proteinG: { ...bounds.proteinG },
-    carbG: { ...bounds.carbG },
     fatG: { ...bounds.fatG },
   };
+  if (bounds.carbG) cloned.carbG = { ...bounds.carbG };
+  if (bounds.scaling) cloned.scaling = bounds.scaling;
+  if (bounds.infeasibility) cloned.infeasibility = { ...bounds.infeasibility };
+  return cloned;
 }
 
 function macroAllocationShare(mealMacroG, dailyMacroG, mealCalories, dailyCalories) {
@@ -2388,9 +2409,8 @@ function validateMealSwap({
 }) {
   if (mealTarget?.macroWindows && proposedMealTotals) {
     const bounds = computeMealBounds(mealTarget);
-    const violations = [];
-    const violation = findBoundsViolation(proposedMealTotals, bounds);
-    if (violation) violations.push(`meal_${violation}`);
+    const violations = findBoundsViolations(proposedMealTotals, bounds)
+      .map((violation) => `meal_${violation}`);
     return {
       valid: violations.length === 0,
       violations,
@@ -2416,9 +2436,8 @@ function validateMealSwap({
     dailyTargets,
     weightKg: Number(weightKg),
   });
-  const violations = [];
-  const violation = findBoundsViolation(proposedMealTotals, bounds);
-  if (violation) violations.push(`meal_${violation}`);
+  const violations = findBoundsViolations(proposedMealTotals, bounds)
+    .map((violation) => `meal_${violation}`);
 
   return {
     valid: violations.length === 0,
@@ -2428,11 +2447,41 @@ function validateMealSwap({
 }
 
 function findBoundsViolation(totals, bounds) {
-  if (totals.calories < bounds.calories.min || totals.calories > bounds.calories.max) return 'calories';
-  if (totals.proteinG < bounds.proteinG.min || totals.proteinG > bounds.proteinG.max) return 'protein';
-  if (totals.carbG < bounds.carbG.min || totals.carbG > bounds.carbG.max) return 'carbs';
-  if (totals.fatG < bounds.fatG.min || totals.fatG > bounds.fatG.max) return 'fat';
-  return null;
+  return findBoundsViolations(totals, bounds)[0] ?? null;
+}
+
+function findBoundsViolations(totals, bounds) {
+  const violations = [];
+  if (totals.calories < bounds.calories.min || totals.calories > bounds.calories.max) {
+    violations.push('calories');
+  }
+  if (totals.proteinG < bounds.proteinG.min || totals.proteinG > bounds.proteinG.max) {
+    violations.push('protein');
+  }
+  if (totals.fatG < bounds.fatG.min || totals.fatG > bounds.fatG.max) {
+    violations.push('fat');
+  }
+
+  const carbBounds = bounds.carbG ?? requiredCarbWindowForCandidate(totals, bounds);
+  if (totals.carbG < carbBounds.min || totals.carbG > carbBounds.max) {
+    violations.push('carbs');
+  }
+  return violations;
+}
+
+function requiredCarbWindowForCandidate(totals, bounds) {
+  return {
+    min: (
+      bounds.calories.min -
+      totals.proteinG * NUTRITION.proteinKcalPerGram -
+      totals.fatG * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+    max: (
+      bounds.calories.max -
+      totals.proteinG * NUTRITION.proteinKcalPerGram -
+      totals.fatG * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+  };
 }
 
 function isWithinTolerance(items, target) {
@@ -2576,9 +2625,13 @@ function nudgeIntoBounds(items, bounds) {
 
     const key = VIOLATION_TO_KEY[violation];
     const field = KEY_TO_FOOD_FIELD[key];
+    const range = bounds[key] ?? (
+      key === 'carbG' ? requiredCarbWindowForCandidate(totals, bounds) : null
+    );
+    if (!range) return current;
     const currentVal = totals[key];
-    const tooLow = currentVal < bounds[key].min;
-    const deficit = tooLow ? bounds[key].min - currentVal : bounds[key].max - currentVal;
+    const tooLow = currentVal < range.min;
+    const deficit = tooLow ? range.min - currentVal : range.max - currentVal;
 
     let bestIdx = -1;
     let bestRate = 0;
@@ -2730,7 +2783,7 @@ function findPortionGridSolution(items, target, bounds, seedItems = items) {
 }
 
 function findBestPortionGridFit(items, target, bounds, seedItems = items, options = {}) {
-  const keys = ['calories', 'proteinG', 'carbG', 'fatG'];
+  const keys = macroBoundKeys(bounds);
   const step = Number.isFinite(options.step) && options.step > 0 ? options.step : EXACT_PORTION_SEARCH_STEP_G;
   const maxVisits = Number.isFinite(options.maxVisits) ? options.maxVisits : EXACT_PORTION_SEARCH_MAX_VISITS;
   const maxMs = Number.isFinite(options.maxMs) ? options.maxMs : EXACT_PORTION_SEARCH_MAX_MS;
@@ -2834,6 +2887,10 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
   };
 }
 
+function macroBoundKeys(bounds) {
+  return ['calories', 'proteinG', 'carbG', 'fatG'].filter((key) => bounds[key]);
+}
+
 function servingGridCandidates(food, seedQuantityG, step = 5) {
   const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
   const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
@@ -2892,12 +2949,48 @@ function addMacros(left, right) {
 }
 
 function macroBoundFitScore(totals, target) {
+  if (target?.macroWindows) {
+    const [calorieScore, proteinScore, fatScore] = mealRankTuple(
+      totals,
+      target,
+      computeMealBounds(target),
+    );
+    return calorieScore * 1_000_000 + proteinScore * 1_000 + fatScore;
+  }
   return (
     3 * Math.abs(totals.calories - target.calories) / Math.max(1, target.calories) +
     Math.abs(totals.proteinG - target.proteinG) / Math.max(1, target.proteinG) +
     Math.abs(totals.carbG - target.carbG) / Math.max(1, target.carbG) +
     Math.abs(totals.fatG - target.fatG) / Math.max(1, target.fatG)
   );
+}
+
+function compareRankedMealCandidates(a, b, target) {
+  const aTuple = a.rankTuple ?? mealRankTuple(a.totals, target, computeMealBounds(target));
+  const bTuple = b.rankTuple ?? mealRankTuple(b.totals, target, computeMealBounds(target));
+  for (let index = 0; index < aTuple.length; index += 1) {
+    if (aTuple[index] !== bTuple[index]) return aTuple[index] - bTuple[index];
+  }
+  return a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true });
+}
+
+function mealRankTuple(totals, target, bounds = computeMealBounds(target)) {
+  if (!target?.macroWindows) {
+    return [
+      Math.abs(totals.calories - target.calories),
+      Math.abs(totals.proteinG - target.proteinG),
+      Math.abs(totals.fatG - target.fatG),
+    ];
+  }
+  return [
+    Math.abs(totals.calories - target.calories),
+    Math.abs(totals.proteinG - rangeMidpoint(bounds.proteinG)),
+    Math.abs(totals.fatG - rangeMidpoint(bounds.fatG)),
+  ];
+}
+
+function rangeMidpoint(range) {
+  return (range.min + range.max) / 2;
 }
 
 function rebalanceMeal({ mealTarget, items: rawItems, mealBounds, dailyContext }) {
@@ -3141,6 +3234,8 @@ module.exports = {
   dailyTotalsWithinPlanBounds,
   computeMealBounds,
   validateMealSwap,
+  requiredCarbWindowForCandidate,
+  mealRankTuple,
   getProduceSwapOptions,
   filterFoodsForChatbox,
   filterFoods,

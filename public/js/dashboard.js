@@ -135,37 +135,39 @@ function renderGeneralPlans(plans = allGeneralPlans) {
   visiblePlans.forEach((plan) => {
     const updatedAt = plan.updated_at || plan.created_at;
     const indicator = indicatorFor(plan);
-    const card = document.createElement('article');
-    card.className = 'dashboard-plan-card';
+    const shell = document.createElement('article');
+    shell.className = 'dashboard-plan-card';
+    const card = document.createElement('a');
+    card.className = 'dashboard-plan-card__link';
+    card.href = planHref(plan);
     card.innerHTML = `
-      <a class="dashboard-plan-card__link" href="${escapeHtml(planHref(plan))}">
-        <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('file', 17)}</span>
-        <span class="dashboard-plan-card__body">
-          <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
-          <span class="dashboard-plan-card__path">${escapeHtml(folderBreadcrumb(plan))}</span>
-          <span class="dashboard-plan-card__footer">
-            <span>${escapeHtml(formatRelativeTime(updatedAt))}</span>
-            ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
-            ${indicator ? `
-              <span class="dashboard-plan-card__indicator metric metric--macro" data-metric="${escapeHtml(indicator.metric)}">
-                <span class="metric__top"><span><i class="macro-dot" aria-hidden="true"></i>${escapeHtml(indicator.label)}</span></span>
-                <span class="metric-bar" aria-hidden="true"><i></i></span>
-              </span>
-            ` : ''}
-          </span>
+      <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('file', 17)}</span>
+      <span class="dashboard-plan-card__body">
+        <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
+        <span class="dashboard-plan-card__path">${escapeHtml(folderBreadcrumb(plan))}</span>
+        <span class="dashboard-plan-card__footer">
+          <span>${escapeHtml(formatRelativeTime(updatedAt))}</span>
+          ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
+          ${indicator ? `
+            <span class="dashboard-plan-card__indicator metric metric--macro" data-metric="${escapeHtml(indicator.metric)}">
+              <span class="metric__top"><span><i class="macro-dot" aria-hidden="true"></i>${escapeHtml(indicator.label)}</span></span>
+              <span class="metric-bar" aria-hidden="true"><i></i></span>
+            </span>
+          ` : ''}
         </span>
-      </a>
-      <button
-        class="dashboard-plan-menu-btn"
-        type="button"
-        title="Plan options"
-        aria-label="Plan options for ${escapeHtml(plan.name)}"
-        data-plan-id="${escapeHtml(plan.id)}"
-        data-plan-name="${escapeHtml(plan.name)}"
-        data-export-href="${escapeHtml(planExportHref(plan))}"
-      >${iconSvg('more', 18)}</button>
+      </span>
     `;
-    container.append(card);
+    const menuButton = document.createElement('button');
+    menuButton.className = 'dashboard-plan-menu-btn';
+    menuButton.type = 'button';
+    menuButton.title = 'Plan options';
+    menuButton.setAttribute('aria-label', `Plan options for ${plan.name}`);
+    menuButton.dataset.planId = plan.id;
+    menuButton.dataset.planName = plan.name;
+    menuButton.dataset.exportHref = planExportHref(plan);
+    menuButton.innerHTML = iconSvg('more', 18);
+    shell.append(card, menuButton);
+    container.append(shell);
   });
 }
 

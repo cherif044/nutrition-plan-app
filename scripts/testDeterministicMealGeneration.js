@@ -226,10 +226,14 @@ function assertWithinTolerance(items, target, label) {
     assert(totals.calories <= target.macroWindows.calories.max + 0.01, `${label} calories max`);
     assert(totals.proteinG >= target.macroWindows.proteinG.min - 0.01, `${label} protein min`);
     assert(totals.proteinG <= target.macroWindows.proteinG.max + 0.01, `${label} protein max`);
-    assert(totals.carbG >= target.macroWindows.carbG.min - 0.01, `${label} carbs min`);
-    assert(totals.carbG <= target.macroWindows.carbG.max + 0.01, `${label} carbs max`);
     assert(totals.fatG >= target.macroWindows.fatG.min - 0.01, `${label} fat min`);
     assert(totals.fatG <= target.macroWindows.fatG.max + 0.01, `${label} fat max`);
+    const carbWindow = {
+      min: (target.macroWindows.calories.min - totals.proteinG * 4 - totals.fatG * 9) / 4,
+      max: (target.macroWindows.calories.max - totals.proteinG * 4 - totals.fatG * 9) / 4,
+    };
+    assert(totals.carbG >= carbWindow.min - 0.01, `${label} carbs min`);
+    assert(totals.carbG <= carbWindow.max + 0.01, `${label} carbs max`);
     return;
   }
   assert(

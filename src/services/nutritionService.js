@@ -215,7 +215,14 @@ function fixedMacroRatioRangeFor(profileTag) {
   const tag = NUTRITION.mealMacroRatioRanges[profileTag]
     ? profileTag
     : DEFAULT_MAIN_PROFILE_TAG;
-  return NUTRITION.mealMacroRatioRanges[tag];
+  const range = NUTRITION.mealMacroRatioRanges[tag];
+  return {
+    ...range,
+    protein: {
+      min: Math.max(range.protein.min, NUTRITION.minimumMealProteinCalorieRatio),
+      max: Math.max(range.protein.max, NUTRITION.minimumMealProteinCalorieRatio),
+    },
+  };
 }
 
 function buildScaledMealMacroWindows(dailyTargets, profiles) {
@@ -231,25 +238,25 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
       min: calories * (1 - NUTRITION.mealSwapDailyCalorieWindowPercent),
       max: calories * (1 + NUTRITION.mealSwapDailyCalorieWindowPercent),
     };
-    const proportionalProteinG = scaleRangeByPercent(dailyRanges.proteinG, profile.idealCaloriePercent);
-    const proportionalFatG = scaleRangeByPercent(dailyRanges.fatG, profile.idealCaloriePercent);
-    const proteinG = unionRanges(protein.windows[index], proportionalProteinG);
-    const fatG = unionRanges(fat.windows[index], proportionalFatG);
+    const proteinG = protein.windows[index];
+    const fatG = fat.windows[index];
+    const maximumProteinFatCalories =
+      proteinG.max * NUTRITION.proteinKcalPerGram +
+      fatG.max * NUTRITION.fatKcalPerGram;
+    const minimumCarbCalories =
+      NUTRITION.minimumAcceptableCarbsG * NUTRITION.carbKcalPerGram;
+    if (maximumProteinFatCalories > calorieWindow.max - minimumCarbCalories) {
+      throw new Error(
+        `INFEASIBLE meal macro window for ${profile.name}: protein and fat ceilings leave no acceptable carb room.`,
+      );
+    }
     return {
       calories: calorieWindow,
       proteinG,
       fatG,
-      carbG: {
-        min: Math.max(0, (
-          calorieWindow.min -
-          proteinG.max * NUTRITION.proteinKcalPerGram -
-          fatG.max * NUTRITION.fatKcalPerGram
-        ) / NUTRITION.carbKcalPerGram),
-        max: (
-          calorieWindow.max -
-          proteinG.min * NUTRITION.proteinKcalPerGram -
-          fatG.min * NUTRITION.fatKcalPerGram
-        ) / NUTRITION.carbKcalPerGram,
+      infeasibility: {
+        maximumProteinFatCalories,
+        minimumAcceptableCarbsG: NUTRITION.minimumAcceptableCarbsG,
       },
       scaling: {
         protein: {
@@ -262,27 +269,9 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
           minScale: fat.minScale,
           maxScale: fat.maxScale,
         },
-        proportional: {
-          proteinG: proportionalProteinG,
-          fatG: proportionalFatG,
-        },
       },
     };
   });
-}
-
-function scaleRangeByPercent(range, percent) {
-  return {
-    min: range.min * percent,
-    max: range.max * percent,
-  };
-}
-
-function unionRanges(left, right) {
-  return {
-    min: Math.min(left.min, right.min),
-    max: Math.max(left.max, right.max),
-  };
 }
 
 function rawMacroWindowFor(profile, dailyCalories, macro) {

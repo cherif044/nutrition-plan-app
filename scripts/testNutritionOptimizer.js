@@ -12,6 +12,7 @@ const cases = [
   named('breakfast-heavy', { mealDistribution: 'breakfast_heavy' }, { mayMiss: true }),
   named('lunch-heavy', { mealDistribution: 'lunch_heavy' }, { mayMiss: true }),
   named('dinner-heavy', { mealDistribution: 'dinner_heavy' }, { mayMiss: true }),
+  named('coffee allowance guarded', { coffeesPerDay: 4, milkType: 'whole' }),
   named('vegetarian constrained', { dietType: 'vegetarian' }, { mayMiss: true }),
   named('vegan constrained', { dietType: 'vegan' }, { mayMiss: true }),
   named('avoid dairy constrained', { avoidFoods: ['dairy'] }, { mayMiss: true }),
@@ -90,10 +91,14 @@ function assertWithinTolerance(items, target, label) {
     assert(totals.calories <= target.macroWindows.calories.max + 0.01, `${label} calories max`);
     assert(totals.proteinG >= target.macroWindows.proteinG.min - 0.01, `${label} protein min`);
     assert(totals.proteinG <= target.macroWindows.proteinG.max + 0.01, `${label} protein max`);
-    assert(totals.carbG >= target.macroWindows.carbG.min - 0.01, `${label} carbs min`);
-    assert(totals.carbG <= target.macroWindows.carbG.max + 0.01, `${label} carbs max`);
     assert(totals.fatG >= target.macroWindows.fatG.min - 0.01, `${label} fat min`);
     assert(totals.fatG <= target.macroWindows.fatG.max + 0.01, `${label} fat max`);
+    const carbWindow = {
+      min: (target.macroWindows.calories.min - totals.proteinG * 4 - totals.fatG * 9) / 4,
+      max: (target.macroWindows.calories.max - totals.proteinG * 4 - totals.fatG * 9) / 4,
+    };
+    assert(totals.carbG >= carbWindow.min - 0.01, `${label} carbs min`);
+    assert(totals.carbG <= carbWindow.max + 0.01, `${label} carbs max`);
     return;
   }
   assert(

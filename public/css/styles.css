@@ -5665,7 +5665,7 @@ body.dashboard-page .planner-nav {
 /* ══════════════════════════════════════════════════════════════════════════
    Meal food table — one column grid shared by the header, every food row and
    the meal-totals footer, so headings, values and totals stay in line.
-   The actions column is always reserved: toggling AI mode fills it instead of
+   The actions column is always reserved: toggling edit mode fills it instead of
    reflowing the table.
 ══════════════════════════════════════════════════════════════════════════ */
 
@@ -5886,7 +5886,7 @@ body.dashboard-page .planner-nav {
   font-weight: 700;
 }
 
-/* ── Changed-row highlight (AI mode applies one row at a time) ────────── */
+/* ── Changed-row highlight (edit mode applies one row at a time) ───────── */
 
 .food-item--changed {
   animation: rowChanged 1.5s var(--ease-smooth) both;

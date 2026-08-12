@@ -844,7 +844,7 @@ function mealCardMetaText(state) {
 }
 
 // Reconciles the rendered rows against state.items in place. Rows that did not
-// change keep their DOM nodes untouched, so applying a swap in AI mode only
+// change keep their DOM nodes untouched, so applying an edit-mode swap only
 // repaints the row that actually moved instead of rebuilding the whole meal.
 function renderFoodList(state) {
   const foodList = state.cardEl?.querySelector('.food-list');
@@ -910,7 +910,7 @@ function updateFoodRow(row, state, itemIndex) {
   return true;
 }
 
-// The actions column is always present in the grid, so toggling AI mode fills
+// The actions column is always present in the grid, so toggling edit mode fills
 // or empties it without moving a single other column.
 function setRowActions(row, state, itemIndex) {
   const slot = row.querySelector('.food-actions');
@@ -992,15 +992,27 @@ function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
   if (target.macroWindows) {
+    const carbWindow = {
+      min: (
+        target.macroWindows.calories.min -
+        totals.proteinG * 4 -
+        totals.fatG * 9
+      ) / 4,
+      max: (
+        target.macroWindows.calories.max -
+        totals.proteinG * 4 -
+        totals.fatG * 9
+      ) / 4,
+    };
     return (
       totals.calories >= target.macroWindows.calories.min &&
       totals.calories <= target.macroWindows.calories.max &&
       totals.proteinG >= target.macroWindows.proteinG.min &&
       totals.proteinG <= target.macroWindows.proteinG.max &&
-      totals.carbG >= target.macroWindows.carbG.min &&
-      totals.carbG <= target.macroWindows.carbG.max &&
       totals.fatG >= target.macroWindows.fatG.min &&
-      totals.fatG <= target.macroWindows.fatG.max
+      totals.fatG <= target.macroWindows.fatG.max &&
+      totals.carbG >= carbWindow.min &&
+      totals.carbG <= carbWindow.max
     );
   }
   const weightKg = Number(currentPlanInput?.weightKg);

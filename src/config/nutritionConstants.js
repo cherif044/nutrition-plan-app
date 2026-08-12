@@ -36,9 +36,11 @@ const NUTRITION = {
     maximum: 1.0,
     default: 0.7,
   },
+  minimumMealProteinCalorieRatio: 0.20,
+  minimumAcceptableCarbsG: 0,
   mealMacroRatioRanges: {
     breakfast: {
-      protein: { min: 0.20, max: 0.24 },
+      protein: { min: 0.16, max: 0.24 },
       fat: { min: 0.33, max: 0.52 },
       carb: { min: 0.28, max: 0.51 },
     },
@@ -53,7 +55,7 @@ const NUTRITION = {
       carb: { min: 0.35, max: 0.45 },
     },
     snack: {
-      protein: { min: 0.20, max: 0.24 },
+      protein: { min: 0.15, max: 0.24 },
       fat: { min: 0.39, max: 0.63 },
       carb: { min: 0.20, max: 0.34 },
     },

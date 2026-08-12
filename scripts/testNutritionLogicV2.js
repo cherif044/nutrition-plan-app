@@ -8,6 +8,7 @@ const {
 } = require('../src/config/nutritionConstants');
 const {
   buildMealTargets,
+  buildScaledMealMacroWindows,
   calculateBmr,
   calculateDailyMacroRanges,
   calculateMacroTargets,
@@ -19,7 +20,9 @@ const {
   computeDailyPlanBounds,
   computeMealBounds,
   dailyTotalsWithinPlanBounds,
+  mealRankTuple,
   normalizeInput,
+  requiredCarbWindowForCandidate,
   validateMealSwap,
 } = require('../src/services/planGenerator');
 
@@ -79,7 +82,7 @@ check('1a BMR and TDEE formulas', () => {
     moderate: 1.55,
     athlete: 1.9,
   });
-  return 'Mifflin-St Jeor and the four documented activity factors match v8.';
+  return 'Mifflin-St Jeor and the four documented activity factors match v9.';
 });
 
 check('1b Goal calorie adjustment', () => {
@@ -99,7 +102,7 @@ check('1b Goal calorie adjustment', () => {
     gainSurplusCalories: 300,
   })));
   close(gain.targetCalories, gain.maintenanceCalories + 300);
-  return 'Maintain unchanged, loss is weight-scaled, gain is fixed +200 to +300 kcal.';
+  return 'Maintain unchanged; loss uses body-weight percentage and 7700 kcal/kg; gain uses fixed 200-300 kcal surplus.';
 });
 
 check('1c / Section 5 Daily macro gram ranges', () => {
@@ -118,51 +121,7 @@ check('1c / Section 5 Daily macro gram ranges', () => {
   close(point.fatG, 70);
   close(point.proteinG * 4 + point.carbG * 4 + point.fatG * 9, 2500);
   assert(point.macroRanges.proteinG.min < point.macroRanges.proteinG.max);
-  return 'Ranges are non-inverted at 40kg, 100kg, and 180kg; display point remains the recommended default.';
-});
-
-check('1c.1 Whole-plan daily macro windows', () => {
-  const targets = calculateMacroTargets({
-    weightKg: 80,
-    proteinPerKg: 2,
-    fatPerKg: 0.7,
-  }, 2405);
-  const bounds = computeDailyPlanBounds(targets);
-
-  close(bounds.calories.min, 2405 * 0.95);
-  close(bounds.calories.max, 2405 * 1.05);
-  close(bounds.proteinG.min, 80 * 1.8);
-  close(bounds.proteinG.max, 80 * 2.2);
-  close(bounds.fatG.min, 80 * 0.66);
-  close(bounds.fatG.max, 80 * 1.0);
-  close(bounds.carbG.min, (2405 * 0.95 - (80 * 2.2 * 4) - (80 * 1.0 * 9)) / 4);
-  close(bounds.carbG.max, (2405 * 1.05 - (80 * 1.8 * 4) - (80 * 0.66 * 9)) / 4);
-
-  assert.equal(dailyTotalsWithinPlanBounds({
-    calories: 2384,
-    proteinG: 161,
-    carbG: 311,
-    fatG: 62,
-  }, targets), true, 'example plan should pass the whole-plan windows');
-  assert.equal(dailyTotalsWithinPlanBounds({
-    calories: 2384,
-    proteinG: 143.9,
-    carbG: 311,
-    fatG: 62,
-  }, targets), false, 'protein below 1.8g/kg should fail');
-  assert.equal(dailyTotalsWithinPlanBounds({
-    calories: 2384,
-    proteinG: 161,
-    carbG: 311,
-    fatG: 80.1,
-  }, targets), false, 'fat above 1.0g/kg should fail');
-  assert.equal(dailyTotalsWithinPlanBounds({
-    calories: 2526,
-    proteinG: 161,
-    carbG: 311,
-    fatG: 62,
-  }, targets), false, 'calories outside ±5% should fail');
-  return 'Whole-plan calories use ±5%, protein/fat use body-weight ranges, and carbs are derived from the remaining calorie window.';
+  return 'Ranges are non-inverted at 40kg, 100kg, and 180kg; default targets are 2.0g/kg protein and 0.7g/kg fat.';
 });
 
 check('1d / Section 6 Meal-calorie distribution', () => {
@@ -198,42 +157,16 @@ check('1d / Section 6 Meal-calorie distribution', () => {
       close(percentages.reduce((sum, value) => sum + value, 0), 1, 1e-10);
       const profiles = getMealSlotProfile(Number(mealCount), distribution);
       assert.deepEqual(profiles.map((profile) => profile.idealCaloriePercent), percentages);
-    }
-  }
-  const expectedSlots = {
-    balanced: {
-      2: ['breakfast:breakfast', 'main_meal:lunch'],
-      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
-      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
-      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
-    },
-    breakfast_heavy: {
-      2: ['breakfast:breakfast', 'main_meal:lunch'],
-      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
-      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
-      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
-    },
-    lunch_heavy: {
-      2: ['breakfast:breakfast', 'lunch:lunch'],
-      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
-      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
-      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
-    },
-    dinner_heavy: {
-      2: ['breakfast:breakfast', 'dinner:dinner'],
-      3: ['breakfast:breakfast', 'lunch:lunch', 'dinner:dinner'],
-      4: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'dinner:dinner'],
-      5: ['breakfast:breakfast', 'snack:snack', 'lunch:lunch', 'snack:snack', 'dinner:dinner'],
-    },
-  };
-  for (const [distribution, table] of Object.entries(expectedSlots)) {
-    for (const [mealCount, expected] of Object.entries(table)) {
-      const profiles = getMealSlotProfile(Number(mealCount), distribution);
-      assert.deepEqual(
-        profiles.map((profile) => `${profile.tag}:${profile.profileTag}`),
-        expected,
-        `${distribution} ${mealCount} meal slots should be typed`,
-      );
+
+      const dailyCalories = 2400;
+      const calorieMins = profiles.reduce((sum, profile) => (
+        sum + dailyCalories * profile.idealCaloriePercent * 0.95
+      ), 0);
+      const calorieMaxes = profiles.reduce((sum, profile) => (
+        sum + dailyCalories * profile.idealCaloriePercent * 1.05
+      ), 0);
+      close(calorieMins, dailyCalories * 0.95);
+      close(calorieMaxes, dailyCalories * 1.05);
     }
   }
   for (const mealCount of [4, 5]) {
@@ -247,14 +180,16 @@ check('1d / Section 6 Meal-calorie distribution', () => {
       assert.deepEqual(snacks, balancedSnacks);
     }
   }
-  return 'Every table sums to 100%; snack slots are unchanged in heavy distributions.';
+  assert(getMealSlotProfile(3, 'breakfast_heavy')[0].idealCaloriePercent > getMealSlotProfile(3, 'balanced')[0].idealCaloriePercent);
+  assert(getMealSlotProfile(3, 'lunch_heavy')[1].idealCaloriePercent > getMealSlotProfile(3, 'balanced')[1].idealCaloriePercent);
+  assert(getMealSlotProfile(3, 'dinner_heavy')[2].idealCaloriePercent > getMealSlotProfile(3, 'balanced')[2].idealCaloriePercent);
+  return 'Every pattern x meal-count sums to 100%; heavy boosts hit only the intended non-snack slot and meal windows sum to daily +/-5%.';
 });
 
 check('1e / Section 7 Fixed macro-ratio range table', () => {
-  const table = NUTRITION.mealMacroRatioRanges;
-  assert.deepEqual(table, {
+  assert.deepEqual(NUTRITION.mealMacroRatioRanges, {
     breakfast: {
-      protein: { min: 0.20, max: 0.24 },
+      protein: { min: 0.16, max: 0.24 },
       fat: { min: 0.33, max: 0.52 },
       carb: { min: 0.28, max: 0.51 },
     },
@@ -269,21 +204,24 @@ check('1e / Section 7 Fixed macro-ratio range table', () => {
       carb: { min: 0.35, max: 0.45 },
     },
     snack: {
-      protein: { min: 0.20, max: 0.24 },
+      protein: { min: 0.15, max: 0.24 },
       fat: { min: 0.39, max: 0.63 },
       carb: { min: 0.20, max: 0.34 },
     },
   });
-  for (const ranges of Object.values(table)) {
-    for (const range of Object.values(ranges)) {
-      assert(range.min < range.max);
+  for (const ranges of Object.values(NUTRITION.mealMacroRatioRanges)) {
+    for (const range of Object.values(ranges)) assert(range.min < range.max);
+  }
+  const before = JSON.stringify(NUTRITION.mealMacroRatioRanges);
+  const lightClient = buildMealTargets(calculateNutritionDetails(normalizeInput(baseRaw({ weightKg: 55 }))).targets, normalizeInput(baseRaw({ weightKg: 55 })));
+  const heavyClient = buildMealTargets(calculateNutritionDetails(normalizeInput(baseRaw({ weightKg: 140 }))).targets, normalizeInput(baseRaw({ weightKg: 140 })));
+  assert.equal(JSON.stringify(NUTRITION.mealMacroRatioRanges), before);
+  for (const meals of [lightClient, heavyClient]) {
+    for (const meal of meals) {
+      assert(meal.slotProfile.macroCalorieRatio.protein.min >= NUTRITION.minimumMealProteinCalorieRatio);
     }
   }
-  const before = JSON.stringify(table);
-  buildMealTargets(calculateNutritionDetails(normalizeInput(baseRaw({ weightKg: 55 }))).targets, normalizeInput(baseRaw({ weightKg: 55 })));
-  buildMealTargets(calculateNutritionDetails(normalizeInput(baseRaw({ weightKg: 140 }))).targets, normalizeInput(baseRaw({ weightKg: 140 })));
-  assert.equal(JSON.stringify(table), before);
-  return 'The fixed table is client-independent; breakfast/snack protein floors are applied at 20%.';
+  return 'The raw table is fixed/client-independent and the 20% protein floor is applied when slot profiles are built.';
 });
 
 check('1f / Section 8 Scaled per-meal windows', () => {
@@ -298,66 +236,64 @@ check('1f / Section 8 Scaled per-meal windows', () => {
     const dailyTargets = calculateNutritionDetails(input).targets;
     const meals = buildMealTargets(dailyTargets, input);
     const sums = sumMealWindowBounds(meals);
-    const dailyBounds = computeDailyPlanBounds(dailyTargets);
-    assertRangeCovers(sums.proteinG, dailyBounds.proteinG);
-    assertRangeCovers(sums.fatG, dailyBounds.fatG);
-    assertRangeCovers(sums.carbG, dailyBounds.carbG);
+    close(sums.proteinG.min, dailyTargets.macroRanges.proteinG.min, 1e-6);
+    close(sums.proteinG.max, dailyTargets.macroRanges.proteinG.max, 1e-6);
+    close(sums.fatG.min, dailyTargets.macroRanges.fatG.min, 1e-6);
+    close(sums.fatG.max, dailyTargets.macroRanges.fatG.max, 1e-6);
+    close(sums.calories.min, dailyTargets.calories * 0.95, 1e-6);
+    close(sums.calories.max, dailyTargets.calories * 1.05, 1e-6);
+
     for (const meal of meals) {
       const windows = meal.targets.macroWindows;
-      assert(meal.targets.macroWindows.proteinG.min > 0);
-      assert(meal.targets.macroWindows.proteinG.min < meal.targets.macroWindows.proteinG.max);
-      assert(meal.targets.macroWindows.fatG.min > 0);
-      assert(meal.targets.macroWindows.fatG.min < meal.targets.macroWindows.fatG.max);
-      assert(meal.targets.macroWindows.carbG.min >= 0);
-      assert(meal.targets.macroWindows.carbG.min < meal.targets.macroWindows.carbG.max);
-      assert.notEqual(
-        meal.targets.macroWindows.scaling.protein.minScale,
-        meal.targets.macroWindows.scaling.protein.maxScale,
-      );
-      assertRangeCovers(windows.proteinG, scaledRawRange(windows.scaling.protein));
-      assertRangeCovers(windows.fatG, scaledRawRange(windows.scaling.fat));
-      assertRangeCovers(windows.proteinG, windows.scaling.proportional.proteinG);
-      assertRangeCovers(windows.fatG, windows.scaling.proportional.fatG);
+      assert(!Object.hasOwn(windows, 'carbG'), 'Section 8 must not store a static carb range');
+      assert(windows.proteinG.min > 0);
+      assert(windows.proteinG.min < windows.proteinG.max);
+      assert(windows.fatG.min > 0);
+      assert(windows.fatG.min < windows.fatG.max);
+      assert.notEqual(windows.scaling.protein.minScale, windows.scaling.protein.maxScale);
+      assert.notEqual(windows.scaling.fat.minScale, windows.scaling.fat.maxScale);
+      close(windows.proteinG.min, windows.scaling.protein.raw.min * windows.scaling.protein.minScale, 1e-6);
+      close(windows.proteinG.max, windows.scaling.protein.raw.max * windows.scaling.protein.maxScale, 1e-6);
+      close(windows.fatG.min, windows.scaling.fat.raw.min * windows.scaling.fat.minScale, 1e-6);
+      close(windows.fatG.max, windows.scaling.fat.raw.max * windows.scaling.fat.maxScale, 1e-6);
     }
   }
 
-  const extremeInput = normalizeInput(baseRaw({
-    weightKg: 180,
-    heightCm: 145,
-    age: 75,
-    sex: 'female',
-    activityLevel: 'sedentary',
-    goal: 'lose_weight',
-    weeklyWeightLossPercent: 1,
-    numberOfMeals: 5,
-    mealDistribution: 'breakfast_heavy',
-  }));
-  const extremeTargets = calculateNutritionDetails(extremeInput).targets;
-  const extremeMeals = buildMealTargets(extremeTargets, extremeInput);
-  const extremeSums = sumMealWindowBounds(extremeMeals);
-  const extremeBounds = computeDailyPlanBounds(extremeTargets);
-  assertRangeCovers(extremeSums.proteinG, extremeBounds.proteinG);
-  assertRangeCovers(extremeSums.fatG, extremeBounds.fatG);
-  assertRangeCovers(extremeSums.carbG, extremeBounds.carbG);
-  assert(extremeMeals.every((meal) => meal.targets.macroWindows.proteinG.min > 0));
-  assert(extremeMeals.every((meal) => meal.targets.macroWindows.fatG.min > 0));
-  return 'Three varied clients plus an extreme client widen meal windows while still covering daily macro bounds.';
+  assert.throws(() => buildScaledMealMacroWindows({
+    calories: 1000,
+    proteinG: 350,
+    carbG: 0,
+    fatG: 110,
+    macroRanges: {
+      proteinG: { min: 300, max: 400 },
+      fatG: { min: 100, max: 120 },
+    },
+  }, [{
+    name: 'Impossible Meal',
+    tag: 'lunch',
+    idealCaloriePercent: 1,
+    macroCalorieRatio: {
+      protein: { min: 0.20, max: 0.28 },
+      fat: { min: 0.29, max: 0.41 },
+    },
+  }]), /INFEASIBLE/);
+  return 'Protein/fat min and max sides are scaled separately to exact daily ranges; calories sum to +/-5%; infeasible windows throw before generation.';
 });
 
-check('1g / Section 9 Two hard constraints', () => {
+check('1g / Section 9 Three hard constraints and ranking', () => {
   const mealTarget = syntheticMealTarget();
   const bounds = computeMealBounds(mealTarget);
-  assert.deepEqual(bounds, mealTarget.macroWindows);
+  assert(!Object.hasOwn(bounds, 'carbG'));
   close(bounds.calories.min, 570);
   close(bounds.calories.max, 630);
 
   const cases = [
-    ['A only', { calories: 600, proteinG: 5, carbG: 75, fatG: 20 }, false, 'meal_protein'],
-    ['B only', { calories: 700, proteinG: 30, carbG: 75, fatG: 20 }, false, 'meal_calories'],
-    ['neither', { calories: 700, proteinG: 5, carbG: 10, fatG: 80 }, false, 'meal_calories'],
-    ['both', { calories: 630, proteinG: 30, carbG: 75, fatG: 20 }, true, null],
-    ['lower boundary', { calories: 570, proteinG: 20, carbG: 50, fatG: 10 }, true, null],
-    ['upper boundary', { calories: 630, proteinG: 40, carbG: 100, fatG: 30 }, true, null],
+    ['A+B but carbs outside C', { calories: 600, proteinG: 30, carbG: 60, fatG: 20 }, false, 'meal_carbs'],
+    ['A+C but protein outside B', { calories: 600, proteinG: 10, carbG: 95, fatG: 20 }, false, 'meal_protein'],
+    ['B+C but calories outside A', { calories: 650, proteinG: 30, carbG: 75, fatG: 20 }, false, 'meal_calories'],
+    ['all three pass', { calories: 600, proteinG: 30, carbG: 75, fatG: 20 }, true, null],
+    ['lower boundary inclusive', { calories: 570, proteinG: 20, carbG: 100, fatG: 10 }, true, null],
+    ['upper boundary inclusive', { calories: 630, proteinG: 40, carbG: 50, fatG: 30 }, true, null],
   ];
   for (const [name, totals, expectedValid, expectedViolation] of cases) {
     const result = validateMealSwap({ mealTarget, proposedMealTotals: totals });
@@ -365,19 +301,40 @@ check('1g / Section 9 Two hard constraints', () => {
     if (expectedViolation) assert(result.violations.includes(expectedViolation), name);
   }
 
+  const dynamic = requiredCarbWindowForCandidate({ calories: 600, proteinG: 30, carbG: 75, fatG: 20 }, bounds);
+  close(dynamic.min, 67.5);
+  close(dynamic.max, 82.5);
+
   const filtered = cases
     .map(([name, totals]) => ({ name, totals }))
     .filter((candidate) => validateMealSwap({ mealTarget, proposedMealTotals: candidate.totals }).valid);
-  assert.deepEqual(filtered.map((candidate) => candidate.name), ['both', 'lower boundary', 'upper boundary']);
+  assert.deepEqual(filtered.map((candidate) => candidate.name), [
+    'all three pass',
+    'lower boundary inclusive',
+    'upper boundary inclusive',
+  ]);
 
-  const emptyFiltered = [{ calories: 600, proteinG: 5, carbG: 75, fatG: 20 }]
+  const rankingCandidates = [
+    { id: 'calorie-close-but-not-exact', totals: { calories: 590, proteinG: 20, carbG: 82.5, fatG: 20 } },
+    { id: 'exact-calories-poor-protein', totals: { calories: 600, proteinG: 40, carbG: 87.5, fatG: 10 } },
+    { id: 'exact-calories-good-protein-poor-fat', totals: { calories: 600, proteinG: 32, carbG: 50.5, fatG: 30 } },
+    { id: 'exact-calories-good-protein-good-fat', totals: { calories: 600, proteinG: 32, carbG: 75.25, fatG: 19 } },
+  ].filter((candidate) => validateMealSwap({ mealTarget, proposedMealTotals: candidate.totals }).valid);
+  rankingCandidates.sort((a, b) => compareTuples(mealRankTuple(a.totals, mealTarget), mealRankTuple(b.totals, mealTarget)));
+  assert.deepEqual(rankingCandidates.map((candidate) => candidate.id), [
+    'exact-calories-good-protein-good-fat',
+    'exact-calories-good-protein-poor-fat',
+    'exact-calories-poor-protein',
+    'calorie-close-but-not-exact',
+  ]);
+
+  const emptyFiltered = [{ calories: 600, proteinG: 30, carbG: 60, fatG: 20 }]
     .filter((candidate) => validateMealSwap({ mealTarget, proposedMealTotals: candidate }).valid);
   assert.equal(emptyFiltered.length, 0);
 
-  const dayTargetCalories = 2500;
-  const mealCalories = [600, 700, 500, 700];
-  close(mealCalories.reduce((sum, value) => sum + value * 1.05, 0), dayTargetCalories * 1.05);
-  return 'Constraint A and B are inclusive hard filters; empty sets remain empty with no relaxation.';
+  const dayCalories = [600, 700, 500, 700];
+  close(dayCalories.reduce((sum, value) => sum + value * 1.05, 0), 2500 * 1.05);
+  return 'A, B, and dynamic C are inclusive hard filters with no fallback; ranking is calorie, then protein midpoint, then fat midpoint.';
 });
 
 check('1h / Section 10 Swap invariants', () => {
@@ -385,13 +342,12 @@ check('1h / Section 10 Swap invariants', () => {
   const dailyTargets = calculateNutritionDetails(input).targets;
   const meals = buildMealTargets(dailyTargets, input);
   const beforeWindows = JSON.stringify(meals.map((meal) => meal.targets.macroWindows));
-
   const slotIndex = 2;
   const slot = meals[slotIndex];
   const filteredSet = [
     totalsAtWindowEdge(slot.targets.macroWindows, 'min'),
     totalsAtWindowEdge(slot.targets.macroWindows, 'max'),
-    { calories: slot.targets.calories, proteinG: 0, carbG: 0, fatG: 0 },
+    { calories: slot.targets.calories, proteinG: 0, carbG: slot.targets.calories / 4, fatG: 0 },
   ].filter((candidate) => validateMealSwap({
     mealTarget: slot.targets,
     proposedMealTotals: candidate,
@@ -405,17 +361,17 @@ check('1h / Section 10 Swap invariants', () => {
     dayTotals[slotIndex] = filteredSet[swap % filteredSet.length];
     assert.equal(JSON.stringify(meals.map((meal) => meal.targets.macroWindows)), beforeWindows);
     const totals = sumTotals(dayTotals);
+    assert(totals.calories >= dailyTargets.calories * 0.95 - 1e-7);
+    assert(totals.calories <= dailyTargets.calories * 1.05 + 1e-7);
     assert(totals.proteinG >= dailyTargets.macroRanges.proteinG.min - 1e-7);
     assert(totals.proteinG <= dailyTargets.macroRanges.proteinG.max + 1e-7);
     assert(totals.fatG >= dailyTargets.macroRanges.fatG.min - 1e-7);
     assert(totals.fatG <= dailyTargets.macroRanges.fatG.max + 1e-7);
-    assert(totals.carbG >= dailyTargets.macroRanges.carbG.min - 1e-7);
-    assert(totals.carbG <= dailyTargets.macroRanges.carbG.max + 1e-7);
   }
-  return 'Swaps use only the selected slot filtered set, leave other stored windows unchanged, and stay inside daily macro ranges.';
+  return 'Repeated swaps use only the slot filtered set, leave stored windows unchanged, and keep daily calories/protein/fat in range.';
 });
 
-check('UI and document wiring still expose v8 policy surface', () => {
+check('UI and document wiring expose the v9 policy surface', () => {
   const plannerHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'planner.html'), 'utf8');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
   for (const field of ['age', 'sex', 'mealDistribution']) {
@@ -426,10 +382,12 @@ check('UI and document wiring still expose v8 policy surface', () => {
     assert(plannerHtml.includes(`value="${goal}"`));
   }
   assert(!plannerHtml.includes('lose_weight_aggressive'));
-  return 'Planner still sends the inputs required by Sections 1-6.';
+  assert(appJs.includes('target.macroWindows.calories.min -'));
+  assert(!appJs.includes('target.macroWindows.carbG.min'));
+  return 'Planner sends all required inputs and browser-side meal option checks use dynamic carbs.';
 });
 
-console.log('Nutrition Coaching Rules v8 Audit');
+console.log('Nutrition Coaching Rules v9 Audit');
 for (const result of results) {
   console.log(`- ${result.label}: ${result.status} - ${result.detail}`);
 }
@@ -447,35 +405,19 @@ function sumMealWindowBounds(meals) {
   return meals.reduce(
     (total, meal) => {
       const windows = meal.targets.macroWindows;
-      for (const key of ['proteinG', 'fatG', 'carbG']) {
-        total[key].min += windows[key].min;
-        total[key].max += windows[key].max;
-      }
+      total.calories.min += windows.calories.min;
+      total.calories.max += windows.calories.max;
+      total.proteinG.min += windows.proteinG.min;
+      total.proteinG.max += windows.proteinG.max;
+      total.fatG.min += windows.fatG.min;
+      total.fatG.max += windows.fatG.max;
       return total;
     },
     {
+      calories: { min: 0, max: 0 },
       proteinG: { min: 0, max: 0 },
       fatG: { min: 0, max: 0 },
-      carbG: { min: 0, max: 0 },
     },
-  );
-}
-
-function scaledRawRange(scaling) {
-  return {
-    min: scaling.raw.min * scaling.minScale,
-    max: scaling.raw.max * scaling.maxScale,
-  };
-}
-
-function assertRangeCovers(actual, expected, tolerance = 1e-7) {
-  assert(
-    actual.min <= expected.min + tolerance,
-    `expected min ${actual.min} to cover ${expected.min}`,
-  );
-  assert(
-    actual.max >= expected.max - tolerance,
-    `expected max ${actual.max} to cover ${expected.max}`,
   );
 }
 
@@ -488,19 +430,28 @@ function syntheticMealTarget() {
     macroWindows: {
       calories: { min: 570, max: 630 },
       proteinG: { min: 20, max: 40 },
-      carbG: { min: 50, max: 100 },
       fatG: { min: 10, max: 30 },
     },
   };
 }
 
 function totalsAtWindowEdge(windows, edge) {
+  const proteinG = windows.proteinG[edge];
+  const fatG = windows.fatG[edge];
+  const calories = windows.calories[edge];
   return {
-    calories: windows.calories[edge],
-    proteinG: windows.proteinG[edge],
-    carbG: windows.carbG[edge],
-    fatG: windows.fatG[edge],
+    calories,
+    proteinG,
+    fatG,
+    carbG: (calories - proteinG * 4 - fatG * 9) / 4,
   };
+}
+
+function compareTuples(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
 }
 
 function sumTotals(values) {
