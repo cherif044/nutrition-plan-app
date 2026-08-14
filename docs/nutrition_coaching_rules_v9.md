@@ -56,6 +56,21 @@ Daily target calories = Maintenance − Daily deficit
 Target calories = Maintenance + 200 to 300 kcal (fixed surplus, not weight-scaled)
 ```
 
+**Sex-based calorie floor**
+
+After the goal adjustment above, apply a minimum final calorie target:
+
+| Sex | Minimum final target calories |
+|---|---:|
+| Male | 1700 kcal |
+| Female | 1200 kcal |
+
+```
+Final target calories = max(goal-adjusted calories, sex calorie floor)
+```
+
+This floor is applied **before** daily macros and meal targets are calculated. If the floor raises calories, protein and fat still come from their body-weight gram rules in Section 5; carbohydrates absorb the extra calories.
+
 ## 5. Daily Macronutrient Distribution (the daily target)
 
 Order of operations: protein first, fat second, carbohydrates fill the remaining calories.
@@ -67,6 +82,8 @@ Order of operations: protein first, fat second, carbohydrates fill the remaining
 | Carbohydrate | Remaining calories ÷ 4 | — | 4 |
 
 This produces a **daily gram range** for protein and for fat (e.g. 180g–220g protein for a 100kg client) — the fixed target every meal must ultimately add up to.
+
+When Section 4's calorie floor is applied, use the floored final calories in the carbohydrate calculation. Do **not** raise protein or fat just because calories were floored; carbs remain the residual compensator.
 
 ## 6. Calorie Distribution Across Meals
 
@@ -435,7 +452,7 @@ the rules in this document (Sections 1–11). Do the following:
 
 1. IMPLEMENT OR LOCATE the following pipeline stages, matching the document exactly:
    a. BMR (Section 2) and TDEE (Section 3) calculation.
-   b. Goal-based calorie target adjustment (Section 4).
+   b. Goal-based calorie target adjustment plus sex-based calorie floor (Section 4).
    c. Daily macro gram RANGE calculation from g/kg bounds (Section 5).
    d. Meal-calorie distribution by pattern + meal count (Section 6).
       Each meal receives a calorie TARGET (single number) and a calorie WINDOW

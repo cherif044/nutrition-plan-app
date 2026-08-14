@@ -31,19 +31,27 @@ function maintenanceCalories(input) {
 }
 
 function calculateGoalCalories(input, maintenance) {
-  if (input.goal === 'maintain') {
+  const floorCalories = NUTRITION.calorieFloorBySex[input.sex] ?? 0;
+
+  function withCalorieFloor(goalCalories, extras = {}) {
+    const targetCalories = Math.max(goalCalories, floorCalories);
     return {
-      targetCalories: maintenance,
-      adjustmentCalories: 0,
+      ...extras,
+      targetCalories,
+      calculatedGoalCalories: goalCalories,
+      calorieFloor: floorCalories,
+      calorieFloorApplied: targetCalories > goalCalories,
+      adjustmentCalories: targetCalories - maintenance,
     };
+  }
+
+  if (input.goal === 'maintain') {
+    return withCalorieFloor(maintenance);
   }
 
   if (input.goal === 'gain_weight') {
     const surplus = input.gainSurplusCalories ?? NUTRITION.weightGain.defaultSurplusCalories;
-    return {
-      targetCalories: maintenance + surplus,
-      adjustmentCalories: surplus,
-    };
+    return withCalorieFloor(maintenance + surplus);
   }
 
   const weeklyPercent =
@@ -52,12 +60,10 @@ function calculateGoalCalories(input, maintenance) {
   const dailyDeficit = weeklyLossKg * NUTRITION.weightLoss.kcalPerKg / 7;
   const targetCalories = maintenance - dailyDeficit;
 
-  return {
-    targetCalories,
-    adjustmentCalories: -dailyDeficit,
+  return withCalorieFloor(targetCalories, {
     requestedDailyDeficitCalories: dailyDeficit,
     weeklyWeightLossPercent: weeklyPercent,
-  };
+  });
 }
 
 function calculateMacroTargets(input, targetCalories) {
@@ -114,6 +120,9 @@ function calculateNutritionDetails(input) {
     bmr,
     maintenanceCalories: maintenance,
     targetCalories: goal.targetCalories,
+    calculatedGoalCalories: goal.calculatedGoalCalories,
+    calorieFloor: goal.calorieFloor,
+    calorieFloorApplied: goal.calorieFloorApplied,
     adjustmentCalories: goal.adjustmentCalories,
     requestedDailyDeficitCalories: goal.requestedDailyDeficitCalories ?? null,
     weeklyWeightLossPercent: goal.weeklyWeightLossPercent ?? null,

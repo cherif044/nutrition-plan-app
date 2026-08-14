@@ -31,6 +31,7 @@ let feasible = 0;
 let infeasible = 0;
 let checkedSlots = 0;
 let boundaryCandidates = 0;
+let calorieFloorCases = 0;
 
 for (const weightKg of weights) {
   for (const heightCm of heights) {
@@ -55,7 +56,29 @@ for (const weightKg of weights) {
                   fatPerKg: 0.7,
                   ...goalConfig,
                 });
-                const dailyTargets = calculateNutritionDetails(input).targets;
+                const nutritionDetails = calculateNutritionDetails(input);
+                const dailyTargets = nutritionDetails.targets;
+                const sexFloor = NUTRITION.calorieFloorBySex[input.sex];
+                assert(
+                  dailyTargets.calories >= sexFloor,
+                  `${input.sex} target calories must not fall below ${sexFloor}`,
+                );
+                assert.equal(nutritionDetails.calorieFloorApplied, nutritionDetails.calculatedGoalCalories < sexFloor);
+                if (nutritionDetails.calorieFloorApplied) {
+                  calorieFloorCases += 1;
+                  assertClose(dailyTargets.calories, sexFloor, 1e-7);
+                  assertClose(dailyTargets.proteinG, input.weightKg * input.proteinPerKg, 1e-7);
+                  assertClose(dailyTargets.fatG, input.weightKg * input.fatPerKg, 1e-7);
+                  assertClose(
+                    dailyTargets.carbG,
+                    (
+                      sexFloor -
+                      dailyTargets.proteinG * NUTRITION.proteinKcalPerGram -
+                      dailyTargets.fatG * NUTRITION.fatKcalPerGram
+                    ) / NUTRITION.carbKcalPerGram,
+                    1e-7,
+                  );
+                }
                 try {
                   const meals = buildMealTargets(dailyTargets, input);
                   feasible += 1;
@@ -120,6 +143,7 @@ console.log(JSON.stringify({
   infeasibleClientPlans: infeasible,
   checkedMealSlots: checkedSlots,
   acceptedBoundaryCandidates: boundaryCandidates,
+  calorieFloorCases,
 }, null, 2));
 
 function candidateAtEdge(windows, edge) {

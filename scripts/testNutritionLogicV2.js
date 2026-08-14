@@ -88,6 +88,7 @@ check('1a BMR and TDEE formulas', () => {
 check('1b Goal calorie adjustment', () => {
   const maintain = calculateNutritionDetails(normalizeInput(baseRaw({ goal: 'maintain' })));
   close(maintain.targetCalories, maintain.maintenanceCalories);
+  assert.equal(maintain.calorieFloorApplied, false);
 
   const loss = calculateNutritionDetails(normalizeInput(baseRaw({
     weightKg: 100,
@@ -96,13 +97,68 @@ check('1b Goal calorie adjustment', () => {
   })));
   close(loss.requestedDailyDeficitCalories, 100 * 0.5 / 100 * 7700 / 7);
   close(loss.targetCalories, loss.maintenanceCalories - loss.requestedDailyDeficitCalories);
+  close(loss.adjustmentCalories, loss.targetCalories - loss.maintenanceCalories);
+  assert.equal(loss.calorieFloorApplied, false);
 
   const gain = calculateNutritionDetails(normalizeInput(baseRaw({
     goal: 'gain_weight',
     gainSurplusCalories: 300,
   })));
   close(gain.targetCalories, gain.maintenanceCalories + 300);
-  return 'Maintain unchanged; loss uses body-weight percentage and 7700 kcal/kg; gain uses fixed 200-300 kcal surplus.';
+  close(gain.adjustmentCalories, 300);
+  assert.equal(gain.calorieFloorApplied, false);
+
+  const lowMaleLossInput = normalizeInput(baseRaw({
+    weightKg: 85,
+    heightCm: 181,
+    age: 25,
+    sex: 'male',
+    activityLevel: 'sedentary',
+    goal: 'lose_weight',
+    weeklyWeightLossPercent: 1,
+  }));
+  const lowMaleLoss = calculateNutritionDetails(lowMaleLossInput);
+  assert(lowMaleLoss.calculatedGoalCalories < NUTRITION.calorieFloorBySex.male);
+  close(lowMaleLoss.targetCalories, NUTRITION.calorieFloorBySex.male);
+  close(lowMaleLoss.adjustmentCalories, lowMaleLoss.targetCalories - lowMaleLoss.maintenanceCalories);
+  assert.equal(lowMaleLoss.calorieFloorApplied, true);
+  close(lowMaleLoss.targets.proteinG, lowMaleLossInput.weightKg * lowMaleLossInput.proteinPerKg);
+  close(lowMaleLoss.targets.fatG, lowMaleLossInput.weightKg * lowMaleLossInput.fatPerKg);
+  close(
+    lowMaleLoss.targets.carbG,
+    (
+      NUTRITION.calorieFloorBySex.male -
+      lowMaleLoss.targets.proteinG * NUTRITION.proteinKcalPerGram -
+      lowMaleLoss.targets.fatG * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+  );
+
+  const lowFemaleLossInput = normalizeInput(baseRaw({
+    weightKg: 55,
+    heightCm: 160,
+    age: 45,
+    sex: 'female',
+    activityLevel: 'sedentary',
+    goal: 'lose_weight',
+    weeklyWeightLossPercent: 1,
+  }));
+  const lowFemaleLoss = calculateNutritionDetails(lowFemaleLossInput);
+  assert(lowFemaleLoss.calculatedGoalCalories < NUTRITION.calorieFloorBySex.female);
+  close(lowFemaleLoss.targetCalories, NUTRITION.calorieFloorBySex.female);
+  close(lowFemaleLoss.adjustmentCalories, lowFemaleLoss.targetCalories - lowFemaleLoss.maintenanceCalories);
+  assert.equal(lowFemaleLoss.calorieFloorApplied, true);
+  close(lowFemaleLoss.targets.proteinG, lowFemaleLossInput.weightKg * lowFemaleLossInput.proteinPerKg);
+  close(lowFemaleLoss.targets.fatG, lowFemaleLossInput.weightKg * lowFemaleLossInput.fatPerKg);
+  close(
+    lowFemaleLoss.targets.carbG,
+    (
+      NUTRITION.calorieFloorBySex.female -
+      lowFemaleLoss.targets.proteinG * NUTRITION.proteinKcalPerGram -
+      lowFemaleLoss.targets.fatG * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+  );
+
+  return 'Maintain/loss/gain use their normal formulas, then sex calorie floors are applied before macros; protein/fat stay g/kg and carbs absorb the floor calories.';
 });
 
 check('1c / Section 5 Daily macro gram ranges', () => {
@@ -278,6 +334,71 @@ check('1f / Section 8 Scaled per-meal windows', () => {
     },
   }]), /INFEASIBLE/);
   return 'Protein/fat min and max sides are scaled separately to exact daily ranges; calories sum to +/-5%; infeasible windows throw before generation.';
+});
+
+check('1f.1 / Low-calorie floor scenarios still build meal windows', () => {
+  const lowCalorieClients = [
+    baseRaw({
+      weightKg: 85,
+      heightCm: 181,
+      age: 25,
+      sex: 'male',
+      activityLevel: 'sedentary',
+      goal: 'lose_weight',
+      weeklyWeightLossPercent: 1,
+    }),
+    baseRaw({
+      weightKg: 70,
+      heightCm: 168,
+      age: 50,
+      sex: 'male',
+      activityLevel: 'sedentary',
+      goal: 'lose_weight',
+      weeklyWeightLossPercent: 1,
+    }),
+    baseRaw({
+      weightKg: 55,
+      heightCm: 160,
+      age: 45,
+      sex: 'female',
+      activityLevel: 'sedentary',
+      goal: 'lose_weight',
+      weeklyWeightLossPercent: 1,
+    }),
+    baseRaw({
+      weightKg: 45,
+      heightCm: 152,
+      age: 60,
+      sex: 'female',
+      activityLevel: 'sedentary',
+      goal: 'lose_weight',
+      weeklyWeightLossPercent: 1,
+    }),
+  ];
+
+  let combinations = 0;
+  for (const raw of lowCalorieClients) {
+    for (const numberOfMeals of [2, 3, 4, 5]) {
+      for (const mealDistribution of Object.keys(MEAL_DISTRIBUTIONS)) {
+        const input = normalizeInput({ ...raw, numberOfMeals, mealDistribution });
+        const details = calculateNutritionDetails(input);
+        close(details.targetCalories, NUTRITION.calorieFloorBySex[input.sex]);
+        assert.equal(details.calorieFloorApplied, true);
+        const meals = buildMealTargets(details.targets, input);
+        assert.equal(meals.length, numberOfMeals);
+        const sums = sumMealWindowBounds(meals);
+        close(sums.calories.min, details.targetCalories * 0.95, 1e-6);
+        close(sums.calories.max, details.targetCalories * 1.05, 1e-6);
+        close(sums.proteinG.min, details.targets.macroRanges.proteinG.min, 1e-6);
+        close(sums.proteinG.max, details.targets.macroRanges.proteinG.max, 1e-6);
+        close(sums.fatG.min, details.targets.macroRanges.fatG.min, 1e-6);
+        close(sums.fatG.max, details.targets.macroRanges.fatG.max, 1e-6);
+        combinations += 1;
+      }
+    }
+  }
+
+  return `${combinations} floored low-calorie client x meal-distribution combinations build exact daily calorie/protein/fat windows.`;
 });
 
 check('1g / Section 9 Three hard constraints and ranking', () => {

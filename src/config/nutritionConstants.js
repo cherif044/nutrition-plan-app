@@ -26,6 +26,10 @@ const NUTRITION = {
     maximumSurplusCalories: 300,
     defaultSurplusCalories: 250,
   },
+  calorieFloorBySex: {
+    male: 1700,
+    female: 1200,
+  },
   proteinPerKg: {
     minimum: 1.8,
     maximum: 2.2,
