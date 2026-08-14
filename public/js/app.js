@@ -602,6 +602,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       chatWorkingItems: null,
       chatPrevWorkingItems: null,
       chatMessages: [],
+      produceSwapCache: null,
       cardEl: null,
     };
     mealStates.push(state);
@@ -910,8 +911,8 @@ function formatRangeValue(range, unit) {
 }
 
 // Reconciles the rendered rows against state.items in place. Rows that did not
-// change keep their DOM nodes untouched, so applying an edit-mode swap only
-// repaints the row that actually moved instead of rebuilding the whole meal.
+// change keep their DOM nodes untouched, and changed rows update without forced
+// animation/reflow so swaps feel instant instead of like a refresh.
 function renderFoodList(state) {
   const foodList = state.cardEl?.querySelector('.food-list');
   if (!foodList) return;
@@ -922,15 +923,10 @@ function renderFoodList(state) {
     const existing = rows[itemIndex];
     if (!existing) {
       const row = renderFoodItem(state, itemIndex);
-      row.classList.add('food-item--entering');
       foodList.append(row);
       return;
     }
-    if (updateFoodRow(existing, state, itemIndex)) {
-      existing.classList.remove('food-item--changed');
-      void existing.offsetWidth;
-      existing.classList.add('food-item--changed');
-    }
+    updateFoodRow(existing, state, itemIndex);
   });
 
   rows.slice(state.items.length).forEach((row) => row.remove());
@@ -1254,6 +1250,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
   state.pendingProposal = null;
+  state.produceSwapCache = null;
 
   const panel = actionPanel(state);
   panel.hidden = true;
@@ -1390,9 +1387,8 @@ function showAddFoodAction(state) {
       attemptedItems: attempted,
       title: `Add ${food.name}`,
       failureReason: 'Cannot add this food.',
-      successMessage: 'Food added successfully.',
       failureMessage: 'Cannot add this food.',
-      feedbackTone: 'success',
+      successRowIndex: attempted.length - 1,
     });
   });
 
@@ -1409,9 +1405,8 @@ function showAddFoodAction(state) {
       attemptedItems: attempted,
       title: `Add ${food.name}`,
       failureReason: 'Cannot add this food.',
-      successMessage: 'Food added successfully.',
       failureMessage: 'Cannot add this food.',
-      feedbackTone: 'success',
+      successRowIndex: attempted.length - 1,
     });
   });
 }
@@ -1422,7 +1417,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
     showActionFeedback(state, {
       tone: 'danger',
       message: 'Cannot delete this food.',
-      cardClass: 'meal-card--flash-delete',
+      compact: true,
     });
     return;
   }
@@ -1436,9 +1431,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
       attemptedItems: attempted,
       title: `Remove ${item.food.name}`,
       failureReason: 'Cannot delete this food.',
-      successMessage: 'Food deleted.',
       failureMessage: 'Cannot delete this food.',
-      feedbackTone: 'delete',
     });
     return;
   }
@@ -1468,9 +1461,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
         attemptedItems: attempted,
         title: `Remove ${item.food.name}`,
         failureReason: 'Cannot delete this food.',
-        successMessage: 'Food deleted.',
         failureMessage: 'Cannot delete this food.',
-        feedbackTone: 'delete',
       });
     });
     list.append(btn);
@@ -1554,9 +1545,8 @@ function attemptSwapFood(state, itemIndex, alt) {
     attemptedItems: attempted,
     title: `Swap ${item.food.name}`,
     failureReason: 'Cannot swap this food.',
-    successMessage: 'Food swapped successfully.',
     failureMessage: 'Cannot swap this food.',
-    feedbackTone: 'success',
+    successRowIndex: itemIndex,
   });
 }
 
@@ -1571,6 +1561,12 @@ async function handleCycleProduceSwap(state, itemIndex) {
   if (btn) btn.disabled = true;
 
   try {
+    const cachedOption = nextCachedProduceSwapOption(state, itemIndex, group);
+    if (cachedOption) {
+      applyProduceSwapOption(state, cachedOption);
+      return;
+    }
+
     const res = await fetch('/api/produce-swap-options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1589,7 +1585,8 @@ async function handleCycleProduceSwap(state, itemIndex) {
     const payload = await readJsonResponse(res, 'Unable to swap produce.');
     if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
 
-    const option = firstUsableProduceOption(payload.options);
+    const usableOptions = usableProduceOptions(payload.options);
+    const option = usableOptions[0];
     if (!option?.items?.length) {
       showActionFeedback(state, {
         tone: 'danger',
@@ -1599,13 +1596,12 @@ async function handleCycleProduceSwap(state, itemIndex) {
       return;
     }
 
-    const nextName = option.food?.name || `${group} option`;
-    applyMealItems(state, option.items, { source: 'produce_swap' });
-    showActionFeedback(state, {
-      tone: 'success',
-      message: `Swapped to ${nextName}.`,
-      cardClass: 'meal-card--flash-success',
-    });
+    state.produceSwapCache = {
+      itemIndex,
+      group,
+      options: usableOptions.slice(1),
+    };
+    applyProduceSwapOption(state, option);
   } catch (error) {
     showActionFeedback(state, {
       tone: 'danger',
@@ -1617,12 +1613,24 @@ async function handleCycleProduceSwap(state, itemIndex) {
   }
 }
 
-function firstUsableProduceOption(options) {
-  return (options || []).find((option) => (
+function usableProduceOptions(options) {
+  return (options || []).filter((option) => (
     option?.food?.id &&
     Array.isArray(option.items) &&
     option.items.length > 0
   ));
+}
+
+function nextCachedProduceSwapOption(state, itemIndex, group) {
+  const cache = state.produceSwapCache;
+  if (!cache || cache.itemIndex !== itemIndex || cache.group !== group) return null;
+  const option = cache.options.shift() || null;
+  if (!cache.options.length) state.produceSwapCache = null;
+  return option;
+}
+
+function applyProduceSwapOption(state, option) {
+  applyMealItems(state, option.items, { source: 'produce_swap' });
 }
 
 async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
@@ -1639,9 +1647,8 @@ async function attemptGuidedRebalance(state, {
   attemptedItems,
   title,
   failureReason,
-  successMessage = '',
   failureMessage = '',
-  feedbackTone = 'success',
+  successRowIndex = null,
 } = {}) {
   const shouldApplyImmediately = state.editModeEnabled && ['add_food', 'add_custom_food', 'remove_food', 'swap_food'].includes(action);
   if (!shouldApplyImmediately) {
@@ -1667,11 +1674,9 @@ async function attemptGuidedRebalance(state, {
       const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
       if (shouldApplyImmediately) {
         applyMealItems(state, proposedItems, { source: 'deterministic' });
-        showActionFeedback(state, {
-          tone: feedbackTone === 'delete' ? 'danger' : 'success',
-          message: successMessage || 'Meal updated.',
-          cardClass: feedbackTone === 'delete' ? 'meal-card--flash-delete' : 'meal-card--flash-success',
-        });
+        if (Number.isInteger(successRowIndex)) {
+          pulseFoodRow(state, successRowIndex);
+        }
         return;
       }
       showProposal(state, {
@@ -1687,15 +1692,21 @@ async function attemptGuidedRebalance(state, {
     showActionFeedback(state, {
       tone: 'danger',
       message: failureMessage || failureReason || 'This change cannot be applied.',
-      cardClass: 'meal-card--flash-fail',
+      compact: shouldApplyImmediately,
+      cardClass: shouldApplyImmediately ? editFailureClass(action) : 'meal-card--flash-fail',
     });
   } catch (error) {
     showActionFeedback(state, {
       tone: 'danger',
       message: failureMessage || error.message || 'This change cannot be applied.',
-      cardClass: 'meal-card--flash-fail',
+      compact: shouldApplyImmediately,
+      cardClass: shouldApplyImmediately ? editFailureClass(action) : 'meal-card--flash-fail',
     });
   }
+}
+
+function editFailureClass(action) {
+  return ['add_food', 'add_custom_food', 'swap_food'].includes(action) ? 'meal-card--soft-fail' : '';
 }
 
 function showProposal(state, proposal) {
@@ -1770,6 +1781,9 @@ function applyProposal(state) {
 function applyMealItems(state, items, options = {}) {
   state.items = items.map(normalizeStateItem);
   state.isOriginalTemplate = false;
+  if (options.source !== 'produce_swap') {
+    state.produceSwapCache = null;
+  }
   state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
@@ -1793,6 +1807,18 @@ function applyMealItems(state, items, options = {}) {
   panel.hidden = true;
   panel.innerHTML = '';
   state.pendingProposal = null;
+}
+
+function pulseFoodRow(state, itemIndex) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!row) return;
+  row.classList.remove('food-item--soft-success');
+  window.requestAnimationFrame(() => {
+    row.classList.add('food-item--soft-success');
+    row.addEventListener('animationend', () => {
+      row.classList.remove('food-item--soft-success');
+    }, { once: true });
+  });
 }
 
 // The save bar is sticky at the bottom, so the page has to reserve exactly its
@@ -1834,7 +1860,7 @@ function showActionMessage(state, text) {
 }
 
 function resetActionPanel(panel) {
-  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger');
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact');
   panel.removeAttribute('role');
 }
 
@@ -1847,17 +1873,18 @@ function clearFeedbackTimer(state) {
   }
 }
 
-function showActionFeedback(state, { tone = 'success', message, cardClass = '' }) {
+function showActionFeedback(state, { tone = 'success', message, cardClass = '', compact = false }) {
   const panel = actionPanel(state);
   clearFeedbackTimer(state);
   panel.hidden = false;
-  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger');
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact');
   panel.classList.add(tone === 'danger' ? 'meal-action-panel--danger' : 'meal-action-panel--success');
+  if (compact) panel.classList.add('meal-action-panel--compact');
   panel.setAttribute('role', tone === 'danger' ? 'alert' : 'status');
   panel.innerHTML = `<p class="meal-action-message">${escapeHtml(message)}</p>`;
 
   if (cardClass && state.cardEl) {
-    state.cardEl.classList.remove('meal-card--flash-success', 'meal-card--flash-delete', 'meal-card--flash-fail');
+    state.cardEl.classList.remove('meal-card--flash-success', 'meal-card--flash-delete', 'meal-card--flash-fail', 'meal-card--soft-fail');
     void state.cardEl.offsetWidth;
     state.cardEl.classList.add(cardClass);
     window.setTimeout(() => {

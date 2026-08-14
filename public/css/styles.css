@@ -1517,6 +1517,10 @@ input:focus, select:focus {
   animation: mealFlashDanger 0.7s var(--ease-smooth) both;
 }
 
+.meal-card--soft-fail {
+  animation: mealSoftFail 0.65s var(--ease-smooth) both;
+}
+
 /* ── Auth & Welcome pages ─────────────────────────────────────────────── */
 
 .site-nav {
@@ -1828,6 +1832,18 @@ input:focus, select:focus {
   36%  { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18), 0 18px 42px rgba(220, 38, 38, 0.16); transform: translateX(4px); }
   54%  { transform: translateX(-2px); }
   100% { box-shadow: var(--shadow); transform: translateX(0); }
+}
+
+@keyframes mealSoftFail {
+  0%   { border-color: var(--ref-border); box-shadow: 0 2px 9px rgba(26, 44, 33, 0.12); background: #fff; }
+  35%  { border-color: rgba(220, 38, 38, 0.24); box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.10), 0 2px 9px rgba(26, 44, 33, 0.12); background: rgba(254, 242, 242, 0.5); }
+  100% { border-color: var(--ref-border); box-shadow: 0 2px 9px rgba(26, 44, 33, 0.12); background: #fff; }
+}
+
+@keyframes rowSoftSuccess {
+  0%   { background: transparent; }
+  35%  { background: rgba(220, 252, 231, 0.72); }
+  100% { background: transparent; }
 }
 
 /* ── Responsive — Tablet ──────────────────────────────────────────────── */
@@ -3683,6 +3699,26 @@ select:focus,
   border-radius: 0;
   background: #f7faf9;
   padding: 16px;
+}
+
+.meal-action-panel--compact {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  right: 16px;
+  max-width: min(260px, calc(100% - 32px));
+  margin: 0;
+  border: 1px solid rgba(220, 38, 38, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 247, 247, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  padding: 8px 10px;
+}
+
+.meal-action-panel--compact .meal-action-message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .planner-save-slot {
@@ -5858,8 +5894,13 @@ body.dashboard-page .planner-nav {
   box-shadow: none;
 }
 
+.food-item--soft-success {
+  animation: rowSoftSuccess 0.75s var(--ease-smooth) both;
+}
+
 .food-title {
-  display: flex;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 20px;
   align-items: center;
   gap: 9px;
   min-width: 0;
@@ -5877,6 +5918,8 @@ body.dashboard-page .planner-nav {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .produce-cycle-btn {
@@ -5893,6 +5936,7 @@ body.dashboard-page .planner-nav {
   font-size: 16px;
   line-height: 1;
   padding: 0;
+  justify-self: end;
 }
 
 .produce-cycle-btn:hover {
@@ -5980,27 +6024,6 @@ body.dashboard-page .planner-nav {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   font-weight: 700;
-}
-
-/* ── Changed-row highlight (edit mode applies one row at a time) ───────── */
-
-.food-item--changed {
-  animation: rowChanged 1.5s var(--ease-smooth) both;
-}
-
-.food-item--entering {
-  animation: rowEnter 0.3s var(--ease-smooth) both;
-}
-
-@keyframes rowChanged {
-  0%   { background: var(--macro-cal-soft); }
-  70%  { background: var(--macro-cal-soft); }
-  100% { background: transparent; }
-}
-
-@keyframes rowEnter {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Phones: name on its own line, numeric columns stay aligned ───────── */
