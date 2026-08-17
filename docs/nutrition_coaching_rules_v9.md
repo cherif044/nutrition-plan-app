@@ -138,8 +138,8 @@ Each meal type has its own naturally-occurring protein/fat/carb ratio **range**,
 | Meal type | Protein % of meal calories | Fat % of meal calories | Carb % of meal calories |
 |---|---|---|---|
 | Breakfast | 16% – 30% | 25% – 54% | 22% – 54% |
-| Lunch | 18% – 33% | 21% – 49% | 25% – 54% |
-| Dinner | 18% – 33% | 21% – 49% | 25% – 54% |
+| Lunch | 24% – 36% | 21% – 49% | 25% – 54% |
+| Dinner | 24% – 36% | 21% – 49% | 25% – 54% |
 | Snack | 13% – 30% | 22% – 54% | 20% – 54% |
 
 **Protein floor rule:** regardless of the natural range above, no meal's protein % may fall below a set minimum floor (e.g. 20%). Where a meal type's lower bound is below the floor, the floor overrides it.
