@@ -1949,6 +1949,19 @@ function isStrictMealOptionFit(totals, target) {
 
 function mealOptionForTarget(option, target) {
   if (!option || !Array.isArray(option.items) || option.items.length === 0 || !target) return null;
+  const currentTotals = sumTargets(option.items.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
+  if (isStrictMealOptionFit(currentTotals, target)) {
+    return {
+      ...option,
+      items: option.items.map((item) => ({
+        ...item,
+        totals: macrosForFoodPortion(item.food, item.quantityG),
+      })),
+      totals: currentTotals,
+      isApproximate: false,
+    };
+  }
+
   const solvedItems = solvePortionsLeastSquares(option.items, {
     proteinG: target.proteinG,
     carbG: target.carbG,
