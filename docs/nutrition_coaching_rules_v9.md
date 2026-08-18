@@ -43,17 +43,17 @@ Target calories = Maintenance calories (no change)
 ```
 
 **Lose Weight**
-- Target weekly loss: 0.5%–1% of body weight per week.
+- Target weekly loss: 0.75% of body weight per week.
 - 1 kg of body weight ≈ 7,700 kcal.
 ```
-Weekly deficit (kcal) = (body weight × chosen % ÷ 100) × 7,700
+Weekly deficit (kcal) = (body weight × 0.75% ÷ 100) × 7,700
 Daily deficit (kcal) = Weekly deficit ÷ 7
 Daily target calories = Maintenance − Daily deficit
 ```
 
 **Gain Weight**
 ```
-Target calories = Maintenance + 200 to 300 kcal (fixed surplus, not weight-scaled)
+Target calories = Maintenance + 250 kcal
 ```
 
 **Sex-based calorie floor**
@@ -133,16 +133,14 @@ Total daily calories are split across meals as a percentage. Four patterns: Bala
 
 ## 7. Per-Meal Macro Ratio Table — Database-Derived (fixed, client-independent)
 
-Each meal type has its own naturally-occurring protein/fat/carb ratio **range**, derived from the meal bundle database. The ranges below use rounded central database percentiles so they represent normal database meals without letting extreme outliers define the policy. This table is fixed — it does not change per client or per plan. It is deliberately a range, not a single point value: a range gives Section 8's scaling room to land the final per-meal window inside realistic, database-matching territory for a wider spread of clients, instead of forcing an exact ratio that can drift from what real meal bundles look like.
+Each meal type has its own naturally-occurring protein/fat ratio **range**, derived from the meal bundle database. The ranges below use rounded central database percentiles so they represent normal database meals without letting extreme outliers define the policy. This table is fixed — it does not change per client or per plan. It is deliberately a range, not a single point value: a range gives Section 8's scaling room to land the final per-meal window inside realistic, database-matching territory for a wider spread of clients, instead of forcing an exact ratio that can drift from what real meal bundles look like.
 
-| Meal type | Protein % of meal calories | Fat % of meal calories | Carb % of meal calories |
-|---|---|---|---|
-| Breakfast | 16% – 30% | 25% – 54% | 22% – 54% |
-| Lunch | 24% – 36% | 21% – 49% | 25% – 54% |
-| Dinner | 24% – 36% | 21% – 49% | 25% – 54% |
-| Snack | 13% – 30% | 22% – 54% | 20% – 54% |
-
-**Protein floor rule:** regardless of the natural range above, no meal's protein % may fall below a set minimum floor (e.g. 20%). Where a meal type's lower bound is below the floor, the floor overrides it.
+| Meal type | Protein % of meal calories | Fat % of meal calories |
+|---|---|---|
+| Breakfast | 16% – 30% | 25% – 54% |
+| Lunch | 24% – 36% | 21% – 49% |
+| Dinner | 24% – 36% | 21% – 49% |
+| Snack | 13% – 30% | 22% – 54% |
 
 **Carb note:** carbs are the flexible macro. They are not scaled or stored as an independent range. They absorb whatever calories remain after protein and fat. The implied daily carb swing across the two edge cases (all meals hitting protein/fat maxes vs. all hitting mins) is considered acceptable by design — both poles produce nutritionally valid days within the daily calorie range.
 
@@ -199,15 +197,11 @@ This guarantees, by construction:
 Σ scaled fat maxes = daily fat max         ✓
 ```
 
-**Step 6 — Infeasibility check.**
-After scaling, verify for every meal that protein and fat together at their maximums do not consume the entire calorie budget, leaving no room for carbs:
+**Carbs are not stored as a range.** They are computed as the remaining calories after protein and fat targets are assigned:
 ```
-if (scaled_protein_max × 4) + (scaled_fat_max × 9) > meal_calorie_window.max − (minimum_acceptable_carbs × 4):
-  → INFEASIBLE: flag this meal slot, do not proceed
+meal_carb_target = (meal_calories − meal_protein × 4 − meal_fat × 9) ÷ 4
 ```
-If infeasible, the shape table percentages must be adjusted (lower fat or protein ceilings in Section 7) before plan generation can continue.
-
-**Carbs are not stored as a range.** They are computed dynamically at filter time per candidate meal (see Section 9).
+This carb number is useful for display and nutrition totals, but it is not a hard selection constraint.
 
 **Worked example** (100kg client, daily protein range 180g–220g, 4 meals, balanced distribution):
 
@@ -238,7 +232,7 @@ Repeat Steps 2–5 for fat to produce scaled fat windows per meal.
 
 ## 9. Meal Selection — Constraint Filtering
 
-For each meal slot in the plan, a candidate bundle must satisfy **all three constraints simultaneously**, or it is not a valid pick for that slot.
+For each meal slot in the plan, a candidate bundle must satisfy the calorie, protein, and fat constraints. Carbs are reported and naturally affect calories through the food database, but carbs are not checked as an independent pass/fail constraint.
 
 **Constraint A — Calorie window.**
 ```
@@ -253,31 +247,11 @@ candidate.fat     BETWEEN scaled_fat_min     AND scaled_fat_max
 ```
 Using the scaled windows from Section 8 — never the raw Section 7 windows.
 
-**Constraint C — Carbs (dynamic, computed per candidate).**
-Carbs are not a stored static range. For each candidate, required carbs are derived from that candidate's actual protein and fat values and the meal's calorie window:
-```
-required_carbs_min = (meal_calorie_window.min − candidate.protein × 4 − candidate.fat × 9) ÷ 4
-required_carbs_max = (meal_calorie_window.max − candidate.protein × 4 − candidate.fat × 9) ÷ 4
-
-candidate.carbs BETWEEN required_carbs_min AND required_carbs_max
-```
-
-This ensures that a candidate's carbs absorb whatever the calorie window has left after its actual protein and fat, keeping the meal's calorie total inside the window. There is no static carb box — the carb check is always conditional on the candidate's specific protein and fat values.
-
-**Why this guarantees calorie conservation:** a candidate passing Constraint C has:
-```
-calories = protein × 4 + fat × 9 + carbs × 4
-         ≈ protein × 4 + fat × 9 + (meal_cal_window − protein × 4 − fat × 9)
-         = meal_calorie_window    ✓
-```
-Constraint A becomes a structural consequence of Constraint C, but is still checked explicitly as a guard against database rounding errors.
-
 **Selection steps:**
 1. Compute the meal's calorie window (Constraint A).
 2. Use the meal's scaled protein and fat windows from Section 8 (Constraint B).
-3. For each candidate, compute required carb range from its actual protein and fat (Constraint C).
-4. Filter the database to candidates satisfying all three constraints simultaneously.
-5. Among passing candidates, rank by closeness to target in this priority order:
+3. Filter the database to candidates satisfying both constraints simultaneously.
+4. Among passing candidates, rank by closeness to target in this priority order:
    - First: closest to the meal's calorie target (midpoint of calorie window)
    - Second: closest to the meal's protein target (midpoint of scaled protein window)
    - Third: closest to the meal's fat target (midpoint of scaled fat window)
@@ -292,7 +266,7 @@ Swapping a meal means re-running Section 9's steps 1–5 for that slot only, sel
 Because each meal's window was fixed independently in Section 8 (and Σmin/Σmax already match the daily target), a swap:
 - **Never affects any other meal's window** — each meal's window was set once, independently, at plan-generation time.
 - **Never breaks the daily total** — by the interval guarantee in Section 8, any in-window pick for the swapped meal keeps the whole day's sum inside the daily range, automatically.
-- **Never breaks Constraints A, B, or C** — the swap candidate is drawn only from bundles that already satisfy all three constraints (Section 9, Step 4's filtered set).
+- **Never breaks Constraints A or B** — the swap candidate is drawn only from bundles that already satisfy both constraints (Section 9, Step 3's filtered set).
 
 No re-reconciliation step is needed after a swap.
 
@@ -361,18 +335,6 @@ Repeat the same process for fat to produce scaled fat windows (omitted here for 
 
 ---
 
-### Step 6 — Infeasibility check (Section 8 Step 6)
-
-For breakfast (worst case: protein max 51.2g, fat max e.g. 26.9g after fat scaling):
-```
-51.2 × 4 + 26.9 × 9 = 204.8 + 242.1 = 446.9 kcal
-Calorie window max = 787.5 kcal
-Room for carbs = 787.5 − 446.9 = 340.6 kcal = 85.15g  ✓ (not negative)
-```
-All meals pass → feasible, proceed.
-
----
-
 ### Step 7 — Stored values per meal slot
 
 | Meal | Protein window | Fat window | Calorie window |
@@ -391,8 +353,7 @@ Candidate: protein=48g, fat=28g, carbs=?
 
 **Constraint A:**
 ```
-Candidate calories estimated = 42×4 + 28×9 + carbs×4
-Must land in [712.5, 787.5] — checked after Constraint C
+Candidate calories must land in [712.5, 787.5].
 ```
 
 **Constraint B:**
@@ -401,16 +362,9 @@ Protein: 48g BETWEEN 45.0 AND 51.2 ✓
 Fat: 28g BETWEEN X AND Y ✓ (assume yes)
 ```
 
-**Constraint C:**
-```
-required_carbs_min = (712.5 − 48×4 − 28×9) ÷ 4 = (712.5 − 192 − 252) ÷ 4 = 268.5 ÷ 4 = 67.1g
-required_carbs_max = (787.5 − 48×4 − 28×9) ÷ 4 = (787.5 − 192 − 252) ÷ 4 = 343.5 ÷ 4 = 85.9g
-
-Candidate carbs must be BETWEEN 73.1g AND 91.9g
-```
-
-If candidate has carbs=80g → passes all three ✓
+If candidate has carbs=80g:
 Actual calories = 48×4 + 28×9 + 80×4 = 192 + 252 + 320 = 764 kcal ✓ (inside [712.5, 787.5])
+The candidate passes because calories, protein, and fat are inside their windows. Carbs are displayed, but no separate carb range is checked.
 
 ---
 
@@ -465,21 +419,15 @@ the rules in this document (Sections 1–11). Do the following:
       Step 4: min_scale = daily_min ÷ Σ min, max_scale = daily_max ÷ Σ max.
               Confirm min_scale and max_scale are computed and applied SEPARATELY.
       Step 5: scaled per-meal windows applied.
-      Step 6: infeasibility check — protein_max×4 + fat_max×9 must not exceed
-              meal_calorie_window.max minus minimum acceptable carb calories.
-      NO carb range is stored. Carbs are computed dynamically in Section 9.
-   g. Section 9's THREE hard constraints applied together (not either/or):
+      NO carb range is stored. Carbs are computed as the remaining calories
+      after protein and fat.
+   g. Section 9's TWO hard constraints applied together (not either/or):
         - Constraint A: candidate.calories within meal's ±5% calorie window.
         - Constraint B: candidate.protein within scaled protein window,
                         candidate.fat within scaled fat window.
-        - Constraint C: candidate.carbs BETWEEN
-                        (meal_cal_window.min − protein×4 − fat×9) ÷ 4
-                        AND
-                        (meal_cal_window.max − protein×4 − fat×9) ÷ 4
-                        computed from the candidate's actual protein and fat values.
       After filtering, rank passing candidates by: (1) calorie closeness to target,
       (2) protein closeness to midpoint, (3) fat closeness to midpoint.
-   h. Section 10's swap logic: re-filter only the swapped slot using all three
+   h. Section 10's swap logic: re-filter only the swapped slot using both
       constraints; no re-scaling of other meals; no re-check of the daily total
       (it is guaranteed structurally).
 
@@ -503,7 +451,7 @@ the rules in this document (Sections 1–11). Do the following:
    - Σ meal calorie window maxes = daily calorie max for all patterns.
 
    Section 7 (ratio table):
-   - Every meal type's protein/fat/carb % ranges are internally non-inverted
+   - Every meal type's protein/fat % ranges are internally non-inverted
      (min < max).
    - Confirm the table is NOT re-derived or altered per client/plan (client
      independence).
@@ -516,20 +464,14 @@ the rules in this document (Sections 1–11). Do the following:
        Same for fat.
    - Confirm min_scale != max_scale whenever daily_min != daily_max, and that
      each is applied to the correct side.
-   - Infeasibility check: construct a client where scaled protein_max × 4 +
-     fat_max × 9 > meal_calorie_window.max for some meal → confirm system flags
-     INFEASIBLE and does not proceed.
    - Confirm no carb range is stored per meal slot anywhere in the output of
      Section 8.
 
    Section 9 (constraint filtering):
-   - Construct a bundle satisfying A and B but with carbs outside Constraint C
-     range → confirm REJECTED.
-   - Construct a bundle satisfying A and C but protein outside B → confirm REJECTED.
-   - Construct a bundle satisfying B and C but calories outside A → confirm REJECTED.
-   - Construct a bundle satisfying all three → confirm ACCEPTED.
-   - Confirm Constraint C is computed from the candidate's actual protein and fat,
-     not from any stored static carb range.
+   - Construct a bundle satisfying calories and fat but protein outside B → confirm REJECTED.
+   - Construct a bundle satisfying protein and fat but calories outside A → confirm REJECTED.
+   - Construct a bundle satisfying calories, protein, and fat → confirm ACCEPTED,
+     regardless of whether carbs differ from the displayed residual carb target.
    - Construct a full day where every meal lands at the edge of its own ±5%
      window in the same direction (all at +5%) → confirm daily total = daily
      calorie max (falls out structurally, not a separate check).

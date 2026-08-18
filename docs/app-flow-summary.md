@@ -122,7 +122,7 @@ Planner setup sequence:
 4. If `folderId` exists, it loads folder metadata with `GET /api/folders/:id`.
 5. It fetches `/api/preferences` to populate the "Avoid foods" picker.
 6. It can fetch `/api/foods` to hydrate food metadata for preference options and search behavior.
-7. The user fills body data, goal, meal count, distribution, Ramadan mode, diet type, customer name, active toggle, plan name, and avoided foods.
+7. The user fills body data, goal, meal count, distribution, diet type, customer name, active toggle, plan name, and avoided foods.
 
 The form data collected by `readForm()`:
 
@@ -137,7 +137,6 @@ The form data collected by `readForm()`:
 - `mealDistribution`
 - `dietType`
 - `avoidFoods`
-- `ramadanMode`
 
 ### 5. User generates the plan
 
@@ -162,16 +161,16 @@ Backend files:
 Generation sequence:
 
 1. Browser calls `POST /api/generate-plan` with `readForm()` output.
-2. `requireAuth` verifies Firebase session and loads `req.user`.
+2. `requireAuth` verifies the app JWT session and loads `req.user`.
 3. `generationController.generatePlanHandler()` calls `generatePlan(req.body)`.
 4. `planGenerator.normalizeInput()` converts strings to numbers/booleans and validates all body inputs.
-5. `nutritionService.calculateNutritionDetails()` computes BMR, maintenance calories, goal calories, calorie floor, protein/fat/carb targets.
-6. `nutritionService.buildMealTargets()` splits daily targets into meal slots based on meal count, distribution, Ramadan mode, and macro profiles.
+5. `nutritionService.calculateNutritionDetails()` computes BMR, maintenance calories, goal calories, calorie floor, protein/fat targets, and carb grams as remaining calories.
+6. `nutritionService.buildMealTargets()` splits daily targets into meal slots based on meal count, distribution, and macro profiles.
 7. `planGenerator.filterFoods()` removes foods blocked by diet type and avoid-food semantic matching.
 8. `planGenerator.generateReadyMealDay()` builds candidate ready meals for each slot.
-9. `readyMealRepository.loadReadyMealBundles()` reads ready-meal bundles from `new_stage_data/meal_substitution_system.json`.
-10. Each ready meal is matched to allowed foods by ingredient name, then solved toward meal macro targets.
-11. `findBestPortionGridFit()` and `solvePortionsLeastSquares()` adjust gram quantities to satisfy macro bounds.
+9. `readyMealRepository.loadReadyMealBundles()` reads ready-meal bundles from `ready_meals/meals.json`.
+10. Each ready meal is matched to allowed foods by ingredient name, then solved toward calories, protein, and fat.
+11. `findBestPortionGridFit()` and `solvePortionsLeastSquares()` adjust gram quantities to satisfy calorie/protein/fat bounds.
 12. `selectReadyMealDayCombination()` searches candidate combinations across the day and picks the best daily fit.
 13. `optimizeTemplateDay()`, `repairTemplateDay()`, and `escalateTemplateDay()` try to improve daily totals when the first fit is not close enough.
 14. Response contains `input`, `dailyTargets`, `nutritionCalculation`, `meals`, optional `warnings`, optional `diagnostics`, and optional impossible-plan `errors`.
@@ -361,7 +360,7 @@ All mounted by `src/app.js`.
 |---|---|
 | `src/config/database.js` | Sequelize PostgreSQL connection, SSL decision, pool config. |
 | `src/config/firebaseAdmin.js` | Firebase Admin initialization and private-key cleanup. |
-| `src/config/nutritionConstants.js` | Nutrition constants, Mifflin-St Jeor constants, macro tolerances, meal distributions, Ramadan slots. |
+| `src/config/nutritionConstants.js` | Nutrition constants, Mifflin-St Jeor constants, macro tolerances, and meal distributions. |
 | `src/config/preferenceTaxonomy.js` | Allergen/category/food preference taxonomy, option builder, token normalizer, semantic expansion. |
 
 ### Routes
@@ -616,4 +615,3 @@ mealStates[] = editable browser-side version of plan.meals[]
 - Meal edit rebalance: `rebalanceMeal`
 - Frontend daily red flags: `public/js/app.js:refreshRedFlags`
 - Persisted edited output: `public/js/app.js:buildPlanData`
-

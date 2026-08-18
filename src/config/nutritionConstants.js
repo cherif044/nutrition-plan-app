@@ -16,15 +16,11 @@ const NUTRITION = {
     athlete: 1.9,
   },
   weightLoss: {
-    minimumWeeklyPercent: 0.5,
-    maximumWeeklyPercent: 1.0,
-    defaultWeeklyPercent: 0.75,
+    weeklyPercent: 0.75,
     kcalPerKg: 7700,
   },
   weightGain: {
-    minimumSurplusCalories: 200,
-    maximumSurplusCalories: 300,
-    defaultSurplusCalories: 250,
+    surplusCalories: 250,
   },
   calorieFloorBySex: {
     male: 1700,
@@ -40,43 +36,26 @@ const NUTRITION = {
     maximum: 1.0,
     default: 0.7,
   },
-  minimumMealProteinCalorieRatio: 0.20,
-  minimumAcceptableCarbsG: 0,
   mealMacroRatioRanges: {
     breakfast: {
       protein: { min: 0.16, max: 0.30 },
       fat: { min: 0.25, max: 0.54 },
-      carb: { min: 0.22, max: 0.54 },
     },
     lunch: {
       protein: { min: 0.24, max: 0.36 },
       fat: { min: 0.21, max: 0.49 },
-      carb: { min: 0.25, max: 0.54 },
     },
     dinner: {
       protein: { min: 0.24, max: 0.36 },
       fat: { min: 0.21, max: 0.49 },
-      carb: { min: 0.25, max: 0.54 },
     },
     snack: {
       protein: { min: 0.13, max: 0.30 },
       fat: { min: 0.22, max: 0.54 },
-      carb: { min: 0.20, max: 0.54 },
     },
   },
   mealSwapDailyCalorieWindowPercent: 0.05,
-  calorieTolerancePercent: 0.20,
-  mealMacroTolerancePercent: 0.20,
-  totalMacroTolerancePercent: 0.05,
-  residualScoreImprovementThreshold: 0.10,
-  hardErrorCalorieFloorPercent: 0.80,
-  severeCalorieFloorPercent: 0.70,
-  hardErrorProteinShortfallG: 25,
-  hardErrorProteinShortfallPercent: 0.20,
-  hardErrorMacroToleranceMultiplier: 3,
-  residualPercentNearZeroTarget: 25,
-  maxPortionAdjustmentIterations: 20,
-  maxMealAttempts: 8,
+  dailyCalorieTolerancePercent: 0.05,
 };
 
 const MEAL_DISTRIBUTIONS = {
@@ -167,19 +146,9 @@ const AMBIGUOUS_MEAL_SLOT_POLICY = {
   ],
 };
 
-const RAMADAN_DISTRIBUTION = {
-  factors: [0.5, 0.2, 0.3],
-  slots: [
-    { name: 'Iftar', tag: 'iftar', profileTag: 'dinner' },
-    { name: 'Snack', tag: 'snack', profileTag: 'snack' },
-    { name: 'Suhoor', tag: 'suhoor', profileTag: 'breakfast' },
-  ],
-};
-
 module.exports = {
   AMBIGUOUS_MEAL_SLOT_POLICY,
   MEAL_DISTRIBUTIONS,
   NUTRITION,
-  RAMADAN_DISTRIBUTION,
   STANDARD_MEAL_SLOT_POLICY,
 };

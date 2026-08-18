@@ -1662,6 +1662,8 @@ async function attemptGuidedRebalance(state, {
       body: JSON.stringify({
         mealTarget: state.target,
         items: payloadItems,
+        action,
+        changedItemIndex: Number.isInteger(successRowIndex) ? successRowIndex : null,
         dailyContext: {
           dailyTargets,
           weightKg: Number(currentPlanInput?.weightKg),

@@ -63,7 +63,6 @@ function goalLabel(goal) {
   const labels = {
     maintain: 'Maintain',
     lose_weight: 'Lose weight',
-    lose_weight_aggressive: 'Lose weight',
     gain_weight: 'Gain weight',
   };
   return labels[goal] || titleCase(goal);

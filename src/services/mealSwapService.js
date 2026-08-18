@@ -312,13 +312,12 @@ function servingRealismPenalty(items) {
 }
 
 function solvePortionsLeastSquares(items, target, options = {}) {
-  const weights = { protein: 1, carb: 1, fat: 1, ...(options.weights ?? {}) };
+  const weights = { protein: 1, fat: 1, ...(options.weights ?? {}) };
   const maxIterations = options.maxIterations ?? NUTRITION.maxPortionAdjustmentIterations;
   const learningRate = options.learningRate ?? 0.3;
 
   const meta = items.map((item) => ({
     p: item.food.proteinGPer100g / 100,
-    c: item.food.carbGPer100g / 100,
     f: item.food.fatGPer100g / 100,
     min: Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20,
     max: Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500,
@@ -328,23 +327,19 @@ function solvePortionsLeastSquares(items, target, options = {}) {
 
   for (let iter = 0; iter < maxIterations; iter += 1) {
     let protein = 0;
-    let carb = 0;
     let fat = 0;
     for (let i = 0; i < x.length; i += 1) {
       protein += x[i] * meta[i].p;
-      carb += x[i] * meta[i].c;
       fat += x[i] * meta[i].f;
     }
 
     const errP = protein - target.proteinG;
-    const errC = carb - target.carbG;
     const errF = fat - target.fatG;
 
     let gradNormSq = 0;
     x = x.map((xi, i) => {
       const grad =
         2 * weights.protein * meta[i].p * errP +
-        2 * weights.carb * meta[i].c * errC +
         2 * weights.fat * meta[i].f * errF;
       gradNormSq += grad * grad;
       return clamp(xi - learningRate * grad, meta[i].min, meta[i].max);
@@ -381,9 +376,8 @@ function macroFitScore(items, target) {
   const totals = totalsForItems(items);
   const calorieScore = Math.abs(totals.calories - target.calories) / Math.max(1, target.calories);
   const proteinScore = Math.abs(totals.proteinG - target.proteinG) / Math.max(1, target.proteinG);
-  const carbScore = Math.abs(totals.carbG - target.carbG) / Math.max(1, target.carbG);
   const fatScore = Math.abs(totals.fatG - target.fatG) / Math.max(1, target.fatG);
-  return calorieScore + proteinScore + carbScore + fatScore;
+  return calorieScore + proteinScore + fatScore;
 }
 
 function sourceRank(source) {
