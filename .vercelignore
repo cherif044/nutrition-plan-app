@@ -13,4 +13,5 @@ pp.txt
 
 new_stage_data/*.xlsx
 new_stage_data/*.json
+!new_stage_data/meal_substitution_system.json
 new_stage_data/neww
