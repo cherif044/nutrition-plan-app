@@ -51,7 +51,7 @@ IMPORTANT: Edit ${APP_DIR}/.env before starting the app:
 
   nano ${APP_DIR}/.env
 
-Put your real DATABASE_URL, GEMINI_API_KEY, JWT_SECRET, DB_SSL=true, NODE_ENV=production.
+Put your real DATABASE_URL, GEMINI_API_KEY, Firebase Admin variables, Firebase Web config variables, DB_SSL=true, NODE_ENV=production.
 
 ENV_NOTE
 fi

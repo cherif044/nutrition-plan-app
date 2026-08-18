@@ -1,13 +1,23 @@
 CREATE TABLE IF NOT EXISTS users (
   id            BIGSERIAL PRIMARY KEY,
+  firebase_uid  VARCHAR(128),
+  email         VARCHAR(254),
   username      VARCHAR(30) UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   firstname     VARCHAR(50) NOT NULL,
   lastname      VARCHAR(50) NOT NULL,
   token_version INT DEFAULT 0,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   last_login    TIMESTAMPTZ
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_firebase_uid
+  ON users(firebase_uid)
+  WHERE firebase_uid IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email
+  ON users(email)
+  WHERE email IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS folders (
   id         BIGSERIAL PRIMARY KEY,

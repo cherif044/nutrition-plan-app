@@ -1,17 +1,307 @@
 const isRegisterPage = document.getElementById('register-form') !== null;
 const form = document.getElementById(isRegisterPage ? 'register-form' : 'login-form');
 const messageEl = document.getElementById('form-message');
+const googleBtn = document.getElementById('google-auth-btn');
+const resendBtn = document.getElementById('resend-verification-btn');
+const forgotBtn = document.getElementById('forgot-password-btn');
+const forgotForm = document.getElementById('forgot-form');
+const forgotEmail = document.getElementById('forgot-email');
+const backToLoginBtn = document.getElementById('back-to-login-btn');
+const GOOGLE_REDIRECT_PENDING_KEY = 'pinchGoogleRedirectPending';
 
-// Redirect if already logged in
-(async () => {
+let auth = null;
+let firebaseSdk = null;
+let pendingVerificationUser = null;
+
+initAuthPage();
+
+async function initAuthPage() {
   try {
-    const res = await fetch('/api/auth/me');
-    if (res.ok) window.location.replace('/dashboard');
-  } catch { /* not logged in */ }
-})();
+    const existing = await fetch('/api/auth/me');
+    if (existing.ok) {
+      window.location.replace('/dashboard');
+      return;
+    }
+  } catch {
+    // Anonymous visitors continue to the auth form.
+  }
 
-// ── Password strength (register only) ──────────────────────────────────────
-if (isRegisterPage) {
+  try {
+    const configRes = await fetch('/api/auth/firebase-config');
+    const config = await configRes.json();
+    if (!configRes.ok) {
+      const missing = Array.isArray(config.missing) ? ` Missing: ${config.missing.join(', ')}.` : '';
+      throw new Error(`${config.error || 'Firebase is not configured.'}${missing}`);
+    }
+
+    firebaseSdk = await loadFirebaseSdk();
+    auth = firebaseSdk.getAuth(firebaseSdk.initializeApp(config));
+    await firebaseSdk.setPersistence(auth, firebaseSdk.browserSessionPersistence);
+    bindEvents();
+    await handleGoogleRedirectResult();
+  } catch (err) {
+    setMessage(err.message || 'Firebase is not configured yet.');
+    setDisabled(true);
+  }
+}
+
+function bindEvents() {
+  form.addEventListener('submit', handleEmailSubmit);
+  googleBtn?.addEventListener('click', handleGoogle);
+  resendBtn?.addEventListener('click', resendVerification);
+  forgotBtn?.addEventListener('click', showForgotPassword);
+  backToLoginBtn?.addEventListener('click', hideForgotPassword);
+  forgotForm?.addEventListener('submit', handleForgotPassword);
+
+  if (isRegisterPage) bindPasswordStrength();
+}
+
+async function handleEmailSubmit(event) {
+  event.preventDefault();
+  clearHints();
+  setMessage('');
+  setLoading(true, isRegisterPage ? 'Creating account...' : 'Logging in...');
+
+  try {
+    if (isRegisterPage) {
+      await handleSignup();
+    } else {
+      await handleLogin();
+    }
+  } catch (err) {
+    setMessage(authErrorMessage(err));
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleSignup() {
+  const data = getRegisterData();
+  validateSignup(data);
+
+  const credential = await firebaseSdk.createUserWithEmailAndPassword(auth, data.email, data.password);
+  await firebaseSdk.updateProfile(credential.user, {
+    displayName: `${data.firstname} ${data.lastname}`.trim(),
+  });
+  await firebaseSdk.sendEmailVerification(credential.user);
+  pendingVerificationUser = credential.user;
+
+  setMessage('Account created. Check your inbox to verify your email before logging in.', 'success');
+  setResendVisible(true);
+}
+
+async function handleLogin() {
+  const { email, password } = getLoginData();
+  if (!email || !password) throw new Error('Enter your email and password.');
+
+  const credential = await firebaseSdk.signInWithEmailAndPassword(auth, email, password);
+  if (!credential.user.emailVerified) {
+    pendingVerificationUser = credential.user;
+    setResendVisible(true);
+    throw Object.assign(new Error('Please verify your email before continuing.'), { friendly: true });
+  }
+
+  await createServerSession(credential.user);
+  await firebaseSdk.signOut(auth);
+  setMessage('Welcome back. Opening your dashboard...', 'success');
+  setTimeout(() => window.location.replace('/dashboard'), 300);
+}
+
+async function handleGoogle() {
+  setMessage('');
+  setLoading(true, 'Connecting...');
+  const provider = new firebaseSdk.GoogleAuthProvider();
+  try {
+    const credential = await firebaseSdk.signInWithPopup(auth, provider);
+    await createServerSession(credential.user);
+    await firebaseSdk.signOut(auth);
+    setMessage('Signed in with Google. Opening your dashboard...', 'success');
+    setTimeout(() => window.location.replace('/dashboard'), 300);
+  } catch (err) {
+    if (err?.code === 'auth/popup-blocked') {
+      setMessage('Popup blocked. Redirecting to Google sign-in...', 'success');
+      sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
+      await firebaseSdk.signInWithRedirect(auth, provider);
+      return;
+    }
+    setMessage(authErrorMessage(err));
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleGoogleRedirectResult() {
+  const hadPendingRedirect = sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
+  try {
+    if (hadPendingRedirect) setMessage('Finishing Google sign-in...', 'success');
+
+    const credential = await firebaseSdk.getRedirectResult(auth);
+    if (credential?.user) {
+      await finishGoogleSignIn(credential.user);
+      return;
+    }
+
+    if (!hadPendingRedirect) return;
+
+    const redirectedUser = auth.currentUser || await waitForAuthUser();
+    if (redirectedUser && userHasProvider(redirectedUser, 'google.com')) {
+      await finishGoogleSignIn(redirectedUser);
+      return;
+    }
+
+    sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+    setMessage('Google sign-in did not finish. Please try again.');
+  } catch (err) {
+    sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+    setMessage(authErrorMessage(err));
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function finishGoogleSignIn(user) {
+  setLoading(true, 'Finishing sign-in...');
+  await createServerSession(user);
+  sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+  await firebaseSdk.signOut(auth);
+  setMessage('Signed in with Google. Opening your dashboard...', 'success');
+  setTimeout(() => window.location.replace('/dashboard'), 300);
+}
+
+function userHasProvider(user, providerId) {
+  return Array.isArray(user?.providerData)
+    && user.providerData.some((provider) => provider.providerId === providerId);
+}
+
+function waitForAuthUser(timeoutMs = 2500) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const unsubscribe = firebaseSdk.onAuthStateChanged(auth, (user) => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve(user);
+    });
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve(null);
+    }, timeoutMs);
+  });
+}
+
+async function createServerSession(user) {
+  const idToken = await user.getIdToken(true);
+  const res = await fetch('/api/auth/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      idToken,
+      profile: isRegisterPage ? {
+        firstname: form.elements.firstname.value.trim(),
+        lastname: form.elements.lastname.value.trim(),
+      } : {},
+    }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw Object.assign(new Error(payload.error || 'Could not start an authenticated session.'), {
+      code: payload.code,
+      friendly: true,
+    });
+  }
+  return payload.user;
+}
+
+async function resendVerification() {
+  if (!pendingVerificationUser) return;
+  resendBtn.disabled = true;
+  try {
+    await firebaseSdk.sendEmailVerification(pendingVerificationUser);
+    setMessage('Verification email sent. Check your inbox.', 'success');
+  } catch (err) {
+    setMessage(authErrorMessage(err));
+  } finally {
+    resendBtn.disabled = false;
+  }
+}
+
+function showForgotPassword() {
+  if (!forgotForm) return;
+  forgotForm.hidden = false;
+  form.hidden = true;
+  setMessage('');
+  const loginEmail = form.elements.email?.value.trim();
+  if (loginEmail) forgotEmail.value = loginEmail;
+  forgotEmail.focus();
+}
+
+function hideForgotPassword() {
+  if (!forgotForm) return;
+  forgotForm.hidden = true;
+  form.hidden = false;
+  setMessage('');
+}
+
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  setMessage('');
+  const email = forgotEmail.value.trim();
+  if (!email) {
+    setMessage('Enter your email address.');
+    return;
+  }
+
+  const submitBtn = forgotForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  try {
+    await firebaseSdk.sendPasswordResetEmail(auth, email);
+  } catch (err) {
+    if (err.code === 'auth/invalid-email') {
+      setMessage('Enter a valid email address.');
+      submitBtn.disabled = false;
+      return;
+    }
+  }
+
+  setMessage('If an account exists for that email, Firebase will send a reset link.', 'success');
+  submitBtn.disabled = false;
+}
+
+async function loadFirebaseSdk() {
+  const [app, authSdk] = await Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js'),
+  ]);
+  return { ...app, ...authSdk };
+}
+
+function getLoginData() {
+  return {
+    email: form.elements.email.value.trim(),
+    password: form.elements.password.value,
+  };
+}
+
+function getRegisterData() {
+  return {
+    firstname: form.elements.firstname.value.trim(),
+    lastname: form.elements.lastname.value.trim(),
+    email: form.elements.email.value.trim(),
+    password: form.elements.password.value,
+    confirmPassword: form.elements.confirmPassword.value,
+  };
+}
+
+function validateSignup(data) {
+  if (!data.firstname || !data.lastname) throw new Error('Enter your first and last name.');
+  if (!data.email) throw new Error('Enter your email address.');
+  if (data.password.length < 8) throw new Error('Password must be at least 8 characters.');
+  if (data.password !== data.confirmPassword) throw new Error('Passwords do not match.');
+}
+
+function bindPasswordStrength() {
   const passwordInput = form.querySelector('input[name="password"]');
   const strengthEl = document.getElementById('password-strength');
   const strengthLabel = document.getElementById('strength-label');
@@ -21,8 +311,17 @@ if (isRegisterPage) {
 
   async function loadZxcvbn() {
     if (zxcvbnModule) return zxcvbnModule;
-    const mod = await import('/js/zxcvbn.browser.js').catch(() => null);
-    zxcvbnModule = mod?.default || mod?.zxcvbn || null;
+    if (!window.zxcvbn) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = '/js/zxcvbn.browser.js';
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.append(script);
+      }).catch(() => null);
+    }
+    zxcvbnModule = window.zxcvbn || null;
     return zxcvbnModule;
   }
 
@@ -55,62 +354,49 @@ if (isRegisterPage) {
   });
 }
 
-// ── Form submission ─────────────────────────────────────────────────────────
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  clearHints();
-  messageEl.textContent = '';
-  messageEl.className = 'auth-message';
-
-  const submitBtn = form.querySelector('button[type="submit"]');
-  submitBtn.disabled = true;
-  submitBtn.querySelector('span').textContent = isRegisterPage ? 'Creating account…' : 'Logging in…';
-
-  try {
-    const body = isRegisterPage ? getRegisterData() : getLoginData();
-    const url = isRegisterPage ? '/api/auth/register' : '/api/auth/login';
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const payload = await res.json();
-
-    if (!res.ok) {
-      messageEl.textContent = payload.error || 'Something went wrong.';
-      return;
-    }
-
-    messageEl.className = 'auth-message success';
-    messageEl.textContent = isRegisterPage
-      ? `Account created! Welcome, ${escapeHtml(payload.user.firstname)}.`
-      : `Welcome back, ${escapeHtml(payload.user.firstname)}!`;
-
-    setTimeout(() => window.location.replace('/dashboard'), 600);
-  } catch {
-    messageEl.textContent = 'Network error. Please try again.';
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.querySelector('span').textContent = isRegisterPage ? 'Create account' : 'Log in';
-  }
-});
-
-function getLoginData() {
-  return {
-    username: form.elements.username.value.trim(),
-    password: form.elements.password.value,
+function authErrorMessage(err) {
+  if (err?.friendly) return err.message;
+  const messages = {
+    'auth/account-exists-with-different-credential': 'An account already exists for this email. Sign in using the original provider, then link Google from Firebase if needed.',
+    'auth/email-already-in-use': 'An account already exists for this email. Try logging in instead.',
+    'auth/invalid-credential': 'Invalid email or password.',
+    'auth/invalid-email': 'Enter a valid email address.',
+    'auth/popup-blocked': 'Popup blocked. Redirecting to Google sign-in...',
+    'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
+    'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+    'auth/user-disabled': 'This account has been disabled.',
+    'auth/user-not-found': 'Invalid email or password.',
+    'auth/weak-password': 'Choose a stronger password.',
+    'auth/wrong-password': 'Invalid email or password.',
   };
+  return messages[err?.code] || err?.message || 'Something went wrong. Please try again.';
 }
 
-function getRegisterData() {
-  return {
-    firstname: form.elements.firstname.value.trim(),
-    lastname: form.elements.lastname.value.trim(),
-    username: form.elements.username.value.trim(),
-    password: form.elements.password.value,
-  };
+function setMessage(text, tone = 'error') {
+  messageEl.textContent = text;
+  messageEl.className = `auth-message${tone === 'success' ? ' success' : ''}`;
+}
+
+function setLoading(loading, label) {
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = loading;
+    submitBtn.querySelector('span').textContent = loading
+      ? label
+      : isRegisterPage ? 'Create account' : 'Log in';
+  }
+  if (googleBtn) googleBtn.disabled = loading;
+}
+
+function setDisabled(disabled) {
+  form.querySelectorAll('input, button').forEach((el) => {
+    el.disabled = disabled;
+  });
+  if (googleBtn) googleBtn.disabled = disabled;
+}
+
+function setResendVisible(visible) {
+  if (resendBtn) resendBtn.hidden = !visible;
 }
 
 function clearHints() {
@@ -120,8 +406,5 @@ function clearHints() {
   form.querySelectorAll('.input-error').forEach((el) => {
     el.classList.remove('input-error');
   });
-}
-
-function escapeHtml(v) {
-  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  setResendVisible(false);
 }

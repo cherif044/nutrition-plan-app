@@ -22,20 +22,40 @@
 
         <form class="auth-form" id="login-form" novalidate>
           <label>
-            <span>Username</span>
-            <input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
-            <span class="field-hint" data-hint="username"></span>
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+            <span class="field-hint" data-hint="email"></span>
           </label>
           <label>
             <span>Password</span>
             <input type="password" name="password" autocomplete="current-password" required />
             <span class="field-hint" data-hint="password"></span>
           </label>
+          <button class="auth-link-button" id="forgot-password-btn" type="button">Forgot password?</button>
 
           <button class="auth-submit" type="submit">
             <span>Log in</span>
           </button>
+          <div class="auth-divider"><span>or</span></div>
+          <button class="auth-google" id="google-auth-btn" type="button">
+            <span class="auth-google__mark" aria-hidden="true">G</span>
+            <span>Continue with Google</span>
+          </button>
+          <button class="auth-link-button auth-link-button--center" id="resend-verification-btn" type="button" hidden>
+            Resend verification email
+          </button>
           <p class="auth-message" id="form-message" role="status" aria-live="polite"></p>
+        </form>
+
+        <form class="auth-form" id="forgot-form" hidden novalidate>
+          <label>
+            <span>Email</span>
+            <input type="email" id="forgot-email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+          </label>
+          <button class="auth-submit" type="submit">
+            <span>Send reset link</span>
+          </button>
+          <button class="auth-link-button auth-link-button--center" id="back-to-login-btn" type="button">Back to login</button>
         </form>
 
         <p class="auth-switch">

@@ -4,10 +4,13 @@
   "description": "Node.js/Express website version of the Nutrition Plan app.",
   "main": "src/server.js",
   "scripts": {
-    "test": "npm run check && npm run test:nutrition-v2 && npm run test:nutrition-v9-massive && node test-solver.js && npm run test:optimizer && npm run test:deterministic-generation && npm run test:meal-chat-quality && npm run test:customers",
+    "test": "npm run check && npm run test:firebase-auth && npm run test:firebase-sync-db && npm run test:nutrition-v2 && npm run test:nutrition-v9-massive && node test-solver.js && npm run test:optimizer && npm run test:deterministic-generation && npm run test:meal-chat-quality && npm run test:customers",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check public/js/dashboard.js && node --check public/js/customer.js && node --check scripts/data/enrichFoodData.js && node --check scripts/testNutritionLogicV2.js && node --check scripts/testNutritionV9Massive.js && node --check scripts/testNutritionOptimizer.js && node --check scripts/testGenerationComparison.js && node --check scripts/testDeterministicMealGeneration.js && node --check scripts/testMealChatQuality.js && node --check scripts/testCustomerManagement.js",
+    "db:migrate:firebase-auth": "node scripts/db/runFirebaseAuthMigration.js",
+    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check public/js/dashboard.js && node --check public/js/customer.js && node --check scripts/data/enrichFoodData.js && node --check scripts/db/runFirebaseAuthMigration.js && node --check scripts/testNutritionLogicV2.js && node --check scripts/testNutritionV9Massive.js && node --check scripts/testNutritionOptimizer.js && node --check scripts/testGenerationComparison.js && node --check scripts/testDeterministicMealGeneration.js && node --check scripts/testMealChatQuality.js && node --check scripts/testCustomerManagement.js && node --check scripts/testFirebaseAuthMigration.js && node --check scripts/testFirebaseUserSyncDb.js",
+    "test:firebase-auth": "node scripts/testFirebaseAuthMigration.js",
+    "test:firebase-sync-db": "node scripts/testFirebaseUserSyncDb.js",
     "test:optimizer": "node scripts/testNutritionOptimizer.js",
     "test:nutrition-v2": "node scripts/testNutritionLogicV2.js",
     "test:nutrition-v9-massive": "node scripts/testNutritionV9Massive.js",
@@ -17,19 +20,15 @@
     "test:customers": "node scripts/testCustomerManagement.js"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.3",
+    "firebase-admin": "^12.7.0",
     "pg": "^8.21.0",
     "sequelize": "^6.37.8",
     "zxcvbn": "^4.4.2"
   },
   "engines": {
-    "node": "20.x"
-  },
-  "allowScripts": {
-    "bcrypt@6.0.0": true
+    "node": ">=20 <25"
   }
 }

@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+.northflank-env.json
+.vercel.env
+node_modules
+
+filtering_data
+legacy
+output
+*.pdf
+pp.txt
+
+new_stage_data/*.xlsx
+new_stage_data/*.json
+new_stage_data/neww

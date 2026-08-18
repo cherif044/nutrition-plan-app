@@ -250,12 +250,12 @@ check('1e / Section 7 Fixed macro-ratio range table', () => {
       carb: { min: 0.22, max: 0.54 },
     },
     lunch: {
-      protein: { min: 0.18, max: 0.33 },
+      protein: { min: 0.24, max: 0.36 },
       fat: { min: 0.21, max: 0.49 },
       carb: { min: 0.25, max: 0.54 },
     },
     dinner: {
-      protein: { min: 0.18, max: 0.33 },
+      protein: { min: 0.24, max: 0.36 },
       fat: { min: 0.21, max: 0.49 },
       carb: { min: 0.25, max: 0.54 },
     },

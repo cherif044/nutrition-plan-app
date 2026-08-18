@@ -34,9 +34,9 @@
             </label>
           </div>
           <label>
-            <span>Username</span>
-            <input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
-            <span class="field-hint" data-hint="username"></span>
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+            <span class="field-hint" data-hint="email"></span>
           </label>
           <label>
             <span>Password</span>
@@ -52,9 +52,22 @@
             </div>
             <span class="field-hint" data-hint="password"></span>
           </label>
+          <label>
+            <span>Confirm password</span>
+            <input type="password" name="confirmPassword" autocomplete="new-password" required />
+            <span class="field-hint" data-hint="confirmPassword"></span>
+          </label>
 
           <button class="auth-submit" type="submit">
             <span>Create account</span>
+          </button>
+          <div class="auth-divider"><span>or</span></div>
+          <button class="auth-google" id="google-auth-btn" type="button">
+            <span class="auth-google__mark" aria-hidden="true">G</span>
+            <span>Continue with Google</span>
+          </button>
+          <button class="auth-link-button auth-link-button--center" id="resend-verification-btn" type="button" hidden>
+            Resend verification email
           </button>
           <p class="auth-message" id="form-message" role="status" aria-live="polite"></p>
         </form>

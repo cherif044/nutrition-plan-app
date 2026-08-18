@@ -26,3 +26,5 @@ ios/Runner.xcworkspace/xcuserdata/
 ios/Runner.xcodeproj/xcuserdata/
 
 .DS_Store
+.vercel
+.env*

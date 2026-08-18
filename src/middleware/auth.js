@@ -1,53 +1,82 @@
-const jwt = require('jsonwebtoken');
-const { findUserById } = require('../repositories/userRepository');
+const { getFirebaseAdmin } = require('../config/firebaseAdmin');
+const { assertFirebaseTokenCanAccessApp } = require('../services/firebaseAuthService');
+const { findUserByFirebaseUid } = require('../repositories/userRepository');
 
-function getSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET environment variable is not set.');
-  return secret;
+const SESSION_COOKIE_NAME = '__session';
+
+function sessionCookieOptions(maxAge) {
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  };
+  if (maxAge) options.maxAge = maxAge;
+  return options;
 }
 
-function signToken(payload) {
-  return jwt.sign(payload, getSecret(), { expiresIn: '7d' });
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions());
+  res.clearCookie('token', sessionCookieOptions());
 }
 
-function verifyToken(token) {
-  return jwt.verify(token, getSecret());
-}
-
-function extractToken(req) {
-  const cookie = req.cookies?.token;
-  if (cookie) return cookie;
+function extractBearerToken(req) {
   const auth = req.headers.authorization;
   if (auth?.startsWith('Bearer ')) return auth.slice(7);
   return null;
 }
 
+async function verifyFirebaseRequest(req) {
+  const sessionCookie = req.cookies?.[SESSION_COOKIE_NAME];
+  const bearerToken = extractBearerToken(req);
+  if (!sessionCookie && !bearerToken) return null;
+
+  const firebase = getFirebaseAdmin();
+  if (sessionCookie) {
+    return firebase.auth().verifySessionCookie(sessionCookie, true);
+  }
+
+  if (bearerToken) {
+    return firebase.auth().verifyIdToken(bearerToken, true);
+  }
+
+  return null;
+}
+
 async function requireAuth(req, res, next) {
-  const token = extractToken(req);
-
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required.' });
-  }
-
-  let payload;
+  let decodedToken;
   try {
-    payload = verifyToken(token);
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+    decodedToken = await verifyFirebaseRequest(req);
+    if (!decodedToken) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    assertFirebaseTokenCanAccessApp(decodedToken);
+  } catch (err) {
+    const status = err.status || 401;
+    return res.status(status).json({
+      error: status === 403
+        ? err.message
+        : 'Invalid or expired session. Please log in again.',
+      code: err.code,
+    });
   }
 
-  const user = await findUserById(payload.userId).catch(() => null);
+  const user = await findUserByFirebaseUid(decodedToken.uid).catch(() => null);
   if (!user) {
-    return res.status(401).json({ error: 'User not found.' });
+    return res.status(401).json({ error: 'Application user not found. Please log in again.' });
   }
 
-  if (user.token_version !== payload.tokenVersion) {
-    return res.status(401).json({ error: 'Session has been revoked. Please log in again.' });
-  }
-
+  req.firebaseToken = decodedToken;
+  req.firebaseUid = decodedToken.uid;
   req.user = user;
   next();
 }
 
-module.exports = { requireAuth, signToken, verifyToken, extractToken };
+module.exports = {
+  SESSION_COOKIE_NAME,
+  clearSessionCookie,
+  extractBearerToken,
+  requireAuth,
+  sessionCookieOptions,
+  verifyFirebaseRequest,
+};
