@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 let cache;
-const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'new_stage_data', 'icons');
+const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'icons');
 
 function foodIconUrlForId(id) {
   const fileName = `${id}.png`;
@@ -14,7 +14,7 @@ function foodIconUrlForId(id) {
 function loadFoods() {
   if (cache) return cache;
 
-  const filePath = path.join(__dirname, '..', '..', 'data', 'foods.json');
+  const filePath = path.join(__dirname, '..', '..', 'used_food_repository', 'foods.json');
   const decoded = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
   if (!Array.isArray(decoded)) {

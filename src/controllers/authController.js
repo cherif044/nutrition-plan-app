@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const { getFirebaseAdmin } = require('../config/firebaseAdmin');
 const {
   MAX_SESSION_MS,
@@ -5,7 +6,7 @@ const {
   profileFromFirebaseToken,
   publicFirebaseConfigFromEnv,
 } = require('../services/firebaseAuthService');
-const { clearSessionCookie, sessionCookieOptions, SESSION_COOKIE_NAME, verifyFirebaseRequest } = require('../middleware/auth');
+const { clearSessionCookie, sessionCookieOptions, SESSION_COOKIE_NAME } = require('../middleware/auth');
 const { deleteUser, syncFirebaseUser } = require('../repositories/userRepository');
 
 function serializeUser(user) {
@@ -36,6 +37,29 @@ function shouldUseRequestHostForAuthDomain(host) {
     && !host.startsWith('localhost')
     && !host.startsWith('127.0.0.1')
     && !host.endsWith('.local');
+}
+
+function jwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw Object.assign(new Error('JWT_SECRET is required.'), { status: 500 });
+  }
+  return secret;
+}
+
+function signSessionToken(user) {
+  return jwt.sign(
+    {
+      userId: String(user.id),
+      firebaseUid: user.firebase_uid,
+      tokenVersion: Number(user.token_version || 0),
+    },
+    jwtSecret(),
+    {
+      subject: String(user.id),
+      expiresIn: process.env.JWT_EXPIRES_IN || '5d',
+    },
+  );
 }
 
 function getFirebaseConfig(req, res) {
@@ -77,10 +101,10 @@ async function createSession(req, res, next) {
 
     const userProfile = profileFromFirebaseToken(decodedToken, profile);
     const user = await syncFirebaseUser(userProfile);
-    const sessionCookie = await firebase.auth().createSessionCookie(idToken, { expiresIn: MAX_SESSION_MS });
+    const sessionToken = signSessionToken(user);
 
-    res.clearCookie('token', sessionCookieOptions());
-    res.cookie(SESSION_COOKIE_NAME, sessionCookie, sessionCookieOptions(MAX_SESSION_MS));
+    clearSessionCookie(res);
+    res.cookie(SESSION_COOKIE_NAME, sessionToken, sessionCookieOptions(MAX_SESSION_MS));
     res.json({ user: serializeUser(user) });
   } catch (err) {
     if (err.status) {
@@ -95,10 +119,6 @@ async function createSession(req, res, next) {
 
 async function logout(req, res, next) {
   try {
-    const decodedToken = await verifyFirebaseRequest(req).catch(() => null);
-    if (decodedToken?.uid) {
-      await getFirebaseAdmin().auth().revokeRefreshTokens(decodedToken.uid).catch(() => null);
-    }
     clearSessionCookie(res);
     res.json({ message: 'Logged out successfully.' });
   } catch (err) {

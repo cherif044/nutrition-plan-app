@@ -14,7 +14,7 @@ let cache;
 function loadReadyMealBundles() {
   if (cache) return cache;
 
-  const filePath = path.join(__dirname, '..', '..', 'new_stage_data', 'meal_substitution_system.json');
+  const filePath = path.join(__dirname, '..', '..', 'ready_meals', 'meals.json');
   const decoded = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   const bundles = decoded.meal_bundles ?? {};
 

@@ -1,8 +1,7 @@
-const { getFirebaseAdmin } = require('../config/firebaseAdmin');
-const { assertFirebaseTokenCanAccessApp } = require('../services/firebaseAuthService');
-const { findUserByFirebaseUid } = require('../repositories/userRepository');
+const jwt = require('jsonwebtoken');
+const { findUserById } = require('../repositories/userRepository');
 
-const SESSION_COOKIE_NAME = '__session';
+const SESSION_COOKIE_NAME = 'token';
 
 function sessionCookieOptions(maxAge) {
   const options = {
@@ -17,7 +16,7 @@ function sessionCookieOptions(maxAge) {
 
 function clearSessionCookie(res) {
   res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions());
-  res.clearCookie('token', sessionCookieOptions());
+  res.clearCookie('__session', sessionCookieOptions());
 }
 
 function extractBearerToken(req) {
@@ -26,48 +25,53 @@ function extractBearerToken(req) {
   return null;
 }
 
-async function verifyFirebaseRequest(req) {
+function jwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw Object.assign(new Error('JWT_SECRET is required.'), { status: 500 });
+  }
+  return secret;
+}
+
+function verifyAppJwtRequest(req) {
   const sessionCookie = req.cookies?.[SESSION_COOKIE_NAME];
   const bearerToken = extractBearerToken(req);
   if (!sessionCookie && !bearerToken) return null;
 
-  const firebase = getFirebaseAdmin();
-  if (sessionCookie) {
-    return firebase.auth().verifySessionCookie(sessionCookie, true);
-  }
-
-  if (bearerToken) {
-    return firebase.auth().verifyIdToken(bearerToken, true);
-  }
-
-  return null;
+  return jwt.verify(sessionCookie || bearerToken, jwtSecret());
 }
 
 async function requireAuth(req, res, next) {
-  let decodedToken;
+  let session;
   try {
-    decodedToken = await verifyFirebaseRequest(req);
-    if (!decodedToken) {
+    session = verifyAppJwtRequest(req);
+    if (!session?.userId) {
       return res.status(401).json({ error: 'Authentication required.' });
     }
-    assertFirebaseTokenCanAccessApp(decodedToken);
   } catch (err) {
-    const status = err.status || 401;
+    const status = err.status || (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' ? 401 : 500);
     return res.status(status).json({
-      error: status === 403
-        ? err.message
-        : 'Invalid or expired session. Please log in again.',
+      error: status >= 500 ? err.message : 'Invalid or expired session. Please log in again.',
       code: err.code,
     });
   }
 
-  const user = await findUserByFirebaseUid(decodedToken.uid).catch(() => null);
+  const user = await findUserById(session.userId).catch(() => null);
   if (!user) {
     return res.status(401).json({ error: 'Application user not found. Please log in again.' });
   }
 
-  req.firebaseToken = decodedToken;
-  req.firebaseUid = decodedToken.uid;
+  const userTokenVersion = Number(user.token_version || 0);
+  const sessionTokenVersion = Number(session.tokenVersion || 0);
+  if (userTokenVersion !== sessionTokenVersion) {
+    return res.status(401).json({
+      error: 'Session has been revoked. Please log in again.',
+      code: 'session-revoked',
+    });
+  }
+
+  req.session = session;
+  req.firebaseUid = user.firebase_uid || session.firebaseUid || null;
   req.user = user;
   next();
 }
@@ -78,5 +82,5 @@ module.exports = {
   extractBearerToken,
   requireAuth,
   sessionCookieOptions,
-  verifyFirebaseRequest,
+  verifyAppJwtRequest,
 };

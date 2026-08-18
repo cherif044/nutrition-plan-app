@@ -12,7 +12,7 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
-const foodIconsDir = path.join(__dirname, '..', 'new_stage_data', 'icons');
+const foodIconsDir = path.join(__dirname, '..', 'icons');
 
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());

@@ -10,6 +10,7 @@ const PUBLIC_USER_ATTRIBUTES = [
   'username',
   'firstname',
   'lastname',
+  'token_version',
   'created_at',
   'last_login',
 ];
@@ -43,6 +44,14 @@ async function reloadPublicUser(user, transaction) {
 
 async function updateLastLogin(id) {
   await User.update({ last_login: new Date() }, { where: { id } });
+}
+
+async function incrementTokenVersion(id) {
+  const [count] = await User.update(
+    { token_version: sequelize.literal('token_version + 1') },
+    { where: { id } },
+  );
+  return count > 0;
 }
 
 async function deleteUser(id) {
@@ -166,6 +175,7 @@ module.exports = {
   findUserByFirebaseUid,
   findUserByEmail,
   updateLastLogin,
+  incrementTokenVersion,
   deleteUser,
   syncFirebaseUser,
   usernameBaseFromSeed,

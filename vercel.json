@@ -12,7 +12,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{data/**,public/**,new_stage_data/icons/**,new_stage_data/meal_substitution_system.json,node_modules/zxcvbn/dist/zxcvbn.js}"
+      "includeFiles": "{used_food_repository/**,public/**,icons/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}"
     }
   }
 }
