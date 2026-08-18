@@ -119,7 +119,6 @@ async function handleGoogle() {
     setTimeout(() => window.location.replace('/dashboard'), 300);
   } catch (err) {
     if (err?.code === 'auth/popup-blocked') {
-      setMessage('Popup blocked. Redirecting to Google sign-in...', 'success');
       sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
       await firebaseSdk.signInWithRedirect(auth, provider);
       return;
@@ -150,7 +149,7 @@ async function handleGoogleRedirectResult() {
     }
 
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
-    setMessage('Google sign-in did not finish. Please try again.');
+    setMessage('Google sign-in was not completed. Please try again.');
   } catch (err) {
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
     setMessage(authErrorMessage(err));
@@ -361,8 +360,8 @@ function authErrorMessage(err) {
     'auth/email-already-in-use': 'An account already exists for this email. Try logging in instead.',
     'auth/invalid-credential': 'Invalid email or password.',
     'auth/invalid-email': 'Enter a valid email address.',
-    'auth/popup-blocked': 'Popup blocked. Redirecting to Google sign-in...',
-    'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
+    'auth/popup-blocked': 'Opening Google sign-in...',
+    'auth/popup-closed-by-user': 'Google sign-in was canceled.',
     'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
     'auth/user-disabled': 'This account has been disabled.',
     'auth/user-not-found': 'Invalid email or password.',
