@@ -191,7 +191,6 @@ const summaryTemplate = document.querySelector('#summary-template');
 const mealTemplate = document.querySelector('#meal-template');
 const submitButton = form.querySelector('button[type="submit"]');
 const preGenerationCustomerPicker = document.querySelector('#pre-generation-customer-picker');
-const freeformButton = document.querySelector('#freeform-btn');
 const inputsToggle = document.querySelector('#inputs-toggle');
 const inputChipRow = document.querySelector('#input-chip-row');
 const saveBarSlot = document.querySelector('#save-bar-slot');
@@ -286,10 +285,6 @@ async function generateAndRender(apiUrl) {
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   generateAndRender('/api/generate-plan');
-});
-
-freeformButton?.addEventListener('click', () => {
-  generateAndRender('/api/generate-plan-freeform');
 });
 
 inputsToggle?.addEventListener('click', () => {
@@ -571,7 +566,6 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         .map(normalizeMealOption)
         .filter((option) => mealOptionFitsTarget(option, meal.target)),
       mealOptionIndex: 0,
-      mealOptionsLoaded: (meal.mealOptions || []).length > 0,
       editModeEnabled: false,
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
@@ -1205,11 +1199,6 @@ function readyMealOptions(state) {
 }
 
 async function handleCycleMealOption(state, direction) {
-  if (!state.mealOptionsLoaded && readyMealOptions(state).length <= 1) {
-    const refillOk = await refillMealOptions(state);
-    if (!refillOk) return;
-  }
-
   const options = readyMealOptions(state);
   if (options.length <= 1) {
     showActionMessage(state, 'No other ready meals fit this meal window yet.');
@@ -1273,55 +1262,6 @@ function refreshMealCycleButtons(state) {
   next.disabled = disabled;
   prev.setAttribute('aria-disabled', String(prev.disabled));
   next.setAttribute('aria-disabled', String(next.disabled));
-}
-
-async function refillMealOptions(state) {
-  showActionMessage(state, 'Finding alternate meals...');
-  try {
-    const res = await fetch('/api/meal-options', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mealTag: state.tag,
-        mealTarget: state.target,
-        templateId: state.templateId,
-        currentItems: mealOptionRequestItems(state.items),
-        userPreferences: getUserPreferences(),
-        dailyContext: {
-          dailyTargets,
-          weightKg: Number(currentPlanInput?.weightKg),
-        },
-        limit: 250,
-      }),
-    });
-    const payload = await readJsonResponse(res, 'Unable to find alternate meals.');
-    if (!res.ok) throw new Error(payload.error || 'Unable to find alternate meals.');
-    state.mealOptions = (payload.mealOptions || [])
-      .map(normalizeMealOption)
-      .filter((option) => mealOptionFitsTarget(option, state.target));
-    state.mealOptionIndex = 0;
-    state.mealOptionsLoaded = true;
-    refreshMealCycleButtons(state);
-    return true;
-  } catch (error) {
-    showActionMessage(state, error.message || 'Unable to find alternate meals.');
-    return false;
-  }
-}
-
-function mealOptionRequestItems(items) {
-  const compactFoods = (foods) => (foods || [])
-    .filter((food) => food?.id)
-    .map((food) => ({ id: food.id }));
-
-  return items.filter((item) => item.food).map((item) => ({
-    foodId: item.food.id,
-    quantityG: item.quantityG,
-    component: item.component || null,
-    alternatives: compactFoods(item.alternatives),
-    broaderAlternatives: compactFoods(item.broaderAlternatives),
-    nearestAlternatives: compactFoods(item.nearestAlternatives),
-  }));
 }
 
 function showAddFoodAction(state) {
@@ -2603,13 +2543,9 @@ function normalizeText(value) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  if (freeformButton) freeformButton.disabled = isLoading;
   submitButton.querySelector('span:last-child').textContent = isLoading
     ? 'Generating plan…'
     : (document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan');
-  if (freeformButton) {
-    freeformButton.querySelector('span:last-child').textContent = isLoading ? 'Generating' : 'Build your own meals instead';
-  }
 }
 
 // Ramadan mode is no longer exposed in the form; the guard keeps the meal

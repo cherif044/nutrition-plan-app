@@ -150,7 +150,6 @@ If the frontend expects a plan object:
 Do not break:
 
 * generatePlan(rawInput)
-* generatePlanFreeform(rawInput)
 * existing frontend display shape
 * coffee/milk handling
 * snack count handling

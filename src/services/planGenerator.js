@@ -2,7 +2,6 @@ const { loadFoods } = require('../repositories/foodRepository');
 const { loadTemplates } = require('../repositories/templateRepository');
 const { loadSwapSystem } = require('../repositories/swapSystemRepository');
 const { loadReadyMealBundles } = require('../repositories/readyMealRepository');
-const { getSwapCandidates, applySwapToTemplate } = require('./mealSwapService');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const {
   NUTRITION,
@@ -40,10 +39,6 @@ function getFoods() {
 }
 
 function generatePlan(rawInput) {
-  return _generatePlanInternal(rawInput, true);
-}
-
-function generatePlanFreeform(rawInput) {
   return _generatePlanInternal(rawInput, true);
 }
 
@@ -859,73 +854,6 @@ function selectTemplateForMeal({ mealTag, allowedFoods, input, target }) {
     }));
   }
 
-  if (process.env.DISABLE_MEAL_TEMPLATE_SWAPS === 'true') {
-    const bestZero = chooseBestCandidate(allTriedCandidates.filter((candidate) => candidate.swapCount === 0));
-    return bestZero
-      ? withGenerationDebug(selectionForCandidate({
-          candidate: bestZero,
-          candidates,
-          generationState,
-          reason: 'swap_search_disabled_best_original_approximate',
-        }))
-      : null;
-  }
-
-  for (const candidate of candidates) {
-    const oneSwapCandidates = solveSwapCountCandidates({
-      template: candidate.template,
-      allowedFoodMap,
-      allowedFoods,
-      input: { ...input, mealTag },
-      target,
-      swapCount: 1,
-      templateRankScore: candidate.rankScore,
-      generationState,
-    });
-    allTriedCandidates.push(...oneSwapCandidates);
-  }
-
-  const acceptableOneSwap = chooseBestCandidate(
-    allTriedCandidates.filter((candidate) => candidate.swapCount === 1 && candidate.acceptable),
-  );
-  if (acceptableOneSwap) {
-    return withGenerationDebug(selectionForCandidate({
-      candidate: acceptableOneSwap,
-      candidates,
-      generationState,
-      reason: acceptableOneSwap.fit.withinTolerance ? 'one_swap_exact_fit' : 'one_swap_safe_approximate',
-    }));
-  }
-
-  const maxSwapCount = maxSwapCountFromPolicy();
-  if (maxSwapCount >= 2) {
-    for (const candidate of candidates) {
-      const twoSwapCandidates = solveSwapCountCandidates({
-        template: candidate.template,
-        allowedFoodMap,
-        allowedFoods,
-        input: { ...input, mealTag },
-        target,
-        swapCount: 2,
-        templateRankScore: candidate.rankScore,
-        generationState,
-      });
-      allTriedCandidates.push(...twoSwapCandidates);
-    }
-  }
-
-  const acceptableTwoSwap = chooseBestCandidate(
-    allTriedCandidates.filter((candidate) => candidate.swapCount === 2 && candidate.acceptable),
-  );
-  if (acceptableTwoSwap) {
-    return withGenerationDebug(selectionForCandidate({
-      candidate: acceptableTwoSwap,
-      candidates,
-      generationState,
-      reason: acceptableTwoSwap.fit.withinTolerance ? 'two_swap_exact_fit' : 'two_swap_safe_approximate',
-    }));
-  }
-
   const best = chooseBestCandidate(allTriedCandidates);
   if (!best) return null;
 
@@ -933,9 +861,7 @@ function selectTemplateForMeal({ mealTag, allowedFoods, input, target }) {
     candidate: best,
     candidates,
     generationState,
-    reason: best.swapCount === 0
-      ? 'best_original_approximate_after_swap_search'
-      : 'best_swap_approximate_after_exhausting_lower_swap_counts',
+    reason: 'best_original_approximate',
   }));
 }
 
@@ -1000,143 +926,8 @@ function dietCompatibilityPenalty(template, input) {
   return 0;
 }
 
-function solveSwapCountCandidates({
-  template,
-  allowedFoodMap,
-  allowedFoods,
-  input,
-  target,
-  swapCount,
-  templateRankScore,
-  generationState,
-}) {
-  const results = [];
-  const plans = swapPlansForCount({ template, allowedFoodMap, allowedFoods, input, target, swapCount, generationState });
-
-  for (const plan of plans) {
-    const solved = solveTemplateCandidate({
-      template,
-      allowedFoodMap,
-      target,
-      swaps: plan.steps,
-      source: sourceForSwaps(plan.steps),
-      templateRankScore,
-    });
-    if (!solved) continue;
-    generationState.candidatesTriedBySwapCount[swapCount] =
-      (generationState.candidatesTriedBySwapCount[swapCount] ?? 0) + 1;
-    results.push(solved);
-  }
-
-  return results;
-}
-
-function swapPlansForCount({ template, allowedFoodMap, allowedFoods, input, target, swapCount, generationState }) {
-  if (swapCount <= 0) return [{ steps: [] }];
-
-  const orderedComponents = orderedComponentsForSwaps({ template, allowedFoodMap, target });
-  const candidateByFoodId = new Map();
-
-  for (const component of orderedComponents) {
-    const { candidates, rejected } = getSwapCandidates(template, component, input, allowedFoods);
-    generationState.rejectedSwaps.push(...rejected.slice(0, 10));
-    if (candidates.length > 0) {
-      candidateByFoodId.set(component.foodId, candidates.slice(0, swapCount === 1 ? 8 : 4));
-    }
-  }
-
-  if (swapCount === 1) {
-    return orderedComponents.flatMap((component) =>
-      (candidateByFoodId.get(component.foodId) ?? []).map((candidate) => ({
-        steps: [swapStepFor(component, candidate)],
-      })),
-    );
-  }
-
-  const plans = [];
-  for (let first = 0; first < orderedComponents.length; first += 1) {
-    for (let second = first + 1; second < orderedComponents.length; second += 1) {
-      const firstCandidates = candidateByFoodId.get(orderedComponents[first].foodId) ?? [];
-      const secondCandidates = candidateByFoodId.get(orderedComponents[second].foodId) ?? [];
-      for (const firstCandidate of firstCandidates) {
-        for (const secondCandidate of secondCandidates) {
-          plans.push({
-            steps: [
-              swapStepFor(orderedComponents[first], firstCandidate),
-              swapStepFor(orderedComponents[second], secondCandidate),
-            ],
-          });
-          if (plans.length >= 128) return plans;
-        }
-      }
-    }
-  }
-
-  return plans;
-}
-
-function swapStepFor(component, candidate) {
-  return {
-    oldFoodId: component.foodId,
-    newFoodId: candidate.food.id,
-    slot: component.slot,
-    swapGroup: candidate.groupId,
-    source: candidate.source,
-  };
-}
-
-function orderedComponentsForSwaps({ template, allowedFoodMap, target }) {
-  const components = template.components.map((component, index) => ({ component, index }));
-  const originalItems = templateItemsFromAllowedFoods(template, allowedFoodMap);
-  const firstComponent = originalItems
-    ? componentCausingBiggestMacroProblem(originalItems, target)
-    : template.components.find((component) => !allowedFoodMap.has(component.foodId));
-
-  return components
-    .sort((a, b) => (
-      priorityForComponent(a.component, firstComponent) - priorityForComponent(b.component, firstComponent) ||
-      a.index - b.index
-    ))
-    .map((entry) => entry.component);
-}
-
-function priorityForComponent(component, firstComponent) {
-  if (firstComponent && component.foodId === firstComponent.foodId) return 0;
-  const slot = component.slot;
-  if (slot === 'primary_protein') return 1;
-  if (['main_carb', 'fruit_carb', 'legume_base'].includes(slot)) return 2;
-  if (slot === 'fat') return 3;
-  return 4;
-}
-
-function componentCausingBiggestMacroProblem(items, target) {
-  const totals = totalsForItems(items);
-  const residual = {
-    calories: target.calories - totals.calories,
-    proteinG: target.proteinG - totals.proteinG,
-    carbG: target.carbG - totals.carbG,
-    fatG: target.fatG - totals.fatG,
-  };
-  const tolerances = boundWidths(computeMealBounds(target));
-  const worstMacro = ['proteinG', 'fatG', 'calories']
-    .sort((a, b) => Math.abs(residual[b]) / Math.max(1, tolerances[b]) -
-      Math.abs(residual[a]) / Math.max(1, tolerances[a]))[0];
-  const field = macroFieldForKey(worstMacro);
-  const isDeficit = residual[worstMacro] > 0;
-
-  return [...items].sort((a, b) => {
-    const aScore = isDeficit ? b.food[field] - a.food[field] : b.food[field] * b.quantityG - a.food[field] * a.quantityG;
-    return aScore;
-  })[0]?.component ?? null;
-}
-
 function solveTemplateCandidate({ template, allowedFoodMap, target, swaps, source, templateRankScore }) {
-  let swappedTemplate = template;
-  for (const step of swaps) {
-    swappedTemplate = applySwapToTemplate(swappedTemplate, step.oldFoodId, step.newFoodId);
-  }
-
-  const items = templateItemsFromAllowedFoods(swappedTemplate, allowedFoodMap);
+  const items = templateItemsFromAllowedFoods(template, allowedFoodMap);
   if (!items) return null;
 
   const solvedItems = solvePortionsLeastSquares(items, {
@@ -1145,33 +936,21 @@ function solveTemplateCandidate({ template, allowedFoodMap, target, swaps, sourc
     fatG: target.fatG,
   });
   const fit = macroFitDetails(solvedItems, target);
-  const originalFit = swaps.length === 0 ? fit : originalFitForTemplate(template, allowedFoodMap, target);
   const servingPenalty = servingRealismPenalty(solvedItems);
 
   return {
     items: solvedItems,
-    template: swappedTemplate,
+    template,
     originalTemplate: template,
     swaps,
     source,
     swapCount: swaps.length,
     fit,
-    originalFit,
+    originalFit: fit,
     acceptable: isAcceptableCandidate(fit, target),
     servingPenalty,
     templateRankScore,
   };
-}
-
-function originalFitForTemplate(template, allowedFoodMap, target) {
-  const originalItems = templateItemsFromAllowedFoods(template, allowedFoodMap);
-  if (!originalItems) return null;
-  const solved = solvePortionsLeastSquares(originalItems, {
-    proteinG: target.proteinG,
-    carbG: target.carbG,
-    fatG: target.fatG,
-  });
-  return macroFitDetails(solved, target);
 }
 
 function isAcceptableCandidate(fit, target) {
@@ -1212,12 +991,6 @@ function candidateSourceRank(source) {
   if (source === 'same_swap_group') return 1;
   if (source === 'same_family_slot') return 2;
   return 3;
-}
-
-function maxSwapCountFromPolicy() {
-  const policy = loadSwapSystem().solverAndRankingPolicy ?? {};
-  const configured = Number(policy.maxSwapsPerMeal ?? policy.maxSwapCount ?? 2);
-  return Number.isFinite(configured) ? Math.max(0, configured) : 2;
 }
 
 function servingRealismPenalty(items) {
@@ -1338,23 +1111,6 @@ function roundedMacros(macros) {
 function alternativesForItem({ item, template, allowedFoods, target, input }) {
   let alternatives = [];
   let broaderAlternatives = [];
-
-  if (template && item.component && input) {
-    const { candidates } = getSwapCandidates(
-      template,
-      item.component,
-      { ...input, mealTag: target.tag },
-      allowedFoods,
-    );
-    alternatives = candidates
-      .filter((candidate) => candidate.source === 'same_swap_group')
-      .slice(0, 4)
-      .map((candidate) => candidate.food);
-    broaderAlternatives = candidates
-      .filter((candidate) => candidate.source === 'same_family_slot')
-      .slice(0, 4)
-      .map((candidate) => candidate.food);
-  }
 
   const excludedIds = new Set([
     item.food.id,
@@ -1883,232 +1639,6 @@ function mealOptionForTarget(option, target) {
     totals,
     isApproximate: false,
   };
-}
-
-function generateAlternateMealOptions({
-  mealTag,
-  mealTarget,
-  currentItems,
-  templateId = null,
-  userPreferences = {},
-  dailyContext,
-  limit = MEAL_OPTION_LIMIT,
-}) {
-  const foods = loadFoods();
-  const foodMap = new Map(foods.map((food) => [food.id, food]));
-  const safeLimit = Math.max(1, Math.min(Number(limit) || MEAL_OPTION_LIMIT, MEAL_OPTION_LIMIT));
-  const input = {
-    dietType: userPreferences?.dietType || 'standard',
-    avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
-    allergies: [],
-    dislikes: [],
-    mealTag: mealTag || 'lunch',
-  };
-  const allowedFoods = filterFoods(foods, input);
-  const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
-
-  const baseItems = (currentItems || [])
-    .map((item) => {
-      const food = foodMap.get(String(item.foodId || item.food?.id || ''));
-      if (!food) return null;
-      return {
-        food,
-        quantityG: clampServing(food, Number(item.quantityG) || Number(item.grams) || food.defaultServingG),
-        component: item.component || null,
-        clientAlternatives: item,
-      };
-    })
-    .filter(Boolean);
-
-  if (baseItems.length === 0 || !mealTarget || !dailyContext) return [];
-
-  const seen = new Set([mealOptionSignature(baseItems)].filter(Boolean));
-  const mealBounds = computeMealBounds(mealTarget);
-  return loadReadyMealBundles()
-    .filter((readyMeal) => templateTagsForMealTag(mealTag || 'lunch').includes(readyMeal.mealTag))
-    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, mealTarget, {
-      bounds: mealBounds,
-    }))
-    .filter(Boolean)
-    .filter((candidate) => validateMealSwap({
-      ...dailyContext,
-      mealTarget,
-      proposedMealTotals: candidate.totals,
-    }).valid)
-    .filter((candidate) => {
-      if (candidate.readyMeal.id === templateId) return false;
-      const signature = mealOptionSignature(candidate.items);
-      if (!signature || seen.has(signature)) return false;
-      seen.add(signature);
-      return true;
-    })
-    .sort((a, b) => (
-      a.score - b.score ||
-      a.readyMeal.id.localeCompare(b.readyMeal.id, undefined, { numeric: true })
-    ))
-    .slice(0, safeLimit)
-    .map((candidate) => ({
-      templateId: candidate.readyMeal.id,
-      templateName: readyMealDisplayName(candidate.readyMeal),
-      templateFamily: candidate.readyMeal.track ?? null,
-      readyMealId: candidate.readyMeal.id,
-      readyMealTrack: candidate.readyMeal.track ?? null,
-      items: candidate.items,
-      totals: candidate.totals,
-      isApproximate: !isWithinTolerance(candidate.items, mealTarget),
-    }));
-}
-
-function generateLegacyAlternateMealOptions({
-  mealTag,
-  mealTarget,
-  currentItems,
-  templateId = null,
-  userPreferences = {},
-  limit = MEAL_OPTION_LIMIT,
-}) {
-  const foods = loadFoods();
-  const foodMap = new Map(foods.map((food) => [food.id, food]));
-  const safeLimit = Math.max(1, Math.min(Number(limit) || MEAL_OPTION_LIMIT, MEAL_OPTION_LIMIT));
-  const input = {
-    dietType: userPreferences?.dietType || 'standard',
-    avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
-    allergies: [],
-    dislikes: [],
-    mealTag: mealTag || 'lunch',
-  };
-  const allowedFoods = filterFoods(foods, input);
-  const allowedFoodMap = new Map(allowedFoods.map((food) => [food.id, food]));
-  const template = templateId
-    ? loadTemplates().find((candidate) => candidate.templateId === templateId)
-    : null;
-
-  const baseItems = (currentItems || [])
-    .map((item) => {
-      const food = foodMap.get(String(item.foodId || item.food?.id || ''));
-      if (!food) return null;
-      return {
-        food,
-        quantityG: clampServing(food, Number(item.quantityG) || Number(item.grams) || food.defaultServingG),
-        component: item.component || null,
-        clientAlternatives: item,
-      };
-    })
-    .filter(Boolean);
-
-  if (baseItems.length === 0 || !mealTarget) return [];
-
-  const target = {
-    name: 'Alternate meal',
-    tag: mealTag || 'lunch',
-    targets: mealTarget,
-  };
-  const options = [];
-  const seen = new Set([mealOptionSignature(baseItems)].filter(Boolean));
-  const candidatePools = baseItems.map((item) => alternateFoodsForMealOption({
-    item,
-    template,
-    input,
-    allowedFoods,
-    allowedFoodMap,
-  }));
-
-  function addOption(replacements) {
-    const candidateItems = baseItems.map((item, index) => {
-      const replacement = replacements.get(index);
-      const food = replacement || item.food;
-      return {
-        ...item,
-        food,
-        quantityG: replacement ? clampServing(food, food.defaultServingG) : item.quantityG,
-      };
-    });
-    const signature = mealOptionSignature(candidateItems);
-    if (!signature || seen.has(signature)) return false;
-
-    const solvedItems = solvePortionsLeastSquares(candidateItems, {
-      proteinG: mealTarget.proteinG,
-      carbG: mealTarget.carbG,
-      fatG: mealTarget.fatG,
-    });
-    const fit = macroFitDetails(solvedItems, mealTarget);
-    if (!isStrictMealOptionFit(fit.totals, mealTarget)) return false;
-
-    const items = solvedItems.map((item) => {
-      const swapAlternatives = alternativesForItem({ item, template, allowedFoods, target, input });
-      return {
-        ...item,
-        ...swapAlternatives,
-        totals: macrosForFoodPortion(item.food, item.quantityG),
-      };
-    });
-    options.push({
-      templateId: template?.templateId ?? templateId ?? null,
-      templateName: template?.name ? `${template.name} alternate` : 'Alternate meal',
-      templateFamily: template?.family ?? null,
-      items,
-      totals: sumTargets(items.map((item) => item.totals)),
-      isApproximate: !isWithinTolerance(items, mealTarget),
-    });
-    seen.add(signature);
-    return options.length >= safeLimit;
-  }
-
-  for (let itemIndex = 0; itemIndex < candidatePools.length; itemIndex += 1) {
-    for (const food of candidatePools[itemIndex]) {
-      if (addOption(new Map([[itemIndex, food]]))) return options;
-    }
-  }
-
-  for (let first = 0; first < candidatePools.length; first += 1) {
-    for (let second = first + 1; second < candidatePools.length; second += 1) {
-      for (const firstFood of candidatePools[first].slice(0, 5)) {
-        for (const secondFood of candidatePools[second].slice(0, 5)) {
-          if (addOption(new Map([[first, firstFood], [second, secondFood]]))) return options;
-        }
-      }
-    }
-  }
-
-  return options;
-}
-
-function alternateFoodsForMealOption({ item, template, input, allowedFoods, allowedFoodMap }) {
-  const candidates = [];
-  const seen = new Set([item.food.id]);
-
-  const addFood = (foodLike) => {
-    const id = String(foodLike?.id || foodLike?.foodId || '');
-    const food = allowedFoodMap.get(id);
-    if (!food || seen.has(food.id)) return;
-    seen.add(food.id);
-    candidates.push(food);
-  };
-
-  if (template && item.component) {
-    const { candidates: swapCandidates } = getSwapCandidates(
-      template,
-      item.component,
-      input,
-      allowedFoods,
-    );
-    swapCandidates.forEach((candidate) => addFood(candidate.food));
-  }
-
-  for (const key of ['alternatives', 'broaderAlternatives', 'nearestAlternatives']) {
-    (item.clientAlternatives?.[key] || []).forEach(addFood);
-  }
-
-  if (candidates.length < 4) {
-    nearestAlternativesForFood({
-      food: item.food,
-      allowedFoods,
-      mealTag: input.mealTag,
-      excludedIds: seen,
-    }).forEach(addFood);
-  }
-
-  return candidates.slice(0, 10);
 }
 
 function emptyMeal(target, reason = null, generationDebug = null) {
@@ -2862,7 +2392,6 @@ function hydrateProduceSwapItems(requestItems, solvedItems) {
 
 module.exports = {
   generatePlan,
-  generatePlanFreeform,
   getFoods,
   normalizeInput,
   rebalanceMeal,
@@ -2873,7 +2402,6 @@ module.exports = {
   mealRankTuple,
   getProduceSwapOptions,
   filterFoods,
-  generateAlternateMealOptions,
   solvePortionsLeastSquares,
   findBestPortionGridFit,
 };

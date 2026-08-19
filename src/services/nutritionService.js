@@ -4,9 +4,6 @@ const {
   NUTRITION,
   STANDARD_MEAL_SLOT_POLICY,
 } = require('../config/nutritionConstants');
-const { getDatabaseMealMacroProfiles } = require('./mealMacroProfileService');
-
-const DEFAULT_MAIN_PROFILE_TAG = 'lunch';
 
 function calculateBmr(input) {
   const sexConstant = input.sex === 'male'
@@ -29,7 +26,10 @@ function maintenanceCalories(input) {
 }
 
 function calculateGoalCalories(input, maintenance) {
-  const floorCalories = NUTRITION.calorieFloorBySex[input.sex] ?? 0;
+  const floorCalories = NUTRITION.calorieFloorBySex[input.sex];
+  if (!Number.isFinite(floorCalories)) {
+    throw new Error(`No calorie floor is configured for sex: ${input.sex}.`);
+  }
 
   function withCalorieFloor(goalCalories, extras = {}) {
     const targetCalories = Math.max(goalCalories, floorCalories);
@@ -124,11 +124,10 @@ function splitMeals(dailyTargets, input) {
   return buildMealTargets(dailyTargets, input);
 }
 
-function buildMealTargets(dailyTargets, input, databaseProfiles = getDatabaseMealMacroProfiles()) {
+function buildMealTargets(dailyTargets, input) {
   const profiles = getMealSlotProfile(
     input.numberOfMeals,
     input.mealDistribution,
-    databaseProfiles,
   );
   const macroTargets = distributeMacrosAcrossMeals(dailyTargets, profiles);
   const macroWindows = buildScaledMealMacroWindows(dailyTargets, profiles);
@@ -146,7 +145,6 @@ function buildMealTargets(dailyTargets, input, databaseProfiles = getDatabaseMea
 function getMealSlotProfile(
   numberOfMeals,
   distribution = 'balanced',
-  databaseProfiles = getDatabaseMealMacroProfiles(),
 ) {
   const factors = MEAL_DISTRIBUTIONS[distribution]?.[numberOfMeals];
   if (!factors) {
@@ -165,7 +163,6 @@ function getMealSlotProfile(
     ...slot,
     profileTag: slot.profileTag ?? slot.tag,
     idealCaloriePercent: factors[index],
-    databaseProfile: databaseProfiles[slot.profileTag ?? slot.tag],
   }));
 }
 
@@ -174,11 +171,7 @@ function buildSlotProfile({
   tag,
   profileTag = tag,
   idealCaloriePercent,
-  databaseProfile,
 }) {
-  if (!databaseProfile) {
-    throw new Error(`No database macro profile is available for ${profileTag}.`);
-  }
   const window = NUTRITION.mealSwapDailyCalorieWindowPercent;
   return {
     name,
@@ -189,20 +182,22 @@ function buildSlotProfile({
     maxCaloriePercent: Math.min(1, idealCaloriePercent + window),
     hardMaxCaloriePercent: Math.min(1, idealCaloriePercent + window),
     macroCalorieRatio: fixedMacroRatioRangeFor(profileTag),
-    macroProfileSource: databaseProfile.source,
-    macroProfileSampleSize: databaseProfile.sourceCount,
   };
 }
 
 function fixedMacroRatioRangeFor(profileTag) {
-  const tag = NUTRITION.mealMacroRatioRanges[profileTag]
-    ? profileTag
-    : DEFAULT_MAIN_PROFILE_TAG;
-  return NUTRITION.mealMacroRatioRanges[tag];
+  const ratioRange = NUTRITION.mealMacroRatioRanges[profileTag];
+  if (!ratioRange) {
+    throw new Error(`No meal macro ratio range is configured for profile: ${profileTag}.`);
+  }
+  return ratioRange;
 }
 
 function buildScaledMealMacroWindows(dailyTargets, profiles) {
-  const dailyRanges = dailyTargets.macroRanges ?? calculateDailyMacroRangesFromTargets(dailyTargets);
+  const dailyRanges = dailyTargets.macroRanges;
+  if (!dailyRanges?.proteinG || !dailyRanges?.fatG) {
+    throw new Error('Daily macro ranges must be provided by nutrition constants.');
+  }
   const rawProtein = profiles.map((profile) => rawMacroWindowFor(profile, dailyTargets.calories, 'protein'));
   const rawFat = profiles.map((profile) => rawMacroWindowFor(profile, dailyTargets.calories, 'fat'));
   const protein = scaleRawWindows(rawProtein, dailyRanges.proteinG);
@@ -238,6 +233,9 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
 
 function rawMacroWindowFor(profile, dailyCalories, macro) {
   const ratioRange = profile.macroCalorieRatio[macro];
+  if (!ratioRange || !Number.isFinite(ratioRange.min) || !Number.isFinite(ratioRange.max)) {
+    throw new Error(`No ${macro} macro ratio range is configured for profile: ${profile.profileTag}.`);
+  }
   const mealCalories = dailyCalories * profile.idealCaloriePercent;
   const kcalPerGram = macro === 'fat'
     ? NUTRITION.fatKcalPerGram
@@ -260,13 +258,6 @@ function scaleRawWindows(rawWindows, dailyRange) {
       min: window.min * minScale,
       max: window.max * maxScale,
     })),
-  };
-}
-
-function calculateDailyMacroRangesFromTargets(dailyTargets) {
-  return {
-    proteinG: { min: dailyTargets.proteinG, max: dailyTargets.proteinG },
-    fatG: { min: dailyTargets.fatG, max: dailyTargets.fatG },
   };
 }
 
@@ -301,7 +292,7 @@ function distributeMacrosAcrossMeals(dailyTargets, profiles) {
 
 function distributeMacroCaloriesAcrossMeals(profiles, rowTotals, macro, totalMacroCalories) {
   if (!Number.isFinite(totalMacroCalories)) {
-    return rowTotals.map((calories, index) => calories * profiles[index].idealCaloriePercent);
+    throw new Error(`Daily ${macro} target must be finite.`);
   }
 
   const raw = profiles.map((profile, index) =>
@@ -309,7 +300,7 @@ function distributeMacroCaloriesAcrossMeals(profiles, rowTotals, macro, totalMac
   );
   const rawSum = sum(raw);
   if (rawSum <= 0) {
-    return profiles.map((profile) => totalMacroCalories * profile.idealCaloriePercent);
+    throw new Error(`Meal ${macro} ratio ranges must produce a positive total.`);
   }
 
   return raw.map((value) => value * totalMacroCalories / rawSum);

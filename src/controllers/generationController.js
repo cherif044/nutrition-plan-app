@@ -1,11 +1,9 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
 const {
   generatePlan,
-  generatePlanFreeform,
   getFoods,
   rebalanceMeal,
   getProduceSwapOptions,
-  generateAlternateMealOptions,
 } = require('../services/planGenerator');
 
 function health(_req, res) {
@@ -36,14 +34,6 @@ function generatePlanHandler(req, res, next) {
   }
 }
 
-function generatePlanFreeformHandler(req, res, next) {
-  try {
-    res.json(generatePlanFreeform(req.body));
-  } catch (error) {
-    next(error);
-  }
-}
-
 function rebalanceMealHandler(req, res, next) {
   try {
     const { mealTarget, items, mealBounds, dailyContext, action, changedItemIndex } = req.body;
@@ -64,40 +54,6 @@ function rebalanceMealHandler(req, res, next) {
       action,
       changedItemIndex,
     }));
-  } catch (error) {
-    return next(error);
-  }
-}
-
-function mealOptionsHandler(req, res, next) {
-  try {
-    const {
-      mealTag,
-      mealTarget,
-      currentItems,
-      templateId,
-      userPreferences,
-      dailyContext,
-      limit,
-    } = req.body;
-
-    if (!mealTarget || !Array.isArray(currentItems) || !dailyContext) {
-      return res.status(400).json({
-        error: 'mealTarget, currentItems, and dailyContext are required.',
-      });
-    }
-
-    return res.json({
-      mealOptions: generateAlternateMealOptions({
-        mealTag,
-        mealTarget,
-        currentItems,
-        templateId,
-        userPreferences,
-        dailyContext,
-        limit,
-      }),
-    });
   } catch (error) {
     return next(error);
   }
@@ -127,27 +83,11 @@ function produceSwapOptionsHandler(req, res, next) {
   }
 }
 
-function mealChatHandler(_req, res) {
-  return res.status(410).json({
-    error: 'meal-chat is disabled. Meal changes must use deterministic range-checked endpoints.',
-  });
-}
-
-function guidedMealSuggestionHandler(_req, res) {
-  return res.status(410).json({
-    error: 'guided-meal-suggestion is disabled. Meal changes must use deterministic range-checked endpoints.',
-  });
-}
-
 module.exports = {
   health,
   getFoodsHandler,
   getPreferences,
   generatePlanHandler,
-  generatePlanFreeformHandler,
   rebalanceMealHandler,
-  mealOptionsHandler,
   produceSwapOptionsHandler,
-  mealChatHandler,
-  guidedMealSuggestionHandler,
 };

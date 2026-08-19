@@ -148,11 +148,10 @@ Frontend files:
 
 Backend files:
 
-- `src/routes/generationRoutes.js`: `POST /api/generate-plan`, `POST /api/generate-plan-freeform`.
-- `src/controllers/generationController.js`: `generatePlanHandler`, `generatePlanFreeformHandler`.
+- `src/routes/generationRoutes.js`: `POST /api/generate-plan`.
+- `src/controllers/generationController.js`: `generatePlanHandler`.
 - `src/services/planGenerator.js`: central plan-generation engine.
 - `src/services/nutritionService.js`: BMR, maintenance calories, goal calories, macro targets, meal target splitting.
-- `src/services/mealMacroProfileService.js`: derives meal macro profiles from ready-meal database.
 - `src/repositories/readyMealRepository.js`: loads `new_stage_data/meal_substitution_system.json`.
 - `src/repositories/foodRepository.js`: loads `data/foods.json`.
 - `src/config/nutritionConstants.js`: calorie/macro constants and meal distributions.
@@ -177,7 +176,6 @@ Generation sequence:
 
 Important behavior:
 
-- `generatePlanFreeform()` currently calls the same internal path as `generatePlan()`. The frontend has a freeform button, but backend behavior is effectively identical right now.
 - `planGenerator.js` still contains older template/swap-generation logic around `mealTemplates.json` and `meal_swap_system.production.json`. Some of that is used for alternate meal logic, but the primary current generation path is the ready-meal database.
 
 ### 6. Browser renders generated meals
@@ -224,15 +222,12 @@ Frontend:
 Backend:
 
 - `POST /api/rebalance-meal`: deterministic portion solver.
-- `POST /api/meal-options`: alternate ready meals.
 - `POST /api/produce-swap-options`: fruit/vegetable cycle swap.
-- `POST /api/meal-chat`: AI meal chat endpoint exists, but the current frontend is intentionally not calling it.
-- `POST /api/guided-meal-suggestion`: AI-guided endpoint exists, but the current frontend is intentionally not calling it.
 
 Main edit flows:
 
 - Change grams locally: `updateFoodRow()`/input handlers update state and totals without API calls.
-- Try another ready meal: `handleCycleMealOption()` uses current `mealOptions`, and `refillMealOptions()` calls `/api/meal-options` when more options are needed.
+- Try another ready meal: `handleCycleMealOption()` uses the current `mealOptions` returned by plan generation.
 - Add/remove/swap food: action-panel functions build attempted items and call `attemptGuidedRebalance()`.
 - Deterministic rebalance: `attemptGuidedRebalance()` calls `/api/rebalance-meal`; on success it either applies immediately or shows a proposal.
 - Produce cycle: `handleCycleProduceSwap()` calls `/api/produce-swap-options`.
@@ -294,12 +289,8 @@ All mounted by `src/app.js`.
 | GET | `/api/foods` | No | `generationRoutes.js` | `getFoodsHandler` | Food list |
 | GET | `/api/preferences` | No | `generationRoutes.js` | `getPreferences` | Food/category/allergen options |
 | POST | `/api/generate-plan` | Yes | `generationRoutes.js` | `generatePlanHandler` | Generate plan |
-| POST | `/api/generate-plan-freeform` | Yes | `generationRoutes.js` | `generatePlanFreeformHandler` | Currently same generation path |
 | POST | `/api/rebalance-meal` | Yes | `generationRoutes.js` | `rebalanceMealHandler` | Deterministic meal solver |
-| POST | `/api/meal-options` | Yes | `generationRoutes.js` | `mealOptionsHandler` | Alternate ready meals |
 | POST | `/api/produce-swap-options` | Yes | `generationRoutes.js` | `produceSwapOptionsHandler` | Fruit/vegetable swap cycle |
-| POST | `/api/meal-chat` | Yes | `generationRoutes.js` | `mealChatHandler` | AI meal chat, not currently called by frontend |
-| POST | `/api/guided-meal-suggestion` | Yes | `generationRoutes.js` | `guidedMealSuggestionHandler` | AI guided edits, not currently called by frontend |
 | GET | `/api/auth/firebase-config` | No | `authRoutes.js` | `getFirebaseConfig` | Browser Firebase config |
 | POST | `/api/auth/session` | No | `authRoutes.js` | `createSession` | Create Firebase session cookie |
 | POST | `/api/auth/register` | No | `authRoutes.js` | `legacyPasswordAuthDisabled` | Disabled compatibility endpoint |
@@ -379,7 +370,7 @@ All mounted by `src/app.js`.
 | File | Role |
 |---|---|
 | `src/controllers/authController.js` | Firebase config/session/logout/current-user/delete-user response logic. |
-| `src/controllers/generationController.js` | HTTP wrapper around generation, deterministic rebalance, alternate meals, produce swaps, AI meal chat/guided suggestions. Large mixed-responsibility file. |
+| `src/controllers/generationController.js` | HTTP wrapper around generation, deterministic rebalance, and produce swaps. |
 | `src/controllers/dashboardController.js` | Thin dashboard JSON handler. |
 | `src/controllers/customerController.js` | Thin customer JSON handlers. |
 | `src/controllers/folderController.js` | Folder JSON handlers plus folder-scoped plan save. |
@@ -391,10 +382,7 @@ All mounted by `src/app.js`.
 |---|---|
 | `src/services/firebaseAuthService.js` | Auth-domain business rules, profile extraction, public Firebase config. |
 | `src/services/nutritionService.js` | Core macro math: BMR, maintenance, goal calories, macro ranges, meal splitting, macro summing. |
-| `src/services/mealMacroProfileService.js` | Derives breakfast/lunch/dinner/snack macro profiles from ready-meal data. |
 | `src/services/planGenerator.js` | Main generation engine and deterministic meal-edit solver. Biggest backend file. |
-| `src/services/mealSwapService.js` | Template swap candidate logic for the older template/swap system. |
-| `src/services/llmService.js` | Gemini/local LLM JSON chat adapter for meal chat endpoints. |
 
 ### Repositories
 
@@ -503,13 +491,6 @@ These are static-analysis findings, not deletion instructions. Verify with tests
 - `public/index.html` feature text about hashed passwords/JWT: stale and misleading.
 - `README.md` and `docs/architecture.md`: both have stale auth details and older file counts. Keep or update, but do not trust as source of truth.
 
-### Backend endpoints that appear unused by current frontend
-
-- `POST /api/meal-chat`
-- `POST /api/guided-meal-suggestion`
-
-There is an explicit test in `scripts/testMealChatQuality.js` asserting the frontend should not call those endpoints, so they are probably reserved/legacy rather than accidentally forgotten.
-
 ### Compatibility endpoints
 
 - `POST /api/auth/register`
@@ -521,13 +502,11 @@ These intentionally return `410` through `legacyPasswordAuthDisabled`. Keep only
 
 - `src/repositories/userRepository.js`: `findUserById` and `updateLastLogin` are exported but not used by app code. `findUserByEmail` is used by tests.
 - `src/repositories/planRepository.js`: `getPlansByFolder` is exported but not used by app code.
-- `src/services/mealSwapService.js`: `trySameFamilySwaps` is exported but not imported elsewhere; several swap functions support older template logic.
-- `src/services/planGenerator.js`: `generatePlanFreeform` currently behaves the same as `generatePlan`.
 - `src/services/nutritionService.js`: many exported helpers are useful for tests and generation internals, but not all are used by app code directly.
 
 ### Areas to review before deleting
 
-- `data/mealTemplates.json`, `data/meal_swap_system.production.json`, `src/repositories/templateRepository.js`, `src/repositories/swapSystemRepository.js`, and `src/services/mealSwapService.js`: these support the older template/swap system. The primary generation path now uses ready meals from `new_stage_data/meal_substitution_system.json`, but alternate generation code still references template/swap helpers.
+- `data/mealTemplates.json`, `data/meal_swap_system.production.json`, `src/repositories/templateRepository.js`, and `src/repositories/swapSystemRepository.js`: these support the older template system. The primary generation path now uses ready meals from `new_stage_data/meal_substitution_system.json`.
 - `legacy/flutter-app/`: safe to ignore for web behavior, but keep if you want historical reference.
 - `filtering_data/`: safe to ignore during runtime debugging, but keep if you need to rebuild food data.
 - `output/`, loose PDFs, and `pp.txt`: artifact/reference area, not runtime.

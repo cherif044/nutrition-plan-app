@@ -78,7 +78,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env — set DATABASE_URL, JWT_SECRET, and GEMINI_API_KEY
+# Edit .env — set DATABASE_URL and JWT_SECRET
 ```
 
 For a hosted PostgreSQL database, use the provider connection string:
@@ -90,15 +90,6 @@ DB_SSL=true
 
 If you are using a local PostgreSQL database instead, remove or comment out `DATABASE_URL`
 and fill in the `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` values.
-
-For AI meal chat, create a Gemini API key in Google AI Studio and set:
-
-```bash
-GEMINI_API_KEY=your_google_ai_studio_key
-GEMINI_MODEL=gemini-3.1-flash-lite
-```
-
-`gemini-3.1-flash-lite` is the default because it is built for low-latency, high-volume app usage. Use a larger model only if you want higher reasoning quality and are okay with higher cost/latency.
 
 ### 3. Create the database
 
