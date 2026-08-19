@@ -144,7 +144,7 @@ npm run dev
 
 ## Food Database
 
-Foods live in `data/foods.json` (95 items). Each food has:
+Foods live in `used_food_repository/foods.json`. Each food has:
 
 - `macro_role` — `protein`, `carb`, `fat`, or `mixed`
 - `meal_tags` — which meals this food can appear in (`breakfast`, `lunch`, `dinner`, `snack`, etc.)

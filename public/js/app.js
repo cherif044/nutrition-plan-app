@@ -596,7 +596,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       chatWorkingItems: null,
       chatPrevWorkingItems: null,
       chatMessages: [],
-      produceSwapCache: null,
+      produceSwapCache: createProduceSwapCache(),
       cardEl: null,
     };
     mealStates.push(state);
@@ -604,6 +604,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
+    scheduleProduceSwapPreload(state);
   });
 
   if (plannerCtx?.exportPdf) {
@@ -1239,7 +1240,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
   state.pendingProposal = null;
-  state.produceSwapCache = null;
+  resetProduceSwapCache(state, { schedule: false });
 
   const panel = actionPanel(state);
   panel.hidden = true;
@@ -1249,6 +1250,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   refreshMealCycleButtons(state);
   refreshRedFlags();
   resetChat(state);
+  scheduleProduceSwapPreload(state);
 }
 
 function refreshMealCycleButtons(state) {
@@ -1503,30 +1505,18 @@ async function handleCycleProduceSwap(state, itemIndex) {
   try {
     const cachedOption = nextCachedProduceSwapOption(state, itemIndex, group);
     if (cachedOption) {
-      applyProduceSwapOption(state, cachedOption);
+      applyProduceSwapOption(state, cachedOption, { preserveCycle: true });
       return;
     }
 
-    const res = await fetch('/api/produce-swap-options', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        itemIndex,
-        currentItems: mealActionItems(state.items),
-        mealTarget: state.target,
-        dailyContext: {
-          dailyTargets,
-          weightKg: Number(currentPlanInput?.weightKg),
-        },
-        userPreferences: getUserPreferences(),
-        limit: 20,
-      }),
-    });
-    const payload = await readJsonResponse(res, 'Unable to swap produce.');
-    if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
-
-    const usableOptions = usableProduceOptions(payload.options);
-    const option = usableOptions[0];
+    let entry = await loadProduceSwapOptionsForItem(state, itemIndex, group);
+    const currentGroup = produceGroup(state.items[itemIndex]?.food);
+    if (entry?.key !== produceSwapCacheKey(state, itemIndex, currentGroup)) {
+      entry = currentGroup
+        ? await loadProduceSwapOptionsForItem(state, itemIndex, currentGroup)
+        : null;
+    }
+    const option = takeProduceOptionFromEntry(state, entry, itemIndex, currentGroup || group);
     if (!option?.items?.length) {
       showActionFeedback(state, {
         tone: 'danger',
@@ -1536,12 +1526,7 @@ async function handleCycleProduceSwap(state, itemIndex) {
       return;
     }
 
-    state.produceSwapCache = {
-      itemIndex,
-      group,
-      options: usableOptions.slice(1),
-    };
-    applyProduceSwapOption(state, option);
+    applyProduceSwapOption(state, option, { preserveCycle: true });
   } catch (error) {
     showActionFeedback(state, {
       tone: 'danger',
@@ -1553,6 +1538,167 @@ async function handleCycleProduceSwap(state, itemIndex) {
   }
 }
 
+function createProduceSwapCache() {
+  return {
+    version: 0,
+    entries: new Map(),
+    pending: new Map(),
+    activeCycle: null,
+    preloadTimer: null,
+  };
+}
+
+function ensureProduceSwapCache(state) {
+  const cache = state.produceSwapCache;
+  if (
+    cache &&
+    cache.entries instanceof Map &&
+    cache.pending instanceof Map
+  ) {
+    return cache;
+  }
+
+  state.produceSwapCache = createProduceSwapCache();
+  return state.produceSwapCache;
+}
+
+function resetProduceSwapCache(state, { preserveCycle = false, schedule = true } = {}) {
+  const cache = ensureProduceSwapCache(state);
+  if (cache.preloadTimer) {
+    window.clearTimeout(cache.preloadTimer);
+    cache.preloadTimer = null;
+  }
+  cache.version += 1;
+  cache.entries.clear();
+  cache.pending.clear();
+  if (!preserveCycle) cache.activeCycle = null;
+  if (schedule) scheduleProduceSwapPreload(state);
+}
+
+function scheduleProduceSwapPreload(state) {
+  if (!state?.items?.some((item) => produceGroup(item?.food))) return;
+  const cache = ensureProduceSwapCache(state);
+  if (cache.preloadTimer) window.clearTimeout(cache.preloadTimer);
+  cache.preloadTimer = window.setTimeout(() => {
+    cache.preloadTimer = null;
+    preloadProduceSwapOptions(state);
+  }, 150);
+}
+
+async function preloadProduceSwapOptions(state) {
+  const cache = ensureProduceSwapCache(state);
+  const version = cache.version;
+  const produceItems = state.items
+    .map((item, itemIndex) => ({ itemIndex, group: produceGroup(item?.food) }))
+    .filter((entry) => entry.group);
+
+  for (const { itemIndex, group } of produceItems) {
+    if (ensureProduceSwapCache(state).version !== version) return;
+    try {
+      await loadProduceSwapOptionsForItem(state, itemIndex, group, { silent: true });
+    } catch (_error) {
+      // The click path still shows the user-facing error if this preload fails.
+    }
+  }
+}
+
+async function loadProduceSwapOptionsForItem(state, itemIndex, group, { silent = false } = {}) {
+  const cache = ensureProduceSwapCache(state);
+  const key = produceSwapCacheKey(state, itemIndex, group);
+  if (!key) return null;
+
+  const cached = cache.entries.get(key);
+  if (cached) return cached;
+  const pending = cache.pending.get(key);
+  if (pending) return pending;
+
+  const version = cache.version;
+  const request = fetch('/api/produce-swap-options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      itemIndex,
+      currentItems: mealActionItems(state.items),
+      mealTarget: state.target,
+      dailyContext: {
+        dailyTargets,
+        weightKg: Number(currentPlanInput?.weightKg),
+      },
+      userPreferences: getUserPreferences(),
+      limit: 20,
+    }),
+  })
+    .then(async (res) => {
+      const payload = await readJsonResponse(res, 'Unable to swap produce.');
+      if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
+      const entry = {
+        key,
+        itemIndex,
+        group,
+        options: usableProduceOptions(payload.options),
+        nextIndex: 0,
+      };
+      const latestCache = ensureProduceSwapCache(state);
+      if (latestCache.version === version && produceSwapCacheKey(state, itemIndex, group) === key) {
+        latestCache.entries.set(key, entry);
+      }
+      return entry;
+    })
+    .catch((error) => {
+      if (!silent) throw error;
+      return null;
+    })
+    .finally(() => {
+      const latestCache = ensureProduceSwapCache(state);
+      if (latestCache.pending.get(key) === request) latestCache.pending.delete(key);
+    });
+
+  cache.pending.set(key, request);
+  return request;
+}
+
+function produceSwapCacheKey(state, itemIndex, group) {
+  const item = state.items[itemIndex];
+  if (!item?.food || !group) return '';
+  const target = state.target || {};
+  return [
+    itemIndex,
+    group,
+    item.food.id || item.food.name || '',
+    roundForCache(item.quantityG),
+    mealItemsCacheSignature(state.items),
+    roundForCache(target.calories),
+    roundForCache(target.proteinG),
+    roundForCache(target.fatG),
+    roundForCache(Number(currentPlanInput?.weightKg)),
+    userPreferenceCacheSignature(),
+  ].join('|');
+}
+
+function mealItemsCacheSignature(items) {
+  return mealActionItems(items)
+    .map((item) => [
+      item.foodId || item.name || '',
+      roundForCache(item.quantityG),
+      item.customFood ? JSON.stringify(item.customFood) : '',
+    ].join(':'))
+    .join(',');
+}
+
+function userPreferenceCacheSignature() {
+  const preferences = getUserPreferences();
+  return [
+    preferences.dietType,
+    ...(preferences.avoidFoods || []),
+    ...(preferences.dislikes || []),
+  ].join(',');
+}
+
+function roundForCache(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.round(number * 10) / 10 : '';
+}
+
 function usableProduceOptions(options) {
   return (options || []).filter((option) => (
     option?.food?.id &&
@@ -1562,15 +1708,41 @@ function usableProduceOptions(options) {
 }
 
 function nextCachedProduceSwapOption(state, itemIndex, group) {
-  const cache = state.produceSwapCache;
-  if (!cache || cache.itemIndex !== itemIndex || cache.group !== group) return null;
-  const option = cache.options.shift() || null;
-  if (!cache.options.length) state.produceSwapCache = null;
+  const cache = ensureProduceSwapCache(state);
+  const active = cache.activeCycle;
+  if (active?.itemIndex === itemIndex && active.group === group) {
+    const option = active.options[active.nextIndex] || null;
+    if (option) {
+      active.nextIndex += 1;
+      if (active.nextIndex >= active.options.length) {
+        cache.activeCycle = null;
+        scheduleProduceSwapPreload(state);
+      }
+      return option;
+    }
+    cache.activeCycle = null;
+  }
+
+  const entry = cache.entries.get(produceSwapCacheKey(state, itemIndex, group));
+  return takeProduceOptionFromEntry(state, entry, itemIndex, group);
+}
+
+function takeProduceOptionFromEntry(state, entry, itemIndex, group) {
+  if (!entry?.options?.length) return null;
+  const option = entry.options[entry.nextIndex] || null;
+  if (!option) return null;
+  entry.nextIndex += 1;
+  ensureProduceSwapCache(state).activeCycle = {
+    itemIndex,
+    group,
+    options: entry.options,
+    nextIndex: entry.nextIndex,
+  };
   return option;
 }
 
-function applyProduceSwapOption(state, option) {
-  applyMealItems(state, option.items, { source: 'produce_swap' });
+function applyProduceSwapOption(state, option, { preserveCycle = false } = {}) {
+  applyMealItems(state, option.items, { source: 'produce_swap', preserveProduceSwapCycle: preserveCycle });
 }
 
 async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
@@ -1723,9 +1895,10 @@ function applyProposal(state) {
 function applyMealItems(state, items, options = {}) {
   state.items = items.map(normalizeStateItem);
   state.isOriginalTemplate = false;
-  if (options.source !== 'produce_swap') {
-    state.produceSwapCache = null;
-  }
+  resetProduceSwapCache(state, {
+    preserveCycle: options.source === 'produce_swap' && options.preserveProduceSwapCycle === true,
+    schedule: false,
+  });
   state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
@@ -1745,6 +1918,7 @@ function applyMealItems(state, items, options = {}) {
   refreshMealCycleButtons(state);
   refreshRedFlags();
   resetChat(state);
+  scheduleProduceSwapPreload(state);
   const panel = actionPanel(state);
   panel.hidden = true;
   panel.innerHTML = '';

@@ -14,7 +14,7 @@ Browser page in public/
   -> src/app.js routes requests
   -> src/routes/*.js maps endpoint to controller
   -> src/controllers/*.js validates HTTP request/response shape
-  -> src/services/*.js performs auth, nutrition math, generation, LLM/rebalance logic
+  -> src/services/*.js performs auth, nutrition math, generation, and deterministic rebalance logic
   -> src/repositories/*.js reads JSON data or writes PostgreSQL through Sequelize models
   -> src/models/*.js maps database tables
 ```
@@ -22,11 +22,9 @@ Browser page in public/
 Runtime data:
 
 ```text
-data/foods.json
-data/mealTemplates.json
-data/meal_swap_system.production.json
-new_stage_data/meal_substitution_system.json
-new_stage_data/icons/*.png
+used_food_repository/foods.json
+ready_meals/meals.json
+icons/*.png
 PostgreSQL tables: users, folders, customers, plans
 Firebase Auth: browser login and server session cookie
 ```
@@ -110,7 +108,7 @@ Backend files used before generation:
 - `src/routes/generationRoutes.js`: maps `GET /api/foods` and `GET /api/preferences`.
 - `src/controllers/generationController.js`: serves food list and preference options.
 - `src/services/planGenerator.js:getFoods`: delegates to food repository.
-- `src/repositories/foodRepository.js`: loads and normalizes `data/foods.json`.
+- `src/repositories/foodRepository.js`: loads and normalizes `used_food_repository/foods.json`.
 - `src/config/preferenceTaxonomy.js`: generates food/category/allergen options.
 - `new_stage_data/icons/*.png`: food icons served through `/food-icons`.
 
@@ -152,9 +150,9 @@ Backend files:
 - `src/controllers/generationController.js`: `generatePlanHandler`.
 - `src/services/planGenerator.js`: central plan-generation engine.
 - `src/services/nutritionService.js`: BMR, maintenance calories, goal calories, macro targets, meal target splitting.
-- `src/repositories/readyMealRepository.js`: loads `new_stage_data/meal_substitution_system.json`.
-- `src/repositories/foodRepository.js`: loads `data/foods.json`.
-- `src/config/nutritionConstants.js`: calorie/macro constants and meal distributions.
+- `src/repositories/readyMealRepository.js`: loads `ready_meals/meals.json`.
+- `src/repositories/foodRepository.js`: loads `used_food_repository/foods.json`.
+- `src/config/nutritionConstants.js`: calorie/macro constants and fixed meal distributions.
 - `src/config/preferenceTaxonomy.js`: resolves avoid-food terms into semantic tags and food IDs.
 
 Generation sequence:
@@ -171,12 +169,11 @@ Generation sequence:
 10. Each ready meal is matched to allowed foods by ingredient name, then solved toward calories, protein, and fat.
 11. `findBestPortionGridFit()` and `solvePortionsLeastSquares()` adjust gram quantities to satisfy calorie/protein/fat bounds.
 12. `selectReadyMealDayCombination()` searches candidate combinations across the day and picks the best daily fit.
-13. `optimizeTemplateDay()`, `repairTemplateDay()`, and `escalateTemplateDay()` try to improve daily totals when the first fit is not close enough.
-14. Response contains `input`, `dailyTargets`, `nutritionCalculation`, `meals`, optional `warnings`, optional `diagnostics`, and optional impossible-plan `errors`.
+13. Response contains `input`, `dailyTargets`, `nutritionCalculation`, `meals`, optional `warnings`, optional `diagnostics`, and optional impossible-plan `errors`.
 
 Important behavior:
 
-- `planGenerator.js` still contains older template/swap-generation logic around `mealTemplates.json` and `meal_swap_system.production.json`. Some of that is used for alternate meal logic, but the primary current generation path is the ready-meal database.
+- `planGenerator.js` uses ready-meal candidates from `ready_meals/meals.json`; the older template/swap-generation path has been removed.
 
 ### 6. Browser renders generated meals
 
@@ -388,10 +385,8 @@ All mounted by `src/app.js`.
 
 | File | Role |
 |---|---|
-| `src/repositories/foodRepository.js` | Loads `data/foods.json`, normalizes fields, attaches icon URLs, caches in memory. |
-| `src/repositories/readyMealRepository.js` | Loads `new_stage_data/meal_substitution_system.json`, maps ready meal bundles into components, validates data. |
-| `src/repositories/templateRepository.js` | Loads `data/mealTemplates.json` for the older template system. |
-| `src/repositories/swapSystemRepository.js` | Loads `data/meal_swap_system.production.json` for template swap rules. |
+| `src/repositories/foodRepository.js` | Loads `used_food_repository/foods.json`, normalizes fields, attaches icon URLs, caches in memory. |
+| `src/repositories/readyMealRepository.js` | Loads `ready_meals/meals.json`, maps ready meal bundles into components, validates data. |
 | `src/repositories/userRepository.js` | Internal user lookup/sync/delete with Sequelize transactions. |
 | `src/repositories/planRepository.js` | Plan create/read/update/delete/duplicate/active state, customer resolution, folder validation. |
 | `src/repositories/folderRepository.js` | Folder tree/content/CRUD queries. |
@@ -434,12 +429,9 @@ All mounted by `src/app.js`.
 
 | File or folder | Role |
 |---|---|
-| `data/foods.json` | Main nutrition food database. Currently 108 food records. Runtime-critical. |
-| `data/mealTemplates.json` | Older/generated meal template database. Used by older template/alternate logic. |
-| `data/meal_swap_system.production.json` | Swap groups, bad pairing guards, ranking policy for template swap logic. |
-| `data/README_mealTemplates.md` | Notes for meal template data. |
-| `new_stage_data/meal_substitution_system.json` | Current ready-meal bundle source used by primary generator. Runtime-critical. |
-| `new_stage_data/icons/*.png` | 103 food icons served from `/food-icons`. Runtime UI assets. |
+| `used_food_repository/foods.json` | Main nutrition food database. Runtime-critical. |
+| `ready_meals/meals.json` | Current ready-meal bundle source used by the generator. Runtime-critical. |
+| `icons/*.png` | Food icons served from `/food-icons`. Runtime UI assets. |
 | `new_stage_data/*.xlsx`, `new_stage_data/neww/*.xlsx` | Source spreadsheets for data import/build process. Not read by runtime server. |
 
 ### Database setup and migrations
@@ -506,7 +498,6 @@ These intentionally return `410` through `legacyPasswordAuthDisabled`. Keep only
 
 ### Areas to review before deleting
 
-- `data/mealTemplates.json`, `data/meal_swap_system.production.json`, `src/repositories/templateRepository.js`, and `src/repositories/swapSystemRepository.js`: these support the older template system. The primary generation path now uses ready meals from `new_stage_data/meal_substitution_system.json`.
 - `legacy/flutter-app/`: safe to ignore for web behavior, but keep if you want historical reference.
 - `filtering_data/`: safe to ignore during runtime debugging, but keep if you need to rebuild food data.
 - `output/`, loose PDFs, and `pp.txt`: artifact/reference area, not runtime.
@@ -590,7 +581,6 @@ mealStates[] = editable browser-side version of plan.meals[]
 - Food macro records: `src/repositories/foodRepository.js`
 - Candidate solving: `src/services/planGenerator.js:solveReadyMealCandidate`, `solvePortionsLeastSquares`, `findBestPortionGridFit`
 - Daily candidate selection: `selectReadyMealDayCombination`
-- Post-generation improvement: `optimizeTemplateDay`, `repairTemplateDay`, `escalateTemplateDay`
 - Meal edit rebalance: `rebalanceMeal`
 - Frontend daily red flags: `public/js/app.js:refreshRedFlags`
 - Persisted edited output: `public/js/app.js:buildPlanData`
