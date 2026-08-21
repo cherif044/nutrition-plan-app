@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
 
 const publicDir = path.join(__dirname, '..', '..', 'public');
 const iconsDir = path.join(__dirname, '..', '..', 'icons');
@@ -32,15 +31,40 @@ async function generatePlanPdf(plan) {
 
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    }).catch((error) => {
+    browserPromise = launchBrowser().catch((error) => {
       browserPromise = null;
       throw error;
     });
   }
   return browserPromise;
+}
+
+async function launchBrowser() {
+  if (process.env.VERCEL) {
+    const chromiumModule = require('@sparticuz/chromium');
+    const chromium = chromiumModule.default || chromiumModule;
+    const puppeteer = require('puppeteer-core');
+    const headless = 'shell';
+    return puppeteer.launch({
+      args: await puppeteer.defaultArgs({ args: chromium.args, headless }),
+      defaultViewport: {
+        deviceScaleFactor: 1,
+        hasTouch: false,
+        height: 1600,
+        isLandscape: false,
+        isMobile: false,
+        width: 1180,
+      },
+      executablePath: await chromium.executablePath(),
+      headless,
+    });
+  }
+
+  const puppeteer = require('puppeteer');
+  return puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
 }
 
 function renderPlanExportHtml(planRecord) {
