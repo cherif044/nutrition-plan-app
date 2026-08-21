@@ -8,13 +8,19 @@ const appCss = fs.readFileSync(path.join(publicDir, 'css', 'styles.css'), 'utf8'
 let browserPromise = null;
 
 async function generatePlanPdf(plan) {
+  return withTimeout(renderPlanPdf(plan), process.env.VERCEL ? 55000 : 30000, 'PDF export timed out.');
+}
+
+async function renderPlanPdf(plan) {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
     await page.setViewport({ width: 1180, height: 1600, deviceScaleFactor: 1 });
+    page.setDefaultTimeout(process.env.VERCEL ? 10000 : 30000);
+    page.setDefaultNavigationTimeout(process.env.VERCEL ? 10000 : 30000);
     await page.setContent(renderPlanExportHtml(plan), {
-      waitUntil: ['load', 'networkidle0'],
-      timeout: 30000,
+      waitUntil: 'domcontentloaded',
+      timeout: process.env.VERCEL ? 10000 : 30000,
     });
     await page.emulateMediaType('print');
     const pdf = await page.pdf({
@@ -27,6 +33,14 @@ async function generatePlanPdf(plan) {
   } finally {
     await page.close().catch(() => {});
   }
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(Object.assign(new Error(message), { status: 504 })), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 async function getBrowser() {
@@ -46,6 +60,7 @@ async function launchBrowser() {
     const puppeteerModule = await import('puppeteer-core');
     const puppeteer = puppeteerModule.default || puppeteerModule;
     const headless = 'shell';
+    chromium.setGraphicsMode = false;
     return puppeteer.launch({
       args: await puppeteer.defaultArgs({ args: chromium.args, headless }),
       defaultViewport: {

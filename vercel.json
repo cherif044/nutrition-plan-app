@@ -13,7 +13,7 @@
   "functions": {
     "api/index.js": {
       "includeFiles": "{used_food_repository/**,public/**,icons/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js,node_modules/@sparticuz/chromium/**}",
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }

@@ -19,6 +19,7 @@ let selectedCustomerId = null;
 let customerPlanRequestId = 0;
 let selectedCustomerForPlans = null;
 let dashboardMenu = null;
+let activePdfDownloadController = null;
 const relativeUnits = [
   ['year', 31536000000],
   ['month', 2592000000],
@@ -93,6 +94,63 @@ function planHref(plan) {
 
 function planExportHref(plan) {
   return `/api/plans/${encodeURIComponent(plan.id)}/export.pdf`;
+}
+
+function pdfDownloadName(planName) {
+  const base = String(planName || 'nutrition-plan')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'nutrition-plan';
+  return `${base}.pdf`;
+}
+
+function filenameFromDisposition(disposition, fallback) {
+  const match = String(disposition || '').match(/filename="([^"]+)"/i);
+  return match?.[1] || fallback;
+}
+
+async function downloadPlanPdf(exportHref, planName) {
+  const message = document.getElementById('dashboard-message');
+  activePdfDownloadController?.abort();
+  const controller = new AbortController();
+  activePdfDownloadController = controller;
+  const timeout = setTimeout(() => controller.abort(), 65000);
+  message.textContent = 'Preparing PDF...';
+
+  try {
+    const res = await fetch(exportHref, {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let detail = 'Failed to export PDF.';
+      try {
+        const data = await res.json();
+        if (data?.error) detail = data.error;
+      } catch {}
+      throw new Error(detail);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), pdfDownloadName(planName));
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    message.textContent = 'PDF download started.';
+  } catch (error) {
+    message.textContent = error.name === 'AbortError'
+      ? 'PDF export took too long. Try again in a moment.'
+      : error.message || 'Failed to export PDF.';
+  } finally {
+    clearTimeout(timeout);
+    if (activePdfDownloadController === controller) activePdfDownloadController = null;
+  }
 }
 
 function folderBreadcrumb(plan) {
@@ -381,7 +439,7 @@ function showPlanMenu(button) {
 
   menu.querySelector('[data-action="export"]').addEventListener('click', () => {
     hideDashboardMenu();
-    window.location.href = exportHref;
+    downloadPlanPdf(exportHref, planName);
   });
 
   menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
