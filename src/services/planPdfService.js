@@ -43,7 +43,8 @@ async function launchBrowser() {
   if (process.env.VERCEL) {
     const chromiumModule = await import('@sparticuz/chromium');
     const chromium = chromiumModule.default || chromiumModule;
-    const puppeteer = require('puppeteer-core');
+    const puppeteerModule = await import('puppeteer-core');
+    const puppeteer = puppeteerModule.default || puppeteerModule;
     const headless = 'shell';
     return puppeteer.launch({
       args: await puppeteer.defaultArgs({ args: chromium.args, headless }),
