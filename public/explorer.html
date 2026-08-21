@@ -497,7 +497,7 @@
         });
         ctxMenu.querySelector('[data-action="export"]').addEventListener('click', () => {
           ctxMenu.hidden = true;
-          window.open(`${plannerHref(planId)}&export=pdf`, '_blank', 'noopener');
+          window.location.href = `/api/plans/${encodeURIComponent(planId)}/export.pdf`;
         });
         ctxMenu.querySelector('[data-action="dup"]').addEventListener('click', () => {
           ctxMenu.hidden = true;

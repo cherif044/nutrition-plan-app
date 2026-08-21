@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/auth');
 const {
   createPlanHandler,
   getPlan,
+  exportPlanPdfHandler,
   updatePlanHandler,
   deletePlanHandler,
   duplicatePlanHandler,
@@ -12,6 +13,7 @@ const {
 const router = express.Router();
 
 router.post('/', requireAuth, createPlanHandler);
+router.get('/:id/export.pdf', requireAuth, exportPlanPdfHandler);
 router.get('/:id', requireAuth, getPlan);
 router.put('/:id', requireAuth, updatePlanHandler);
 router.delete('/:id', requireAuth, deletePlanHandler);

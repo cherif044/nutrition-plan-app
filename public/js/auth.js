@@ -8,6 +8,7 @@ const forgotForm = document.getElementById('forgot-form');
 const forgotEmail = document.getElementById('forgot-email');
 const backToLoginBtn = document.getElementById('back-to-login-btn');
 const GOOGLE_REDIRECT_PENDING_KEY = 'pinchGoogleRedirectPending';
+const GOOGLE_TRANSITION_MIN_MS = 750;
 
 let auth = null;
 let firebaseSdk = null;
@@ -16,10 +17,29 @@ let pendingVerificationUser = null;
 initAuthPage();
 
 async function initAuthPage() {
+  const hadPendingGoogleRedirect = sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
+  if (hadPendingGoogleRedirect) {
+    showAuthTransition({
+      title: 'Finishing Google sign-in',
+      message: 'Google sent you back successfully. Preparing your dashboard...',
+      busy: true,
+    });
+  }
+
   try {
     const existing = await fetch('/api/auth/me');
     if (existing.ok) {
-      window.location.replace('/dashboard');
+      if (hadPendingGoogleRedirect) {
+        sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+        showAuthTransition({
+          title: 'Google sign-in successful',
+          message: 'Opening your dashboard...',
+          busy: false,
+        });
+        window.setTimeout(() => window.location.replace('/dashboard'), GOOGLE_TRANSITION_MIN_MS);
+      } else {
+        window.location.replace('/dashboard');
+      }
       return;
     }
   } catch {
@@ -40,6 +60,7 @@ async function initAuthPage() {
     bindEvents();
     await handleGoogleRedirectResult();
   } catch (err) {
+    hideAuthTransition();
     setMessage(err.message || 'Firebase is not configured yet.');
     setDisabled(true);
   }
@@ -113,16 +134,31 @@ async function handleGoogle() {
   const provider = new firebaseSdk.GoogleAuthProvider();
   try {
     const credential = await firebaseSdk.signInWithPopup(auth, provider);
+    showAuthTransition({
+      title: 'Google sign-in successful',
+      message: 'Creating your secure session...',
+      busy: true,
+    });
     await createServerSession(credential.user);
     await firebaseSdk.signOut(auth);
-    setMessage('Signed in with Google. Opening your dashboard...', 'success');
-    setTimeout(() => window.location.replace('/dashboard'), 300);
+    showAuthTransition({
+      title: 'Google sign-in successful',
+      message: 'Opening your dashboard...',
+      busy: false,
+    });
+    setTimeout(() => window.location.replace('/dashboard'), GOOGLE_TRANSITION_MIN_MS);
   } catch (err) {
     if (err?.code === 'auth/popup-blocked') {
       sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
+      showAuthTransition({
+        title: 'Opening Google sign-in',
+        message: 'You will return here once Google confirms your account.',
+        busy: true,
+      });
       await firebaseSdk.signInWithRedirect(auth, provider);
       return;
     }
+    hideAuthTransition();
     setMessage(authErrorMessage(err));
   } finally {
     setLoading(false);
@@ -132,7 +168,13 @@ async function handleGoogle() {
 async function handleGoogleRedirectResult() {
   const hadPendingRedirect = sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
   try {
-    if (hadPendingRedirect) setMessage('Finishing Google sign-in...', 'success');
+    if (hadPendingRedirect) {
+      showAuthTransition({
+        title: 'Finishing Google sign-in',
+        message: 'Google sign-in succeeded. Creating your secure session...',
+        busy: true,
+      });
+    }
 
     const credential = await firebaseSdk.getRedirectResult(auth);
     if (credential?.user) {
@@ -149,9 +191,11 @@ async function handleGoogleRedirectResult() {
     }
 
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+    hideAuthTransition();
     setMessage('Google sign-in was not completed. Please try again.');
   } catch (err) {
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+    hideAuthTransition();
     setMessage(authErrorMessage(err));
   } finally {
     setLoading(false);
@@ -160,11 +204,20 @@ async function handleGoogleRedirectResult() {
 
 async function finishGoogleSignIn(user) {
   setLoading(true, 'Finishing sign-in...');
+  showAuthTransition({
+    title: 'Google sign-in successful',
+    message: 'Creating your secure session...',
+    busy: true,
+  });
   await createServerSession(user);
   sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
   await firebaseSdk.signOut(auth);
-  setMessage('Signed in with Google. Opening your dashboard...', 'success');
-  setTimeout(() => window.location.replace('/dashboard'), 300);
+  showAuthTransition({
+    title: 'Google sign-in successful',
+    message: 'Opening your dashboard...',
+    busy: false,
+  });
+  setTimeout(() => window.location.replace('/dashboard'), GOOGLE_TRANSITION_MIN_MS);
 }
 
 function userHasProvider(user, providerId) {
@@ -376,6 +429,38 @@ function setMessage(text, tone = 'error') {
   messageEl.className = `auth-message${tone === 'success' ? ' success' : ''}`;
 }
 
+function showAuthTransition({ title, message, busy = true }) {
+  let panel = document.getElementById('auth-transition');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'auth-transition';
+    panel.className = 'auth-transition';
+    panel.setAttribute('role', 'status');
+    panel.setAttribute('aria-live', 'polite');
+    form.insertAdjacentElement('beforebegin', panel);
+  }
+  panel.innerHTML = `
+    <span class="auth-transition__spinner" ${busy ? '' : 'hidden'} aria-hidden="true"></span>
+    <strong>${escapeHtml(title)}</strong>
+    <span>${escapeHtml(message)}</span>
+  `;
+  panel.hidden = false;
+  form.hidden = true;
+  if (forgotForm) forgotForm.hidden = true;
+  document.querySelectorAll('.auth-switch').forEach((el) => { el.hidden = true; });
+}
+
+function hideAuthTransition() {
+  const panel = document.getElementById('auth-transition');
+  if (panel) panel.hidden = true;
+  if (form && !isForgotPasswordVisible()) form.hidden = false;
+  document.querySelectorAll('.auth-switch').forEach((el) => { el.hidden = false; });
+}
+
+function isForgotPasswordVisible() {
+  return Boolean(forgotForm && !forgotForm.hidden);
+}
+
 function setLoading(loading, label) {
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) {
@@ -406,4 +491,14 @@ function clearHints() {
     el.classList.remove('input-error');
   });
   setResendVisible(false);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
 }

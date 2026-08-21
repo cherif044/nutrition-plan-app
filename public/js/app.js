@@ -660,9 +660,23 @@ function schedulePdfExport() {
   if (pdfExportScheduled) return;
   pdfExportScheduled = true;
   document.title = 'Pinch meal plan export';
-  window.setTimeout(() => {
+  window.setTimeout(async () => {
+    await waitForPdfExportAssets();
     window.print();
-  }, 700);
+  }, 150);
+}
+
+async function waitForPdfExportAssets(timeoutMs = 2500) {
+  const pendingImages = [...document.images]
+    .filter((img) => !img.complete)
+    .map((img) => new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+    }));
+  const pendingFonts = document.fonts?.ready ? [document.fonts.ready.catch(() => {})] : [];
+  const ready = Promise.all([...pendingImages, ...pendingFonts]);
+  const timeout = new Promise((resolve) => window.setTimeout(resolve, timeoutMs));
+  await Promise.race([ready, timeout]);
 }
 
 function isImpossiblePlan(plan) {

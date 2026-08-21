@@ -92,7 +92,7 @@ function planHref(plan) {
 }
 
 function planExportHref(plan) {
-  return `${planHref(plan)}&export=pdf`;
+  return `/api/plans/${encodeURIComponent(plan.id)}/export.pdf`;
 }
 
 function folderBreadcrumb(plan) {
@@ -381,7 +381,7 @@ function showPlanMenu(button) {
 
   menu.querySelector('[data-action="export"]').addEventListener('click', () => {
     hideDashboardMenu();
-    window.open(exportHref, '_blank', 'noopener');
+    window.location.href = exportHref;
   });
 
   menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {

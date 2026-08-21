@@ -1781,6 +1781,45 @@ input:focus, select:focus {
 }
 
 .auth-message.success { color: var(--accent); }
+
+.auth-transition {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 8px 0 22px;
+  padding: 22px 18px;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  border-radius: var(--r-lg);
+  background: rgba(240, 253, 250, 0.72);
+  color: var(--ink);
+  text-align: center;
+}
+
+.auth-transition[hidden] {
+  display: none;
+}
+
+.auth-transition strong {
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.auth-transition span:last-child {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.auth-transition__spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(13, 148, 136, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
 .auth-switch { margin-top: 20px; text-align: center; color: var(--muted); font-size: 0.86rem; }
 .auth-switch a { color: var(--accent); font-weight: 700; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
@@ -1813,6 +1852,10 @@ input:focus, select:focus {
 @keyframes tokenPop {
   from { transform: scale(0.8); opacity: 0; }
   to   { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes dropIn {
@@ -6544,7 +6587,8 @@ body.is-pdf-export .summary {
 
 @media print {
   @page {
-    margin: 12mm;
+    size: A4;
+    margin: 0;
   }
 
   * {
@@ -6553,12 +6597,12 @@ body.is-pdf-export .summary {
   }
 
   html {
-    background: var(--ref-bg) !important;
+    background: #fff !important;
   }
 
   body {
-    background: var(--ref-bg) !important;
-    padding: 0 !important;
+    background: #fff !important;
+    padding: 8mm !important;
   }
 
   .planner-nav,
@@ -6575,7 +6619,7 @@ body.is-pdf-export .summary {
 
   body::before,
   body::after {
-    position: fixed !important;
+    display: none !important;
   }
 
   .app-shell {

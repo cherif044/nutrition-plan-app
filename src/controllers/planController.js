@@ -1,4 +1,5 @@
 const { createPlan, getPlanById, updatePlan, deletePlan, duplicatePlan, setPlanActive } = require('../repositories/planRepository');
+const { generatePlanPdf, pdfFilename } = require('../services/planPdfService');
 
 async function createPlanHandler(req, res, next) {
   try {
@@ -19,6 +20,22 @@ async function getPlan(req, res, next) {
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
     res.json({ plan });
   } catch (err) { next(err); }
+}
+
+async function exportPlanPdfHandler(req, res, next) {
+  try {
+    const plan = await getPlanById(req.params.id, req.user.id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found.' });
+
+    const pdf = await generatePlanPdf(plan);
+    const filename = pdfFilename(plan);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdf.length);
+    return res.send(pdf);
+  } catch (err) {
+    return next(err);
+  }
 }
 
 async function updatePlanHandler(req, res, next) {
@@ -63,4 +80,12 @@ async function setPlanActiveHandler(req, res, next) {
   }
 }
 
-module.exports = { createPlanHandler, getPlan, updatePlanHandler, deletePlanHandler, duplicatePlanHandler, setPlanActiveHandler };
+module.exports = {
+  createPlanHandler,
+  getPlan,
+  exportPlanPdfHandler,
+  updatePlanHandler,
+  deletePlanHandler,
+  duplicatePlanHandler,
+  setPlanActiveHandler,
+};

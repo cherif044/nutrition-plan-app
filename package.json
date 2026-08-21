@@ -16,6 +16,7 @@
     "firebase-admin": "^12.7.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
+    "puppeteer": "^25.8.0",
     "sequelize": "^6.37.8",
     "zxcvbn": "^4.4.2"
   },
