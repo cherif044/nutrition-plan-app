@@ -91,6 +91,24 @@ function foodIconUrl(food) {
   return `/food-icons/${encodeURIComponent(`${food.id}.png`)}`;
 }
 
+const preloadedFoodImageUrls = new Set();
+const decodedFoodImageUrls = new Set();
+
+function preloadFoodImage(food) {
+  const src = foodIconUrl(food);
+  if (!src || preloadedFoodImageUrls.has(src)) return;
+  preloadedFoodImageUrls.add(src);
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => decodedFoodImageUrls.add(src);
+  img.src = src;
+  img.decode?.().then(() => decodedFoodImageUrls.add(src)).catch(() => {});
+}
+
+function preloadFoodImagesFromItems(items) {
+  (items || []).forEach((item) => preloadFoodImage(item.food));
+}
+
 function foodFromPreferenceOption(option) {
   if (!option || option.type !== 'food') return null;
   const id = option.foodId || String(option.id || '').replace(/^food:/, '');
@@ -107,11 +125,13 @@ function setFoodMedia(el, food, fallbackSize = 15) {
 
   const { icon, tone } = foodIcon(food);
   const src = foodIconUrl(food);
+  const mediaKey = src ? `img:${src}:${tone}` : `icon:${icon}:${tone}:${fallbackSize}`;
+  if (el.dataset.mediaKey === mediaKey) return;
+  el.dataset.mediaKey = mediaKey;
   el.dataset.tone = tone;
-  el.classList.remove('food-icon--image');
-  el.innerHTML = '';
 
   const renderFallback = () => {
+    if (el.dataset.mediaKey !== mediaKey) return;
     el.classList.remove('food-icon--image');
     el.innerHTML = iconSvg(icon, fallbackSize);
   };
@@ -122,13 +142,34 @@ function setFoodMedia(el, food, fallbackSize = 15) {
   }
 
   const img = document.createElement('img');
-  img.src = src;
   img.alt = '';
-  img.loading = 'lazy';
+  img.loading = 'eager';
   img.decoding = 'async';
   img.addEventListener('error', renderFallback, { once: true });
-  el.classList.add('food-icon--image');
-  el.append(img);
+  const showImage = () => {
+    if (el.dataset.mediaKey !== mediaKey) return;
+    el.classList.add('food-icon--image');
+    el.replaceChildren(img);
+  };
+
+  if (decodedFoodImageUrls.has(src)) {
+    img.src = src;
+    showImage();
+    return;
+  }
+
+  if (!el.firstChild) renderFallback();
+  img.addEventListener('load', () => {
+    decodedFoodImageUrls.add(src);
+    showImage();
+  }, { once: true });
+  img.src = src;
+  img.decode?.()
+    .then(() => {
+      decodedFoodImageUrls.add(src);
+      showImage();
+    })
+    .catch(() => {});
 }
 
 function foodMediaPlaceholder(extraClass = '') {
@@ -218,9 +259,6 @@ const labels = {
   fatG: ['Fat', 'g'],
 };
 const separator = '·';
-const DAILY_CALORIE_WINDOW_PERCENT = 0.05;
-const PROTEIN_RANGE_PER_KG = { min: 1.8, max: 2.2 };
-const FAT_RANGE_PER_KG = { min: 0.66, max: 1.0 };
 
 const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
@@ -233,6 +271,7 @@ loadAllFoods();
 
 const mealStates = [];
 let dailyTargets = null;
+let dailyBounds = null;
 let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
@@ -600,6 +639,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       cardEl: null,
     };
     mealStates.push(state);
+    preloadFoodImagesFromItems(state.items);
+    state.mealOptions.forEach((option) => preloadFoodImagesFromItems(option.items));
 
     const card = renderMealCard(state);
     state.cardEl = card;
@@ -667,6 +708,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
+  dailyBounds = serverBounds;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
   const metrics = summary.querySelector('.metrics');
   const rangeNote = summary.querySelector('.summary__ranges');
@@ -733,7 +775,8 @@ function dailyRangeNoteHtml(targets, serverBounds = null) {
     ['Protein', dailyMetricBounds('proteinG', targets, serverBounds), labels.proteinG[1], 'proteinG'],
     ['Carbs', dailyMetricBounds('carbG', targets, serverBounds), labels.carbG[1], 'carbG'],
     ['Fat', dailyMetricBounds('fatG', targets, serverBounds), labels.fatG[1], 'fatG'],
-  ].map(([label, range, unit, metric]) => `
+  ].filter(([, range]) => range)
+    .map(([label, range, unit, metric]) => `
     <span class="summary__range-chip" data-metric="${metric}">
       <b>${label}</b>
       <span>${formatRangeValue(range, unit)}</span>
@@ -760,7 +803,7 @@ function refreshRedFlags() {
 
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
     const tgt = dailyTargets[key];
-    const flagged = !dailyMetricFitsTarget(key, actual[key], dailyTargets);
+    const flagged = !dailyMetricFitsTarget(key, actual[key], dailyTargets, dailyBounds);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
     if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
@@ -818,14 +861,16 @@ function renderMealCard(state) {
 
 function setMealAiMode(state, enabled) {
   state.editModeEnabled = Boolean(enabled);
-  renderFoodList(state);
-  refreshMealCustomizationControls(state);
   if (!state.editModeEnabled) {
+    state.items = state.items.filter((item) => !item.pendingAdd);
     const panel = actionPanel(state);
     panel.hidden = true;
     panel.innerHTML = '';
     state.pendingProposal = null;
   }
+  renderFoodList(state);
+  refreshMealCustomizationControls(state);
+  refreshMealCardHeader(state.cardEl, state);
 }
 
 function refreshMealCustomizationControls(state) {
@@ -865,7 +910,8 @@ function mealRangeNoteHtml(target) {
     ['Protein', ranges.proteinG, 'g', 'proteinG'],
     ['Carbs', ranges.carbG, 'g', 'carbG'],
     ['Fat', ranges.fatG, 'g', 'fatG'],
-  ].map(([label, range, unit, metric]) => `
+  ].filter(([, range]) => range)
+    .map(([label, range, unit, metric]) => `
     <span class="meal-card__range-chip" data-metric="${metric}">
       <b>${label}</b>
       <span>${formatRangeValue(range, unit)}</span>
@@ -880,22 +926,10 @@ function mealDisplayRanges(target) {
 
   const windows = target.macroWindows;
   if (!windows.calories || !windows.proteinG || !windows.fatG) return null;
-  const carbRange = {
-    min: Math.max(0, (
-      windows.calories.min -
-      windows.proteinG.max * 4 -
-      windows.fatG.max * 9
-    ) / 4),
-    max: (
-      windows.calories.max -
-      windows.proteinG.min * 4 -
-      windows.fatG.min * 9
-    ) / 4,
-  };
   return {
     calories: windows.calories,
     proteinG: windows.proteinG,
-    carbG: carbRange,
+    carbG: windows.carbG,
     fatG: windows.fatG,
   };
 }
@@ -911,23 +945,68 @@ function formatRangeValue(range, unit) {
 function renderFoodList(state) {
   const foodList = state.cardEl?.querySelector('.food-list');
   if (!foodList) return;
+  syncPendingAddLayer(state);
 
   const rows = [...foodList.children];
+  const rowsByKey = rows.reduce((map, row) => {
+    const key = row.dataset.foodKey;
+    if (!key) return map;
+    const matches = map.get(key) || [];
+    matches.push(row);
+    map.set(key, matches);
+    return map;
+  }, new Map());
+  const usedRows = new Set();
+  const takeRowByKey = (key) => {
+    const matches = rowsByKey.get(key) || [];
+    while (matches.length > 0) {
+      const row = matches.shift();
+      if (!usedRows.has(row)) return row;
+    }
+    return null;
+  };
 
   state.items.forEach((item, itemIndex) => {
-    const existing = rows[itemIndex];
+    const key = foodRowKey(item);
+    const existing = rows[itemIndex]?.dataset.foodKey === key && !usedRows.has(rows[itemIndex])
+      ? rows[itemIndex]
+      : takeRowByKey(key);
     if (!existing) {
       const row = renderFoodItem(state, itemIndex);
-      foodList.append(row);
+      usedRows.add(row);
+      foodList.insertBefore(row, foodList.children[itemIndex] || null);
       return;
+    }
+    usedRows.add(existing);
+    if (foodList.children[itemIndex] !== existing) {
+      foodList.insertBefore(existing, foodList.children[itemIndex] || null);
     }
     updateFoodRow(existing, state, itemIndex);
   });
 
-  rows.slice(state.items.length).forEach((row) => row.remove());
+  rows.forEach((row) => {
+    if (!usedRows.has(row)) row.remove();
+  });
+  syncPendingAddLayer(state);
+}
+
+function foodRowKey(item) {
+  if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
+  return [
+    item.food?.id ?? item.food?.name ?? '',
+    item.customFood ? JSON.stringify(item.customFood) : '',
+  ].join('|');
+}
+
+function syncPendingAddLayer(state) {
+  state.cardEl?.classList.toggle(
+    'meal-card--has-pending-add',
+    state.items.some((item) => item.pendingAdd),
+  );
 }
 
 function foodRowSignature(item) {
+  if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
   return [
     item.food?.id ?? item.food?.name ?? '',
     item.food?.name ?? '',
@@ -940,6 +1019,7 @@ function foodRowSignature(item) {
 function updateFoodRow(row, state, itemIndex) {
   const item = state.items[itemIndex];
   row.dataset.itemIndex = itemIndex;
+  row.dataset.foodKey = foodRowKey(item);
   setRowActions(row, state, itemIndex);
   setProduceCycleControl(row, state, itemIndex);
 
@@ -947,6 +1027,12 @@ function updateFoodRow(row, state, itemIndex) {
   if (row.dataset.signature === signature) return false;
   row.dataset.signature = signature;
 
+  if (item.pendingAdd) {
+    renderPendingAddRow(row, state, itemIndex);
+    return true;
+  }
+
+  row.classList.remove('food-item--pending-add');
   const food = item.food;
   const totals = itemTotals(food, item.quantityG);
 
@@ -967,25 +1053,61 @@ function updateFoodRow(row, state, itemIndex) {
   return true;
 }
 
+function renderPendingAddRow(row, state, itemIndex) {
+  row.classList.add('food-item--pending-add');
+  row.querySelector('.food-title').innerHTML = `
+    <span class="food-icon" aria-hidden="true"></span>
+    <span class="pending-food-search">
+      <input class="pending-food-search__input" type="search" placeholder="Search food" autocomplete="off" />
+      <span class="guided-search-results pending-food-search__results" hidden></span>
+    </span>
+    <button class="produce-cycle-btn" type="button" hidden aria-label="Next produce"><span aria-hidden="true">&rsaquo;</span></button>
+  `;
+  const iconEl = row.querySelector('.food-icon');
+  iconEl.dataset.mediaKey = '';
+  iconEl.dataset.tone = 'neutral';
+  iconEl.classList.remove('food-icon--image');
+  iconEl.textContent = '';
+  row.querySelector('.food-cell--portion').textContent = '0g';
+  row.querySelector('.food-cell--cal').textContent = '0';
+  row.querySelector('.food-cell--protein').textContent = '0g';
+  row.querySelector('.food-cell--carb').textContent = '0g';
+  row.querySelector('.food-cell--fat').textContent = '0g';
+
+  const search = row.querySelector('.pending-food-search__input');
+  const results = row.querySelector('.pending-food-search__results');
+  search.addEventListener('input', () => {
+    renderFoodSearchResults(state, search.value, results, (food) => {
+      attemptInlineAddFood(state, itemIndex, food);
+    });
+  });
+  window.requestAnimationFrame(() => search.focus());
+}
+
 // The actions column is always present in the grid, so toggling edit mode fills
 // or empties it without moving a single other column.
 function setRowActions(row, state, itemIndex) {
   const slot = row.querySelector('.food-actions');
-  const wanted = Boolean(state.editModeEnabled);
-  if ((slot.dataset.filled === '1') === wanted) return;
+  const item = state.items[itemIndex];
+  const mode = item?.pendingAdd ? 'pending-add' : (state.editModeEnabled ? 'edit' : 'none');
+  if (slot.dataset.mode === mode) return;
 
-  const name = escapeHtml(state.items[itemIndex].food.name);
-  slot.dataset.filled = wanted ? '1' : '0';
-  slot.innerHTML = state.editModeEnabled ? `
+  slot.dataset.mode = mode;
+  if (mode === 'pending-add') {
+    slot.innerHTML = `
+      <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove empty food row"><span aria-hidden="true">⌫</span></button>
+    `;
+    slot.querySelector('.food-delete-btn')?.addEventListener('click', () => removePendingAddRow(state, Number(row.dataset.itemIndex)));
+    return;
+  }
+
+  const name = escapeHtml(item?.food?.name || 'food');
+  slot.innerHTML = mode === 'edit' ? `
     <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><span aria-hidden="true">⇄</span></button>
     <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><span aria-hidden="true">⌫</span></button>
   ` : '';
   slot.querySelector('.food-swap-btn')?.addEventListener('click', () => {
     const nextIndex = Number(row.dataset.itemIndex);
-    if (produceGroup(state.items[nextIndex]?.food)) {
-      handleCycleProduceSwap(state, nextIndex);
-      return;
-    }
     showSwapFoodAction(state, nextIndex);
   });
   slot.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, Number(row.dataset.itemIndex)));
@@ -995,6 +1117,11 @@ function setProduceCycleControl(row, state, itemIndex) {
   const item = state.items[itemIndex];
   const btn = row.querySelector('.produce-cycle-btn');
   if (!btn) return;
+
+  if (item?.pendingAdd) {
+    btn.hidden = true;
+    return;
+  }
 
   const group = produceGroup(item?.food);
   btn.hidden = !group;
@@ -1058,23 +1185,7 @@ function mealOptionFitsTarget(option, target) {
       totals.fatG <= target.macroWindows.fatG.max
     );
   }
-  const weightKg = Number(currentPlanInput?.weightKg);
-  if (!dailyTargets || !Number.isFinite(weightKg)) return false;
-  const proteinShare = target.proteinG / dailyTargets.proteinG;
-  const fatShare = target.fatG / dailyTargets.fatG;
-  return (
-    Math.abs(totals.calories - target.calories) <=
-      dailyTargets.calories * DAILY_CALORIE_WINDOW_PERCENT &&
-    totals.proteinG >= weightKg * PROTEIN_RANGE_PER_KG.min *
-      proteinShare &&
-    totals.proteinG <= weightKg * PROTEIN_RANGE_PER_KG.max *
-      proteinShare &&
-    totals.fatG >= weightKg * FAT_RANGE_PER_KG.min *
-      fatShare &&
-    totals.fatG <= weightKg * FAT_RANGE_PER_KG.max *
-      fatShare &&
-    totals.carbG >= 0
-  );
+  return false;
 }
 
 function addTotals(left, right) {
@@ -1086,9 +1197,10 @@ function addTotals(left, right) {
   };
 }
 
-function dailyMetricFitsTarget(key, actual, targets) {
+function dailyMetricFitsTarget(key, actual, targets, serverBounds = null) {
   if (!Number.isFinite(actual) || !targets) return false;
-  const bounds = dailyMetricBounds(key, targets);
+  const bounds = dailyMetricBounds(key, targets, serverBounds);
+  if (!bounds) return true;
   return actual >= bounds.min && actual <= bounds.max;
 }
 
@@ -1098,34 +1210,12 @@ function dailyMetricBounds(key, targets, serverBounds = null) {
     return { min: Number(serverRange.min), max: Number(serverRange.max) };
   }
 
-  const target = Number(targets?.[key]);
   const range = targets?.macroRanges?.[key];
-  if ((key === 'proteinG' || key === 'fatG') && range) {
+  if ((key === 'proteinG' || key === 'carbG' || key === 'fatG') && range) {
     return { min: Number(range.min), max: Number(range.max) };
   }
 
-  const weightKg = Number(currentPlanInput?.weightKg);
-  if (key === 'proteinG' && Number.isFinite(weightKg)) {
-    return { min: weightKg * PROTEIN_RANGE_PER_KG.min, max: weightKg * PROTEIN_RANGE_PER_KG.max };
-  }
-  if (key === 'fatG' && Number.isFinite(weightKg)) {
-    return { min: weightKg * FAT_RANGE_PER_KG.min, max: weightKg * FAT_RANGE_PER_KG.max };
-  }
-
-  const calories = {
-    min: Number(targets?.calories) * (1 - DAILY_CALORIE_WINDOW_PERCENT),
-    max: Number(targets?.calories) * (1 + DAILY_CALORIE_WINDOW_PERCENT),
-  };
-  if (key === 'carbG') {
-    const protein = dailyMetricBounds('proteinG', targets, serverBounds);
-    const fat = dailyMetricBounds('fatG', targets, serverBounds);
-    return {
-      min: Math.max(0, (calories.min - protein.max * 4 - fat.max * 9) / 4),
-      max: (calories.max - protein.min * 4 - fat.min * 9) / 4,
-    };
-  }
-
-  return calories;
+  return null;
 }
 
 function formatAllowedRange(bounds, unit) {
@@ -1137,6 +1227,8 @@ function normalizeStateItem(item) {
     food: item.food,
     quantityG: Number(item.quantityG) || 0,
     customFood: item.customFood || null,
+    pendingAdd: Boolean(item.pendingAdd),
+    pendingId: item.pendingId || null,
     alternatives: item.alternatives || [],
     broaderAlternatives: item.broaderAlternatives || [],
     nearestAlternatives: item.nearestAlternatives || [],
@@ -1217,6 +1309,7 @@ function nextDaySafeMealOptionIndex(state, direction, options) {
 }
 
 function applyReadyMealOption(state, option, optionIndex) {
+  preloadFoodImagesFromItems(option.items);
   state.items = option.items.map(normalizeStateItem);
   state.mealOptionIndex = optionIndex;
   state.templateId = option.templateId || state.templateId;
@@ -1253,89 +1346,52 @@ function refreshMealCycleButtons(state) {
 }
 
 function showAddFoodAction(state) {
+  const existingIndex = state.items.findIndex((item) => item.pendingAdd);
+  if (existingIndex >= 0) {
+    focusPendingAddRow(state, existingIndex);
+    return;
+  }
+
+  state.items = [
+    ...state.items,
+    normalizeStateItem({ pendingAdd: true, pendingId: `pending_${Date.now()}` }),
+  ];
   const panel = actionPanel(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
   resetActionPanel(panel);
-  panel.hidden = false;
-  panel.innerHTML = `
-    <p class="meal-action-title">Add food to ${escapeHtml(state.name)}</p>
-    <div class="meal-action-grid">
-      <label>Database food <input class="guided-food-search" type="search" placeholder="Search existing foods" autocomplete="off" /></label>
-      <div class="guided-search-results" hidden></div>
-      <div class="guided-selected-food" hidden></div>
-      <button class="btn btn-primary guided-food-submit" type="button" disabled>Add selected food</button>
-    </div>
-    <div class="custom-food-form">
-      <p class="meal-action-subtitle">Custom food</p>
-      <div class="custom-food-grid">
-        <input class="custom-name" type="text" placeholder="Food name" />
-        <input class="custom-calories" type="number" min="0" step="1" placeholder="Calories" />
-        <input class="custom-protein" type="number" min="0" step="0.1" placeholder="Protein g" />
-        <input class="custom-carbs" type="number" min="0" step="0.1" placeholder="Carbs g" />
-        <input class="custom-fat" type="number" min="0" step="0.1" placeholder="Fat g" />
-      </div>
-      <button class="btn btn-primary guided-custom-add" type="button">Fit custom food</button>
-    </div>
-  `;
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  focusPendingAddRow(state, state.items.length - 1);
+}
 
-  const search = panel.querySelector('.guided-food-search');
-  const results = panel.querySelector('.guided-search-results');
-  const selectedEl = panel.querySelector('.guided-selected-food');
-  const submit = panel.querySelector('.guided-food-submit');
-  let selectedFood = null;
+function focusPendingAddRow(state, itemIndex) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  row?.querySelector('.pending-food-search__input')?.focus();
+}
 
-  search.addEventListener('input', () => {
-    selectedFood = null;
-    selectedEl.hidden = true;
-    selectedEl.innerHTML = '';
-    submit.disabled = true;
-    renderFoodSearchResults(state, search.value, results, (food) => {
-      selectedFood = food;
-      selectedEl.hidden = false;
-      selectedEl.innerHTML = `
-        ${foodMediaPlaceholder('guided-selected-food__icon')}
-        <span class="guided-selected-food__body">
-          <strong>${escapeHtml(food.name)}</strong>
-          <small>${formatNumber(food.caloriesPer100g)} kcal/100g</small>
-        </span>
-      `;
-      setFoodMedia(selectedEl.querySelector('.food-icon'), food, 15);
-      submit.disabled = false;
-    });
-  });
+function removePendingAddRow(state, itemIndex) {
+  if (!state.items[itemIndex]?.pendingAdd) return;
+  state.items = state.items.filter((_, index) => index !== itemIndex);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
 
-  submit.addEventListener('click', () => {
-    if (!selectedFood) {
-      showActionMessage(state, 'Choose a food from the search results first.');
-      return;
-    }
-    const food = selectedFood;
-    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG })];
-    attemptGuidedRebalance(state, {
-      action: 'add_food',
-      attemptedItems: attempted,
-      title: `Add ${food.name}`,
-      failureReason: 'Cannot add this food.',
-      failureMessage: 'Cannot add this food.',
-      successRowIndex: attempted.length - 1,
-    });
-  });
-
-  panel.querySelector('.guided-custom-add').addEventListener('click', () => {
-    const custom = readCustomFood(panel);
-    if (!custom) {
-      showActionMessage(state, 'Enter a custom food name and calories/macros first.');
-      return;
-    }
-    const food = foodFromCustom(custom);
-    const attempted = [...state.items, normalizeStateItem({ food, quantityG: food.defaultServingG, customFood: custom })];
-    attemptGuidedRebalance(state, {
-      action: 'add_custom_food',
-      attemptedItems: attempted,
-      title: `Add ${food.name}`,
-      failureReason: 'Cannot add this food.',
-      failureMessage: 'Cannot add this food.',
-      successRowIndex: attempted.length - 1,
-    });
+function attemptInlineAddFood(state, itemIndex, food) {
+  if (!state.items[itemIndex]?.pendingAdd || !food) return;
+  const attempted = state.items.map((item, index) => (
+    index === itemIndex
+      ? normalizeStateItem({ food, quantityG: food.defaultServingG })
+      : item
+  ));
+  attemptGuidedRebalance(state, {
+    action: 'add_food',
+    attemptedItems: attempted,
+    title: `Add ${food.name}`,
+    failureReason: 'Cannot add this food.',
+    failureMessage: 'Cannot add this food.',
+    successRowIndex: itemIndex,
   });
 }
 
@@ -1624,6 +1680,7 @@ async function loadProduceSwapOptionsForItem(state, itemIndex, group, { silent =
         options: usableProduceOptions(payload.options),
         nextIndex: 0,
       };
+      entry.options.forEach((option) => preloadFoodImagesFromItems(option.items));
       const latestCache = ensureProduceSwapCache(state);
       if (latestCache.version === version && produceSwapCacheKey(state, itemIndex, group) === key) {
         latestCache.entries.set(key, entry);
@@ -1644,7 +1701,11 @@ async function loadProduceSwapOptionsForItem(state, itemIndex, group, { silent =
 }
 
 function produceSwapCacheKey(state, itemIndex, group) {
-  const item = state.items[itemIndex];
+  return produceSwapCacheKeyForItems(state, itemIndex, group, state.items);
+}
+
+function produceSwapCacheKeyForItems(state, itemIndex, group, items) {
+  const item = items[itemIndex];
   if (!item?.food || !group) return '';
   const target = state.target || {};
   return [
@@ -1652,13 +1713,50 @@ function produceSwapCacheKey(state, itemIndex, group) {
     group,
     item.food.id || item.food.name || '',
     roundForCache(item.quantityG),
-    mealItemsCacheSignature(state.items),
+    mealItemsCacheSignature(items),
     roundForCache(target.calories),
     roundForCache(target.proteinG),
     roundForCache(target.fatG),
     roundForCache(Number(currentPlanInput?.weightKg)),
     userPreferenceCacheSignature(),
   ].join('|');
+}
+
+async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { silent = false } = {}) {
+  const key = produceSwapCacheKeyForItems(state, itemIndex, group, items);
+  if (!key) return null;
+
+  try {
+    const res = await fetch('/api/produce-swap-options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        itemIndex,
+        currentItems: mealActionItems(items),
+        mealTarget: state.target,
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+        },
+        userPreferences: getUserPreferences(),
+        limit: 20,
+      }),
+    });
+    const payload = await readJsonResponse(res, 'Unable to swap produce.');
+    if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
+    const entry = {
+      key,
+      itemIndex,
+      group,
+      options: usableProduceOptions(payload.options),
+      nextIndex: 0,
+    };
+    entry.options.forEach((option) => preloadFoodImagesFromItems(option.items));
+    return entry;
+  } catch (error) {
+    if (!silent) throw error;
+    return null;
+  }
 }
 
 function mealItemsCacheSignature(items) {
@@ -1773,7 +1871,20 @@ async function attemptGuidedRebalance(state, {
     if (res.ok && payload.success) {
       const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
       if (shouldApplyImmediately) {
-        applyMealItems(state, proposedItems, { source: 'deterministic' });
+        let preloadedProduceEntry = null;
+        if (action === 'add_food' && Number.isInteger(successRowIndex)) {
+          const addedGroup = produceGroup(proposedItems[successRowIndex]?.food);
+          if (addedGroup) {
+            preloadedProduceEntry = await fetchProduceSwapEntryForItems(
+              state,
+              successRowIndex,
+              addedGroup,
+              proposedItems,
+              { silent: true },
+            );
+          }
+        }
+        applyMealItems(state, proposedItems, { source: 'deterministic', preloadedProduceEntry });
         if (Number.isInteger(successRowIndex)) {
           pulseFoodRow(state, successRowIndex);
         }
@@ -1885,6 +1996,19 @@ function applyMealItems(state, items, options = {}) {
     preserveCycle: options.source === 'produce_swap' && options.preserveProduceSwapCycle === true,
     schedule: false,
   });
+  if (
+    options.preloadedProduceEntry?.key &&
+    options.preloadedProduceEntry.key === produceSwapCacheKey(
+      state,
+      options.preloadedProduceEntry.itemIndex,
+      options.preloadedProduceEntry.group,
+    )
+  ) {
+    ensureProduceSwapCache(state).entries.set(
+      options.preloadedProduceEntry.key,
+      options.preloadedProduceEntry,
+    );
+  }
   state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
@@ -2072,35 +2196,12 @@ function foodAllowedForCurrentPreferences(food) {
   return true;
 }
 
-function readCustomFood(panel) {
-  const name = panel.querySelector('.custom-name')?.value.trim();
-  const calories = readMacroInput(panel, '.custom-calories');
-  const proteinG = readMacroInput(panel, '.custom-protein');
-  const carbG = readMacroInput(panel, '.custom-carbs');
-  const fatG = readMacroInput(panel, '.custom-fat');
-  if (!name || [calories, proteinG, carbG, fatG].some((value) => value === null)) return null;
-  return {
-    id: `custom_${Date.now()}`,
-    name,
-    servingG: 100,
-    calories,
-    proteinG,
-    carbG,
-    fatG,
-  };
-}
-
-function readMacroInput(panel, selector) {
-  const value = Number(panel.querySelector(selector)?.value);
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
-
 function foodFromCustom(custom) {
   return {
     id: custom.id,
     name: custom.name,
     nameAr: '',
-    macroRole: dominantMacroRoleFrontend(custom),
+    macroRole: 'mixed',
     caloriesPer100g: Number(custom.calories) || 0,
     proteinGPer100g: Number(custom.proteinG) || 0,
     carbGPer100g: Number(custom.carbG) || 0,
@@ -2115,16 +2216,6 @@ function foodFromCustom(custom) {
     maxServingG: 100,
     custom: true,
   };
-}
-
-function dominantMacroRoleFrontend({ proteinG = 0, carbG = 0, fatG = 0 }) {
-  const scores = [
-    ['protein', Number(proteinG) * 4],
-    ['carb', Number(carbG) * 4],
-    ['fat', Number(fatG) * 9],
-  ].sort((a, b) => b[1] - a[1]);
-  if (scores[0][1] <= 0) return 'mixed';
-  return scores[0][1] >= scores[1][1] * 1.35 ? scores[0][0] : 'mixed';
 }
 
 function mergeSolvedQuantities(attemptedItems, solvedItems) {
@@ -2294,6 +2385,7 @@ function showPlanSaveBar(folderId = null) {
     output.hidden = true;
     mealStates.length = 0;
     dailyTargets = null;
+    dailyBounds = null;
     currentPlanInput = null;
     switchPlannerView('input', { push: true });
     setInputsExpanded(true);
@@ -2456,7 +2548,7 @@ function buildPlanData() {
         food: item.food,
         quantityG: item.quantityG,
       })),
-      items: state.items.map((item) => ({
+      items: state.items.filter((item) => item.food).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
         customFood: item.customFood || null,

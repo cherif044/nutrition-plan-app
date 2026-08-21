@@ -3014,8 +3014,6 @@
     "is_vegetarian": true,
     "allergens": [],
     "categories": [
-      "vegetables",
-      "vegetable",
       "potato"
     ],
     "meal_tags": [
@@ -3079,8 +3077,6 @@
     "is_vegetarian": true,
     "allergens": [],
     "categories": [
-      "vegetables",
-      "vegetable",
       "potato",
       "sweet_potato"
     ],

@@ -89,8 +89,13 @@ function calculateDailyMacroRanges(weightKg, targetCalories) {
     min: weightKg * NUTRITION.fatPerKg.minimum,
     max: weightKg * NUTRITION.fatPerKg.maximum,
   };
+  const calories = {
+    min: targetCalories * (1 - NUTRITION.dailyCalorieTolerancePercent),
+    max: targetCalories * (1 + NUTRITION.dailyCalorieTolerancePercent),
+  };
   return {
     proteinG: protein,
+    carbG: carbRangeFromCaloriesProteinFat(calories, protein, fat),
     fatG: fat,
   };
 }
@@ -214,6 +219,7 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
     return {
       calories: calorieWindow,
       proteinG,
+      carbG: carbRangeFromCaloriesProteinFat(calorieWindow, proteinG, fatG),
       fatG,
       scaling: {
         protein: {
@@ -229,6 +235,21 @@ function buildScaledMealMacroWindows(dailyTargets, profiles) {
       },
     };
   });
+}
+
+function carbRangeFromCaloriesProteinFat(calories, proteinG, fatG) {
+  return {
+    min: Math.max(0, (
+      calories.min -
+      proteinG.max * NUTRITION.proteinKcalPerGram -
+      fatG.max * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram),
+    max: (
+      calories.max -
+      proteinG.min * NUTRITION.proteinKcalPerGram -
+      fatG.min * NUTRITION.fatKcalPerGram
+    ) / NUTRITION.carbKcalPerGram,
+  };
 }
 
 function rawMacroWindowFor(profile, dailyCalories, macro) {

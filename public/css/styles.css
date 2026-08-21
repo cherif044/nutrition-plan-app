@@ -1218,7 +1218,6 @@ input:focus, select:focus {
 }
 
 .meal-action-grid,
-.custom-food-form,
 .guided-choice-list,
 .proposal-list {
   display: grid;
@@ -1235,7 +1234,6 @@ input:focus, select:focus {
 }
 
 .guided-food-search,
-.custom-food-grid input,
 .decline-feedback input {
   width: 100%;
   min-height: 36px;
@@ -1249,7 +1247,6 @@ input:focus, select:focus {
 }
 
 .guided-food-search:focus,
-.custom-food-grid input:focus,
 .decline-feedback input:focus {
   outline: 0;
   border-color: var(--accent);
@@ -1263,50 +1260,10 @@ input:focus, select:focus {
 
 .guided-search-results[hidden] { display: none; }
 
-.guided-selected-food {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid rgba(13, 148, 136, 0.2);
-  border-radius: 9px;
-  background: rgba(13, 148, 136, 0.08);
-  color: var(--ink);
-  padding: 9px 11px;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.guided-selected-food[hidden] { display: none; }
-
-.guided-selected-food span {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 750;
-}
-
-.guided-food-submit:disabled {
-  opacity: 0.42;
-  cursor: default;
-  box-shadow: none;
-}
-
 .swap-search-block {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed var(--line);
-}
-
-.custom-food-form {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--line);
-}
-
-.custom-food-grid {
-  display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) repeat(4, minmax(86px, 1fr));
-  gap: 7px;
 }
 
 .suggestion-action-btn {
@@ -1958,7 +1915,7 @@ input:focus, select:focus {
   }
   .food-macros { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
   .food-actions { align-self: end; }
-  .custom-food-grid, .proposal-compare { grid-template-columns: 1fr; }
+  .proposal-compare { grid-template-columns: 1fr; }
 
   form .panel, .summary, .empty-state { padding: 16px; }
   .meal-card__header { padding: 16px 54px; }
@@ -5996,6 +5953,67 @@ body.dashboard-page .planner-nav {
   text-overflow: ellipsis;
 }
 
+.food-item--pending-add {
+  position: relative;
+  z-index: 45;
+  background: rgba(240, 253, 250, 0.58);
+}
+
+.meal-card.meal-card--has-pending-add {
+  overflow: visible;
+  z-index: 45;
+}
+
+.meal-card.meal-card--has-pending-add .food-table,
+.meal-card.meal-card--has-pending-add .food-list {
+  overflow: visible;
+}
+
+.food-item--pending-add .food-icon {
+  border: 1px dashed var(--ref-border);
+  background: #fff;
+}
+
+.pending-food-search {
+  position: relative;
+  z-index: 46;
+  min-width: 0;
+}
+
+.pending-food-search__input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--ref-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ref-fg);
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pending-food-search__input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.pending-food-search__results {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: min(280px, 42vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--ref-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  padding: 6px;
+}
+
 .produce-cycle-btn {
   display: inline-grid;
   place-items: center;
@@ -6466,7 +6484,6 @@ body.is-pdf-export .summary {
 
 .suggestion-item .food-icon,
 .suggestion-action-btn .food-icon,
-.guided-selected-food .food-icon,
 .proposal-item .food-icon {
   display: inline-grid;
   width: 30px;
@@ -6476,8 +6493,7 @@ body.is-pdf-export .summary {
   align-self: center;
 }
 
-.suggestion-item__body,
-.guided-selected-food__body {
+.suggestion-item__body {
   display: grid;
   min-width: 0;
   flex: 1 1 auto;
@@ -6485,27 +6501,10 @@ body.is-pdf-export .summary {
 }
 
 .suggestion-item__body strong,
-.suggestion-item__body small,
-.guided-selected-food__body strong,
-.guided-selected-food__body small {
+.suggestion-item__body small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.guided-selected-food {
-  justify-content: flex-start;
-}
-
-.guided-selected-food .guided-selected-food__body {
-  color: inherit;
-  font-size: inherit;
-}
-
-.guided-selected-food__body small {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 750;
 }
 
 .suggestion-action-btn strong {
@@ -6532,7 +6531,6 @@ body.is-pdf-export .summary {
 @media (max-width: 700px) {
   .suggestion-item .food-icon,
   .suggestion-action-btn .food-icon,
-  .guided-selected-food .food-icon,
   .proposal-item .food-icon {
     width: 26px;
     height: 26px;

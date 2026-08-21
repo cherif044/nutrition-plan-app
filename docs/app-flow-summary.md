@@ -167,7 +167,7 @@ Generation sequence:
 8. `planGenerator.generateReadyMealDay()` builds candidate ready meals for each slot.
 9. `readyMealRepository.loadReadyMealBundles()` reads ready-meal bundles from `ready_meals/meals.json`.
 10. Each ready meal is matched to allowed foods by ingredient name, then solved toward calories, protein, and fat.
-11. `findBestPortionGridFit()` and `solvePortionsLeastSquares()` adjust gram quantities to satisfy calorie/protein/fat bounds.
+11. `findBestPortionGridFit()` adjusts gram quantities to satisfy calorie/protein/fat bounds.
 12. `selectReadyMealDayCombination()` searches candidate combinations across the day and picks the best daily fit.
 13. Response contains `input`, `dailyTargets`, `nutritionCalculation`, `meals`, optional `warnings`, optional `diagnostics`, and optional impossible-plan `errors`.
 
@@ -579,7 +579,7 @@ mealStates[] = editable browser-side version of plan.meals[]
 - Input validation and restrictions: `src/services/planGenerator.js:normalizeInput`, `filterFoods`
 - Ready meal loading: `src/repositories/readyMealRepository.js`
 - Food macro records: `src/repositories/foodRepository.js`
-- Candidate solving: `src/services/planGenerator.js:solveReadyMealCandidate`, `solvePortionsLeastSquares`, `findBestPortionGridFit`
+- Candidate solving: `src/services/planGenerator.js:solveReadyMealCandidate`, `findBestPortionGridFit`
 - Daily candidate selection: `selectReadyMealDayCombination`
 - Meal edit rebalance: `rebalanceMeal`
 - Frontend daily red flags: `public/js/app.js:refreshRedFlags`

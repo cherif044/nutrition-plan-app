@@ -822,34 +822,14 @@ function isStrictMealOptionFit(totals, target) {
 function mealOptionForTarget(option, target) {
   if (!option || !Array.isArray(option.items) || option.items.length === 0 || !target) return null;
   const currentTotals = sumTargets(option.items.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
-  if (isStrictMealOptionFit(currentTotals, target)) {
-    return {
-      ...option,
-      items: option.items.map((item) => ({
-        ...item,
-        totals: macrosForFoodPortion(item.food, item.quantityG),
-      })),
-      totals: currentTotals,
-      isApproximate: false,
-    };
-  }
-
-  const solvedItems = solvePortionsLeastSquares(option.items, {
-    proteinG: target.proteinG,
-    carbG: target.carbG,
-    fatG: target.fatG,
-  });
-  const totals = sumTargets(solvedItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
-  if (!isStrictMealOptionFit(totals, target)) return null;
-
+  if (!isStrictMealOptionFit(currentTotals, target)) return null;
   return {
     ...option,
-    items: solvedItems.map((item, index) => ({
-      ...option.items[index],
+    items: option.items.map((item) => ({
       ...item,
       totals: macrosForFoodPortion(item.food, item.quantityG),
     })),
-    totals,
+    totals: currentTotals,
     isApproximate: false,
   };
 }
@@ -1046,51 +1026,6 @@ function dominantMacroRole({ proteinG, carbG, fatG }) {
   ].sort((a, b) => b[1] - a[1]);
   if (scores[0][1] <= 0) return 'mixed';
   return scores[0][1] >= scores[1][1] * 1.35 ? scores[0][0] : 'mixed';
-}
-
-function solvePortionsLeastSquares(items, target, options = {}) {
-  const weights = { protein: 1, fat: 1, ...(options.weights ?? {}) };
-  const maxIterations = options.maxIterations ?? NUTRITION.maxPortionAdjustmentIterations;
-  const learningRate = options.learningRate ?? 0.3;
-
-  const meta = items.map((item) => ({
-    p: item.food.proteinGPer100g / 100,
-    f: item.food.fatGPer100g / 100,
-    min: Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20,
-    max: Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500,
-  }));
-
-  // Raw floats during iteration — rounding only applied to final output
-  let x = meta.map((m, i) => clamp(items[i].quantityG, m.min, m.max));
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    let P = 0;
-    let F = 0;
-    for (let i = 0; i < x.length; i++) {
-      P += x[i] * meta[i].p;
-      F += x[i] * meta[i].f;
-    }
-
-    const errP = P - target.proteinG;
-    const errF = F - target.fatG;
-
-    let gradNormSq = 0;
-    const next = x.map((xi, i) => {
-      const grad =
-        2 * weights.protein * meta[i].p * errP +
-        2 * weights.fat    * meta[i].f * errF;
-      gradNormSq += grad * grad;
-      return clamp(xi - learningRate * grad, meta[i].min, meta[i].max);
-    });
-
-    x = next;
-    if (gradNormSq < 1e-6) break;
-  }
-
-  return items.map((item, i) => ({
-    ...item,
-    quantityG: roundServingWithinBounds(x[i], meta[i].min, meta[i].max),
-  }));
 }
 
 function findBestPortionGridFit(items, target, bounds, seedItems = items, options = {}) {
