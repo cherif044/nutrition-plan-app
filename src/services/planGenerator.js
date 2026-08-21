@@ -1,6 +1,7 @@
 const { loadFoods } = require('../repositories/foodRepository');
 const { loadReadyMealBundles } = require('../repositories/readyMealRepository');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
+const { MEAL_DISTRIBUTIONS: MEAL_DISTRIBUTION_FACTORS } = require('../config/nutritionConstants');
 const {
   NUTRITION,
   buildMealTargets,
@@ -11,24 +12,14 @@ const {
   clamp,
 } = require('./nutritionService');
 
-const ACTIVITY_LEVELS = new Set([
-  'sedentary',
-  'light',
-  'moderate',
-  'athlete',
-]);
+const ACTIVITY_LEVELS = new Set(Object.keys(NUTRITION.activityMultipliers));
 const GOALS = new Set(['maintain', 'lose_weight', 'gain_weight']);
-const SEXES = new Set(['male', 'female']);
-const MEAL_DISTRIBUTIONS = new Set([
-  'balanced',
-  'breakfast_heavy',
-  'lunch_heavy',
-  'dinner_heavy',
-]);
+const SEXES = new Set(Object.keys(NUTRITION.calorieFloorBySex));
+const MEAL_DISTRIBUTIONS = new Set(Object.keys(MEAL_DISTRIBUTION_FACTORS));
 const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
-const EXACT_PORTION_SEARCH_STEP_G = 1;
+const EXACT_PORTION_SEARCH_STEP_G = 2;
 
 function getFoods() {
   return loadFoods();

@@ -1049,27 +1049,13 @@ function mealOptionFitsTarget(option, target) {
   if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
   const totals = option.totals || computeTotals(option.items);
   if (target.macroWindows) {
-    const carbWindow = {
-      min: (
-        target.macroWindows.calories.min -
-        totals.proteinG * 4 -
-        totals.fatG * 9
-      ) / 4,
-      max: (
-        target.macroWindows.calories.max -
-        totals.proteinG * 4 -
-        totals.fatG * 9
-      ) / 4,
-    };
     return (
       totals.calories >= target.macroWindows.calories.min &&
       totals.calories <= target.macroWindows.calories.max &&
       totals.proteinG >= target.macroWindows.proteinG.min &&
       totals.proteinG <= target.macroWindows.proteinG.max &&
       totals.fatG >= target.macroWindows.fatG.min &&
-      totals.fatG <= target.macroWindows.fatG.max &&
-      totals.carbG >= carbWindow.min &&
-      totals.carbG <= carbWindow.max
+      totals.fatG <= target.macroWindows.fatG.max
     );
   }
   const weightKg = Number(currentPlanInput?.weightKg);
