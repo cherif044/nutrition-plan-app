@@ -556,7 +556,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       messages: plan.errors || plan.diagnostics?.errors || ['No feasible nutrition plan was found.'],
       diagnostics: plan.diagnostics,
     }));
-    if (!Array.isArray(plan.meals) || plan.meals.length === 0) return;
+    return;
   }
 
   if (plan.warnings?.length || plan.diagnostics?.warnings?.length) {

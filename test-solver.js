@@ -58,5 +58,20 @@ for (const meal of plan.meals || []) {
 }
 
 console.log(`\n${'-'.repeat(50)}`);
+console.log('\nMeal-count validation smoke test');
+let twoMealRejected = false;
+try {
+  generatePlan({
+    ...input,
+    numberOfMeals: 2,
+    mealDistribution: 'lunch_heavy',
+  });
+} catch (error) {
+  twoMealRejected = /between 3 and 5/i.test(error.message);
+}
+
+assert(twoMealRejected, '2-meal plans are rejected');
+
+console.log(`\n${'-'.repeat(50)}`);
 console.log(`Results: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

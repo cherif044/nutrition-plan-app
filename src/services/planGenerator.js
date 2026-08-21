@@ -364,8 +364,8 @@ function normalizeInput(input = {}) {
   if (!DIETS.has(dietType)) {
     throw new Error('Choose a valid diet type.');
   }
-  if (![2, 3, 4, 5].includes(numberOfMeals)) {
-    throw new Error('Meals must be between 2 and 5.');
+  if (![3, 4, 5].includes(numberOfMeals)) {
+    throw new Error('Meals must be between 3 and 5.');
   }
   if (!MEAL_DISTRIBUTIONS.has(mealDistribution)) {
     throw new Error('Choose a valid meal distribution.');
