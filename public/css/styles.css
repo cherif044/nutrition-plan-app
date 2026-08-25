@@ -6351,6 +6351,820 @@ body::after {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   Pinch UI Polish Report — restrained visual polish only.
+   Keeps app structure and behavior intact while tightening density, hierarchy,
+   responsive containment, and the background atmosphere.
+══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --polish-bg: #f6fbf8;
+  --polish-card: #fff;
+  --polish-line: #dce7e1;
+  --polish-line-strong: #cbdad2;
+  --polish-muted: #62746a;
+  --polish-shadow-card: 0 2px 8px rgba(26, 44, 33, 0.07);
+  --polish-shadow-card-hover: 0 8px 20px rgba(26, 44, 33, 0.09);
+  --polish-shadow-floating: 0 12px 28px rgba(15, 23, 42, 0.12);
+  --polish-radius-component: 10px;
+  --polish-radius-card: 16px;
+  --polish-space-1: 8px;
+  --polish-space-2: 12px;
+  --polish-space-3: 16px;
+  --polish-space-4: 24px;
+  --polish-space-5: 32px;
+}
+
+body {
+  background: var(--polish-bg);
+}
+
+body::before {
+  background:
+    radial-gradient(64rem 34rem at 50% -16%, rgba(15, 110, 86, 0.105), transparent 68%),
+    radial-gradient(42rem 30rem at 100% 96%, rgba(255, 249, 242, 0.62), transparent 64%);
+}
+
+body.dashboard-page::before {
+  background:
+    radial-gradient(68rem 34rem at 50% -14%, rgba(15, 110, 86, 0.095), transparent 70%),
+    radial-gradient(40rem 30rem at 100% 4%, rgba(255, 249, 242, 0.72), transparent 66%);
+}
+
+body::after {
+  display: none;
+}
+
+.planner-nav,
+.site-nav {
+  min-height: 60px;
+  height: 60px;
+  border-bottom-color: rgba(220, 231, 225, 0.82);
+  background: rgba(246, 251, 248, 0.94);
+}
+
+.planner-nav__brand strong,
+.site-nav__brand strong {
+  font-weight: 700;
+}
+
+.planner-nav__brand small,
+.planner-nav__greeting,
+.planner-nav__link,
+.site-nav__brand small,
+.dashboard-stat-card span,
+.dashboard-plan-card__path,
+.dashboard-plan-card__footer,
+.dashboard-customer-card small,
+.field-label,
+label > span,
+.switch-row span,
+.preference-field > span,
+.meal-card__meta,
+.meal-card__ranges::before,
+.summary__ranges::before {
+  color: var(--polish-muted);
+}
+
+body.dashboard-page .app-shell {
+  width: min(1280px, calc(100% - 48px));
+}
+
+body.dashboard-page .planner-nav {
+  padding-right: max(24px, calc((100vw - 1280px) / 2));
+  padding-left: max(24px, calc((100vw - 1280px) / 2));
+}
+
+.dashboard-shell {
+  gap: var(--polish-space-3);
+  padding-top: var(--polish-space-5);
+}
+
+.dashboard-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--polish-space-2);
+}
+
+.dashboard-main-row {
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.05fr);
+  gap: var(--polish-space-3);
+}
+
+.dashboard-panel-card,
+.dashboard-stat-card,
+.dashboard-plan-card,
+.dashboard-action-tile,
+.dashboard-customer-card,
+.inputs-card,
+.input-section,
+.summary,
+.meal-card,
+.plan-notice,
+.explorer-empty,
+.feature-card,
+.folder-card,
+.plan-row,
+.stats-bar__item {
+  border-color: var(--polish-line);
+  background: var(--polish-card);
+  box-shadow: var(--polish-shadow-card);
+}
+
+.dashboard-panel-card,
+.inputs-card,
+.summary,
+.meal-card,
+.plan-notice {
+  border-radius: var(--polish-radius-card) !important;
+}
+
+.input-section,
+.dashboard-stat-card,
+.dashboard-plan-card,
+.dashboard-action-tile,
+.dashboard-customer-card,
+.explorer-empty,
+.feature-card,
+.folder-card,
+.plan-row {
+  border-radius: var(--polish-radius-component);
+}
+
+.dashboard-panel-card {
+  padding: var(--polish-space-3);
+}
+
+.dashboard-stat-card {
+  min-height: 86px;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.dashboard-stat-card::after {
+  right: -18px;
+  bottom: -26px;
+  width: 70px;
+  height: 70px;
+  opacity: 0.08;
+}
+
+.dashboard-stat-card strong {
+  font-size: clamp(1.8rem, 3.2vw, 2.2rem);
+}
+
+.dashboard-stat-card[data-tone] {
+  background: #fff;
+}
+
+.dashboard-stat-card[data-tone="cal"] { color: var(--macro-cal-ink); }
+.dashboard-stat-card[data-tone="protein"] { color: var(--macro-protein-ink); }
+.dashboard-stat-card[data-tone="carb"] { color: var(--macro-carb-ink); }
+.dashboard-stat-card[data-tone="fat"] { color: var(--macro-fat-ink); }
+
+.dashboard-section,
+.dashboard-plan-grid,
+.dashboard-customer-grid {
+  gap: var(--polish-space-2);
+}
+
+.dashboard-search input,
+input,
+select,
+.token-input,
+.save-action-bar__name,
+.save-action-bar__customer {
+  min-height: 40px;
+  border-color: var(--polish-line-strong);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.dashboard-search input:focus,
+input:focus,
+select:focus,
+.token-input:focus-within,
+.save-action-bar__name:focus,
+.save-action-bar__customer:focus {
+  border-color: var(--ref-primary);
+  box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.13);
+}
+
+.dashboard-plan-card,
+.dashboard-customer-card,
+.dashboard-action-tile {
+  background: #fff;
+}
+
+.dashboard-plan-card::before,
+.dashboard-customer-card::before,
+.dashboard-action-tile::before {
+  opacity: 0.78;
+}
+
+.dashboard-plan-card:hover,
+.dashboard-action-tile:hover,
+.dashboard-customer-card:hover,
+.dashboard-customer-card.is-selected {
+  border-color: #9fbdaf;
+  background: #fbfdfc;
+  box-shadow: var(--polish-shadow-card-hover);
+}
+
+.dashboard-action-grid {
+  width: min(220px, 100%);
+  grid-template-columns: 1fr;
+}
+
+.dashboard-action-tile {
+  min-height: 62px;
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.dashboard-empty {
+  min-height: 126px;
+  padding: 22px 16px !important;
+}
+
+.dashboard-empty .explorer-empty__icon {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 2px;
+}
+
+.workspace,
+body.is-input-view .workspace {
+  width: min(880px, calc(100% - 40px));
+  padding-top: 32px;
+}
+
+body.is-plan-view .workspace,
+.results,
+body.is-plan-view .inputs-card,
+.planner-save-slot {
+  width: min(1080px, calc(100% - 40px));
+}
+
+body.is-input-view .setup-intro {
+  margin-bottom: 18px;
+}
+
+.setup-kicker {
+  min-height: 24px;
+  padding: 3px 9px;
+  font-size: 10px;
+}
+
+.setup-intro h1 {
+  font-size: clamp(1.65rem, 3vw, 2rem);
+  letter-spacing: 0;
+}
+
+.setup-stats {
+  margin-top: 14px;
+}
+
+.setup-stats span {
+  min-width: 76px;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.planner,
+.results,
+#plan-output {
+  gap: var(--polish-space-4);
+}
+
+body.is-plan-view .inputs-card {
+  margin-bottom: var(--polish-space-4);
+}
+
+.inputs-card__body {
+  gap: var(--polish-space-3);
+  padding: var(--polish-space-3);
+}
+
+.input-section {
+  padding: var(--polish-space-3) !important;
+}
+
+.panel h2,
+.input-section h2 {
+  margin-bottom: var(--polish-space-2);
+}
+
+.field-grid {
+  gap: var(--polish-space-2);
+}
+
+.field-grid + .field-grid,
+.input-section > label,
+.input-section > .preference-field,
+.ramadan-card,
+.segmented + .field-grid,
+.segmented + label,
+.segmented + .preference-field {
+  margin-top: var(--polish-space-2);
+}
+
+label,
+.preference-field {
+  gap: 5px;
+}
+
+.segmented {
+  border-radius: 10px;
+}
+
+.segmented span {
+  min-height: 34px;
+  border-radius: 7px;
+}
+
+.generate-button {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.summary {
+  padding: var(--polish-space-3) !important;
+}
+
+.summary__ranges,
+.meal-card__ranges {
+  gap: 5px;
+}
+
+.summary__range-chip,
+.meal-card__range-chip {
+  min-height: 24px;
+  border-color: rgba(220, 231, 225, 0.82);
+  border-radius: 7px;
+  padding: 3px 7px;
+  font-size: 10.5px;
+}
+
+.metric--macro {
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+
+.meal-card {
+  box-shadow: 0 2px 9px rgba(26, 44, 33, 0.09);
+}
+
+.meal-card + .meal-card {
+  margin-top: 0;
+}
+
+.meal-card__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.meal-card__header > div:not(.meal-card__actions) {
+  min-width: 0;
+}
+
+.meal-card__icon,
+.dashboard-icon-square,
+.panel h2 span,
+.input-section h2 span,
+.brand-mark {
+  border-radius: 10px;
+}
+
+.meal-card__icon {
+  width: 38px;
+  height: 38px;
+}
+
+.meal-card h2 {
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.meal-card__meta {
+  font-size: 12px;
+}
+
+.meal-card__kcal {
+  align-self: center;
+  background: #f2f7f4;
+}
+
+.meal-card__actions {
+  align-self: center;
+  gap: 6px;
+}
+
+.meal-cycle-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--polish-line);
+  border-radius: 999px;
+  background: #f8fbf9;
+  color: var(--ref-primary);
+  font-size: 20px;
+}
+
+.meal-cycle-btn:hover:not(:disabled) {
+  border-color: #9fbdaf;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(26, 44, 33, 0.08);
+}
+
+.edit-mode-switch {
+  min-height: 34px;
+  border-radius: 999px;
+  background: #f2f7f4;
+}
+
+.meal-card__ranges {
+  background: #fbfdfc;
+  padding: 8px 20px;
+}
+
+.food-list-head,
+.food-item,
+.meal-card__totals {
+  --table-pad: 20px;
+}
+
+.food-item {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.food-name,
+.food-item .food-cell--portion {
+  font-weight: 650;
+}
+
+.food-cell {
+  color: rgba(95, 114, 104, 0.86);
+}
+
+.food-item .food-cell--cal,
+.food-item .food-cell--protein,
+.food-item .food-cell--carb,
+.food-item .food-cell--fat {
+  font-weight: 550;
+}
+
+.meal-card__totals {
+  background: #f5faf7;
+}
+
+.planner-save-slot {
+  margin-top: var(--polish-space-4);
+}
+
+.save-action-bar {
+  border-radius: var(--polish-radius-card);
+  box-shadow: var(--polish-shadow-floating);
+}
+
+body.is-plan-view {
+  padding-bottom: calc(var(--save-bar-height, 0px) + 24px);
+}
+
+@media (min-width: 1080px) {
+  body.is-input-view .inputs-card__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  body.is-input-view .inputs-card__actions,
+  body.is-input-view .inputs-card > .message {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  body.dashboard-page .app-shell,
+  .workspace,
+  body.is-input-view .workspace,
+  body.is-plan-view .workspace,
+  .results,
+  body.is-plan-view .inputs-card,
+  .planner-save-slot {
+    width: calc(100% - 24px);
+  }
+
+  body.dashboard-page .planner-nav,
+  .planner-nav,
+  .site-nav {
+    height: auto;
+    min-height: 56px;
+    align-items: center;
+    padding: 10px 12px;
+  }
+
+  .planner-nav__user {
+    gap: 6px;
+  }
+
+  .planner-nav__link {
+    min-height: 34px;
+    padding: 6px 7px;
+  }
+
+  .planner-nav__link span {
+    font-size: 12px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  .dashboard-shell {
+    gap: 14px;
+    padding-top: 18px;
+  }
+
+  .dashboard-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dashboard-stat-card {
+    min-height: 74px;
+    gap: 4px;
+    padding: 11px 10px;
+  }
+
+  .dashboard-stat-card span {
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  .dashboard-stat-card strong {
+    font-size: 1.45rem;
+  }
+
+  .dashboard-main-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .dashboard-panel-card {
+    padding: 14px;
+  }
+
+  .dashboard-customer-grid {
+    grid-auto-rows: 64px;
+    max-height: calc(64px * 3 + 8px * 2);
+  }
+
+  .dashboard-customer-card {
+    height: 64px;
+  }
+
+  .dashboard-action-grid {
+    width: min(190px, 100%);
+  }
+
+  .dashboard-action-tile {
+    min-height: 56px;
+  }
+
+  .dashboard-empty {
+    min-height: 106px;
+    padding: 18px 14px !important;
+  }
+
+  .workspace,
+  body.is-input-view .workspace,
+  body.is-plan-view .workspace {
+    padding-top: 18px;
+  }
+
+  body.is-input-view .setup-intro {
+    margin-bottom: 14px;
+  }
+
+  .setup-intro h1 {
+    font-size: 25px;
+  }
+
+  .setup-intro > p:not(.setup-kicker) {
+    font-size: 13px;
+  }
+
+  .setup-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+
+  .setup-stats span {
+    min-width: 0;
+    padding: 7px 8px;
+  }
+
+  .planner,
+  .results,
+  #plan-output {
+    gap: 16px;
+  }
+
+  .inputs-card__body {
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .input-section {
+    padding: 14px !important;
+  }
+
+  .panel h2,
+  .input-section h2 {
+    margin-bottom: 10px;
+  }
+
+  input,
+  select,
+  .token-input {
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  .field-grid + .field-grid,
+  .input-section > label,
+  .input-section > .preference-field,
+  .ramadan-card,
+  .segmented + .field-grid,
+  .segmented + label,
+  .segmented + .preference-field {
+    margin-top: 10px;
+  }
+
+  .field-label,
+  label > span,
+  .switch-row span,
+  .preference-field > span {
+    font-size: 11.5px;
+  }
+
+  .segmented span {
+    min-height: 34px;
+    font-size: 13px;
+  }
+
+  .generate-button {
+    min-height: 42px;
+  }
+
+  .summary {
+    padding: 14px !important;
+  }
+
+  .metrics {
+    gap: 14px;
+  }
+
+  .cal-ring {
+    width: 96px;
+    height: 96px;
+  }
+
+  .meal-card__header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 14px;
+  }
+
+  .meal-card__header > div:not(.meal-card__actions) {
+    display: contents;
+  }
+
+  .meal-card__title-line {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .meal-card__meta {
+    grid-column: 1 / 2;
+    grid-row: 2;
+    align-self: center;
+    margin: 0;
+    font-size: 11px;
+  }
+
+  .meal-card__kcal {
+    grid-column: 3;
+    grid-row: 1;
+    padding: 3px 9px;
+  }
+
+  .meal-card__actions {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    width: auto;
+    justify-content: flex-start;
+    padding-left: 0;
+    gap: 6px;
+  }
+
+  .meal-card__icon {
+    grid-column: 1;
+    grid-row: 1;
+    width: 34px;
+    height: 34px;
+  }
+
+  .meal-card h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meal-cycle-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .edit-mode-switch {
+    min-height: 32px;
+    padding: 5px 9px;
+  }
+
+  .edit-mode-switch span {
+    font-size: 11.5px;
+  }
+
+  .meal-card__ranges {
+    gap: 4px;
+    padding: 7px 14px;
+  }
+
+  .meal-card__range-chip {
+    min-height: 22px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .food-table {
+    --table-pad: 12px;
+  }
+
+  .food-item {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .food-name {
+    font-size: 13px;
+  }
+
+  .food-item .food-cell--portion {
+    font-size: 12px;
+  }
+
+  .food-cell {
+    font-size: 10.5px;
+  }
+
+  .meal-card__totals {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .planner-save-slot {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-stat-card:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-customer-grid {
+    grid-auto-rows: minmax(76px, auto);
+    max-height: calc(76px * 3 + 8px * 2);
+  }
+
+  .dashboard-customer-card {
+    height: auto;
+    min-height: 76px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    Save bar — a column flex container turns `flex-basis` into a HEIGHT, which
    stretched the name field to 220px and pushed the bar over the plan.
 ══════════════════════════════════════════════════════════════════════════ */
