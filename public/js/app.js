@@ -176,6 +176,9 @@ function foodMediaPlaceholder(extraClass = '') {
   return `<span class="food-icon${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true"></span>`;
 }
 
+const DELETE_UNDO_MS = 6000;
+let deleteUndoSequence = 0;
+
 function produceGroup(food) {
   const categories = new Set(food?.categories || []);
   if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
@@ -1423,6 +1426,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
   if (Number.isInteger(itemIndex)) {
     const item = state.items[itemIndex];
     if (!item?.food) return;
+    const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
     const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
     attemptGuidedRebalance(state, {
       action: 'remove_food',
@@ -1430,6 +1434,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
       title: `Remove ${item.food.name}`,
       failureReason: 'Cannot delete this food.',
       failureMessage: 'Cannot delete this food.',
+      deleteUndo,
     });
     return;
   }
@@ -1453,16 +1458,114 @@ function showRemoveFoodAction(state, itemIndex = null) {
     `;
     setFoodMedia(btn.querySelector('.food-icon'), item.food, 15);
     btn.addEventListener('click', () => {
-      const attempted = state.items.filter((candidate) => candidate !== item);
+      const itemIndex = state.items.findIndex((candidate) => candidate === item);
+      if (itemIndex < 0) return;
+      const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
+      const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
       attemptGuidedRebalance(state, {
         action: 'remove_food',
         attemptedItems: attempted,
         title: `Remove ${item.food.name}`,
         failureReason: 'Cannot delete this food.',
         failureMessage: 'Cannot delete this food.',
+        deleteUndo,
       });
     });
     list.append(btn);
+  });
+}
+
+function createDeleteUndoContext(state, itemIndex, item) {
+  return {
+    id: `delete_undo_${++deleteUndoSequence}`,
+    state,
+    itemIndex,
+    foodName: item.food.name,
+    deletedItem: normalizeStateItem(item),
+    beforeItems: state.items.map(normalizeStateItem),
+  };
+}
+
+function mealItemsUndoSignature(items) {
+  return mealActionItems(items)
+    .map((item) => JSON.stringify({
+      foodId: String(item.foodId || ''),
+      name: item.name || '',
+      quantityG: Math.round((Number(item.quantityG) || 0) * 10) / 10,
+      customId: item.customFood?.id || '',
+    }))
+    .join('|');
+}
+
+function ensureDeleteUndoHost() {
+  let host = document.querySelector('.delete-undo-host');
+  if (host) return host;
+  host = document.createElement('div');
+  host.className = 'delete-undo-host';
+  host.setAttribute('aria-live', 'polite');
+  host.setAttribute('aria-atomic', 'false');
+  document.body.append(host);
+  return host;
+}
+
+function showDeleteUndoToast(context) {
+  const host = ensureDeleteUndoHost();
+  const toast = document.createElement('div');
+  toast.className = 'delete-undo-toast';
+  toast.dataset.undoId = context.id;
+  toast.style.setProperty('--delete-undo-duration', `${DELETE_UNDO_MS}ms`);
+  toast.innerHTML = `
+    <div class="delete-undo-toast__content">
+      <span class="delete-undo-toast__label">Deleted ${escapeHtml(context.foodName)}</span>
+      <button class="delete-undo-toast__button" type="button">${iconSvg('rotate', 14)}<span>Undo delete</span></button>
+    </div>
+    <span class="delete-undo-toast__bar" aria-hidden="true"></span>
+  `;
+
+  const dismissTimer = window.setTimeout(() => dismissDeleteUndoToast(toast), DELETE_UNDO_MS);
+  toast.querySelector('.delete-undo-toast__button')?.addEventListener('click', () => {
+    window.clearTimeout(dismissTimer);
+    restoreDeletedFood(context);
+    dismissDeleteUndoToast(toast);
+  }, { once: true });
+
+  host.prepend(toast);
+}
+
+function dismissDeleteUndoToast(toast) {
+  if (!toast || toast.classList.contains('is-dismissing')) return;
+  toast.classList.add('is-dismissing');
+  window.setTimeout(() => {
+    toast.remove();
+    const host = document.querySelector('.delete-undo-host');
+    if (host && !host.children.length) host.remove();
+  }, 220);
+}
+
+function restoreDeletedFood(context) {
+  const state = context.state;
+  if (!state?.items || !state.cardEl?.isConnected) return;
+
+  const currentSignature = mealItemsUndoSignature(state.items);
+  let restoredItems = context.beforeItems;
+  let restoredIndex = context.itemIndex;
+
+  if (currentSignature !== context.afterSignature) {
+    restoredIndex = Math.min(Math.max(context.itemIndex, 0), state.items.length);
+    restoredItems = [
+      ...state.items.slice(0, restoredIndex),
+      context.deletedItem,
+      ...state.items.slice(restoredIndex),
+    ];
+  }
+
+  applyMealItems(state, restoredItems, { source: 'undo_delete' });
+  pulseFoodRow(state, restoredIndex);
+  showActionFeedback(state, {
+    tone: 'success',
+    message: `Restored ${context.foodName}.`,
+    compact: true,
+    cardClass: 'meal-card--flash-success',
   });
 }
 
@@ -1859,6 +1962,7 @@ async function attemptGuidedRebalance(state, {
   failureReason,
   failureMessage = '',
   successRowIndex = null,
+  deleteUndo = null,
 } = {}) {
   const shouldApplyImmediately = state.editModeEnabled && ['add_food', 'add_custom_food', 'remove_food', 'swap_food'].includes(action);
   if (!shouldApplyImmediately) {
@@ -1899,6 +2003,12 @@ async function attemptGuidedRebalance(state, {
           }
         }
         applyMealItems(state, proposedItems, { source: 'deterministic', preloadedProduceEntry });
+        if (action === 'remove_food' && deleteUndo) {
+          showDeleteUndoToast({
+            ...deleteUndo,
+            afterSignature: mealItemsUndoSignature(proposedItems),
+          });
+        }
         if (Number.isInteger(successRowIndex)) {
           pulseFoodRow(state, successRowIndex);
         }

@@ -1465,6 +1465,86 @@ input:focus, select:focus {
   padding: 3px;
 }
 
+.delete-undo-host {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(var(--save-bar-height, 0px) + max(18px, env(safe-area-inset-bottom)));
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.delete-undo-toast {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+  animation: deleteUndoToastIn 0.22s var(--ease-out) both;
+}
+
+.delete-undo-toast.is-dismissing {
+  animation: deleteUndoToastOut 0.2s var(--ease-smooth) both;
+}
+
+.delete-undo-toast__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 15px 14px;
+}
+
+.delete-undo-toast__label {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 780;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.delete-undo-toast__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.09);
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 8px 10px;
+  white-space: nowrap;
+  transition: background 0.16s var(--ease-smooth), transform 0.16s var(--ease-spring);
+}
+
+.delete-undo-toast__button:hover {
+  background: rgba(13, 148, 136, 0.15);
+  transform: translateY(-1px);
+}
+
+.delete-undo-toast__button:active {
+  transform: scale(0.96);
+}
+
+.delete-undo-toast__bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--danger), #f59e0b, var(--accent));
+  transform-origin: left center;
+  animation: deleteUndoCountdown var(--delete-undo-duration, 6000ms) linear forwards;
+}
+
 .meal-card--flash-success {
   animation: mealFlashSuccess 0.7s var(--ease-smooth) both;
 }
@@ -1914,6 +1994,20 @@ input:focus, select:focus {
   100% { border-color: var(--ref-border); box-shadow: 0 2px 9px rgba(26, 44, 33, 0.12); background: #fff; }
 }
 
+@keyframes deleteUndoCountdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+@keyframes deleteUndoToastIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes deleteUndoToastOut {
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
 @keyframes rowSoftSuccess {
   0%   { background: transparent; }
   35%  { background: rgba(220, 252, 231, 0.72); }
@@ -1923,6 +2017,12 @@ input:focus, select:focus {
 /* ── Responsive — Tablet ──────────────────────────────────────────────── */
 
 @media (max-width: 960px) {
+  .delete-undo-host {
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+
   .workspace { grid-template-columns: 1fr; }
   .planner { position: static; }
   .topbar { align-items: flex-start; }
