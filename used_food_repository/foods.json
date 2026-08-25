@@ -1259,10 +1259,7 @@
     "is_vegan": true,
     "is_vegetarian": true,
     "allergens": [],
-    "categories": [
-      "fruits",
-      "fruit"
-    ],
+    "categories": [],
     "meal_tags": [
       "breakfast",
       "lunch",
