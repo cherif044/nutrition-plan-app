@@ -776,6 +776,7 @@ function renderPlanNotice({ tone, title, messages, diagnostics }) {
 
 const RING_RADIUS = 52;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const DAILY_CALORIE_TOLERANCE_PERCENT = 0.05;
 
 function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
@@ -1282,14 +1283,23 @@ function dailyMetricBounds(key, targets, serverBounds = null) {
   }
 
   const range = targets?.macroRanges?.[key];
-  if ((key === 'proteinG' || key === 'carbG' || key === 'fatG') && range) {
+  if (range && Number.isFinite(Number(range.min)) && Number.isFinite(Number(range.max))) {
     return { min: Number(range.min), max: Number(range.max) };
+  }
+
+  const targetValue = Number(targets?.[key]);
+  if (key === 'calories' && Number.isFinite(targetValue)) {
+    return {
+      min: targetValue - targetValue * DAILY_CALORIE_TOLERANCE_PERCENT,
+      max: targetValue + targetValue * DAILY_CALORIE_TOLERANCE_PERCENT,
+    };
   }
 
   return null;
 }
 
 function formatAllowedRange(bounds, unit) {
+  if (!bounds) return '';
   return `Allowed ${formatNumber(bounds.min)}-${formatNumber(bounds.max)} ${unit}`;
 }
 
