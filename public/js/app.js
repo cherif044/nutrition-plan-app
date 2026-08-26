@@ -538,6 +538,84 @@ function savedPlanLoadError(plan) {
   return '';
 }
 
+function mealOptionKey(option) {
+  return option.templateId || option.templateName || mealItemsSignature(option.items);
+}
+
+function mealItemsSignature(items = []) {
+  return (items || [])
+    .map((item) => `${item.food?.id || item.food?.name || ''}:${Math.round(Number(item.quantityG) || 0)}`)
+    .join('|');
+}
+
+function uniqueMealOptions(originalMealOption, mealOptions = []) {
+  const seen = new Set();
+  return [originalMealOption, ...mealOptions].filter((option) => {
+    const key = mealOptionKey(option);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Array.isArray(option.items) && option.items.length > 0;
+  });
+}
+
+function restoredMealOptionIndex(meal, originalMealOption, mealOptions) {
+  const options = uniqueMealOptions(originalMealOption, mealOptions);
+  const savedIndex = Number(meal.mealOptionIndex);
+  if (Number.isInteger(savedIndex) && savedIndex >= 0 && savedIndex < options.length) {
+    return savedIndex;
+  }
+
+  if (meal.templateId) {
+    const templateIndex = options.findIndex((option) => String(option.templateId || '') === String(meal.templateId));
+    if (templateIndex >= 0) return templateIndex;
+  }
+
+  const selectedSignature = mealItemsSignature(meal.items);
+  const itemIndex = options.findIndex((option) => mealItemsSignature(option.items) === selectedSignature);
+  return itemIndex >= 0 ? itemIndex : 0;
+}
+
+function currentMealOptionIndex(state) {
+  const options = readyMealOptions(state);
+  const index = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  if (options.length === 0) return 0;
+  return Math.min(Math.max(index, 0), options.length - 1);
+}
+
+function persistCurrentMealOption(state) {
+  const options = readyMealOptions(state);
+  if (!options.length) return;
+
+  const optionIndex = currentMealOptionIndex(state);
+  const option = options[optionIndex];
+  const updatedOption = normalizeMealOption({
+    ...option,
+    templateId: option.templateId || state.templateId || null,
+    templateName: option.templateName || state.templateName || state.name,
+    templateFamily: option.templateFamily || state.templateFamily || null,
+    items: state.items.filter((item) => item.food),
+    totals: computeTotals(state.items),
+    isApproximate: Boolean(state.isApproximate),
+  });
+
+  if (optionIndex === 0) {
+    state.originalMealOption = updatedOption;
+    state.originalItems = updatedOption.items.map((item) => ({
+      food: item.food,
+      quantityG: item.quantityG,
+    }));
+    return;
+  }
+
+  const optionKey = mealOptionKey(option);
+  const rawIndex = state.mealOptions.findIndex((candidate) => mealOptionKey(candidate) === optionKey);
+  if (rawIndex >= 0) {
+    state.mealOptions[rawIndex] = updatedOption;
+  } else {
+    state.mealOptions[optionIndex - 1] = updatedOption;
+  }
+}
+
 async function loadPlanForEdit(planId) {
   try {
     const res = await fetch(`/api/plans/${planId}`);
@@ -645,6 +723,17 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
   }
 
   plan.meals.forEach((meal, mealIndex) => {
+    const mealOptions = (meal.mealOptions || [])
+      .map(normalizeMealOption)
+      .filter((option) => mealOptionFitsTarget(option, meal.target));
+    const originalMealOption = normalizeMealOption({
+      templateId: meal.originalTemplateId || null,
+      templateName: meal.originalTemplateName || meal.name,
+      templateFamily: meal.originalTemplateFamily || null,
+      items: meal.originalItems || meal.items,
+      totals: meal.originalTotals || null,
+      isApproximate: Boolean(meal.originalIsApproximate),
+    });
     const state = {
       mealIndex,
       name: meal.name,
@@ -658,10 +747,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       candidateSource: meal.candidateSource || null,
       isApproximate: Boolean(meal.isApproximate),
       unavailableReason: meal.unavailableReason || null,
-      mealOptions: (meal.mealOptions || [])
-        .map(normalizeMealOption)
-        .filter((option) => mealOptionFitsTarget(option, meal.target)),
-      mealOptionIndex: 0,
+      mealOptions,
+      mealOptionIndex: restoredMealOptionIndex(meal, originalMealOption, mealOptions),
       editModeEnabled: false,
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
@@ -679,14 +766,7 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
         swapOptions: item.swapOptions || null,
         swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
       })),
-      originalMealOption: normalizeMealOption({
-        templateId: meal.templateId || null,
-        templateName: meal.templateName || meal.name,
-        templateFamily: meal.templateFamily || null,
-        items: meal.items,
-        totals: meal.totals || null,
-        isApproximate: Boolean(meal.isApproximate),
-      }),
+      originalMealOption,
       chatHistory: [],
       chatTurnCount: 0,
       chatWorkingItems: null,
@@ -1349,16 +1429,11 @@ function readyMealOptions(state) {
     items: state.items,
     isApproximate: Boolean(state.isApproximate),
   });
-  const seen = new Set();
-  return [original, ...(state.mealOptions || [])].filter((option) => {
-    const key = option.templateId || option.templateName || JSON.stringify((option.items || []).map((item) => item.food?.id));
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return Array.isArray(option.items) && option.items.length > 0;
-  });
+  return uniqueMealOptions(original, state.mealOptions || []);
 }
 
 async function handleCycleMealOption(state, direction) {
+  persistCurrentMealOption(state);
   const options = readyMealOptions(state);
   if (options.length <= 1) {
     showActionMessage(state, 'No other ready meals fit this meal window yet.');
@@ -2201,16 +2276,8 @@ function applyMealItems(state, items, options = {}) {
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
     state.isApproximate = Boolean(options.isApproximate);
-  } else {
-    state.originalMealOption = normalizeMealOption({
-      templateId: state.templateId || null,
-      templateName: state.templateName || state.name,
-      items: state.items,
-      totals: computeTotals(state.items),
-      isApproximate: Boolean(state.isApproximate),
-    });
-    state.mealOptionIndex = 0;
   }
+  persistCurrentMealOption(state);
   renderFoodList(state);
   refreshMealCardHeader(state.cardEl, state);
   refreshMealCycleButtons(state);
@@ -2722,6 +2789,7 @@ function buildCustomerPayload(bar, state) {
 }
 
 function buildPlanData() {
+  mealStates.forEach(persistCurrentMealOption);
   const actual = mealStates.reduce(
     (acc, state) => {
       const t = computeTotals(state.items);
@@ -2740,6 +2808,12 @@ function buildPlanData() {
       name: state.name,
       tag: state.tag,
       target: state.target,
+      mealOptionIndex: Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0,
+      originalTemplateId: state.originalMealOption?.templateId || null,
+      originalTemplateName: state.originalMealOption?.templateName || state.name,
+      originalTemplateFamily: state.originalMealOption?.templateFamily || null,
+      originalTotals: state.originalMealOption?.totals || null,
+      originalIsApproximate: Boolean(state.originalMealOption?.isApproximate),
       originalItems: state.originalItems.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
