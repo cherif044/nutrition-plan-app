@@ -20,6 +20,8 @@ let customerPlanRequestId = 0;
 let selectedCustomerForPlans = null;
 let dashboardMenu = null;
 let activePdfDownloadController = null;
+let dashboardSearchController = null;
+const DASHBOARD_PAGE_LIMIT = 50;
 const relativeUnits = [
   ['year', 31536000000],
   ['month', 2592000000],
@@ -104,6 +106,14 @@ function pdfDownloadName(planName) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'nutrition-plan';
   return `${base}.pdf`;
+}
+
+function debounce(fn, wait = 250) {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), wait);
+  };
 }
 
 function filenameFromDisposition(disposition, fallback) {
@@ -226,46 +236,6 @@ function renderGeneralPlans(plans = allGeneralPlans) {
     shell.append(card, menuButton);
     container.append(shell);
   });
-}
-
-function addGeneralPlans(plans, folderPath, bucket) {
-  (plans || []).forEach((plan) => {
-    if (plan.customer_id) return;
-    bucket.push({ ...plan, folderPath });
-  });
-}
-
-async function loadGeneralPlans() {
-  const bucket = [];
-  const rootRes = await fetch('/api/folders');
-  if (!rootRes.ok) throw new Error('Failed to load general plans.');
-  const rootData = await rootRes.json();
-  addGeneralPlans(rootData.plans, [], bucket);
-
-  const treeRes = await fetch('/api/folders/tree');
-  if (treeRes.ok) {
-    const { tree } = await treeRes.json();
-    await loadFolderPlans(tree || [], [], bucket);
-  }
-
-  allGeneralPlans = bucket.sort((a, b) => {
-    const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
-    const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
-    return bTime - aTime;
-  });
-  renderGeneralPlans();
-}
-
-async function loadFolderPlans(nodes, parentPath, bucket) {
-  for (const node of nodes) {
-    const path = [...parentPath, { id: node.id, name: node.name }];
-    const res = await fetch(`/api/folders/${encodeURIComponent(node.id)}`);
-    if (res.ok) {
-      const data = await res.json();
-      addGeneralPlans(data.plans, path, bucket);
-    }
-    await loadFolderPlans(node.children || [], path, bucket);
-  }
 }
 
 function renderCustomers(customers = []) {
@@ -406,15 +376,34 @@ function positionDashboardMenu(button) {
   menu.style.top = `${Math.max(8, top)}px`;
 }
 
-async function refreshDashboard() {
-  const res = await fetch('/api/dashboard');
+function dashboardQueryParams() {
+  const params = new URLSearchParams({ limit: String(DASHBOARD_PAGE_LIMIT) });
+  const customerQuery = document.getElementById('customer-search')?.value.trim() || '';
+  const generalQuery = document.getElementById('general-plan-search')?.value.trim() || '';
+  if (customerQuery) params.set('customerQuery', customerQuery);
+  if (generalQuery) params.set('generalQuery', generalQuery);
+  return params;
+}
+
+async function fetchDashboardData({ signal } = {}) {
+  const params = dashboardQueryParams();
+  const res = await fetch(`/api/dashboard?${params.toString()}`, { signal });
   if (!res.ok) throw new Error('Failed to load dashboard.');
-  const data = await res.json();
+  return res.json();
+}
+
+function renderDashboard(data) {
   renderStats(data.stats);
   renderCustomers(data.customers);
-  await loadGeneralPlans();
+  allGeneralPlans = data.generalPlans || [];
+  renderGeneralPlans(allGeneralPlans);
+}
 
-  if (!selectedCustomerForPlans) return;
+async function refreshDashboard({ reloadSelectedCustomer = true } = {}) {
+  const data = await fetchDashboardData();
+  renderDashboard(data);
+
+  if (!reloadSelectedCustomer || !selectedCustomerForPlans) return;
   const refreshedCustomer = data.customers.find((customer) => String(customer.id) === String(selectedCustomerForPlans.id));
   if (!refreshedCustomer) {
     selectedCustomerId = null;
@@ -484,14 +473,22 @@ async function initDashboard() {
   if (!authed) return;
 
   try {
-    const res = await fetch('/api/dashboard');
-    if (!res.ok) throw new Error('Failed to load dashboard.');
-    const data = await res.json();
-    renderStats(data.stats);
-    renderCustomers(data.customers);
-    await loadGeneralPlans();
-    document.getElementById('customer-search')?.addEventListener('input', renderCustomerList);
-    document.getElementById('general-plan-search')?.addEventListener('input', () => renderGeneralPlans());
+    const data = await fetchDashboardData();
+    renderDashboard(data);
+    const runSearch = debounce(async () => {
+      dashboardSearchController?.abort();
+      dashboardSearchController = new AbortController();
+      try {
+        const freshData = await fetchDashboardData({ signal: dashboardSearchController.signal });
+        renderDashboard(freshData);
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
+        }
+      }
+    });
+    document.getElementById('customer-search')?.addEventListener('input', runSearch);
+    document.getElementById('general-plan-search')?.addEventListener('input', runSearch);
   } catch {
     document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
   }

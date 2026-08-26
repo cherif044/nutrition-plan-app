@@ -1,8 +1,11 @@
 function errorHandler(error, _req, res, _next) {
-  const status = error.statusCode || 400;
+  const isDatabaseError = String(error.name || '').startsWith('Sequelize');
+  const status = error.status || error.statusCode || (isDatabaseError ? 500 : 400);
 
   res.status(status).json({
-    error: error.message || 'Unable to generate a nutrition plan.',
+    error: status >= 500
+      ? (error.message || 'Internal server error.')
+      : (error.message || 'Request failed.'),
   });
 }
 

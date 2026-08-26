@@ -24,8 +24,13 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api', generationRoutes);
 
-app.use('/food-icons', express.static(foodIconsDir));
-app.use(express.static(publicDir));
+app.use('/food-icons', express.static(foodIconsDir, {
+  immutable: true,
+  maxAge: '1y',
+}));
+app.use(express.static(publicDir, {
+  maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+}));
 app.get('/js/zxcvbn.browser.js', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'zxcvbn', 'dist', 'zxcvbn.js'));
 });

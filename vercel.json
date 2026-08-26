@@ -6,13 +6,21 @@
       "destination": "https://nutrition-628a4.firebaseapp.com/__/auth/:path*"
     },
     {
+      "source": "/api/plans/:id/export.pdf",
+      "destination": "/api/plan-export.js?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/api/index.js"
     }
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{used_food_repository/**,public/**,icons/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js,node_modules/@sparticuz/chromium/**}",
+      "includeFiles": "{used_food_repository/**,public/**,icons/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}",
+      "maxDuration": 60
+    },
+    "api/plan-export.js": {
+      "includeFiles": "{public/**,icons/**,node_modules/@sparticuz/chromium/**}",
       "maxDuration": 60
     }
   }

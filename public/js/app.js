@@ -270,7 +270,8 @@ let foodsById = new Map();
 // Declared up here because reserveSpaceForSaveBar() runs during init, before
 // the function that uses it appears further down the file.
 let saveBarResizeObserver = null;
-loadAllFoods();
+let foodsLoadPromise = null;
+let preferenceOptionsLoadPromise = null;
 
 const mealStates = [];
 let dailyTargets = null;
@@ -344,7 +345,7 @@ if (!plannerCtx?.planId) {
   switchPlannerView('input', { push: false });
   setInputsExpanded(true);
 }
-loadPreferenceOptions();
+scheduleReferenceDataLoad();
 
 function readForm() {
   const data = new FormData(form);
@@ -484,16 +485,69 @@ async function loadAllFoods() {
     if (!res.ok) return;
     const { foods } = await readJsonResponse(res, 'Unable to load foods.');
     foodsById = new Map(foods.map((f) => [f.id, f]));
+    return foods;
   } catch { /* non-critical */ }
+  return [];
+}
+
+function ensureFoodsLoaded() {
+  if (!foodsLoadPromise) {
+    foodsLoadPromise = loadAllFoods().catch(() => {
+      foodsLoadPromise = null;
+      return [];
+    });
+  }
+  return foodsLoadPromise;
+}
+
+function ensurePreferenceOptionsLoaded() {
+  if (!preferenceOptionsLoadPromise) {
+    preferenceOptionsLoadPromise = loadPreferenceOptions().catch((error) => {
+      preferenceOptionsLoadPromise = null;
+      throw error;
+    });
+  }
+  return preferenceOptionsLoadPromise;
+}
+
+function scheduleReferenceDataLoad() {
+  const load = () => {
+    ensureFoodsLoaded();
+    ensurePreferenceOptionsLoaded().catch(() => {});
+  };
+
+  if (!plannerCtx?.planId) {
+    load();
+    return;
+  }
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(load, { timeout: 2000 });
+  } else {
+    window.setTimeout(load, 800);
+  }
 }
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
 
+function savedPlanLoadError(plan) {
+  if (!plan || typeof plan !== 'object') return 'Saved plan data is missing.';
+  if (!plan.dailyTargets || typeof plan.dailyTargets !== 'object') return 'Saved plan targets are missing.';
+  if (!Array.isArray(plan.meals)) return 'Saved plan meals are missing.';
+  if (plan.meals.some((meal) => !Array.isArray(meal.items))) return 'Saved plan meal items are missing.';
+  return '';
+}
+
 async function loadPlanForEdit(planId) {
   try {
     const res = await fetch(`/api/plans/${planId}`);
-    if (!res.ok) { message.textContent = 'Plan not found.'; return; }
-    const { plan } = await readJsonResponse(res, 'Failed to load plan.');
+    const payload = await readJsonResponse(res, 'Failed to load plan.');
+    if (!res.ok) {
+      throw new Error(payload.error || (res.status === 404 ? 'Plan not found.' : 'Failed to load plan.'));
+    }
+    const { plan } = payload;
+    const shapeError = savedPlanLoadError(plan?.plan_data);
+    if (shapeError) throw new Error(shapeError);
 
     if (plan.plan_data?.input) {
       populateFormFromInput(plan.plan_data.input);
@@ -503,8 +557,8 @@ async function loadPlanForEdit(planId) {
     initializeCustomerPickerFromPlan(plan);
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
-  } catch {
-    message.textContent = 'Failed to load plan.';
+  } catch (error) {
+    message.textContent = error.message || 'Failed to load plan.';
   }
 }
 
@@ -2255,6 +2309,14 @@ function showActionFeedback(state, { tone = 'success', message, cardClass = '', 
 
 function renderFoodSearchResults(state, query, resultsEl, onSelect) {
   const q = normalizeText(query);
+  if (q && foodsById.size === 0) {
+    resultsEl.innerHTML = '<div class="suggestion-empty">Loading foods...</div>';
+    resultsEl.hidden = false;
+    ensureFoodsLoaded().then(() => {
+      if (normalizeText(query) === q) renderFoodSearchResults(state, query, resultsEl, onSelect);
+    });
+    return;
+  }
   const foods = [...foodsById.values()]
     .filter(foodAllowedForCurrentPreferences)
     .map((food) => ({ food, score: scoreFoodForMealSearch(food, q, state.tag) }))

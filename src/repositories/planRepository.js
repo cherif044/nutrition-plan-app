@@ -60,14 +60,15 @@ async function getPlanById(planId, userId, { markOpened = false } = {}) {
     }],
   });
   if (!plan) return null;
+  const data = plan.toJSON();
   if (markOpened) {
-    plan.last_opened_at = new Date();
-    await Plan.update(
-      { last_opened_at: plan.last_opened_at },
+    data.last_opened_at = new Date();
+    Plan.update(
+      { last_opened_at: data.last_opened_at },
       { where: { id: planId, user_id: userId } },
-    );
+    ).catch(() => {});
   }
-  return plan.toJSON();
+  return data;
 }
 
 async function updatePlan(planId, userId, { name, planData, folderId, customer, isActive }) {

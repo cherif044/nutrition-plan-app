@@ -1,5 +1,4 @@
 const { createPlan, getPlanById, updatePlan, deletePlan, duplicatePlan, setPlanActive } = require('../repositories/planRepository');
-const { generatePlanPdf, pdfFilename } = require('../services/planPdfService');
 
 async function createPlanHandler(req, res, next) {
   try {
@@ -27,6 +26,7 @@ async function exportPlanPdfHandler(req, res, next) {
     const plan = await getPlanById(req.params.id, req.user.id);
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
 
+    const { generatePlanPdf, pdfFilename } = require('../services/planPdfService');
     const pdf = await generatePlanPdf(plan);
     const filename = pdfFilename(plan);
     res.setHeader('Content-Type', 'application/pdf');
