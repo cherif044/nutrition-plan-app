@@ -2,9 +2,10 @@ const plannerCtx = (() => {
   const p = new URLSearchParams(location.search);
   const planId = p.get('planId');
   const folderId = p.get('folderId');
+  const customerId = p.get('customerId');
   const exportPdf = p.get('export') === 'pdf';
-  if (!planId && !folderId) return null;
-  return { planId, folderId, folderName: null, exportPdf };
+  if (!planId && !folderId && !customerId) return null;
+  return { planId, folderId, customerId, folderName: null, exportPdf };
 })();
 
 function iconSvg(name, size = 16) {
@@ -211,8 +212,9 @@ function produceGroup(food) {
       if (eyebrow) eyebrow.textContent = 'Edit Plan';
       if (title) title.textContent = 'Your inputs';
       loadPlanForEdit(plannerCtx.planId);
-    } else if (plannerCtx?.folderId) {
-      fetch(`/api/folders/${plannerCtx.folderId}`)
+    } else {
+      if (plannerCtx?.folderId) {
+        fetch(`/api/folders/${plannerCtx.folderId}`)
         .then((r) => r.json())
         .then(({ folder }) => {
           if (!folder) return;
@@ -221,6 +223,10 @@ function produceGroup(food) {
           if (eyebrow) eyebrow.textContent = `Saving to ${folder.name}`;
         })
         .catch(() => {});
+      }
+      if (plannerCtx?.customerId) {
+        loadCustomerForPlanning(plannerCtx.customerId);
+      }
     }
   } catch {
     window.location.replace('/login');
@@ -344,6 +350,10 @@ syncInputSummary();
 if (!plannerCtx?.planId) {
   switchPlannerView('input', { push: false });
   setInputsExpanded(true);
+} else {
+  switchPlannerView('plan', { push: false });
+  setInputsExpanded(false);
+  showSavedPlanSkeleton();
 }
 scheduleReferenceDataLoad();
 
@@ -394,9 +404,7 @@ async function validatePreGenerationSaveDetails() {
       preGenerationCustomerPicker.querySelector('.save-customer-picker__match'),
     );
     if (preGenerationCustomerState.exactMatch) {
-      message.textContent = `${preGenerationCustomerState.exactMatch.name} already exists — use this customer?`;
-      customerInput?.focus();
-      return false;
+      selectCustomer(preGenerationCustomerState.exactMatch, preGenerationCustomerState, preGenerationCustomerPicker);
     }
   }
 
@@ -538,6 +546,51 @@ function savedPlanLoadError(plan) {
   return '';
 }
 
+function showSavedPlanSkeleton() {
+  if (!output) return;
+  output.hidden = false;
+  output.setAttribute('aria-busy', 'true');
+  if (emptyState) emptyState.hidden = true;
+  output.innerHTML = `
+    <section class="summary panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__head">
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__metrics">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </section>
+    <article class="meal-card panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__meal-head">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__rows">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+    <article class="meal-card panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__meal-head">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__rows">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+  `;
+}
+
 function mealOptionKey(option) {
   return option.templateId || option.templateName || mealItemsSignature(option.items);
 }
@@ -635,7 +688,17 @@ async function loadPlanForEdit(planId) {
     initializeCustomerPickerFromPlan(plan);
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
+    switchPlannerView('plan', { push: false });
+    setInputsExpanded(false);
+    message.textContent = '';
+    output?.scrollIntoView({ block: 'start' });
   } catch (error) {
+    if (output) {
+      output.innerHTML = '';
+      output.removeAttribute('aria-busy');
+      output.hidden = true;
+    }
+    if (emptyState) emptyState.hidden = false;
     message.textContent = error.message || 'Failed to load plan.';
   }
 }
@@ -676,6 +739,7 @@ function populateFormFromInput(input) {
 
 function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {}) {
   output.innerHTML = '';
+  output.removeAttribute('aria-busy');
   mealStates.length = 0;
   currentPlanInput = plan.input || null;
   output.hidden = false;
@@ -2540,18 +2604,19 @@ function showEditBar(planId, initialName) {
   bar.id = 'edit-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <span class="save-action-bar__label">${plannerCtx?.folderName ? escapeHtml(plannerCtx.folderName) : 'Saved plan'}</span>
-    <input class="save-action-bar__name" type="text" value="${escapeHtml(initialName)}" placeholder="Plan name" autocomplete="off" />
-    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard</button>
-    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
-    <p class="save-action-bar__msg message" aria-live="polite"></p>
+    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
   `;
 
   bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
-    const name = bar.querySelector('.save-action-bar__name').value.trim();
-    const msgEl = bar.querySelector('.save-action-bar__msg');
-    msgEl.textContent = '';
-    if (!name) { msgEl.textContent = 'Enter a plan name.'; return; }
+    message.textContent = '';
+    const name = readPreGenerationPlanName() || initialName || '';
+    if (!name) {
+      message.textContent = 'Enter a plan name.';
+      setInputsExpanded(true);
+      form.elements.planName?.focus();
+      return;
+    }
 
     const planData = buildPlanData();
     const { customerPayload, isActive } = preGenerationSavePayload();
@@ -2569,18 +2634,16 @@ function showEditBar(planId, initialName) {
       }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan changes.');
-    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save changes`;
-
-    if (!res.ok) { msgEl.textContent = data.error; return; }
-    msgEl.style.color = 'var(--accent)';
-    msgEl.textContent = 'Saved!';
-    setTimeout(() => { msgEl.textContent = ''; msgEl.style.color = ''; }, 2000);
+    if (!res.ok) {
+      btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
+      message.textContent = data.error || 'Unable to save plan changes.';
+      return;
+    }
+    window.location.href = '/dashboard';
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
-    if (confirm('Discard changes and reload the saved plan?')) {
-      loadPlanForEdit(planId);
-    }
+    window.location.href = '/dashboard';
   });
 
   saveBarSlot.replaceChildren(bar);
@@ -2592,9 +2655,6 @@ function showPlanSaveBar(folderId = null) {
   if (existing) existing.remove();
   if (!saveBarSlot) return;
 
-  const folderLabel = folderId && plannerCtx?.folderName
-    ? escapeHtml(plannerCtx.folderName)
-    : 'General';
   const saveUrl = folderId ? `/api/folders/${folderId}/plans` : '/api/plans';
   const dashboardUrl = '/dashboard';
 
@@ -2602,19 +2662,14 @@ function showPlanSaveBar(folderId = null) {
   bar.id = 'folder-save-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <span class="save-action-bar__label">${folderLabel}</span>
-    <span class="save-action-bar__summary">${escapeHtml(readPreGenerationPlanName())}</span>
-    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard</button>
+    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
     <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
-    <p class="save-action-bar__msg message" aria-live="polite"></p>
   `;
 
   bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
-    const msgEl = bar.querySelector('.save-action-bar__msg');
-    msgEl.textContent = '';
+    message.textContent = '';
     const saveDetailsOk = await validatePreGenerationSaveDetails();
     if (!saveDetailsOk) {
-      msgEl.textContent = message.textContent;
       setInputsExpanded(true);
       return;
     }
@@ -2635,12 +2690,12 @@ function showPlanSaveBar(folderId = null) {
       }),
     });
     const data = await readJsonResponse(res, 'Unable to save plan.');
-    btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
-
-    if (!res.ok) { msgEl.textContent = data.error; return; }
-    msgEl.style.color = 'var(--accent)';
-    msgEl.textContent = `"${name}" saved!`;
-    setTimeout(() => { window.location.href = dashboardUrl; }, 900);
+    if (!res.ok) {
+      btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
+      message.textContent = data.error || 'Unable to save plan.';
+      return;
+    }
+    window.location.href = dashboardUrl;
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
@@ -2707,15 +2762,8 @@ async function refreshCustomerMatches(query, state, resultsEl, matchEl) {
 }
 
 function renderCustomerExactMatch(query, state, matchEl) {
-  if (!state.exactMatch || state.selected?.id === state.exactMatch.id) return;
-  matchEl.innerHTML = `
-    <span>${escapeHtml(state.exactMatch.name)} already exists.</span>
-    <button type="button">Use this customer</button>
-  `;
-  matchEl.querySelector('button').addEventListener('click', () => {
-    selectCustomer(state.exactMatch, state, matchEl.closest('.save-customer-picker'));
-  });
-  matchEl.hidden = false;
+  matchEl.hidden = true;
+  matchEl.innerHTML = '';
 }
 
 function renderCustomerResults(customers, state, resultsEl, matchEl) {
@@ -2726,7 +2774,7 @@ function renderCustomerResults(customers, state, resultsEl, matchEl) {
     btn.className = 'save-customer-result';
     btn.innerHTML = `
       <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('user', 15)}</span>
-      <span><strong>${escapeHtml(customer.name)}</strong><small>${customer.goal ? escapeHtml(goalLabel(customer.goal)) : 'Customer'}</small></span>
+      <span><strong>${escapeHtml(customer.name)}</strong><small>${escapeHtml(customer.activity_level ? titleCase(customer.activity_level) : 'Customer')}</small></span>
     `;
     btn.addEventListener('click', () => {
       selectCustomer(customer, state, resultsEl.closest('.save-customer-picker'));
@@ -2735,6 +2783,20 @@ function renderCustomerResults(customers, state, resultsEl, matchEl) {
     resultsEl.append(btn);
   });
   resultsEl.hidden = customers.length === 0;
+}
+
+async function loadCustomerForPlanning(customerId) {
+  if (!customerId || !preGenerationCustomerPicker) return;
+  try {
+    const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`);
+    const payload = await readJsonResponse(res, 'Unable to load customer.');
+    if (!res.ok || !payload.customer) {
+      throw new Error(payload.error || 'Unable to load customer.');
+    }
+    selectCustomer(payload.customer, preGenerationCustomerState, preGenerationCustomerPicker, { hydrateProfile: true });
+  } catch (error) {
+    message.textContent = error.message || 'Unable to load customer.';
+  }
 }
 
 function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId } = {}) {
@@ -2746,7 +2808,7 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
   if (picker === preGenerationCustomerPicker && hydrateProfile) applyCustomerProfileToForm(customer);
   if (results) results.hidden = true;
   if (match) {
-    match.innerHTML = `<span>Using ${escapeHtml(customer.name)}</span>`;
+    match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
     match.hidden = false;
   }
 }

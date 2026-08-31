@@ -1,6 +1,9 @@
 const {
   findCustomerByNormalizedName,
+  createCustomer,
+  getCustomer,
   listCustomers,
+  updateCustomer,
   getCustomerPlans,
   deleteCustomer,
 } = require('../repositories/customerRepository');
@@ -17,6 +20,35 @@ async function matchCustomerHandler(req, res, next) {
     const customer = await findCustomerByNormalizedName(req.user.id, req.query.name || '');
     res.json({ customer });
   } catch (err) { next(err); }
+}
+
+async function createCustomerHandler(req, res, next) {
+  try {
+    const customer = await createCustomer(req.user.id, req.body || {});
+    res.status(201).json({ customer });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+}
+
+async function getCustomerHandler(req, res, next) {
+  try {
+    const customer = await getCustomer(req.user.id, req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    return res.json({ customer });
+  } catch (err) { return next(err); }
+}
+
+async function updateCustomerHandler(req, res, next) {
+  try {
+    const customer = await updateCustomer(req.user.id, req.params.id, req.body || {});
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    return res.json({ customer });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
 }
 
 async function getCustomerPlansHandler(req, res, next) {
@@ -38,6 +70,9 @@ async function deleteCustomerHandler(req, res, next) {
 module.exports = {
   listCustomersHandler,
   matchCustomerHandler,
+  createCustomerHandler,
+  getCustomerHandler,
+  updateCustomerHandler,
   getCustomerPlansHandler,
   deleteCustomerHandler,
 };

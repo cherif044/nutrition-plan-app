@@ -75,7 +75,14 @@ async function getStats(userId) {
     SELECT
       COUNT(*)::int AS "totalPlans",
       COUNT(*) FILTER (WHERE is_active = TRUE)::int AS "activePlans",
-      (SELECT COUNT(*)::int FROM customers WHERE user_id = :userId) AS customers
+      COUNT(*) FILTER (WHERE created_at >= date_trunc('week', now()))::int AS "plansThisWeek",
+      (SELECT COUNT(*)::int FROM customers WHERE user_id = :userId) AS customers,
+      (
+        SELECT COUNT(*)::int
+        FROM customers
+        WHERE user_id = :userId
+          AND created_at >= date_trunc('week', now())
+      ) AS "customersThisWeek"
     FROM plans
     WHERE user_id = :userId
   `, {
@@ -87,6 +94,8 @@ async function getStats(userId) {
     totalPlans: Number(row?.totalPlans || 0),
     customers: Number(row?.customers || 0),
     activePlans: Number(row?.activePlans || 0),
+    plansThisWeek: Number(row?.plansThisWeek || 0),
+    customersThisWeek: Number(row?.customersThisWeek || 0),
   };
 }
 

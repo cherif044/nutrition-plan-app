@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pinch — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#123832;
+    --jade:#1F9D77;      --jade-light:#E4F5EE;
+    --amber:#F0A202;     --amber-light:#FDF1D9;
+    --coral:#E85D4E;     --coral-light:#FCE8E5;
+    --sky:#2F86D6;       --sky-light:#E4EFFB;
+    --violet:#8B5CF6;    --violet-light:#F0EBFE;
+    --mist:#F3F6F4;
+    --mist-deep:#E9EFEC;
+    --ink:#16211D;
+    --ink-soft:#5B6B64;
+    --white:#FFFFFF;
+    --line:#E1E9E5;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-card: 0 1px 2px rgba(18,56,50,0.04), 0 6px 20px rgba(18,56,50,0.06);
+    --shadow-hero: 0 20px 40px rgba(18,56,50,0.2);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--mist);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,.num{font-family:'Sora',system-ui,sans-serif;}
+  a{color:inherit;}
+
+  .device-toggle{display:flex;justify-content:center;gap:8px;padding:14px 0;background:var(--forest);}
+  .device-toggle button{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:7px 16px;border-radius:999px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:rgba(255,255,255,0.75);cursor:pointer;transition:all .15s ease;}
+  .device-toggle button.active{background:var(--jade);border-color:var(--jade);color:var(--white);}
+
+  .frame-wrap{display:flex;justify-content:center;padding:36px 20px 60px;}
+  .frame{width:100%;max-width:1220px;transition:max-width .35s cubic-bezier(.4,0,.2,1);background:var(--mist);border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px var(--line);}
+  .frame.mobile{max-width:390px;}
+
+  /* top bar */
+  nav{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;background:var(--white);border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand .mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(145deg, var(--jade), var(--forest));display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(31,157,119,0.3);}
+  .brand .mark svg{width:18px;height:18px;}
+  .brand-text{line-height:1.15;}
+  .brand-text .name{font-weight:700;font-size:15.5px;color:var(--forest);}
+  .brand-text .sub{font-size:11.5px;color:var(--ink-soft);}
+  .nav-right{display:flex;align-items:center;gap:20px;}
+  .nav-right .link{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--ink-soft);text-decoration:none;cursor:pointer;}
+  .nav-right .link:hover{color:var(--forest);}
+  .avatar{width:33px;height:33px;border-radius:50%;background:var(--violet-light);color:#6432C9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;}
+  .frame.mobile nav{padding:13px 18px;}
+  .frame.mobile .nav-right .link.hide-mobile{display:none;}
+
+  /* shell: sidebar + main */
+  .shell{display:flex;align-items:stretch;}
+  .sidebar{width:208px;flex-shrink:0;background:var(--white);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:2px;}
+  .frame.mobile .sidebar{display:none;}
+  .side-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:var(--ink-soft);font-weight:600;font-size:13.5px;text-decoration:none;cursor:pointer;}
+  .side-link svg{width:17px;height:17px;flex-shrink:0;}
+  .side-link:hover{background:var(--mist);}
+  .side-link.active{background:var(--jade-light);color:#127C5C;}
+  .side-divider{height:1px;background:var(--line);margin:10px 4px;}
+  .side-link.disabled{opacity:0.5;cursor:default;}
+  .main{flex:1;min-width:0;}
+
+  .page{display:none;padding:26px 32px 44px;}
+  .page.active{display:block;}
+  .frame.mobile .page{padding:16px 18px 90px;}
+
+  .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+  .page-header h1{font-size:21px;font-weight:700;color:var(--forest);margin:0;}
+  .ph-sub{font-size:13px;color:var(--ink-soft);margin-top:4px;}
+  .frame.mobile .page-header{flex-direction:column;}
+
+  .btn-primary{background:var(--jade);color:var(--white);font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 6px 14px rgba(31,157,119,0.25);white-space:nowrap;}
+  .btn-primary:hover{background:#1a8a68;}
+  .btn-secondary{background:var(--white);color:var(--ink-soft);font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:10px 18px;border-radius:var(--radius-sm);border:1px solid var(--line);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:7px;}
+  .btn-secondary:hover{background:var(--mist);}
+
+  .back-btn{display:flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--jade);padding:0 0 16px;}
+  .back-btn svg{width:15px;height:15px;}
+
+  /* hero (home only) */
+  .hero{padding:22px 24px;border-radius:var(--radius-lg);background:var(--white);border:1px solid var(--line);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:22px;}
+  .hero h1{font-size:20px;font-weight:700;margin:0 0 5px;letter-spacing:-0.01em;color:var(--forest);}
+  .hero p{margin:0;font-size:13.5px;color:var(--ink-soft);max-width:460px;line-height:1.5;}
+  .hero-cta{display:flex;align-items:center;gap:7px;background:var(--jade);color:var(--white);font-weight:600;font-size:13.5px;padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;white-space:nowrap;box-shadow:0 6px 14px rgba(31,157,119,0.25);}
+  .hero-cta:hover{background:#1a8a68;}
+  .frame.mobile .hero{flex-direction:column;align-items:flex-start;padding:18px;gap:16px;}
+  .frame.mobile .hero-cta{width:100%;justify-content:center;}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:22px;}
+  .frame.mobile .stats{grid-template-columns:1fr;gap:12px;}
+  .stat-card{background:var(--white);border-radius:var(--radius-md);border:1px solid var(--line);padding:18px 20px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:12px;}
+  .stat-top{display:flex;align-items:center;justify-content:space-between;}
+  .stat-label{font-size:13px;color:var(--ink-soft);font-weight:500;}
+  .stat-icon{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;}
+  .stat-icon svg{width:15px;height:15px;}
+  .stat-bottom{display:flex;align-items:flex-end;justify-content:space-between;}
+  .num{font-size:30px;font-weight:700;color:var(--forest);line-height:1;}
+  .trend{font-size:12px;font-weight:600;padding:4px 8px;border-radius:999px;}
+  .stat-plans .stat-icon{background:var(--jade-light);} .stat-plans .stat-icon svg{stroke:var(--jade);} .stat-plans .trend{background:var(--jade-light);color:#127C5C;}
+  .stat-customers .stat-icon{background:var(--sky-light);} .stat-customers .stat-icon svg{stroke:var(--sky);} .stat-customers .trend{background:var(--sky-light);color:#1D5C8C;}
+  .stat-active .stat-icon{background:var(--amber-light);} .stat-active .stat-icon svg{stroke:var(--amber);} .stat-active .trend{background:var(--amber-light);color:#8A5A00;}
+  .stat-violet .stat-icon{background:var(--violet-light);} .stat-violet .stat-icon svg{stroke:var(--violet);} .stat-violet .trend{background:var(--violet-light);color:#6432C9;}
+  .num.num-sm{font-size:16px;}
+
+  /* generic section card */
+  .section-card{background:var(--white);border-radius:var(--radius-lg);border:1px solid var(--line);box-shadow:var(--shadow-card);padding:20px;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;}
+  .section-head h2{font-size:15.5px;font-weight:600;margin:0;}
+  .view-all{font-size:12.5px;font-weight:600;color:var(--jade);cursor:pointer;text-decoration:none;}
+  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .frame.mobile .home-grid{grid-template-columns:1fr;}
+
+  .search{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 14px;background:var(--mist);margin-bottom:16px;max-width:340px;}
+  .search svg{width:16px;height:16px;flex-shrink:0;opacity:0.5;}
+  .search input{border:none;background:none;outline:none;font-family:'Inter',sans-serif;font-size:14px;color:var(--ink);width:100%;}
+  .search input::placeholder{color:#94A19C;}
+
+  /* plan rows */
+  .plan-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);}
+  .plan-row:last-child{border-bottom:none;}
+  .plan-row-main{min-width:0;}
+  .plan-row-title{font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px;}
+  .plan-row-meta{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;}
+  .plan-row-sub{font-size:12.5px;color:var(--ink-soft);}
+  .plan-row-date{font-size:12px;color:#8A968F;white-space:nowrap;flex-shrink:0;}
+
+  .tag{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .tag::before{content:'';width:5px;height:5px;border-radius:50%;}
+  .tag-coral{background:var(--coral-light);color:#B23F32;} .tag-coral::before{background:var(--coral);}
+  .tag-sky{background:var(--sky-light);color:#1D5C8C;} .tag-sky::before{background:var(--sky);}
+  .tag-amber{background:var(--amber-light);color:#8A5A00;} .tag-amber::before{background:var(--amber);}
+  .tag-jade{background:var(--jade-light);color:#127C5C;} .tag-jade::before{background:var(--jade);}
+  .tag-violet{background:var(--violet-light);color:#6432C9;} .tag-violet::before{background:var(--violet);}
+  .tag-gray{background:var(--mist-deep);color:var(--ink-soft);} .tag-gray::before{background:#9AA6A0;}
+
+  /* active / inactive status pill */
+  .pill-active{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--jade);color:var(--white);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;}
+  .pill-active::before{content:'';width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.9);box-shadow:0 0 0 3px rgba(255,255,255,0.28);}
+  .pill-inactive{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--mist-deep);color:#7C8A84;white-space:nowrap;flex-shrink:0;}
+
+  /* customer rows */
+  .cust-row{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s ease;border-radius:8px;}
+  .cust-row:last-child{border-bottom:none;}
+  .cust-row:hover{background:var(--mist);}
+  .cust-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+  .cust-avatar.lg{width:50px;height:50px;font-size:16px;}
+  .avatar-jade{background:var(--jade-light);color:#127C5C;}
+  .avatar-coral{background:var(--coral-light);color:#B23F32;}
+  .avatar-sky{background:var(--sky-light);color:#1D5C8C;}
+  .avatar-amber{background:var(--amber-light);color:#8A5A00;}
+  .avatar-violet{background:var(--violet-light);color:#6432C9;}
+  .cust-main{flex:1;min-width:0;}
+  .cust-name{font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cust-sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .chev{width:14px;height:14px;color:#B7C4BE;flex-shrink:0;}
+  .frame.mobile .cust-row .tag,.frame.mobile .cust-row .pill-inactive{font-size:10px;padding:3px 7px;}
+
+  /* customer detail page */
+  .profile-card{display:flex;align-items:center;gap:18px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:22px 24px;margin-bottom:20px;}
+  .profile-avatar{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;flex-shrink:0;box-shadow:0 0 0 4px var(--white), 0 0 0 5px var(--line);}
+  .profile-name{font-family:'Sora',sans-serif;font-weight:700;font-size:20px;color:var(--forest);letter-spacing:-0.01em;}
+  .profile-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .meta-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);background:var(--mist);border:1px solid var(--line);border-radius:999px;padding:5px 12px;}
+  .meta-chip svg{width:13px;height:13px;stroke:#94A19C;flex-shrink:0;}
+  .meta-chip b{color:var(--forest);font-weight:600;}
+  .frame.mobile .profile-card{flex-direction:column;align-items:flex-start;gap:14px;padding:18px;}
+
+  /* a plan row that is the customer's current one */
+  .plan-row.is-active{background:linear-gradient(90deg, rgba(31,157,119,0.07), transparent 60%);border-left:3px solid var(--jade);border-radius:0 8px 8px 0;padding-left:12px;margin-left:-4px;}
+  .now-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--jade-light);color:#127C5C;white-space:nowrap;flex-shrink:0;}
+  .now-chip::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--jade);}
+
+  /* goal distribution bar */
+  .goal-bar{display:flex;width:100%;height:10px;border-radius:999px;overflow:hidden;margin-bottom:14px;background:var(--mist-deep);}
+  .goal-bar span{height:100%;transition:width .2s ease;}
+  .goal-legend{display:flex;flex-wrap:wrap;gap:8px 18px;}
+  .goal-legend-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);}
+  .goal-legend-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .goal-legend-item b{color:var(--ink);font-weight:700;}
+
+  /* filter chips */
+  .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .fchip{font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:999px;border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .12s ease;display:inline-flex;align-items:center;gap:7px;}
+  .fchip:hover{background:var(--mist);}
+  .fchip .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .fchip.active{color:var(--white);}
+  .fchip.active:hover{filter:brightness(1.05);}
+  .fdivider{width:1px;height:20px;background:var(--line);flex-shrink:0;}
+  .frame.mobile .filter-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px;-webkit-overflow-scrolling:touch;}
+  .frame.mobile .filter-row::-webkit-scrollbar{display:none;}
+  .frame.mobile .fchip{flex-shrink:0;}
+
+  /* collapsible insights */
+  .insights-toggle{display:none;}
+  .frame.mobile .insights-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 16px;font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;color:var(--forest);cursor:pointer;margin-bottom:14px;box-shadow:var(--shadow-card);}
+  .frame.mobile .insights-toggle .chev{width:16px;height:16px;flex-shrink:0;transition:transform .18s ease;}
+  .frame.mobile .insights-toggle.open .chev{transform:rotate(180deg);}
+  .frame.mobile .insights-block{display:none;}
+  .frame.mobile .insights-block.open{display:block;}
+
+  /* empty state */
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;color:var(--ink-soft);}
+  .empty-state svg{width:34px;height:34px;stroke:#B7C4BE;margin-bottom:10px;}
+  .empty-state .t{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:4px;}
+  .empty-state .s{font-size:12.5px;}
+
+  /* toast */
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--forest);color:var(--white);font-size:13px;font-weight:600;padding:12px 20px;border-radius:999px;box-shadow:0 12px 30px rgba(18,56,50,0.35);opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;z-index:80;display:flex;align-items:center;gap:8px;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* quick actions (home) */
+  .quick{margin-top:22px;}
+  .quick h2{font-size:15.5px;font-weight:600;margin:0 0 12px;}
+  .quick-grid{display:flex;gap:12px;flex-wrap:wrap;}
+  .frame.mobile .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .qa{display:flex;align-items:center;gap:12px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 18px;box-shadow:var(--shadow-card);cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;flex:1;min-width:190px;}
+  .qa:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(18,56,50,0.1);}
+  .qa .qa-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .qa .qa-icon svg{width:16px;height:16px;}
+  .qa-text{min-width:0;}
+  .qa-text .t{font-weight:600;font-size:13.5px;color:var(--ink);}
+  .qa-text .s{font-size:11.5px;color:var(--ink-soft);margin-top:1px;}
+  .qa.c-jade .qa-icon{background:var(--jade-light);}
+  .qa.c-amber .qa-icon{background:var(--amber-light);}
+  .qa.c-coral .qa-icon{background:var(--coral-light);}
+  .qa.c-sky .qa-icon{background:var(--sky-light);}
+  .frame.mobile .qa{min-width:0;padding:13px 12px;flex-direction:column;align-items:flex-start;gap:9px;}
+  .frame.mobile .qa-text .t{font-size:13px;}
+  .frame.mobile .qa-text .s{font-size:11px;line-height:1.3;}
+
+  .fab{display:none;position:sticky;bottom:18px;margin-left:auto;margin-right:18px;width:54px;height:54px;border-radius:50%;background:var(--jade);align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(31,157,119,0.45);cursor:pointer;}
+  .fab svg{width:21px;height:21px;}
+  .frame.mobile .fab{display:flex;}
+  .bottom-nav{display:none;position:sticky;bottom:0;background:var(--white);border-top:1px solid var(--line);padding:10px 20px 12px;justify-content:space-around;}
+  .frame.mobile .bottom-nav{display:flex;}
+  .bn-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:#9AA6A0;cursor:pointer;text-decoration:none;}
+  .bn-item.active{color:var(--jade);}
+  .bn-item svg{width:19px;height:19px;}
+  .bn-item span{font-size:10px;font-weight:600;}
+
+  /* ============ PLAN BUILDER ============ */
+  .builder-hero{text-align:center;padding:30px 28px 26px;border-radius:var(--radius-lg);background:radial-gradient(circle at 15% 0%, rgba(31,157,119,0.30), transparent 45%),radial-gradient(circle at 92% 105%, rgba(139,92,246,0.30), transparent 42%),radial-gradient(circle at 70% -10%, rgba(240,162,2,0.16), transparent 38%),linear-gradient(120deg, var(--forest), #0C2823 78%);color:var(--white);box-shadow:var(--shadow-hero);margin-bottom:20px;}
+  .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.2);color:#9FE8CE;margin-bottom:12px;}
+  .eyebrow svg{width:13px;height:13px;}
+  .builder-hero h1{font-size:25px;font-weight:700;margin:0 0 8px;color:var(--white);letter-spacing:-0.015em;}
+  .builder-hero p{margin:0 auto;font-size:13.5px;line-height:1.55;color:rgba(255,255,255,0.72);max-width:440px;}
+  .builder-pills{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}
+  .bpill{background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-md);padding:9px 16px;text-align:left;min-width:104px;}
+  .bpill .v{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;color:var(--white);line-height:1.1;}
+  .bpill .k{font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;}
+  .frame.mobile .builder-hero{padding:24px 18px;}
+  .frame.mobile .builder-hero h1{font-size:21px;}
+  .frame.mobile .bpill{flex:1;min-width:0;padding:9px 10px;}
+
+  .builder-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .frame.mobile .builder-grid{grid-template-columns:1fr;}
+  .bcard{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:20px;position:relative;overflow:hidden;}
+  .bcard::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--bc,var(--jade));opacity:.9;}
+  .bcard-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .bcard-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--bc-light,var(--jade-light));}
+  .bcard-icon svg{width:16px;height:16px;stroke:var(--bc,var(--jade));}
+  .bcard-head h3{margin:0;font-size:14.5px;font-weight:600;color:var(--forest);}
+  .bcard.c-violet{--bc:var(--violet);--bc-light:var(--violet-light);}
+  .bcard.c-sky{--bc:var(--sky);--bc-light:var(--sky-light);}
+  .bcard.c-amber{--bc:var(--amber);--bc-light:var(--amber-light);}
+  .bcard.c-jade{--bc:var(--jade);--bc-light:var(--jade-light);}
+
+  .field-label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
+  .field-label:first-child{margin-top:0;}
+  .field-input,.field-textarea,select.field-input{width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;color:var(--ink);background:var(--mist);outline:none;transition:border-color .12s ease, background .12s ease;}
+  .field-textarea{resize:vertical;}
+  .field-input:focus,.field-textarea:focus{border-color:var(--jade);background:var(--white);box-shadow:0 0 0 3px rgba(31,157,119,0.12);}
+  .field-hint{font-size:11px;color:#94A19C;margin-top:5px;}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+  .field-row{margin:0;}
+
+  .check-row{display:flex;align-items:center;gap:9px;margin-top:16px;padding:10px 12px;background:var(--mist);border-radius:var(--radius-sm);border:1px solid var(--line);cursor:pointer;}
+  .check-row input{accent-color:var(--jade);width:15px;height:15px;cursor:pointer;}
+  .check-row > span{display:flex;flex-direction:column;gap:2px;}
+  .check-row .ct{font-size:13px;font-weight:600;color:var(--ink);}
+  .check-row .cs{font-size:11.5px;color:var(--ink-soft);}
+
+  .seg{display:flex;background:var(--mist);border:1px solid var(--line);border-radius:var(--radius-sm);padding:3px;gap:3px;}
+  .seg button{flex:1;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:9px 8px;border-radius:7px;border:none;background:transparent;color:var(--ink-soft);cursor:pointer;transition:all .14s ease;}
+  .seg button:hover{color:var(--forest);}
+  .seg button.on{color:var(--white);box-shadow:0 3px 8px rgba(18,56,50,0.16);}
+  .seg button[data-goal="Lose weight"].on{background:var(--coral);}
+  .seg button[data-goal="Gain weight"].on{background:var(--sky);}
+  .seg button[data-goal="Maintain"].on{background:var(--jade);}
+
+  .estimate{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px;padding:13px 6px;background:var(--mist);border:1px solid var(--line);border-radius:var(--radius-md);}
+  .est-item{text-align:center;}
+  .est-item .ev{font-family:'Sora',sans-serif;font-size:15px;font-weight:700;color:var(--forest);line-height:1;}
+  .est-item .ev span{font-size:11px;font-weight:600;color:var(--ink-soft);}
+  .est-item .ek{font-size:10.5px;color:var(--ink-soft);margin-top:4px;}
+
+  .avoid-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .avoid-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--coral-light);color:#B23F32;}
+  .avoid-tag span{cursor:pointer;opacity:.6;font-weight:700;}
+  .avoid-tag span:hover{opacity:1;}
+
+  .generate-btn{width:100%;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(120deg, #23AF85, var(--jade) 60%, #17886A);color:var(--white);font-family:'Inter',sans-serif;font-weight:700;font-size:15px;padding:15px;border-radius:var(--radius-md);border:none;cursor:pointer;box-shadow:0 10px 22px rgba(31,157,119,0.32);transition:transform .12s ease, box-shadow .12s ease;}
+  .generate-btn:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(31,157,119,0.38);}
+  .generate-btn svg{width:17px;height:17px;}
+
+  </style>
+</head>
+<body>
+
+<div class="device-toggle">
+  <button class="active" data-mode="desktop">Desktop</button>
+  <button data-mode="mobile">Mobile</button>
+</div>
+
+<div class="frame-wrap">
+<div class="frame" id="frame">
+
+  <nav>
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 14c0-6 5-10 10-10 1 6-1 11-6 13-3 1-4 0-4-3z" fill="#fff"/></svg></div>
+      <div class="brand-text"><div class="name">Pinch</div><div class="sub">Dashboard</div></div>
+    </div>
+    <div class="nav-right">
+      <a class="link hide-mobile"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B6B64" stroke-width="2"><path d="M9 18a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM21 21l-4.35-4.35"/></svg></a>
+      <a class="link hide-mobile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6B64" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Log out</a>
+      <div class="avatar">B</div>
+    </div>
+  </nav>
+
+  <div class="shell">
+    <div class="sidebar" id="sidebar">
+      <div class="side-link" data-route="home" onclick="goTo('/home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Home</div>
+      <div class="side-link" data-route="customers" onclick="goTo('/customers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
+      <div class="side-link" data-route="plans" onclick="goTo('/plans')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Plans</div>
+    </div>
+
+    <div class="main">
+
+      <!-- HOME -->
+      <div class="page" id="page-home">
+        <div class="hero">
+          <div><h1>Good afternoon, buk</h1><p id="heroSub"></p></div>
+          <button class="hero-cta" onclick="goTo('/plans/new')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>New plan</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat-card stat-plans"><div class="stat-top"><span class="stat-label">Total plans</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 2h6v4H9zM6 6h12v14H6z"/></svg></div></div><div class="stat-bottom"><span class="num" id="statPlans">0</span><span class="trend">+3 this week</span></div></div>
+          <div class="stat-card stat-customers"><div class="stat-top"><span class="stat-label">Total customers</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="stat-bottom"><span class="num" id="statCustomers">0</span><span class="trend">+1 this week</span></div></div>
+          <div class="stat-card stat-active"><div class="stat-top"><span class="stat-label">Current active plans</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></div><div class="stat-bottom"><span class="num" id="statActive">0</span><span class="trend">in progress</span></div></div>
+        </div>
+
+        <div class="home-grid">
+          <div class="section-card">
+            <div class="section-head"><h2>Recent customers</h2><span class="view-all" onclick="goTo('/customers')">View all →</span></div>
+            <div id="homeCustList"></div>
+          </div>
+          <div class="section-card">
+            <div class="section-head"><h2>Recent plans</h2><span class="view-all" onclick="goTo('/plans')">View all →</span></div>
+            <div id="homePlanList"></div>
+          </div>
+        </div>
+
+        <div class="quick">
+          <h2>Quick actions</h2>
+          <div class="quick-grid">
+            <div class="qa c-jade" onclick="goTo('/plans/new')"><div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1F9D77" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div><div class="qa-text"><div class="t">New plan</div><div class="s">Build a plan template</div></div></div>
+            <div class="qa c-sky" onclick="goTo('/customers')"><div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1D5C8C" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6"/></svg></div><div class="qa-text"><div class="t">Add customer</div><div class="s">Assign plans to a client</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CUSTOMERS LIST -->
+      <div class="page" id="page-customers">
+        <div class="page-header">
+          <div><h1>Customers</h1><div class="ph-sub" id="custPageSub"></div></div>
+          <button class="btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Add customer</button>
+        </div>
+
+        <button class="insights-toggle" id="custInsightsToggle" onclick="toggleInsights('cust')"><span>Customer insights</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+
+        <div class="insights-block" id="custInsights">
+          <div class="stats">
+            <div class="stat-card stat-customers"><div class="stat-top"><span class="stat-label">Total customers</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="stat-bottom"><span class="num" id="custStatTotal">0</span></div></div>
+            <div class="stat-card stat-plans"><div class="stat-top"><span class="stat-label">With an active plan</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></div><div class="stat-bottom"><span class="num" id="custStatActive">0</span></div></div>
+            <div class="stat-card stat-violet"><div class="stat-top"><span class="stat-label">Avg. plans / customer</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div></div><div class="stat-bottom"><span class="num" id="custStatAvg">0</span></div></div>
+          </div>
+
+          <div class="section-card" style="margin-bottom:16px;">
+            <div class="section-head"><h2>Goals across your customers</h2><span class="ph-sub" style="margin:0;">From each customer's active plan</span></div>
+            <div class="goal-bar" id="custGoalBar"></div>
+            <div class="goal-legend" id="custGoalLegend"></div>
+          </div>
+        </div>
+
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="#5B6B64" stroke-width="2"><path d="M9 18a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM21 21l-4.35-4.35"/></svg><input id="custSearchInput" placeholder="Search customers" /></div>
+        <div class="filter-row" id="custFilterChips"></div>
+        <div class="section-card">
+          <div class="section-head"><h2>All customers</h2><span class="ph-sub" id="custListCount"></span></div>
+          <div id="fullCustList"></div>
+        </div>
+      </div>
+
+      <!-- CUSTOMER DETAIL -->
+      <div class="page" id="page-customer-detail">
+        <div class="back-btn" onclick="goTo('/customers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M15 18l-6-6 6-6"/></svg>Back to customers</div>
+        <div class="profile-card">
+          <div class="profile-avatar" id="detailAvatar"></div>
+          <div>
+            <div class="profile-name" id="detailName"></div>
+            <div class="profile-meta" id="detailMeta"></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-head"><h2>Assigned plans</h2><span class="ph-sub" id="detailPlansCount" style="margin:0;"></span></div>
+          <div id="detailPlansList"></div>
+        </div>
+      </div>
+
+      <!-- PLANS LIST -->
+      <div class="page" id="page-plans">
+        <div class="page-header">
+          <div><h1>Plans</h1><div class="ph-sub" id="plansPageSub"></div></div>
+          <button class="btn-primary" onclick="goTo('/plans/new')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>New plan</button>
+        </div>
+
+        <button class="insights-toggle" id="plansInsightsToggle" onclick="toggleInsights('plans')"><span>Plan insights</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+
+        <div class="insights-block" id="plansInsights">
+          <div class="stats">
+            <div class="stat-card stat-plans"><div class="stat-top"><span class="stat-label">Total general plans</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 2h6v4H9zM6 6h12v14H6z"/></svg></div></div><div class="stat-bottom"><span class="num" id="plansStatTotal">0</span></div></div>
+            <div class="stat-card stat-active"><div class="stat-top"><span class="stat-label">Assigned to customers</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></div><div class="stat-bottom"><span class="num" id="plansStatAssigned">0</span></div></div>
+            <div class="stat-card stat-violet"><div class="stat-top"><span class="stat-label">Newest plan</span><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div></div><div class="stat-bottom"><span class="num num-sm" id="plansStatNewest">—</span></div></div>
+          </div>
+
+          <div class="section-card" style="margin-bottom:16px;">
+            <div class="section-head"><h2>Plan goals breakdown</h2></div>
+            <div class="goal-bar" id="plansGoalBar"></div>
+            <div class="goal-legend" id="plansGoalLegend"></div>
+          </div>
+        </div>
+
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="#5B6B64" stroke-width="2"><path d="M9 18a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM21 21l-4.35-4.35"/></svg><input id="plansSearchInput" placeholder="Search plans" /></div>
+        <div class="filter-row" id="plansFilterChips"></div>
+        <div class="section-card">
+          <div class="section-head"><h2>All general plans</h2><span class="ph-sub" id="plansListCount"></span></div>
+          <div id="fullPlanList"></div>
+        </div>
+      </div>
+
+      <!-- PLAN BUILDER -->
+      <div class="page" id="page-plan-builder">
+        <div class="back-btn" id="builderBack" onclick="location.hash=builderReturn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M15 18l-6-6 6-6"/></svg><span id="builderBackLabel">Back to plans</span></div>
+
+        <div class="builder-hero">
+          <div class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4L12 3z"/></svg>Plan builder</div>
+          <h1>Build your daily nutrition plan</h1>
+          <p>Enter body data and goals — Pinch assembles a ready-meal plan that hits the calories and macros.</p>
+          <div class="builder-pills">
+            <div class="bpill"><div class="v">223</div><div class="k">ready meals</div></div>
+            <div class="bpill"><div class="v">104</div><div class="k">foods</div></div>
+            <div class="bpill"><div class="v">4</div><div class="k">macros</div></div>
+          </div>
+        </div>
+
+        <div class="builder-grid">
+          <div class="bcard c-violet">
+            <div class="bcard-head"><div class="bcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>Save details</h3></div>
+            <label class="field-label">Plan name</label>
+            <input class="field-input" type="text" placeholder="Cutting plan — week 1" />
+            <label class="field-label">Customer</label>
+            <select class="field-input" id="assignSelect"><option value="">No customer — keep general</option></select>
+            <label class="check-row"><input type="checkbox" id="makeActive" /><span><span class="ct">Make active</span><span class="cs">Sets this customer's current goal</span></span></label>
+          </div>
+
+          <div class="bcard c-sky">
+            <div class="bcard-head"><div class="bcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><h3>Body data</h3></div>
+            <div class="field-grid">
+              <div class="field-row"><label class="field-label">Weight (kg)</label><input class="field-input" type="number" value="78" /></div>
+              <div class="field-row"><label class="field-label">Height (cm)</label><input class="field-input" type="number" value="178" /></div>
+              <div class="field-row"><label class="field-label">Age</label><input class="field-input" type="number" value="29" /></div>
+              <div class="field-row"><label class="field-label">Sex</label><select class="field-input"><option>Male</option><option>Female</option></select></div>
+              <div class="field-row"><label class="field-label">Body fat %</label><input class="field-input" type="number" placeholder="—" /><div class="field-hint">Optional</div></div>
+              <div class="field-row"><label class="field-label">Activity level</label><select class="field-input"><option>Sedentary</option><option selected>Moderate</option><option>Active</option><option>Very active</option></select></div>
+            </div>
+          </div>
+
+          <div class="bcard c-amber">
+            <div class="bcard-head"><div class="bcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-4"/></svg></div><h3>Plan setup</h3></div>
+            <label class="field-label">Goal</label>
+            <div class="seg" id="goalSeg">
+              <button data-goal="Lose weight" class="on">Lose</button>
+              <button data-goal="Maintain">Maintain</button>
+              <button data-goal="Gain weight">Gain</button>
+            </div>
+            <div class="field-grid" style="margin-top:4px;">
+              <div class="field-row"><label class="field-label">Total meals</label><select class="field-input"><option>3 meals</option><option selected>4 meals</option><option>5 meals</option><option>6 meals</option></select></div>
+              <div class="field-row"><label class="field-label">Calorie distribution</label><select class="field-input"><option selected>Balanced</option><option>Front-loaded</option><option>Back-loaded</option></select></div>
+            </div>
+            <div class="estimate">
+              <div class="est-item"><div class="ev">2,100</div><div class="ek">est. kcal / day</div></div>
+              <div class="est-item"><div class="ev">156<span>g</span></div><div class="ek">protein</div></div>
+              <div class="est-item"><div class="ev">239<span>g</span></div><div class="ek">carbs</div></div>
+              <div class="est-item"><div class="ev">55<span>g</span></div><div class="ek">fat</div></div>
+            </div>
+          </div>
+
+          <div class="bcard c-jade">
+            <div class="bcard-head"><div class="bcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 2v7c0 1.7 1.3 3 3 3s3-1.3 3-3V2M6 12v10M18 2c-1.7 1.5-2.5 4-2.5 7 0 2 .8 3 2.5 3s2.5-1 2.5-3c0-3-.8-5.5-2.5-7zM18 12v10"/></svg></div><h3>Preferences</h3></div>
+            <label class="field-label">Avoid foods</label>
+            <input class="field-input" id="avoidInput" type="text" placeholder="e.g. peanuts" />
+            <div class="field-hint">Type to search, Enter to add</div>
+            <div class="avoid-tags" id="avoidTags"><span class="avoid-tag">Peanuts <span>&times;</span></span><span class="avoid-tag">Shellfish <span>&times;</span></span></div>
+            <label class="field-label">Diet style</label>
+            <select class="field-input"><option>No restriction</option><option>Vegetarian</option><option>Pescatarian</option><option>Halal</option><option>Low carb</option></select>
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generateBtn"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4L12 3z"/><path d="M19 15l.9 2.2L22 18l-2.1.8L19 21l-.9-2.2L16 18l2.1-.8L19 15z"/></svg>Generate plan</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a class="bn-item" href="#/home" data-route="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Home</span></a>
+    <a class="bn-item" href="#/plans" data-route="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>Plans</span></a>
+    <a class="bn-item" href="#/customers" data-route="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg><span>Clients</span></a>
+  </div>
+
+</div>
+</div>
+
+<div class="toast" id="toast">Plan created</div>
+
+<script>
+  /* device toggle */
+  const frame = document.getElementById('frame');
+  document.querySelectorAll('.device-toggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.device-toggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      frame.classList.toggle('mobile', btn.dataset.mode === 'mobile');
+    });
+  });
+
+  /* ---------- goals: only lose / gain / maintain ---------- */
+  const GOALS = ['Lose weight','Gain weight','Maintain'];
+  const goalColor = {'Lose weight':'coral','Gain weight':'sky','Maintain':'jade'};
+  const goalHex = {coral:'#E85D4E', sky:'#2F86D6', amber:'#F0A202', jade:'#1F9D77', violet:'#8B5CF6', gray:'#9AA6A0'};
+  function tagClass(goal){ return 'tag-' + (goalColor[goal] || 'gray'); }
+  function goalTag(goal){ return `<span class="tag ${tagClass(goal)}">${goal || 'Inactive'}</span>`; }
+
+  /* ---------- data ---------- */
+  const generalPlans = [
+    {title:'Cutting plan — week 1', sub:'General', goal:'Lose weight', date:'5 days ago'},
+    {title:'Lean gain — 2,900 kcal', sub:'General', goal:'Gain weight', date:'6 days ago'},
+    {title:'6-week fat loss reset', sub:'General', goal:'Lose weight', date:'1 week ago'},
+    {title:'Maintenance — balanced 4 meals', sub:'General', goal:'Maintain', date:'1 week ago'},
+    {title:'High protein cut', sub:'General', goal:'Lose weight', date:'2 weeks ago'},
+    {title:'Clean bulk — 5 meals', sub:'General', goal:'Gain weight', date:'2 weeks ago'},
+    {title:'Off-season maintenance', sub:'General', goal:'Maintain', date:'3 weeks ago'},
+    {title:'Low-carb deficit', sub:'General', goal:'Lose weight', date:'3 weeks ago'},
+    {title:'Mass phase — high carb', sub:'General', goal:'Gain weight', date:'1 month ago'},
+    {title:'Recomp — steady calories', sub:'General', goal:'Maintain', date:'1 month ago'},
+    {title:'Summer cut — 1,800 kcal', sub:'General', goal:'Lose weight', date:'1 month ago'},
+    {title:'Post-cut reverse diet', sub:'General', goal:'Gain weight', date:'2 months ago'},
+    {title:'Holiday hold', sub:'General', goal:'Maintain', date:'2 months ago'},
+    {title:'Beginner deficit starter', sub:'General', goal:'Lose weight', date:'2 months ago'},
+  ];
+
+  const customers = [
+    {id:1, name:'Sarah Malik', initials:'SM', color:'coral', plans:[
+      {title:'6-week fat loss reset', sub:'Assigned plan', goal:'Lose weight', active:true, date:'3 days ago'},
+      {title:'High protein cut', sub:'Assigned plan', goal:'Lose weight', active:false, date:'2 weeks ago'}]},
+    {id:2, name:'Omar Reyes', initials:'OR', color:'sky', plans:[
+      {title:'Clean bulk — 5 meals', sub:'Assigned plan', goal:'Gain weight', active:true, date:'1 week ago'},
+      {title:'Mass phase — high carb', sub:'Assigned plan', goal:'Gain weight', active:false, date:'1 month ago'},
+      {title:'Recomp — steady calories', sub:'Assigned plan', goal:'Maintain', active:false, date:'3 weeks ago'}]},
+    {id:3, name:'Jenna Cole', initials:'JC', color:'violet', plans:[
+      {title:'Maintenance — balanced 4 meals', sub:'Assigned plan', goal:'Maintain', active:true, date:'5 days ago'}]},
+    {id:4, name:'Tariq Ahmed', initials:'TA', color:'amber', plans:[
+      {title:'Summer cut — 1,800 kcal', sub:'Assigned plan', goal:'Lose weight', active:false, date:'2 weeks ago'},
+      {title:'Beginner deficit starter', sub:'Assigned plan', goal:'Lose weight', active:false, date:'1 month ago'}]},
+    {id:5, name:'Maya Chen', initials:'MC', color:'jade', plans:[
+      {title:'Holiday hold', sub:'Assigned plan', goal:'Maintain', active:true, date:'4 days ago'}]},
+    {id:6, name:'Liam Brooks', initials:'LB', color:'coral', plans:[
+      {title:'Low-carb deficit', sub:'Assigned plan', goal:'Lose weight', active:true, date:'1 week ago'}]},
+    {id:7, name:'Fatima Zahra', initials:'FZ', color:'violet', plans:[]},
+    {id:8, name:'Derek Wu', initials:'DW', color:'sky', plans:[
+      {title:'Lean gain — 2,900 kcal', sub:'Assigned plan', goal:'Gain weight', active:true, date:'3 days ago'}]},
+    {id:9, name:'Priya Nair', initials:'PN', color:'amber', plans:[
+      {title:'Off-season maintenance', sub:'Assigned plan', goal:'Maintain', active:false, date:'6 days ago'}]},
+  ];
+
+  /* a customer's current goal comes from their ACTIVE plan; none => Inactive */
+  function activePlanOf(c){ return c.plans.find(p=>p.active) || null; }
+  function custGoal(c){ const a = activePlanOf(c); return a ? a.goal : null; }
+  function custGoalKey(c){ return custGoal(c) || 'Inactive'; }
+
+  const totalPlans = generalPlans.length + customers.reduce((s,c)=>s+c.plans.length,0);
+  const activePlansCount = customers.reduce((s,c)=>s+c.plans.filter(p=>p.active).length,0);
+
+  /* ---------- render helpers ---------- */
+  /* showStatus is only true for a customer's assigned plans, where "active" is meaningful */
+  function planRowHTML(p, showStatus){
+    return `<div class="plan-row">
+      <div class="plan-row-main">
+        <div class="plan-row-title">${p.title}${showStatus && p.active ? '<span class="pill-active">Active</span>' : ''}</div>
+        <div class="plan-row-meta">${goalTag(p.goal)}</div>
+      </div>
+      <div class="plan-row-date">${p.date}</div></div>`;
+  }
+  const planRow = p => planRowHTML(p, false);
+
+  /* a customer's own plans: the current one gets a soft accent instead of a loud badge */
+  function planDetailRow(p){
+    return `<div class="plan-row${p.active?' is-active':''}">
+      <div class="plan-row-main">
+        <div class="plan-row-title">${p.title}</div>
+        <div class="plan-row-meta">${goalTag(p.goal)}${p.active?'<span class="now-chip">Current plan</span>':''}</div>
+      </div>
+      <div class="plan-row-date">${p.date}</div></div>`;
+  }
+  function custRowHTML(c){
+    const g = custGoal(c);
+    const sub = c.plans.length ? `${c.plans.length} plan${c.plans.length!==1?'s':''}` : 'No plans yet';
+    return `<div class="cust-row" data-id="${c.id}">
+      <div class="cust-avatar avatar-${c.color}">${c.initials}</div>
+      <div class="cust-main"><div class="cust-name">${c.name}</div><div class="cust-sub">${sub}</div></div>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>`;
+  }
+
+  function countBy(items, keyFn){
+    const counts = {};
+    items.forEach(i => { const k = keyFn(i); counts[k] = (counts[k]||0)+1; });
+    return counts;
+  }
+  function matchesSearch(text, term){ return !term || text.toLowerCase().includes(term.toLowerCase()); }
+  function keyHex(k){ return goalHex[goalColor[k] || 'gray']; }
+
+  function renderGoalBar(barId, legendId, counts){
+    const total = Object.values(counts).reduce((a,b)=>a+b,0) || 1;
+    const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    document.getElementById(barId).innerHTML = entries.map(([k,count])=>
+      `<span style="width:${(count/total*100).toFixed(1)}%;background:${keyHex(k)};" title="${k}: ${count}"></span>`).join('');
+    document.getElementById(legendId).innerHTML = entries.map(([k,count])=>
+      `<div class="goal-legend-item"><span class="dot" style="background:${keyHex(k)}"></span>${k} <b>${count}</b></div>`).join('');
+  }
+
+  function chipHTML(key, count, active){
+    const hex = key ? keyHex(key) : '#123832';
+    const label = key || 'All';
+    const style = active ? `background:${hex};border-color:${hex};` : `border-color:${hex}35;`;
+    const dotStyle = active ? 'background:rgba(255,255,255,0.9);' : `background:${hex};`;
+    return `<button class="fchip${active?' active':''}" data-key="${key||''}" style="${style}"><span class="dot" style="${dotStyle}"></span>${label} <span style="opacity:.65">${count}</span></button>`;
+  }
+
+  function renderFilterChips(containerId, counts, totalCount, activeKey, order){
+    let html = chipHTML(null, totalCount, activeKey===null);
+    order.forEach(k=>{ if(counts[k]) html += chipHTML(k, counts[k], activeKey===k); });
+    Object.keys(counts).forEach(k=>{ if(!order.includes(k)) html += chipHTML(k, counts[k], activeKey===k); });
+    document.getElementById(containerId).innerHTML = html;
+  }
+
+  function emptyStateHTML(label){
+    return `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM21 21l-4.35-4.35"/></svg><div class="t">No ${label} found</div><div class="s">Try a different search or filter</div></div>`;
+  }
+
+  let custActiveKey = null, custSearchTerm = '';
+  let plansActiveKey = null, plansSearchTerm = '';
+  const CUST_ORDER = ['Lose weight','Gain weight','Maintain','Inactive'];
+  const PLAN_ORDER = ['Lose weight','Gain weight','Maintain'];
+
+  function renderCustomersPage(){
+    const filtered = customers.filter(c => (custActiveKey===null || custGoalKey(c)===custActiveKey) && matchesSearch(c.name, custSearchTerm));
+    document.getElementById('fullCustList').innerHTML = filtered.length ? filtered.map(custRowHTML).join('') : emptyStateHTML('customers');
+    document.getElementById('custListCount').textContent = (custActiveKey || custSearchTerm) ? `Showing ${filtered.length} of ${customers.length}` : '';
+    renderFilterChips('custFilterChips', countBy(customers, custGoalKey), customers.length, custActiveKey, CUST_ORDER);
+  }
+
+  function renderPlansPage(){
+    const filtered = generalPlans.filter(p => {
+      return (plansActiveKey===null || p.goal===plansActiveKey) && matchesSearch(p.title, plansSearchTerm);
+    });
+    document.getElementById('fullPlanList').innerHTML = filtered.length ? filtered.map(planRow).join('') : emptyStateHTML('plans');
+    document.getElementById('plansListCount').textContent = (plansActiveKey || plansSearchTerm) ? `Showing ${filtered.length} of ${generalPlans.length}` : '';
+    const counts = countBy(generalPlans, p=>p.goal);
+    renderFilterChips('plansFilterChips', counts, generalPlans.length, plansActiveKey, PLAN_ORDER);
+  }
+
+  /* home */
+  document.getElementById('homePlanList').innerHTML = generalPlans.slice(0,3).map(planRow).join('');
+  document.getElementById('homeCustList').innerHTML = customers.slice(0,3).map(custRowHTML).join('');
+  document.getElementById('custPageSub').textContent = customers.length + ' customers total';
+  document.getElementById('plansPageSub').textContent = generalPlans.length + ' general plans';
+  document.getElementById('statPlans').textContent = totalPlans;
+  document.getElementById('statCustomers').textContent = customers.length;
+  document.getElementById('statActive').textContent = activePlansCount;
+  document.getElementById('heroSub').textContent = `You have ${totalPlans} plans across ${customers.length} customers, with ${activePlansCount} currently active.`;
+
+  /* customers page insights */
+  const custTotalPlans = customers.reduce((s,c)=>s+c.plans.length,0);
+  document.getElementById('custStatTotal').textContent = customers.length;
+  document.getElementById('custStatActive').textContent = customers.filter(c=>custGoal(c)).length;
+  document.getElementById('custStatAvg').textContent = (custTotalPlans/customers.length).toFixed(1);
+  renderGoalBar('custGoalBar','custGoalLegend', countBy(customers, custGoalKey));
+  renderCustomersPage();
+
+  /* plans page insights */
+  document.getElementById('plansStatTotal').textContent = generalPlans.length;
+  document.getElementById('plansStatAssigned').textContent = customers.reduce((a,c)=>a+c.plans.length,0);
+  document.getElementById('plansStatNewest').textContent = generalPlans[0] ? generalPlans[0].date : '—';
+  renderGoalBar('plansGoalBar','plansGoalLegend', countBy(generalPlans, p=>p.goal));
+  renderPlansPage();
+
+  document.getElementById('custSearchInput').addEventListener('input', e=>{ custSearchTerm = e.target.value; renderCustomersPage(); });
+  document.getElementById('plansSearchInput').addEventListener('input', e=>{ plansSearchTerm = e.target.value; renderPlansPage(); });
+  document.getElementById('custFilterChips').addEventListener('click', e=>{
+    const chip = e.target.closest('.fchip'); if(!chip) return;
+    custActiveKey = chip.dataset.key || null; renderCustomersPage();
+  });
+  document.getElementById('plansFilterChips').addEventListener('click', e=>{
+    const chip = e.target.closest('.fchip'); if(!chip) return;
+    plansActiveKey = chip.dataset.key || null; renderPlansPage();
+  });
+
+  const assignSelect = document.getElementById('assignSelect');
+  customers.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    assignSelect.appendChild(opt);
+  });
+
+  document.body.addEventListener('click', e=>{
+    const row = e.target.closest('.cust-row');
+    if(row) location.hash = '#/customers/' + row.dataset.id;
+  });
+
+
+  /* ---------- builder interactions ---------- */
+  let builderGoal = 'Lose weight';
+  document.getElementById('goalSeg').addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#goalSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    builderGoal = b.dataset.goal;
+  });
+  document.getElementById('avoidTags').addEventListener('click', e=>{
+    if(e.target.tagName === 'SPAN' && e.target.parentElement.classList.contains('avoid-tag')) e.target.parentElement.remove();
+  });
+  document.getElementById('avoidInput').addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && e.target.value.trim()){
+      const t = document.createElement('span');
+      t.className = 'avoid-tag';
+      t.innerHTML = e.target.value.trim().replace(/[<>]/g,'') + ' <span>&times;</span>';
+      document.getElementById('avoidTags').appendChild(t);
+      e.target.value = '';
+    }
+  });
+  document.getElementById('generateBtn').addEventListener('click', ()=>{
+    showToast('Plan generated');
+    setTimeout(()=>{ location.hash = builderReturn; }, 900);
+  });
+
+  function showToast(msg){
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(()=>toast.classList.remove('show'), 1400);
+  }
+
+  function goTo(path){ location.hash = '#' + path; }
+
+  function toggleInsights(page){
+    document.getElementById(page + 'Insights').classList.toggle('open');
+    document.getElementById(page + 'InsightsToggle').classList.toggle('open');
+  }
+
+  /* ---------- router ---------- */
+  let currentDetailId = null;
+  let builderReturn = '#/plans';
+
+  function parseHash(){
+    let h = location.hash.replace(/^#\/?/, '');
+    const [pathPart, queryPart] = h.split('?');
+    const parts = pathPart.split('/').filter(Boolean);
+    const query = new URLSearchParams(queryPart || '');
+    return {parts, query};
+  }
+
+  function showPage(id){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function setActiveNav(route){
+    document.querySelectorAll('[data-route]').forEach(el=>{
+      el.classList.toggle('active', el.dataset.route === route);
+    });
+  }
+
+  function renderCustomerDetail(id){
+    const c = customers.find(x => x.id === Number(id));
+    if(!c){ location.hash = '#/customers'; return; }
+    currentDetailId = c.id;
+    document.getElementById('detailAvatar').className = 'profile-avatar avatar-' + c.color;
+    document.getElementById('detailAvatar').textContent = c.initials;
+    document.getElementById('detailName').textContent = c.name;
+
+    const active = activePlanOf(c);
+    document.getElementById('detailMeta').innerHTML = `
+      <span class="meta-chip"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><b>${c.plans.length}</b> plan${c.plans.length!==1?'s':''}</span>
+      <span class="meta-chip"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Current plan <b>${active ? active.title : '—'}</b></span>
+      <span class="meta-chip"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Client since <b>Mar 2026</b></span>`;
+
+    document.getElementById('detailPlansCount').textContent = c.plans.length ? `${c.plans.length} total` : '';
+    document.getElementById('detailPlansList').innerHTML = c.plans.length ? c.plans.map(planDetailRow).join('')
+      : `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><div class="t">No plans assigned yet</div><div class="s">This customer has no goal until a plan is made active.</div></div>`;
+  }
+
+  function renderBuilder(query){
+    const customerId = query.get('customer');
+    const label = document.getElementById('builderBackLabel');
+    if(customerId){
+      const c = customers.find(x => x.id === Number(customerId));
+      assignSelect.value = customerId;
+      builderReturn = '#/customers/' + customerId;
+      label.textContent = 'Back to ' + (c ? c.name : 'customer');
+    } else {
+      assignSelect.value = '';
+      builderReturn = '#/plans';
+      label.textContent = 'Back to plans';
+    }
+  }
+
+  function render(){
+    const {parts, query} = parseHash();
+    const section = parts[0] || 'home';
+
+    if(section === 'customers'){
+      if(parts[1]){ showPage('page-customer-detail'); setActiveNav('customers'); renderCustomerDetail(parts[1]); }
+      else { showPage('page-customers'); setActiveNav('customers'); }
+    } else if(section === 'plans'){
+      if(parts[1] === 'new'){ showPage('page-plan-builder'); setActiveNav('plans'); renderBuilder(query); }
+      else { showPage('page-plans'); setActiveNav('plans'); }
+    } else {
+      showPage('page-home'); setActiveNav('home');
+    }
+    window.scrollTo(0,0);
+  }
+
+  window.addEventListener('hashchange', render);
+  render();
+</script>
+
+</body>
+</html>

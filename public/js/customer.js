@@ -52,7 +52,7 @@ function customerIdFromPath() {
 
 function planHref(plan) {
   const folderParam = plan.folder_id ? `&folderId=${encodeURIComponent(plan.folder_id)}` : '';
-  return `/planner?planId=${encodeURIComponent(plan.id)}${folderParam}`;
+  return `/planner?planId=${encodeURIComponent(plan.id)}&view=plan${folderParam}`;
 }
 
 async function initNav() {

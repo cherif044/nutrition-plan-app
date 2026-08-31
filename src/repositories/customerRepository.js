@@ -1,3 +1,4 @@
+const sequelize = require('../config/database');
 const { Op, fn, col, where } = require('sequelize');
 const { Customer, Plan } = require('../models');
 
@@ -173,6 +174,41 @@ async function listCustomersWithPlanSummary(userId) {
   });
 }
 
+async function createCustomer(userId, input = {}) {
+  const name = cleanCustomerName(input.name);
+  if (!name) throw Object.assign(new Error('Customer name is required.'), { status: 400 });
+
+  return Customer.create({
+    user_id: userId,
+    name,
+    ...customerProfileFromInput(input),
+  });
+}
+
+async function getCustomer(userId, customerId) {
+  return findCustomerById(userId, customerId);
+}
+
+async function updateCustomer(userId, customerId, input = {}) {
+  const customer = await findCustomerById(userId, customerId);
+  if (!customer) return null;
+
+  const name = cleanCustomerName(input.name);
+  if (!name) throw Object.assign(new Error('Customer name is required.'), { status: 400 });
+
+  const existing = await findCustomerByNormalizedName(userId, name);
+  if (existing && String(existing.id) !== String(customer.id)) {
+    throw Object.assign(new Error('A customer with this name already exists.'), { status: 409 });
+  }
+
+  await customer.update({
+    name,
+    ...customerProfileFromInput(input),
+    updated_at: new Date(),
+  });
+  return customer;
+}
+
 async function getCustomerPlans(userId, customerId) {
   const customer = await findCustomerById(userId, customerId);
   if (!customer) return null;
@@ -190,8 +226,20 @@ async function getCustomerPlans(userId, customerId) {
 }
 
 async function deleteCustomer(userId, customerId) {
-  const count = await Customer.destroy({ where: { id: customerId, user_id: userId } });
-  return count > 0;
+  return sequelize.transaction(async (transaction) => {
+    const customer = await findCustomerById(userId, customerId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!customer) return false;
+
+    await Plan.update(
+      { customer_id: null, is_active: false, updated_at: new Date() },
+      { where: { user_id: userId, customer_id: customerId }, transaction },
+    );
+    await customer.destroy({ transaction });
+    return true;
+  });
 }
 
 module.exports = {
@@ -203,6 +251,9 @@ module.exports = {
   findCustomerByNormalizedName,
   findCustomerById,
   resolveCustomerForPlan,
+  createCustomer,
+  getCustomer,
+  updateCustomer,
   listCustomers,
   listCustomersWithPlanSummary,
   getCustomerPlans,

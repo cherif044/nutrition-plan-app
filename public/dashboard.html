@@ -6,11 +6,11 @@
     <title>Dashboard — Pinch</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/css/styles.css" />
   </head>
   <body class="dashboard-page">
-    <main class="app-shell">
+    <main class="app-shell dashboard-frame">
       <nav class="planner-nav">
         <div class="planner-nav__brand">
           <span class="brand-mark" aria-hidden="true">
@@ -27,63 +27,444 @@
         <div class="planner-nav__user" id="planner-nav-user"></div>
       </nav>
 
-      <section class="dashboard-shell" aria-labelledby="dashboard-title">
-        <h1 id="dashboard-title" class="sr-only">Dashboard</h1>
+      <div class="dashboard-app-body">
+        <aside class="dashboard-sidebar" aria-label="Dashboard navigation">
+          <a class="dashboard-side-link" href="#/home" data-route="home">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m3 10 9-7 9 7" />
+              <path d="M5 10v10h14V10" />
+              <path d="M9 20v-6h6v6" />
+            </svg>
+            Home
+          </a>
+          <a class="dashboard-side-link" href="#/customers" data-route="customers">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Customers
+          </a>
+          <a class="dashboard-side-link" href="#/plans" data-route="plans">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+              <path d="M14 3v5h5" />
+            </svg>
+            Plans
+          </a>
+          <span class="dashboard-side-divider" aria-hidden="true"></span>
+          <a class="dashboard-side-link" href="/planner">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            New plan
+          </a>
+        </aside>
 
-        <section class="dashboard-stats" aria-label="Plan statistics">
-          <div class="dashboard-stat-card" data-tone="cal">
-            <span>Total plans</span>
-            <strong id="stat-total-plans">—</strong>
-          </div>
-          <div class="dashboard-stat-card" data-tone="protein">
-            <span>Total customers</span>
-            <strong id="stat-customers">—</strong>
-          </div>
-          <div class="dashboard-stat-card" data-tone="fat">
-            <span>Current active plans</span>
-            <strong id="stat-active-plans">—</strong>
-          </div>
-        </section>
+        <section class="dashboard-shell" aria-live="polite">
+          <section class="dashboard-page-view" id="page-home" aria-labelledby="dashboard-title">
+            <section class="dashboard-hero">
+              <div>
+                <h1 id="dashboard-title">Good afternoon</h1>
+                <p id="dashboard-hero-sub">Your customers, general plans, and active assignments are gathered here.</p>
+              </div>
+              <a class="hero-cta" href="/planner">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                New plan
+              </a>
+            </section>
 
-        <div class="dashboard-main-row">
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="customers-title">
-            <header class="dashboard-section__header">
-              <h2 id="customers-title">Customers</h2>
+            <section class="dashboard-stats" aria-label="Plan statistics">
+              <div class="dashboard-stat-card" data-tone="cal">
+                <span class="dashboard-stat-label">Total plans</span>
+                <span class="dashboard-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 2h6v4H9z" />
+                    <path d="M6 6h12v14H6z" />
+                  </svg>
+                </span>
+                <span class="dashboard-stat-bottom">
+                  <strong id="stat-total-plans">—</strong>
+                  <span class="dashboard-trend" id="stat-plans-trend">—</span>
+                </span>
+              </div>
+              <div class="dashboard-stat-card" data-tone="protein">
+                <span class="dashboard-stat-label">Total customers</span>
+                <span class="dashboard-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </span>
+                <span class="dashboard-stat-bottom">
+                  <strong id="stat-customers">—</strong>
+                  <span class="dashboard-trend" id="stat-customers-trend">—</span>
+                </span>
+              </div>
+              <div class="dashboard-stat-card" data-tone="fat">
+                <span class="dashboard-stat-label">Current active plans</span>
+                <span class="dashboard-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />
+                  </svg>
+                </span>
+                <span class="dashboard-stat-bottom">
+                  <strong id="stat-active-plans">—</strong>
+                  <span class="dashboard-trend" id="stat-active-trend">—</span>
+                </span>
+              </div>
+            </section>
+
+            <div class="dashboard-home-grid">
+              <section class="dashboard-section dashboard-panel-card" aria-labelledby="home-customers-title">
+                <header class="dashboard-section__header">
+                  <h2 id="home-customers-title">Recent customers</h2>
+                  <a class="dashboard-view-all" href="#/customers">View all -></a>
+                </header>
+                <div class="dashboard-customer-grid" id="home-customers-list"></div>
+              </section>
+
+              <section class="dashboard-section dashboard-panel-card" aria-labelledby="home-plans-title">
+                <header class="dashboard-section__header">
+                  <h2 id="home-plans-title">Recent plans</h2>
+                  <a class="dashboard-view-all" href="#/plans">View all -></a>
+                </header>
+                <div class="dashboard-plan-grid" id="home-plans-list"></div>
+              </section>
+            </div>
+
+            <section class="dashboard-section dashboard-quick" aria-labelledby="actions-title">
+              <header class="dashboard-section__header">
+                <h2 id="actions-title">Quick actions</h2>
+              </header>
+              <div class="dashboard-action-grid">
+                <a class="dashboard-action-tile" href="/planner">
+                  <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true"></span>
+                  <span>
+                    <strong>New plan</strong>
+                    <small>Build a plan template</small>
+                  </span>
+                </a>
+                <a class="dashboard-action-tile" href="#/customers/new">
+                  <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true"></span>
+                  <span>
+                    <strong>Add customer</strong>
+                    <small>Start with 0 plans</small>
+                  </span>
+                </a>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-page-view" id="page-customers" aria-labelledby="customers-title">
+            <header class="dashboard-page-header">
+              <div>
+                <h1 id="customers-title">Customers</h1>
+                <p id="customers-subtitle">Customers total</p>
+              </div>
+              <a class="hero-cta" href="#/customers/new">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                Add customer
+              </a>
             </header>
+
+            <button class="dashboard-insights-toggle" id="customer-insights-toggle" type="button" aria-expanded="false">
+              <span>Customer insights</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            <div class="dashboard-insights-block" id="customer-insights">
+              <section class="dashboard-stats" aria-label="Customer statistics">
+                <div class="dashboard-stat-card" data-tone="protein">
+                  <span class="dashboard-stat-label">Total customers</span>
+                  <span class="dashboard-stat-icon" data-icon="customers" aria-hidden="true"></span>
+                  <strong id="customer-stat-total">—</strong>
+                </div>
+                <div class="dashboard-stat-card" data-tone="cal">
+                  <span class="dashboard-stat-label">With an active plan</span>
+                  <span class="dashboard-stat-icon" data-icon="active" aria-hidden="true"></span>
+                  <strong id="customer-stat-active">—</strong>
+                </div>
+                <div class="dashboard-stat-card" data-tone="carb">
+                  <span class="dashboard-stat-label">Avg. plans / customer</span>
+                  <span class="dashboard-stat-icon" data-icon="chart" aria-hidden="true"></span>
+                  <strong id="customer-stat-average">—</strong>
+                </div>
+              </section>
+            </div>
+
             <label class="dashboard-search">
               <span class="sr-only">Search customers</span>
               <input id="customer-search" type="search" placeholder="Search customers" autocomplete="off" />
             </label>
-            <div class="dashboard-customer-grid" id="customers-list"></div>
-            <div class="dashboard-customer-plans" id="selected-customer-plans" hidden></div>
+            <section class="dashboard-section dashboard-panel-card">
+              <header class="dashboard-section__header">
+                <h2>All customers</h2>
+                <span class="dashboard-soft-copy" id="customer-list-count"></span>
+              </header>
+              <div class="dashboard-customer-grid" id="customers-list"></div>
+            </section>
           </section>
 
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="general-title">
-            <header class="dashboard-section__header">
-              <h2 id="general-title">General plans</h2>
-            </header>
-            <label class="dashboard-search">
-              <span class="sr-only">Search general plans</span>
-              <input id="general-plan-search" type="search" placeholder="Search general plans" autocomplete="off" />
-            </label>
-            <div class="dashboard-plan-grid" id="recent-plans"></div>
-          </section>
-        </div>
-
-        <section class="dashboard-section" aria-labelledby="actions-title">
-          <header class="dashboard-section__header">
-            <h2 id="actions-title">Quick actions</h2>
-          </header>
-          <div class="dashboard-action-grid">
-            <a class="dashboard-action-tile" href="/planner">
-              <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true"></span>
-              <span>New plan</span>
+          <section class="dashboard-page-view" id="page-customer-new" aria-labelledby="new-customer-title">
+            <a class="dashboard-back-link" href="#/customers">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              Back to customers
             </a>
-          </div>
-        </section>
+            <header class="dashboard-page-header">
+              <div>
+                <h1 id="new-customer-title">Add customer</h1>
+                <p>Create a customer profile with no assigned plans yet.</p>
+              </div>
+            </header>
+            <form class="dashboard-panel-card dashboard-customer-form" id="new-customer-form">
+              <label>
+                <span>Name</span>
+                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" required />
+              </label>
+              <div class="dashboard-form-grid">
+                <label>
+                  <span>Age</span>
+                  <input type="number" name="age" min="1" max="120" step="1" placeholder="29" />
+                </label>
+                <label>
+                  <span>Sex</span>
+                  <select name="sex">
+                    <option value="">Not set</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+              </div>
+              <div class="dashboard-form-grid">
+                <label>
+                  <span>Weight (kg)</span>
+                  <input type="number" name="weightKg" min="1" step="0.1" placeholder="78" />
+                </label>
+                <label>
+                  <span>Height (cm)</span>
+                  <input type="number" name="heightCm" min="1" step="0.1" placeholder="178" />
+                </label>
+              </div>
+              <label>
+                <span>Activity level</span>
+                <select name="activityLevel">
+                  <option value="">Not set</option>
+                  <option value="sedentary">Sedentary</option>
+                  <option value="light">Light</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="athlete">Athlete / physically demanding</option>
+                </select>
+              </label>
+              <button class="hero-cta dashboard-submit-btn" type="submit">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                Add customer
+              </button>
+            </form>
+          </section>
 
-        <p id="dashboard-message" class="message" role="status" aria-live="polite"></p>
-      </section>
+          <section class="dashboard-page-view" id="page-customer-edit" aria-labelledby="edit-customer-title">
+            <a class="dashboard-back-link" id="edit-customer-back" href="#/customers">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              Back to customer
+            </a>
+            <header class="dashboard-page-header">
+              <div>
+                <h1 id="edit-customer-title">Edit customer</h1>
+                <p>Update the stored profile used to prefill future plans.</p>
+              </div>
+            </header>
+            <form class="dashboard-panel-card dashboard-customer-form" id="edit-customer-form">
+              <input type="hidden" name="id" />
+              <label>
+                <span>Name</span>
+                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" required />
+              </label>
+              <div class="dashboard-form-grid">
+                <label>
+                  <span>Age</span>
+                  <input type="number" name="age" min="1" max="120" step="1" placeholder="29" />
+                </label>
+                <label>
+                  <span>Sex</span>
+                  <select name="sex">
+                    <option value="">Not set</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+              </div>
+              <div class="dashboard-form-grid">
+                <label>
+                  <span>Weight (kg)</span>
+                  <input type="number" name="weightKg" min="1" step="0.1" placeholder="78" />
+                </label>
+                <label>
+                  <span>Height (cm)</span>
+                  <input type="number" name="heightCm" min="1" step="0.1" placeholder="178" />
+                </label>
+              </div>
+              <label>
+                <span>Activity level</span>
+                <select name="activityLevel">
+                  <option value="">Not set</option>
+                  <option value="sedentary">Sedentary</option>
+                  <option value="light">Light</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="athlete">Athlete / physically demanding</option>
+                </select>
+              </label>
+              <button class="hero-cta dashboard-submit-btn" type="submit">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg>
+                Save customer
+              </button>
+            </form>
+          </section>
+
+          <section class="dashboard-page-view" id="page-customer-detail" aria-labelledby="detail-customer-title">
+            <a class="dashboard-back-link" href="#/customers">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              Back to customers
+            </a>
+            <section class="dashboard-panel-card customer-header-card">
+              <span class="dashboard-icon-square" data-tone="protein" id="detail-customer-avatar" aria-hidden="true"></span>
+              <div>
+                <h1 id="detail-customer-title">Customer</h1>
+                <div class="dashboard-profile-meta" id="detail-customer-meta"></div>
+              </div>
+            </section>
+            <section class="dashboard-section dashboard-panel-card">
+              <header class="dashboard-section__header">
+                <h2>Assigned plans</h2>
+                <span class="dashboard-detail-actions">
+                  <span class="dashboard-soft-copy" id="detail-plan-count"></span>
+                  <a class="hero-cta dashboard-add-plan-btn" id="detail-add-plan-link" href="/planner">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14" />
+                      <path d="M5 12h14" />
+                    </svg>
+                    Add plan
+                  </a>
+                </span>
+              </header>
+              <div class="dashboard-plan-grid" id="detail-customer-plans"></div>
+            </section>
+          </section>
+
+          <section class="dashboard-page-view" id="page-plans" aria-labelledby="plans-title">
+            <header class="dashboard-page-header">
+              <div>
+                <h1 id="plans-title">Plans</h1>
+                <p id="plans-subtitle">General plans</p>
+              </div>
+              <a class="hero-cta" href="/planner">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                New plan
+              </a>
+            </header>
+
+            <button class="dashboard-insights-toggle" id="plan-insights-toggle" type="button" aria-expanded="false">
+              <span>Plan insights</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            <div class="dashboard-insights-block" id="plan-insights">
+              <section class="dashboard-stats" aria-label="Plan statistics">
+                <div class="dashboard-stat-card" data-tone="cal">
+                  <span class="dashboard-stat-label">Total general plans</span>
+                  <span class="dashboard-stat-icon" data-icon="plans" aria-hidden="true"></span>
+                  <strong id="plan-stat-total">—</strong>
+                </div>
+                <div class="dashboard-stat-card" data-tone="fat">
+                  <span class="dashboard-stat-label">Assigned to customers</span>
+                  <span class="dashboard-stat-icon" data-icon="active" aria-hidden="true"></span>
+                  <strong id="plan-stat-assigned">—</strong>
+                </div>
+                <div class="dashboard-stat-card" data-tone="carb">
+                  <span class="dashboard-stat-label">Newest plan</span>
+                  <span class="dashboard-stat-icon" data-icon="clock" aria-hidden="true"></span>
+                  <strong class="dashboard-stat-small" id="plan-stat-newest">—</strong>
+                </div>
+              </section>
+              <section class="dashboard-panel-card">
+                <header class="dashboard-section__header">
+                  <h2>Plan goals breakdown</h2>
+                </header>
+                <div class="dashboard-goal-bar" id="plan-goal-bar"></div>
+                <div class="dashboard-goal-legend" id="plan-goal-legend"></div>
+              </section>
+            </div>
+
+            <label class="dashboard-search">
+              <span class="sr-only">Search plans</span>
+              <input id="general-plan-search" type="search" placeholder="Search plans" autocomplete="off" />
+            </label>
+            <div class="dashboard-filter-row" id="plan-filter-chips"></div>
+            <section class="dashboard-section dashboard-panel-card">
+              <header class="dashboard-section__header">
+                <h2>All general plans</h2>
+                <span class="dashboard-soft-copy" id="plan-list-count"></span>
+              </header>
+              <div class="dashboard-plan-grid" id="recent-plans"></div>
+            </section>
+          </section>
+
+          <p id="dashboard-message" class="message" role="status" aria-live="polite"></p>
+        </section>
+      </div>
+
+      <nav class="dashboard-bottom-nav" aria-label="Mobile dashboard navigation">
+        <a href="#/home" data-route="home">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m3 10 9-7 9 7" />
+            <path d="M5 10v10h14V10" />
+          </svg>
+          <span>Home</span>
+        </a>
+        <a href="#/plans" data-route="plans">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+            <path d="M14 3v5h5" />
+          </svg>
+          <span>Plans</span>
+        </a>
+        <a href="#/customers" data-route="customers">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+          </svg>
+          <span>Clients</span>
+        </a>
+      </nav>
     </main>
 
     <script src="/js/dashboard.js" defer></script>

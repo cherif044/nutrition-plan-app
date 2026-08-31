@@ -415,8 +415,8 @@
 
       function plannerHref(planId) {
         return currentFolderId
-          ? `/planner?planId=${planId}&folderId=${currentFolderId}`
-          : `/planner?planId=${planId}`;
+          ? `/planner?planId=${planId}&view=plan&folderId=${currentFolderId}`
+          : `/planner?planId=${planId}&view=plan`;
       }
 
       // Empty-state CTAs mirror the toolbar actions so the call to action sits
