@@ -21,7 +21,7 @@ app.use(requireAuth, async (req, res, next) => {
     const plan = await getPlanById(planId, req.user.id);
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
 
-    const pdf = await generatePlanPdf(plan);
+    const pdf = await generatePlanPdf(plan, { clientName: req.query.clientName });
     const filename = pdfFilename(plan);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

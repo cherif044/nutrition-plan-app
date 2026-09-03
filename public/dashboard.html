@@ -145,6 +145,13 @@
                     <small>Build a plan template</small>
                   </span>
                 </a>
+                <a class="dashboard-action-tile" href="#/customers/new">
+                  <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true"></span>
+                  <span>
+                    <strong>Add customer</strong>
+                    <small>Start with 0 plans</small>
+                  </span>
+                </a>
               </div>
             </section>
           </section>
@@ -336,22 +343,34 @@
               </svg>
               Back to customers
             </a>
-            <section class="dashboard-panel-card customer-header-card">
-              <span class="dashboard-icon-square" data-tone="protein" id="detail-customer-avatar" aria-hidden="true"></span>
-              <div>
-                <h1 id="detail-customer-title">Customer</h1>
-                <div class="dashboard-profile-meta" id="detail-customer-meta"></div>
+            <div class="customer-detail-layout">
+              <div class="customer-detail-overview">
+                <section class="dashboard-panel-card customer-header-card">
+                  <span class="dashboard-icon-square" data-tone="protein" id="detail-customer-avatar" aria-hidden="true"></span>
+                  <div>
+                    <h1 id="detail-customer-title">Customer</h1>
+                    <p>Customer profile</p>
+                  </div>
+                </section>
+                <section class="customer-detail-stats" id="detail-customer-stats" aria-label="Customer statistics"></section>
               </div>
-            </section>
-            <section class="dashboard-section dashboard-panel-card">
-              <header class="dashboard-section__header">
-                <h2>Assigned plans</h2>
-                <span class="dashboard-detail-actions">
-                  <span class="dashboard-soft-copy" id="detail-plan-count"></span>
-                </span>
-              </header>
-              <div class="dashboard-plan-grid" id="detail-customer-plans"></div>
-            </section>
+              <section class="dashboard-section dashboard-panel-card customer-detail-plans">
+                <header class="dashboard-section__header">
+                  <h2>Assigned plans</h2>
+                  <span class="dashboard-detail-actions">
+                    <span class="dashboard-soft-copy" id="detail-plan-count"></span>
+                    <a class="hero-cta dashboard-add-plan-btn" id="detail-add-plan-link" href="/planner">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 5v14" />
+                        <path d="M5 12h14" />
+                      </svg>
+                      Add plan
+                    </a>
+                  </span>
+                </header>
+                <div class="dashboard-plan-grid" id="detail-customer-plans"></div>
+              </section>
+            </div>
           </section>
 
           <section class="dashboard-page-view" id="page-plans" aria-labelledby="plans-title">

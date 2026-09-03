@@ -215,13 +215,26 @@ async function getCustomerPlans(userId, customerId) {
 
   const plans = await Plan.findAll({
     where: { user_id: userId, customer_id: customerId },
-    attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'created_at', 'updated_at'],
+    attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'plan_data', 'created_at', 'updated_at'],
     order: [['is_active', 'DESC'], ['updated_at', 'DESC'], ['created_at', 'DESC']],
   });
 
   return {
     customer,
-    plans,
+    plans: plans.map((plan) => {
+      const data = plan.toJSON();
+      return {
+        id: data.id,
+        folder_id: data.folder_id,
+        customer_id: data.customer_id,
+        name: data.name,
+        is_active: data.is_active,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        goal: data.plan_data?.input?.goal || null,
+        dietType: data.plan_data?.input?.dietType || null,
+      };
+    }),
   };
 }
 

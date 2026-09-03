@@ -49,7 +49,6 @@ const state = {
   customerSearch: '',
   planSearch: '',
   menu: null,
-  activePdfDownloadController: null,
 };
 
 const AVATAR_TONES = ['coral', 'sky', 'violet', 'amber', 'jade'];
@@ -124,18 +123,13 @@ function pdfDownloadName(planName) {
   return `${base}.pdf`;
 }
 
-function filenameFromDisposition(disposition, fallback) {
-  const match = String(disposition || '').match(/filename="([^"]+)"/i);
-  return match?.[1] || fallback;
-}
-
 function customerGoalKey(customer) {
   if (!customer.activePlan) return 'inactive';
   return customer.goal || 'active';
 }
 
 function planGoalKey(plan) {
-  return plan.goal || 'unknown';
+  return plan.goal || plan.plan_data?.input?.goal || plan.planData?.input?.goal || 'unknown';
 }
 
 function matchesSearch(values, term) {
@@ -186,19 +180,42 @@ function currentPlanChip(active) {
   return active ? '<span class="dashboard-current-chip">Current plan</span>' : '';
 }
 
-function customerProfileMeta(customer) {
-  const meta = [
-    [`${Number(customer.planCount || 0)} plan${Number(customer.planCount || 0) === 1 ? '' : 's'}`],
-    [customer.age ? `${customer.age} years` : 'Age not set'],
-    [customer.sex ? titleCase(customer.sex) : 'Sex not set'],
-    [customer.weight ? `${Number(customer.weight).toLocaleString()} kg` : 'Weight not set'],
-    [customer.height ? `${Number(customer.height).toLocaleString()} cm` : 'Height not set'],
-    [customer.activity_level ? titleCase(customer.activity_level) : 'Activity not set'],
+function customerDetailStats(customer) {
+  const planCount = Number(customer.planCount || 0);
+  const bodyValue = customer.weight ? `${Number(customer.weight).toLocaleString()} kg` : '-';
+  const heightValue = customer.height ? `${Number(customer.height).toLocaleString()} cm` : 'Height not set';
+  const ageValue = customer.age ? String(customer.age) : '-';
+  const sexValue = customer.sex ? titleCase(customer.sex) : 'Sex not set';
+  const activityValue = customer.activity_level ? titleCase(customer.activity_level) : '-';
+  const activeValue = customer.activePlan ? 'Active plan' : 'No active plan';
+  const cards = [
+    { tone: 'cal', label: 'Plans', value: planCount.toLocaleString(), trend: activeValue, icon: iconSvg('file', 15) },
+    { tone: 'protein', label: 'Age', value: ageValue, trend: sexValue, icon: iconSvg('users', 15) },
+    { tone: 'fat', label: 'Body', value: bodyValue, trend: heightValue, icon: iconSvg('chart', 15) },
+    { tone: 'carb', label: 'Activity', value: activityValue, trend: customer.goal ? goalLabel(customer.goal) : 'Goal not set', icon: iconSvg('zap', 15) },
   ];
-  return meta.map(([label]) => `<span>${escapeHtml(label)}</span>`).join('');
+  return cards.map((card) => `
+    <div class="dashboard-stat-card customer-detail-stat" data-tone="${card.tone}">
+      <span class="dashboard-stat-label">${escapeHtml(card.label)}</span>
+      <span class="dashboard-stat-icon" aria-hidden="true">${card.icon}</span>
+      <span class="dashboard-stat-bottom">
+        <strong>${escapeHtml(card.value)}</strong>
+        <span class="dashboard-trend">${escapeHtml(card.trend)}</span>
+      </span>
+    </div>
+  `).join('');
 }
 
-function planRow(plan, { menu = true, activeStyle = false, showGoal = true, showActiveChip = activeStyle } = {}) {
+function planRow(
+  plan,
+  {
+    menu = true,
+    activeStyle = false,
+    showGoal = true,
+    showActiveChip = activeStyle,
+    tableStyle = false,
+  } = {},
+) {
   const updatedAt = plan.updated_at || plan.created_at;
   const goal = planGoalKey(plan);
   const footer = [
@@ -206,7 +223,7 @@ function planRow(plan, { menu = true, activeStyle = false, showGoal = true, show
     showActiveChip ? currentPlanChip(plan.is_active) : '',
   ].filter(Boolean).join('');
   return `
-    <article class="dashboard-plan-card${activeStyle && plan.is_active ? ' is-active-plan' : ''}">
+    <article class="dashboard-plan-card${activeStyle && plan.is_active ? ' is-active-plan' : ''}${tableStyle ? ' dashboard-plan-card--table' : ''}">
       <a class="dashboard-plan-card__link" href="${escapeHtml(planHref(plan))}">
         <span class="dashboard-plan-card__body">
           <span class="dashboard-plan-card__title">
@@ -224,6 +241,7 @@ function planRow(plan, { menu = true, activeStyle = false, showGoal = true, show
           aria-label="Plan options for ${escapeHtml(plan.name)}"
           data-plan-id="${escapeHtml(plan.id)}"
           data-plan-name="${escapeHtml(plan.name)}"
+          data-customer-id="${escapeHtml(plan.customer_id || '')}"
           data-export-href="${escapeHtml(planExportHref(plan))}"
         >${iconSvg('more', 18)}</button>
       ` : ''}
@@ -407,7 +425,8 @@ async function renderCustomerDetail(customerId) {
 
   document.getElementById('detail-customer-avatar').textContent = initials(customer.name);
   document.getElementById('detail-customer-title').textContent = customer.name;
-  document.getElementById('detail-customer-meta').innerHTML = customerProfileMeta(customer);
+  document.getElementById('detail-customer-stats').innerHTML = customerDetailStats(customer);
+  document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
   document.getElementById('detail-plan-count').textContent = 'Loading...';
   document.getElementById('detail-customer-plans').innerHTML = emptyState('plans', 'Loading assigned plans.');
 
@@ -415,7 +434,13 @@ async function renderCustomerDetail(customerId) {
     const { plans } = await loadCustomerPlans(customerId);
     document.getElementById('detail-plan-count').textContent = plans.length ? `${plans.length} total` : '';
     document.getElementById('detail-customer-plans').innerHTML = plans.length
-      ? plans.map((plan) => planRow(plan, { menu: true, activeStyle: true, showGoal: false, showActiveChip: false })).join('')
+      ? plans.map((plan) => planRow(plan, {
+        menu: true,
+        activeStyle: true,
+        showGoal: true,
+        showActiveChip: false,
+        tableStyle: true,
+      })).join('')
       : emptyState('plans', 'This customer has no assigned plans yet.');
   } catch {
     if (page.classList.contains('is-active')) {
@@ -551,43 +576,26 @@ function positionDashboardMenu(button) {
   menu.style.top = `${Math.max(8, top)}px`;
 }
 
-async function downloadPlanPdf(exportHref, planName) {
+function exportHrefWithClientName(exportHref, hasCustomer) {
+  if (hasCustomer) return exportHref;
+  if (!confirm('Do you want to add a client name in the PDF?')) return exportHref;
+  const clientName = (prompt('Client name for the PDF') || '').trim();
+  if (!clientName) return exportHref;
+  const url = new URL(exportHref, window.location.origin);
+  url.searchParams.set('clientName', clientName);
+  return `${url.pathname}${url.search}`;
+}
+
+function downloadPlanPdf(exportHref, planName, { hasCustomer = false } = {}) {
   const message = document.getElementById('dashboard-message');
-  state.activePdfDownloadController?.abort();
-  const controller = new AbortController();
-  state.activePdfDownloadController = controller;
-  const timeout = setTimeout(() => controller.abort(), 65000);
-  message.textContent = 'Preparing PDF...';
-
-  try {
-    const res = await fetch(exportHref, { credentials: 'same-origin', signal: controller.signal });
-    if (!res.ok) {
-      let detail = 'Failed to export PDF.';
-      try {
-        const data = await res.json();
-        if (data?.error) detail = data.error;
-      } catch {}
-      throw new Error(detail);
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), pdfDownloadName(planName));
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    message.textContent = 'PDF download started.';
-  } catch (error) {
-    message.textContent = error.name === 'AbortError'
-      ? 'PDF export took too long. Try again in a moment.'
-      : error.message || 'Failed to export PDF.';
-  } finally {
-    clearTimeout(timeout);
-    if (state.activePdfDownloadController === controller) state.activePdfDownloadController = null;
-  }
+  const href = exportHrefWithClientName(exportHref, hasCustomer);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = pdfDownloadName(planName);
+  document.body.append(link);
+  link.click();
+  link.remove();
+  message.textContent = 'PDF export started.';
 }
 
 async function refreshDashboard() {
@@ -664,7 +672,7 @@ async function submitEditCustomer(form) {
 
 function showPlanMenu(button) {
   const menu = ensureDashboardMenu();
-  const { planId, planName, exportHref } = button.dataset;
+  const { planId, planName, exportHref, customerId } = button.dataset;
   menu.innerHTML = `
     <button type="button" data-action="export">Export as PDF</button>
     <button type="button" class="danger" data-action="delete">Delete</button>
@@ -672,7 +680,7 @@ function showPlanMenu(button) {
 
   menu.querySelector('[data-action="export"]').addEventListener('click', () => {
     hideDashboardMenu();
-    downloadPlanPdf(exportHref, planName);
+    downloadPlanPdf(exportHref, planName, { hasCustomer: Boolean(customerId) });
   });
 
   menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {

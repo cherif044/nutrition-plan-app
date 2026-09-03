@@ -288,6 +288,7 @@ let pdfExportScheduled = false;
 let suppressProfileTouchTracking = false;
 let currentPlanId = plannerCtx?.planId || null;
 let currentPlanName = '';
+let currentPlanHasCustomer = false;
 let firstCreationPending = false;
 let autosaveTimer = null;
 let autosaveInFlight = null;
@@ -347,6 +348,7 @@ async function generateAndRender(apiUrl) {
       const createdPlan = await createGeneratedPlanRecord(payload);
       currentPlanId = createdPlan.id;
       currentPlanName = createdPlan.name || readPreGenerationPlanName();
+      currentPlanHasCustomer = Boolean(createdPlan.customer_id);
       firstCreationPending = true;
       renderPlan(payload, { firstCreation: true, planId: currentPlanId, planName: currentPlanName });
     }
@@ -718,6 +720,7 @@ async function loadPlanForEdit(planId) {
     initializeCustomerPickerFromPlan(plan);
     currentPlanId = plan.id;
     currentPlanName = plan.name || '';
+    currentPlanHasCustomer = Boolean(plan.customer_id);
     firstCreationPending = false;
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
@@ -2636,8 +2639,33 @@ function planCreateUrl(folderId = plannerCtx?.folderId || null) {
   return folderId ? `/api/folders/${encodeURIComponent(folderId)}/plans` : '/api/plans';
 }
 
-function planExportUrl(planId) {
-  return `/api/plans/${encodeURIComponent(planId)}/export.pdf`;
+function planExportUrl(planId, clientName = '') {
+  const url = new URL(`/api/plans/${encodeURIComponent(planId)}/export.pdf`, window.location.origin);
+  if (clientName) url.searchParams.set('clientName', clientName);
+  return `${url.pathname}${url.search}`;
+}
+
+function requestPdfClientName({ hasCustomer = currentPlanHasCustomer } = {}) {
+  if (hasCustomer) return '';
+  if (!confirm('Do you want to add a client name in the PDF?')) return '';
+  const clientName = prompt('Client name for the PDF') || '';
+  return clientName.trim();
+}
+
+function planWillHaveCustomer() {
+  return currentPlanHasCustomer || Boolean(preGenerationCustomerState.selected || form.elements.customerName?.value.trim());
+}
+
+function startPlanExport(planId, { hasCustomer = currentPlanHasCustomer, clientName = null } = {}) {
+  const resolvedClientName = clientName === null
+    ? requestPdfClientName({ hasCustomer })
+    : clientName;
+  const link = document.createElement('a');
+  link.href = planExportUrl(planId, resolvedClientName);
+  link.download = '';
+  document.body.append(link);
+  link.click();
+  link.remove();
 }
 
 async function createGeneratedPlanRecord(planData) {
@@ -2685,6 +2713,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
   }
 
   currentPlanName = data.plan?.name || name;
+  currentPlanHasCustomer = Boolean(data.plan?.customer_id);
   if (status) setAutosaveStatus('Saved');
   return true;
 }
@@ -2760,15 +2789,19 @@ function showEditBar(planId, initialName) {
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
     message.textContent = '';
     const btn = bar.querySelector('.save-action-bar__export');
+    const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
     btn.disabled = true;
-    btn.textContent = 'Preparing...';
+    btn.textContent = 'Saving...';
     const ok = await flushAutosave({ force: true });
     if (!ok) {
       btn.disabled = false;
       btn.innerHTML = `${iconSvg('file')}Export plan`;
       return;
     }
-    window.location.href = planExportUrl(planId);
+    startPlanExport(planId, { clientName });
+    btn.disabled = false;
+    btn.innerHTML = `${iconSvg('file')}Export plan`;
+    message.textContent = 'PDF export started.';
   });
 
   saveBarSlot.replaceChildren(bar);
@@ -2815,8 +2848,11 @@ function showInitialCreationBar(planId, initialName) {
 
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
     const btn = bar.querySelector('.save-action-bar__export');
-    if (!(await updatePendingPlan(btn, 'Preparing...', `${iconSvg('file')}Save & export`))) return;
-    window.location.href = planExportUrl(planId);
+    const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
+    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('file')}Save & export`))) return;
+    startPlanExport(planId, { clientName });
+    showEditBar(planId, currentPlanName || initialName);
+    message.textContent = 'PDF export started.';
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', async () => {

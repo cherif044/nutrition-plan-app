@@ -7,18 +7,18 @@ const appCss = fs.readFileSync(path.join(publicDir, 'css', 'styles.css'), 'utf8'
 
 let browserPromise = null;
 
-async function generatePlanPdf(plan) {
-  return withTimeout(renderPlanPdf(plan), process.env.VERCEL ? 55000 : 30000, 'PDF export timed out.');
+async function generatePlanPdf(plan, options = {}) {
+  return withTimeout(renderPlanPdf(plan, options), process.env.VERCEL ? 55000 : 30000, 'PDF export timed out.');
 }
 
-async function renderPlanPdf(plan) {
+async function renderPlanPdf(plan, options = {}) {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
     await page.setViewport({ width: 1180, height: 1600, deviceScaleFactor: 1 });
     page.setDefaultTimeout(process.env.VERCEL ? 10000 : 30000);
     page.setDefaultNavigationTimeout(process.env.VERCEL ? 10000 : 30000);
-    await page.setContent(renderPlanExportHtml(plan), {
+    await page.setContent(renderPlanExportHtml(plan, options), {
       waitUntil: 'domcontentloaded',
       timeout: process.env.VERCEL ? 10000 : 30000,
     });
@@ -83,14 +83,16 @@ async function launchBrowser() {
   });
 }
 
-function renderPlanExportHtml(planRecord) {
+function renderPlanExportHtml(planRecord, options = {}) {
   const plan = planRecord?.plan_data || {};
   const meals = Array.isArray(plan.meals) ? plan.meals : [];
   const actual = totalsForMeals(meals);
   const summary = renderSummary(plan.dailyTargets || {}, actual);
   const customer = planRecord?.Customer || planRecord?.customer || null;
-  const customerName = planRecord?.customer_id && customer?.name
-    ? customer.name
+  const customClientName = String(options.clientName || '').trim();
+  const customerName = (planRecord?.customer_id && customer?.name) || (!planRecord?.customer_id && customClientName) || '';
+  const clientSection = customerName
+    ? `<section class="plan-client-label">Client: ${escapeHtml(customerName)}</section>`
     : '';
 
   return `<!doctype html>
@@ -105,7 +107,8 @@ function renderPlanExportHtml(planRecord) {
     <main class="app-shell">
       <section class="workspace">
         <section class="results" id="plan-output">
-          ${meals.map((meal, mealIndex) => renderMealCard(meal, mealIndex, { customerName })).join('')}
+          ${clientSection}
+          ${meals.map(renderMealCard).join('')}
           ${summary}
         </section>
       </section>
@@ -114,15 +117,11 @@ function renderPlanExportHtml(planRecord) {
 </html>`;
 }
 
-function renderMealCard(meal, mealIndex, { customerName = '' } = {}) {
+function renderMealCard(meal, mealIndex) {
   const items = Array.isArray(meal.items) ? meal.items : [];
   const totals = normalizeTotals(meal.totals || totalsForItems(items));
-  const clientLabel = mealIndex === 0 && customerName
-    ? `<div class="meal-card__client">Client: ${escapeHtml(customerName)}</div>`
-    : '';
   return `
     <article class="meal-card panel" data-meal-index="${mealIndex}" data-meal-type="${escapeHtml(mealTypeKey(meal.tag))}">
-      ${clientLabel}
       <div class="meal-card__header">
         <span class="meal-card__icon" aria-hidden="true">${iconSvg(mealIconName(meal.tag), 20)}</span>
         <div>
@@ -260,6 +259,9 @@ function exportCss() {
     body.pdf-export-document .results,
     body.pdf-export-document #plan-output {
       display: grid !important;
+      align-content: start !important;
+      align-items: start !important;
+      justify-items: stretch !important;
       width: 100% !important;
       max-width: 1040px !important;
       margin: 0 auto !important;
@@ -277,19 +279,20 @@ function exportCss() {
       margin: 0 !important;
       overflow: hidden !important;
       animation: none !important;
-      box-shadow: 0 3px 10px rgba(26, 44, 33, 0.12) !important;
+      border: 1px solid #dce8df !important;
+      border-radius: 10px !important;
+      box-shadow: none !important;
     }
-    body.pdf-export-document .meal-card__client {
-      display: inline-flex !important;
+    body.pdf-export-document .plan-client-label {
+      display: block !important;
       width: fit-content !important;
-      margin: 0 0 8px !important;
-      border-radius: 999px !important;
-      background: #e4f5ee !important;
-      color: #127c5c !important;
-      padding: 4px 10px !important;
-      font-size: 11px !important;
+      justify-self: start !important;
+      margin: 0 0 2px !important;
+      color: #123832 !important;
+      font-family: Inter, system-ui, sans-serif !important;
+      font-size: 12px !important;
       font-weight: 800 !important;
-      line-height: 1.2 !important;
+      line-height: 1.25 !important;
     }
     body.pdf-export-document .meal-card__actions,
     body.pdf-export-document .meal-card__ranges,
@@ -314,6 +317,23 @@ function exportCss() {
       min-width: 0 !important;
       grid-template-columns: minmax(180px, 1fr) var(--col-portion) repeat(4, var(--col-macro)) !important;
       grid-template-areas: "title portion cal prot carb fat" !important;
+    }
+    body.pdf-export-document .food-list-head {
+      border-bottom: 1px solid #dce8df !important;
+      background: #fff !important;
+    }
+    body.pdf-export-document .food-item {
+      border-top: 0 !important;
+      border-bottom: 1px solid #dce8df !important;
+      background: #fff !important;
+      box-shadow: none !important;
+    }
+    body.pdf-export-document .food-item:last-child {
+      border-bottom: 0 !important;
+    }
+    body.pdf-export-document .meal-card__totals {
+      border-top: 1px solid #dce8df !important;
+      background: #f7faf9 !important;
     }
     body.pdf-export-document .food-icon {
       overflow: hidden;
