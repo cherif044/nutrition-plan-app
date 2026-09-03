@@ -7727,12 +7727,14 @@ body.dashboard-page .dashboard-stat-card strong {
 }
 
 body.dashboard-page .dashboard-frame.app-shell {
-  width: min(1220px, calc(100% - 40px));
-  margin: 36px auto 60px;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--dash-line);
-  border-radius: 18px;
+  border: 0;
+  border-radius: 0;
   background: var(--dash-mist);
   box-shadow: none;
 }
@@ -7853,7 +7855,8 @@ body.dashboard-page .dashboard-nav-avatar {
 body.dashboard-page .dashboard-app-body {
   display: flex;
   align-items: stretch;
-  min-height: 660px;
+  min-height: calc(100vh - 69px);
+  min-height: calc(100dvh - 69px);
 }
 
 body.dashboard-page .dashboard-sidebar {
@@ -8482,6 +8485,10 @@ body.dashboard-page .dashboard-action-tile {
   text-decoration: none;
 }
 
+body.dashboard-page .dashboard-action-tile:only-child {
+  flex-basis: 260px;
+}
+
 body.dashboard-page .dashboard-action-tile > span:last-child {
   display: grid;
   gap: 1px;
@@ -8996,10 +9003,11 @@ body.dashboard-page .dashboard-bottom-nav {
 
 @media (max-width: 760px) {
   body.dashboard-page .dashboard-frame.app-shell {
-    width: min(390px, 100%);
+    width: 100%;
     min-height: 100vh;
-    margin: 0 auto;
-    border-width: 0 1px;
+    min-height: 100dvh;
+    margin: 0;
+    border-width: 0;
     border-radius: 0;
   }
 
@@ -9088,7 +9096,8 @@ body.dashboard-page .dashboard-bottom-nav {
 
   body.dashboard-page .dashboard-app-body {
     display: block;
-    min-height: auto;
+    min-height: calc(100vh - 62px);
+    min-height: calc(100dvh - 62px);
   }
 
   body.dashboard-page .dashboard-shell {
@@ -9284,6 +9293,10 @@ body.dashboard-page .dashboard-bottom-nav {
     padding: 13px 12px;
   }
 
+  body.dashboard-page .dashboard-action-tile:only-child {
+    grid-column: 1 / -1;
+  }
+
   body.dashboard-page .dashboard-action-tile strong {
     font-size: 13px;
   }
@@ -9383,8 +9396,17 @@ body.dashboard-page .dashboard-bottom-nav {
 }
 
 .save-action-bar__discard,
-.save-action-bar__save {
+.save-action-bar__save,
+.save-action-bar__export {
   flex: 0 0 auto;
+}
+
+.save-action-bar__status {
+  margin-right: auto;
+  color: #65766b;
+  font-size: 12.5px;
+  font-weight: 700;
+  pointer-events: auto;
 }
 
 .save-action-bar__discard {
@@ -9393,7 +9415,8 @@ body.dashboard-page .dashboard-bottom-nav {
   color: #65766b;
 }
 
-.save-action-bar__save {
+.save-action-bar__save,
+.save-action-bar__export {
   background: #31b66a;
   box-shadow: 0 8px 18px rgba(49, 182, 106, 0.22);
 }
@@ -9418,6 +9441,7 @@ body.is-plan-view {
   .save-action-bar .btn {
     flex: 1 1 0;
     min-width: 0;
+    padding-inline: 11px;
   }
 
   body.is-plan-view {

@@ -408,7 +408,6 @@ async function renderCustomerDetail(customerId) {
   document.getElementById('detail-customer-avatar').textContent = initials(customer.name);
   document.getElementById('detail-customer-title').textContent = customer.name;
   document.getElementById('detail-customer-meta').innerHTML = customerProfileMeta(customer);
-  document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
   document.getElementById('detail-plan-count').textContent = 'Loading...';
   document.getElementById('detail-customer-plans').innerHTML = emptyState('plans', 'Loading assigned plans.');
 

@@ -88,6 +88,10 @@ function renderPlanExportHtml(planRecord) {
   const meals = Array.isArray(plan.meals) ? plan.meals : [];
   const actual = totalsForMeals(meals);
   const summary = renderSummary(plan.dailyTargets || {}, actual);
+  const customer = planRecord?.Customer || planRecord?.customer || null;
+  const customerName = planRecord?.customer_id && customer?.name
+    ? customer.name
+    : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -101,7 +105,7 @@ function renderPlanExportHtml(planRecord) {
     <main class="app-shell">
       <section class="workspace">
         <section class="results" id="plan-output">
-          ${meals.map(renderMealCard).join('')}
+          ${meals.map((meal, mealIndex) => renderMealCard(meal, mealIndex, { customerName })).join('')}
           ${summary}
         </section>
       </section>
@@ -110,11 +114,15 @@ function renderPlanExportHtml(planRecord) {
 </html>`;
 }
 
-function renderMealCard(meal, mealIndex) {
+function renderMealCard(meal, mealIndex, { customerName = '' } = {}) {
   const items = Array.isArray(meal.items) ? meal.items : [];
   const totals = normalizeTotals(meal.totals || totalsForItems(items));
+  const clientLabel = mealIndex === 0 && customerName
+    ? `<div class="meal-card__client">Client: ${escapeHtml(customerName)}</div>`
+    : '';
   return `
     <article class="meal-card panel" data-meal-index="${mealIndex}" data-meal-type="${escapeHtml(mealTypeKey(meal.tag))}">
+      ${clientLabel}
       <div class="meal-card__header">
         <span class="meal-card__icon" aria-hidden="true">${iconSvg(mealIconName(meal.tag), 20)}</span>
         <div>
@@ -270,6 +278,18 @@ function exportCss() {
       overflow: hidden !important;
       animation: none !important;
       box-shadow: 0 3px 10px rgba(26, 44, 33, 0.12) !important;
+    }
+    body.pdf-export-document .meal-card__client {
+      display: inline-flex !important;
+      width: fit-content !important;
+      margin: 0 0 8px !important;
+      border-radius: 999px !important;
+      background: #e4f5ee !important;
+      color: #127c5c !important;
+      padding: 4px 10px !important;
+      font-size: 11px !important;
+      font-weight: 800 !important;
+      line-height: 1.2 !important;
     }
     body.pdf-export-document .meal-card__actions,
     body.pdf-export-document .meal-card__ranges,

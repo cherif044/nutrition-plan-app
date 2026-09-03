@@ -286,6 +286,13 @@ let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
 let suppressProfileTouchTracking = false;
+let currentPlanId = plannerCtx?.planId || null;
+let currentPlanName = '';
+let firstCreationPending = false;
+let autosaveTimer = null;
+let autosaveInFlight = null;
+let autosaveQueued = false;
+let autosaveStatusEl = null;
 const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
@@ -321,7 +328,28 @@ async function generateAndRender(apiUrl) {
     if (!response.ok) {
       throw new Error(payload.error || 'Unable to generate a nutrition plan.');
     }
-    renderPlan(payload);
+    if (isImpossiblePlan(payload)) {
+      renderPlan(payload);
+      switchPlannerView('plan', { push: true });
+      setInputsExpanded(false);
+      return;
+    }
+    if (currentPlanId) {
+      const saved = await savePlanRecord(currentPlanId, payload, { fallbackName: currentPlanName, status: false });
+      if (!saved) throw new Error('Unable to save plan changes.');
+      renderPlan(payload, {
+        editMode: !firstCreationPending,
+        firstCreation: firstCreationPending,
+        planId: currentPlanId,
+        planName: currentPlanName,
+      });
+    } else {
+      const createdPlan = await createGeneratedPlanRecord(payload);
+      currentPlanId = createdPlan.id;
+      currentPlanName = createdPlan.name || readPreGenerationPlanName();
+      firstCreationPending = true;
+      renderPlan(payload, { firstCreation: true, planId: currentPlanId, planName: currentPlanName });
+    }
     switchPlannerView('plan', { push: true });
     setInputsExpanded(false);
   } catch (error) {
@@ -344,6 +372,8 @@ form.addEventListener('input', syncInputSummary);
 form.addEventListener('change', syncInputSummary);
 form.addEventListener('input', markProfileFieldTouched);
 form.addEventListener('change', markProfileFieldTouched);
+form.addEventListener('input', scheduleAutosave);
+form.addEventListener('change', scheduleAutosave);
 ramadanToggle?.addEventListener('change', syncRamadanControls);
 syncRamadanControls();
 syncInputSummary();
@@ -686,6 +716,9 @@ async function loadPlanForEdit(planId) {
     if (form.elements.planName) form.elements.planName.value = plan.name || '';
     if (form.elements.makeActive) form.elements.makeActive.checked = Boolean(plan.is_active);
     initializeCustomerPickerFromPlan(plan);
+    currentPlanId = plan.id;
+    currentPlanName = plan.name || '';
+    firstCreationPending = false;
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
     switchPlannerView('plan', { push: false });
@@ -737,7 +770,7 @@ function populateFormFromInput(input) {
 
 // ── Render plan ──────────────────────────────────────────────────────────────
 
-function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {}) {
+function renderPlan(plan, { editMode = false, firstCreation = false, planId = null, planName = '' } = {}) {
   output.innerHTML = '';
   output.removeAttribute('aria-busy');
   mealStates.length = 0;
@@ -778,6 +811,8 @@ function renderPlan(plan, { editMode = false, planId = null, planName = '' } = {
       saveBarSlot.innerHTML = '';
       reserveSpaceForSaveBar();
     }
+  } else if (firstCreation) {
+    showInitialCreationBar(planId, planName);
   } else if (editMode) {
     showEditBar(planId, planName);
   } else if (plannerCtx?.folderId) {
@@ -1550,6 +1585,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   refreshRedFlags();
   resetChat(state);
   scheduleProduceSwapPreload(state);
+  scheduleAutosave({ immediate: true });
 }
 
 function refreshMealCycleButtons(state) {
@@ -2352,6 +2388,7 @@ function applyMealItems(state, items, options = {}) {
   panel.hidden = true;
   panel.innerHTML = '';
   state.pendingProposal = null;
+  scheduleAutosave({ immediate: true });
 }
 
 function pulseFoodRow(state, itemIndex) {
@@ -2595,6 +2632,114 @@ function compactRejectedProposal(proposal) {
 
 // ── Edit / Save bars ─────────────────────────────────────────────────────────
 
+function planCreateUrl(folderId = plannerCtx?.folderId || null) {
+  return folderId ? `/api/folders/${encodeURIComponent(folderId)}/plans` : '/api/plans';
+}
+
+function planExportUrl(planId) {
+  return `/api/plans/${encodeURIComponent(planId)}/export.pdf`;
+}
+
+async function createGeneratedPlanRecord(planData) {
+  const { name, customerPayload, isActive } = preGenerationSavePayload();
+  const res = await fetch(planCreateUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      planData,
+      customer: customerPayload?.customer || null,
+      isActive,
+    }),
+  });
+  const data = await readJsonResponse(res, 'Unable to save generated plan.');
+  if (!res.ok || !data.plan?.id) {
+    throw new Error(data.error || 'Unable to save generated plan.');
+  }
+  return data.plan;
+}
+
+async function savePlanRecord(planId, planData, { fallbackName = '', status = true } = {}) {
+  const name = readPreGenerationPlanName() || fallbackName || currentPlanName || '';
+  if (!name) {
+    if (status) setAutosaveStatus('Enter a plan name to autosave.');
+    return false;
+  }
+
+  const { customerPayload, isActive } = preGenerationSavePayload();
+  if (status) setAutosaveStatus('Saving...');
+  const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      planData,
+      customer: customerPayload?.customer || null,
+      isActive,
+    }),
+  });
+  const data = await readJsonResponse(res, 'Unable to save plan changes.');
+  if (!res.ok) {
+    if (status) setAutosaveStatus(data.error || 'Autosave failed.');
+    return false;
+  }
+
+  currentPlanName = data.plan?.name || name;
+  if (status) setAutosaveStatus('Saved');
+  return true;
+}
+
+function setAutosaveStatus(text) {
+  if (autosaveStatusEl) {
+    autosaveStatusEl.textContent = text || '';
+  } else if (text && /unable|failed|enter/i.test(text)) {
+    message.textContent = text;
+  }
+}
+
+async function flushAutosave({ force = false, planData = null } = {}) {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return true;
+  if (!force && !document.body.classList.contains('is-plan-view')) return true;
+  if (!planData && !mealStates.length) return true;
+  if (force && autosaveTimer) {
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+
+  if (autosaveInFlight) {
+    autosaveQueued = true;
+    await autosaveInFlight;
+    if (!force && !autosaveQueued) return true;
+  }
+
+  autosaveQueued = false;
+  autosaveInFlight = savePlanRecord(currentPlanId, planData || buildPlanData());
+  const ok = await autosaveInFlight;
+  autosaveInFlight = null;
+  if (autosaveQueued) {
+    autosaveQueued = false;
+    return flushAutosave({ force });
+  }
+  return ok;
+}
+
+function scheduleAutosave({ immediate = false } = {}) {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
+  if (!document.body.classList.contains('is-plan-view')) return;
+  window.clearTimeout(autosaveTimer);
+  setAutosaveStatus('Saving soon...');
+  autosaveTimer = window.setTimeout(() => {
+    autosaveTimer = null;
+    flushAutosave();
+  }, immediate ? 0 : 800);
+}
+
+async function deleteCurrentPlan(planId) {
+  const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, { method: 'DELETE' });
+  const data = await readJsonResponse(res, 'Unable to discard plan.');
+  if (!res.ok) throw new Error(data.error || 'Unable to discard plan.');
+}
+
 function showEditBar(planId, initialName) {
   const existing = document.getElementById('edit-bar');
   if (existing) existing.remove();
@@ -2604,46 +2749,88 @@ function showEditBar(planId, initialName) {
   bar.id = 'edit-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
-    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
+    <span class="save-action-bar__status" role="status" aria-live="polite">Saved</span>
+    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
   `;
+  autosaveStatusEl = bar.querySelector('.save-action-bar__status');
+  currentPlanId = planId || currentPlanId;
+  currentPlanName = initialName || currentPlanName;
+  firstCreationPending = false;
 
-  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+  bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
     message.textContent = '';
-    const name = readPreGenerationPlanName() || initialName || '';
-    if (!name) {
-      message.textContent = 'Enter a plan name.';
-      setInputsExpanded(true);
-      form.elements.planName?.focus();
+    const btn = bar.querySelector('.save-action-bar__export');
+    btn.disabled = true;
+    btn.textContent = 'Preparing...';
+    const ok = await flushAutosave({ force: true });
+    if (!ok) {
+      btn.disabled = false;
+      btn.innerHTML = `${iconSvg('file')}Export plan`;
       return;
     }
-
-    const planData = buildPlanData();
-    const { customerPayload, isActive } = preGenerationSavePayload();
-    const btn = bar.querySelector('.save-action-bar__save');
-    btn.disabled = true; btn.textContent = 'Saving…';
-
-    const res = await fetch(`/api/plans/${planId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        planData,
-        customer: customerPayload?.customer || null,
-        isActive,
-      }),
-    });
-    const data = await readJsonResponse(res, 'Unable to save plan changes.');
-    if (!res.ok) {
-      btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
-      message.textContent = data.error || 'Unable to save plan changes.';
-      return;
-    }
-    window.location.href = '/dashboard';
+    window.location.href = planExportUrl(planId);
   });
 
-  bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
-    window.location.href = '/dashboard';
+  saveBarSlot.replaceChildren(bar);
+  reserveSpaceForSaveBar();
+}
+
+function showInitialCreationBar(planId, initialName) {
+  const existing = document.getElementById('folder-save-bar');
+  if (existing) existing.remove();
+  if (!saveBarSlot) return;
+
+  const dashboardUrl = '/dashboard';
+
+  const bar = document.createElement('div');
+  bar.id = 'folder-save-bar';
+  bar.className = 'save-action-bar';
+  autosaveStatusEl = null;
+  bar.innerHTML = `
+    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
+    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Save & export</button>
+  `;
+
+  async function updatePendingPlan(btn, loadingText, restoreHtml) {
+    message.textContent = '';
+    const planData = buildPlanData();
+    btn.disabled = true;
+    btn.textContent = loadingText;
+    const ok = await savePlanRecord(planId, planData, { fallbackName: initialName });
+    if (!ok) {
+      btn.disabled = false;
+      btn.innerHTML = restoreHtml;
+      return;
+    }
+    firstCreationPending = false;
+    return true;
+  }
+
+  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__save');
+    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('save')}Save plan`))) return;
+    window.location.href = dashboardUrl;
+  });
+
+  bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__export');
+    if (!(await updatePendingPlan(btn, 'Preparing...', `${iconSvg('file')}Save & export`))) return;
+    window.location.href = planExportUrl(planId);
+  });
+
+  bar.querySelector('.save-action-bar__discard').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__discard');
+    btn.disabled = true;
+    btn.textContent = 'Discarding...';
+    try {
+      await deleteCurrentPlan(planId);
+      window.location.href = dashboardUrl;
+    } catch (error) {
+      btn.disabled = false;
+      btn.innerHTML = `${iconSvg('rotate')}Discard plan`;
+      message.textContent = error.message || 'Unable to discard plan.';
+    }
   });
 
   saveBarSlot.replaceChildren(bar);
@@ -2651,67 +2838,8 @@ function showEditBar(planId, initialName) {
 }
 
 function showPlanSaveBar(folderId = null) {
-  const existing = document.getElementById('folder-save-bar');
-  if (existing) existing.remove();
-  if (!saveBarSlot) return;
-
-  const saveUrl = folderId ? `/api/folders/${folderId}/plans` : '/api/plans';
-  const dashboardUrl = '/dashboard';
-
-  const bar = document.createElement('div');
-  bar.id = 'folder-save-bar';
-  bar.className = 'save-action-bar';
-  bar.innerHTML = `
-    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
-    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
-  `;
-
-  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
-    message.textContent = '';
-    const saveDetailsOk = await validatePreGenerationSaveDetails();
-    if (!saveDetailsOk) {
-      setInputsExpanded(true);
-      return;
-    }
-
-    const planData = buildPlanData();
-    const { name, customerPayload, isActive } = preGenerationSavePayload();
-    const btn = bar.querySelector('.save-action-bar__save');
-    btn.disabled = true; btn.textContent = 'Saving…';
-
-    const res = await fetch(saveUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        planData,
-        customer: customerPayload?.customer || null,
-        isActive,
-      }),
-    });
-    const data = await readJsonResponse(res, 'Unable to save plan.');
-    if (!res.ok) {
-      btn.disabled = false; btn.innerHTML = `${iconSvg('save')}Save plan`;
-      message.textContent = data.error || 'Unable to save plan.';
-      return;
-    }
-    window.location.href = dashboardUrl;
-  });
-
-  bar.querySelector('.save-action-bar__discard').addEventListener('click', () => {
-    output.innerHTML = '';
-    output.hidden = true;
-    mealStates.length = 0;
-    dailyTargets = null;
-    dailyBounds = null;
-    currentPlanInput = null;
-    switchPlannerView('input', { push: true });
-    setInputsExpanded(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-
-  saveBarSlot.replaceChildren(bar);
-  reserveSpaceForSaveBar();
+  if (!currentPlanId) return;
+  showInitialCreationBar(currentPlanId, currentPlanName || readPreGenerationPlanName());
 }
 
 function bindCustomerPicker(bar) {
@@ -2811,6 +2939,7 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
     match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
     match.hidden = false;
   }
+  scheduleAutosave();
 }
 
 function initializeCustomerPickerFromPlan(plan) {
