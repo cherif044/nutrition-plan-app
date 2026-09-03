@@ -7750,6 +7750,10 @@ body.dashboard-page .planner-nav {
   background: var(--dash-white);
 }
 
+body.dashboard-page .dashboard-menu-toggle {
+  display: none;
+}
+
 body.dashboard-page .planner-nav__brand {
   display: flex;
   min-width: 0;
@@ -7861,6 +7865,14 @@ body.dashboard-page .dashboard-sidebar {
   border-right: 1px solid var(--dash-line);
   background: var(--dash-white);
   padding: 18px 12px;
+}
+
+body.dashboard-page .dashboard-menu-backdrop {
+  display: none;
+}
+
+body.dashboard-page.dashboard-menu-open {
+  overflow: hidden;
 }
 
 body.dashboard-page .dashboard-side-link {
@@ -8993,7 +9005,32 @@ body.dashboard-page .dashboard-bottom-nav {
 
   body.dashboard-page .planner-nav {
     min-height: 62px;
-    padding: 13px 18px;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 13px 14px;
+  }
+
+  body.dashboard-page .dashboard-menu-toggle {
+    display: inline-grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid var(--dash-line);
+    border-radius: 10px;
+    background: var(--dash-white);
+    color: var(--dash-forest);
+    cursor: pointer;
+  }
+
+  body.dashboard-page .dashboard-menu-toggle:hover,
+  body.dashboard-page .dashboard-menu-toggle:focus-visible {
+    background: var(--dash-mist);
+    outline: 0;
+  }
+
+  body.dashboard-page .planner-nav__brand {
+    flex: 1 1 auto;
   }
 
   body.dashboard-page .planner-nav__brand strong {
@@ -9001,6 +9038,7 @@ body.dashboard-page .dashboard-bottom-nav {
   }
 
   body.dashboard-page .planner-nav__user {
+    flex: 0 0 auto;
     gap: 10px;
   }
 
@@ -9013,6 +9051,41 @@ body.dashboard-page .dashboard-bottom-nav {
     display: none;
   }
 
+  body.dashboard-page.dashboard-mobile-drawer-page .dashboard-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: block;
+    background: rgba(18, 33, 29, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+
+  body.dashboard-page.dashboard-mobile-drawer-page .dashboard-menu-backdrop:not([hidden]) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.dashboard-page.dashboard-mobile-drawer-page .dashboard-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 80;
+    display: flex;
+    width: min(288px, 82vw);
+    height: 100vh;
+    border-right: 1px solid var(--dash-line);
+    box-shadow: 18px 0 34px rgba(18, 56, 50, 0.16);
+    padding: calc(env(safe-area-inset-top) + 18px) 14px 18px;
+    transform: translateX(-104%);
+    transition: transform 0.2s ease;
+  }
+
+  body.dashboard-page.dashboard-mobile-drawer-page .dashboard-sidebar.is-open {
+    transform: translateX(0);
+  }
+
   body.dashboard-page .dashboard-app-body {
     display: block;
     min-height: auto;
@@ -9020,7 +9093,7 @@ body.dashboard-page .dashboard-bottom-nav {
 
   body.dashboard-page .dashboard-shell {
     gap: 16px;
-    padding: 16px 18px 90px;
+    padding: 16px 18px 28px;
   }
 
   body.dashboard-page .dashboard-page-view.is-active {
@@ -9056,6 +9129,79 @@ body.dashboard-page .dashboard-bottom-nav {
 
   body.dashboard-page .dashboard-stat-card:nth-child(3) {
     grid-column: auto;
+  }
+
+  body.dashboard-page #page-home.dashboard-page-view.is-active {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  body.dashboard-page #page-home .dashboard-hero {
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    padding: 13px;
+  }
+
+  body.dashboard-page #page-home .dashboard-hero h1 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.25;
+  }
+
+  body.dashboard-page #page-home .dashboard-hero p,
+  body.dashboard-page #page-home .dashboard-hero .hero-cta {
+    display: none;
+  }
+
+  body.dashboard-page #page-home .dashboard-stats {
+    display: contents;
+  }
+
+  body.dashboard-page #page-home .dashboard-stat-card {
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    gap: 8px;
+    border-radius: 14px;
+    padding: 13px;
+  }
+
+  body.dashboard-page #page-home .dashboard-stat-icon {
+    top: 12px;
+    right: 12px;
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+  }
+
+  body.dashboard-page #page-home .dashboard-stat-card .dashboard-stat-label {
+    max-width: calc(100% - 34px);
+    font-size: 11.5px;
+  }
+
+  body.dashboard-page #page-home .dashboard-stat-card strong {
+    font-size: 25px;
+  }
+
+  body.dashboard-page #page-home .dashboard-stat-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  body.dashboard-page #page-home .dashboard-trend {
+    max-width: 100%;
+    padding: 4px 7px;
+    font-size: 10.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.dashboard-page #page-home .dashboard-home-grid,
+  body.dashboard-page #page-home .dashboard-quick {
+    grid-column: 1 / -1;
   }
 
   body.dashboard-page .dashboard-panel-card {

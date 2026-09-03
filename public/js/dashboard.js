@@ -468,12 +468,26 @@ function setActiveNav(route) {
   });
 }
 
+function setMobileNavOpen(open) {
+  const sidebar = document.getElementById('dashboard-sidebar');
+  const toggle = document.getElementById('dashboard-menu-toggle');
+  const backdrop = document.getElementById('dashboard-menu-backdrop');
+  if (!sidebar || !toggle || !backdrop) return;
+
+  sidebar.classList.toggle('is-open', open);
+  document.body.classList.toggle('dashboard-menu-open', open);
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'Close dashboard menu' : 'Open dashboard menu');
+  backdrop.hidden = !open;
+}
+
 function showPage(pageId, route) {
   document.querySelectorAll('.dashboard-page-view').forEach((page) => {
     page.classList.toggle('is-active', page.id === pageId);
   });
   setActiveNav(route);
   hideDashboardMenu();
+  setMobileNavOpen(false);
 }
 
 function parseHash() {
@@ -744,6 +758,16 @@ async function initNav() {
 }
 
 function bindEvents() {
+  document.getElementById('dashboard-menu-toggle')?.addEventListener('click', () => {
+    const open = !document.getElementById('dashboard-sidebar')?.classList.contains('is-open');
+    setMobileNavOpen(open);
+  });
+  document.getElementById('dashboard-menu-backdrop')?.addEventListener('click', () => {
+    setMobileNavOpen(false);
+  });
+  document.getElementById('dashboard-sidebar')?.addEventListener('click', (event) => {
+    if (event.target.closest('a')) setMobileNavOpen(false);
+  });
   document.getElementById('customer-search')?.addEventListener('input', (event) => {
     state.customerSearch = event.target.value.trim();
     renderCustomersPage();
@@ -804,7 +828,10 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') hideDashboardMenu();
+  if (event.key === 'Escape') {
+    hideDashboardMenu();
+    setMobileNavOpen(false);
+  }
 });
 
 window.addEventListener('hashchange', renderRoute);
