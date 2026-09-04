@@ -878,6 +878,9 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
+    if (stateNeedsProduceSwapHydration(state)) {
+      refreshProduceSwapOptionsForMeal(state, { silent: true }).catch(() => {});
+    }
   });
 
   if (plannerCtx?.exportPdf) {
@@ -1898,7 +1901,11 @@ async function handleCycleProduceSwap(state, itemIndex) {
   if (btn) btn.disabled = true;
 
   try {
-    const option = nextCachedProduceSwapOption(state, itemIndex, group);
+    let option = nextCachedProduceSwapOption(state, itemIndex, group);
+    if (!option && itemNeedsProduceSwapHydration(state.items[itemIndex])) {
+      await refreshProduceSwapOptionsForMeal(state, { silent: true });
+      option = nextCachedProduceSwapOption(state, itemIndex, group);
+    }
     if (!option?.items?.length) {
       showActionFeedback(state, {
         tone: 'danger',
@@ -2103,6 +2110,15 @@ function usableProduceOptions(options) {
     Array.isArray(option.items) &&
     option.items.length > 0
   ));
+}
+
+function stateNeedsProduceSwapHydration(state) {
+  return Boolean(state?.items?.some(itemNeedsProduceSwapHydration));
+}
+
+function itemNeedsProduceSwapHydration(item) {
+  if (!produceGroup(item?.food)) return false;
+  return !item.produceSwapOptions || !Array.isArray(item.produceSwapOptions.options);
 }
 
 function normalizeProduceSwapEntry(entry) {
