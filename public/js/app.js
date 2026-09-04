@@ -1933,6 +1933,8 @@ function createProduceSwapCache() {
     entries: new Map(),
     pending: new Map(),
     activeCycle: null,
+    hydrationInFlight: null,
+    hydrationAttempted: false,
     preloadTimer: null,
   };
 }
@@ -2025,6 +2027,17 @@ async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { s
 
 async function refreshProduceSwapOptionsForMeal(state, { silent = false } = {}) {
   if (!state?.items?.length) return;
+  const existingCache = ensureProduceSwapCache(state);
+  if (existingCache.hydrationInFlight) return existingCache.hydrationInFlight;
+
+  existingCache.hydrationInFlight = refreshProduceSwapOptionsForMealNow(state, { silent })
+    .finally(() => {
+      ensureProduceSwapCache(state).hydrationInFlight = null;
+    });
+  return existingCache.hydrationInFlight;
+}
+
+async function refreshProduceSwapOptionsForMealNow(state, { silent = false } = {}) {
   const produceItems = state.items
     .map((item, itemIndex) => ({ itemIndex, group: produceGroup(item?.food) }))
     .filter((entry) => entry.group);
@@ -2152,6 +2165,9 @@ function normalizeProduceSwapOptionItem(item) {
 }
 
 function nextCachedProduceSwapOption(state, itemIndex, group) {
+  const itemOption = nextProduceSwapOptionFromItem(state, itemIndex, group);
+  if (itemOption) return itemOption;
+
   const cache = ensureProduceSwapCache(state);
   const active = cache.activeCycle;
   const currentFoodId = state.items[itemIndex]?.food?.id || '';
@@ -2167,6 +2183,20 @@ function nextCachedProduceSwapOption(state, itemIndex, group) {
   const key = produceSwapCacheKey(state, itemIndex, group);
   const entry = cache.entries.get(key) || produceSwapEntryFromItem(state, itemIndex, group, key);
   return takeProduceOptionFromEntry(state, entry, itemIndex, group);
+}
+
+function nextProduceSwapOptionFromItem(state, itemIndex, group) {
+  const item = state.items[itemIndex];
+  const entry = normalizeProduceSwapEntry(item?.produceSwapOptions);
+  if (!entry?.options?.length || (entry.group && entry.group !== group)) return null;
+
+  const currentFoodId = item.food?.id || '';
+  const next = nextProduceOption(entry.options, item.produceSwapIndex, currentFoodId);
+  if (!next) return null;
+
+  item.produceSwapOptions = entry;
+  item.produceSwapIndex = next.nextIndex;
+  return next.option;
 }
 
 function produceSwapEntryFromItem(state, itemIndex, group, key) {
@@ -2219,6 +2249,9 @@ function applyProduceSwapOption(state, option, { preserveCycle = false } = {}) {
     produceSwapOptions: produceGroup(item?.food)
       ? state.items[itemIndex]?.produceSwapOptions || null
       : null,
+    produceSwapIndex: produceGroup(item?.food)
+      ? Number(state.items[itemIndex]?.produceSwapIndex) || 0
+      : 0,
   }));
   applyMealItems(state, itemsWithProduceOptions, {
     source: 'produce_swap',
