@@ -66,6 +66,13 @@ function _generatePlanInternal(rawInput) {
         mealTarget: displayTarget,
         proposedMealTotals: option.totals,
       }).valid);
+    const produceSwapContext = {
+      mealTarget: displayTarget,
+      dailyContext: { dailyTargets, weightKg: input.weightKg },
+      allowedFoods,
+      limit: Number.POSITIVE_INFINITY,
+    };
+    const selectedItems = attachProduceSwapOptionsToItems(meal.items, produceSwapContext);
     return {
       name: meal.name,
       tag: meal.tag,
@@ -82,33 +89,20 @@ function _generatePlanInternal(rawInput) {
       target: displayTarget,
       totals: mealTotals,
       isApproximate: !isWithinTolerance(plainItems, seedTarget),
-      items: meal.items.map((item) => ({
-        food: item.food,
-        quantityG: item.quantityG,
-        alternatives: item.alternatives ?? [],
-        broaderAlternatives: item.broaderAlternatives ?? [],
-        nearestAlternatives: item.nearestAlternatives ?? [],
-        component: item.component ?? null,
-        totals: item.totals,
-      })),
-      mealOptions: mealOptions.map((option) => ({
-        templateId: option.templateId ?? null,
-        templateName: option.templateName ?? 'Alternate meal',
-        templateFamily: option.templateFamily ?? null,
-        readyMealId: option.readyMealId ?? option.templateId ?? null,
-        readyMealTrack: option.readyMealTrack ?? null,
-        items: option.items.map((item) => ({
-          food: item.food,
-          quantityG: item.quantityG,
-          alternatives: item.alternatives ?? [],
-          broaderAlternatives: item.broaderAlternatives ?? [],
-          nearestAlternatives: item.nearestAlternatives ?? [],
-          component: item.component ?? null,
-          totals: item.totals,
-        })),
-        totals: option.totals,
-        isApproximate: Boolean(option.isApproximate),
-      })),
+      items: selectedItems.map(serializeGeneratedMealItem),
+      mealOptions: mealOptions.map((option) => {
+        const optionItems = attachProduceSwapOptionsToItems(option.items, produceSwapContext);
+        return {
+          templateId: option.templateId ?? null,
+          templateName: option.templateName ?? 'Alternate meal',
+          templateFamily: option.templateFamily ?? null,
+          readyMealId: option.readyMealId ?? option.templateId ?? null,
+          readyMealTrack: option.readyMealTrack ?? null,
+          items: optionItems.map(serializeGeneratedMealItem),
+          totals: option.totals,
+          isApproximate: Boolean(option.isApproximate),
+        };
+      }),
       originalItems: plainItems.map((item) => ({ food: item.food, quantityG: item.quantityG })),
     };
   });
@@ -1404,13 +1398,6 @@ function getProduceSwapOptions({
     throw new Error('itemIndex, currentItems, mealTarget, and dailyContext are required.');
   }
 
-  const resolvedItems = resolveMealActionItems(currentItems);
-  const currentItem = resolvedItems[itemIndex];
-  const group = produceGroup(currentItem?.food);
-  if (!currentItem || !group) {
-    return { group: null, options: [] };
-  }
-
   const foods = loadFoods();
   const safeInput = {
     dietType: userPreferences?.dietType || 'standard',
@@ -1425,6 +1412,52 @@ function getProduceSwapOptions({
   } catch {
     const avoided = new Set(safeInput.avoidFoods.map(String));
     allowedFoods = foods.filter((food) => !avoided.has(food.id));
+  }
+
+  return getProduceSwapOptionsForItems({
+    itemIndex,
+    currentItems,
+    mealTarget,
+    dailyContext,
+    allowedFoods,
+    limit,
+  });
+}
+
+function attachProduceSwapOptionsToItems(items, context) {
+  return items.map((item, itemIndex) => {
+    const group = produceGroup(item?.food);
+    if (!group) return item;
+
+    const entry = getProduceSwapOptionsForItems({
+      ...context,
+      itemIndex,
+      currentItems: items,
+    });
+
+    return {
+      ...item,
+      produceSwapOptions: {
+        group: entry.group || group,
+        options: entry.options,
+      },
+    };
+  });
+}
+
+function getProduceSwapOptionsForItems({
+  itemIndex,
+  currentItems,
+  mealTarget,
+  dailyContext,
+  allowedFoods,
+  limit = 20,
+}) {
+  const resolvedItems = resolveMealActionItems(currentItems);
+  const currentItem = resolvedItems[itemIndex];
+  const group = produceGroup(currentItem?.food);
+  if (!currentItem || !group) {
+    return { group: null, options: [] };
   }
 
   const sortedGroupFoods = allowedFoods
@@ -1443,16 +1476,18 @@ function getProduceSwapOptions({
   }
 
   const options = [];
+  const maxOptions = normalizeProduceSwapLimit(limit);
   for (const candidate of orderedCandidates) {
-    if (options.length >= limit) break;
+    if (Number.isFinite(maxOptions) && options.length >= maxOptions) break;
 
     const replacementQuantityG = clampServing(candidate, currentItem.quantityG);
     const attemptedItems = currentItems.map((rawItem, index) => {
       if (index === itemIndex) {
         return { foodId: candidate.id, quantityG: replacementQuantityG };
       }
+      const resolvedItem = resolvedItems[index];
       return {
-        foodId: rawItem.foodId ?? rawItem.food?.id,
+        foodId: rawItem.foodId ?? rawItem.food?.id ?? resolvedItem?.food?.id,
         quantityG: rawItem.quantityG,
         customFood: rawItem.customFood || null,
       };
@@ -1474,6 +1509,28 @@ function getProduceSwapOptions({
   }
 
   return { group, options };
+}
+
+function normalizeProduceSwapLimit(limit) {
+  if (limit === 'all') return Number.POSITIVE_INFINITY;
+  if (limit === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+  if (limit === undefined) return 20;
+  const parsed = Number(limit);
+  if (!Number.isFinite(parsed)) return 20;
+  return Math.max(0, Math.floor(parsed));
+}
+
+function serializeGeneratedMealItem(item) {
+  return {
+    food: item.food,
+    quantityG: item.quantityG,
+    alternatives: item.alternatives ?? [],
+    broaderAlternatives: item.broaderAlternatives ?? [],
+    nearestAlternatives: item.nearestAlternatives ?? [],
+    component: item.component ?? null,
+    totals: item.totals,
+    produceSwapOptions: item.produceSwapOptions ?? null,
+  };
 }
 
 function hydrateProduceSwapItems(requestItems, solvedItems) {

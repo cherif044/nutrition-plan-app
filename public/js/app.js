@@ -290,10 +290,10 @@ let currentPlanId = plannerCtx?.planId || null;
 let currentPlanName = '';
 let currentPlanHasCustomer = false;
 let firstCreationPending = false;
-let autosaveTimer = null;
-let autosaveInFlight = null;
-let autosaveQueued = false;
-let autosaveStatusEl = null;
+let saveInFlight = null;
+let saveQueued = false;
+let saveStatusEl = null;
+let hasUnsavedChanges = false;
 const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
@@ -336,14 +336,16 @@ async function generateAndRender(apiUrl) {
       return;
     }
     if (currentPlanId) {
-      const saved = await savePlanRecord(currentPlanId, payload, { fallbackName: currentPlanName, status: false });
-      if (!saved) throw new Error('Unable to save plan changes.');
       renderPlan(payload, {
         editMode: !firstCreationPending,
         firstCreation: firstCreationPending,
         planId: currentPlanId,
         planName: currentPlanName,
       });
+      if (!firstCreationPending) {
+        hasUnsavedChanges = true;
+        setSaveStatus('Unsaved changes');
+      }
     } else {
       const createdPlan = await createGeneratedPlanRecord(payload);
       currentPlanId = createdPlan.id;
@@ -374,8 +376,6 @@ form.addEventListener('input', syncInputSummary);
 form.addEventListener('change', syncInputSummary);
 form.addEventListener('input', markProfileFieldTouched);
 form.addEventListener('change', markProfileFieldTouched);
-form.addEventListener('input', scheduleAutosave);
-form.addEventListener('change', scheduleAutosave);
 ramadanToggle?.addEventListener('change', syncRamadanControls);
 syncRamadanControls();
 syncInputSummary();
@@ -688,6 +688,8 @@ function persistCurrentMealOption(state) {
     state.originalItems = updatedOption.items.map((item) => ({
       food: item.food,
       quantityG: item.quantityG,
+      produceSwapOptions: item.produceSwapOptions || null,
+      produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
     }));
     return;
   }
@@ -856,18 +858,10 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
+        produceSwapOptions: item.produceSwapOptions || null,
+        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
       })),
-      items: meal.items.map((item) => ({
-        food: item.food,
-        quantityG: Number(item.quantityG) || 0,
-        customFood: item.customFood || null,
-        alternatives: item.alternatives || [],
-        broaderAlternatives: item.broaderAlternatives || [],
-        nearestAlternatives: item.nearestAlternatives || [],
-        component: item.component || null,
-        swapOptions: item.swapOptions || null,
-        swapIndex: Number.isInteger(item.swapIndex) ? item.swapIndex : null,
-      })),
+      items: meal.items.map(normalizeStateItem),
       originalMealOption,
       chatHistory: [],
       chatTurnCount: 0,
@@ -884,7 +878,6 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
-    scheduleProduceSwapPreload(state);
   });
 
   if (plannerCtx?.exportPdf) {
@@ -1496,6 +1489,8 @@ function normalizeStateItem(item) {
     broaderAlternatives: item.broaderAlternatives || [],
     nearestAlternatives: item.nearestAlternatives || [],
     component: item.component || null,
+    produceSwapOptions: normalizeProduceSwapEntry(item.produceSwapOptions || item.swapOptions || null),
+    produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
   };
 }
 
@@ -1577,7 +1572,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
   state.pendingProposal = null;
-  resetProduceSwapCache(state, { schedule: false });
+  resetProduceSwapCache(state);
 
   const panel = actionPanel(state);
   panel.hidden = true;
@@ -1587,8 +1582,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   refreshMealCycleButtons(state);
   refreshRedFlags();
   resetChat(state);
-  scheduleProduceSwapPreload(state);
-  scheduleAutosave({ immediate: true });
+  markPlanUnsaved();
 }
 
 function refreshMealCycleButtons(state) {
@@ -1904,20 +1898,7 @@ async function handleCycleProduceSwap(state, itemIndex) {
   if (btn) btn.disabled = true;
 
   try {
-    const cachedOption = nextCachedProduceSwapOption(state, itemIndex, group);
-    if (cachedOption) {
-      applyProduceSwapOption(state, cachedOption, { preserveCycle: true });
-      return;
-    }
-
-    let entry = await loadProduceSwapOptionsForItem(state, itemIndex, group);
-    const currentGroup = produceGroup(state.items[itemIndex]?.food);
-    if (entry?.key !== produceSwapCacheKey(state, itemIndex, currentGroup)) {
-      entry = currentGroup
-        ? await loadProduceSwapOptionsForItem(state, itemIndex, currentGroup)
-        : null;
-    }
-    const option = takeProduceOptionFromEntry(state, entry, itemIndex, currentGroup || group);
+    const option = nextCachedProduceSwapOption(state, itemIndex, group);
     if (!option?.items?.length) {
       showActionFeedback(state, {
         tone: 'danger',
@@ -1963,7 +1944,7 @@ function ensureProduceSwapCache(state) {
   return state.produceSwapCache;
 }
 
-function resetProduceSwapCache(state, { preserveCycle = false, schedule = true } = {}) {
+function resetProduceSwapCache(state, { preserveCycle = false } = {}) {
   const cache = ensureProduceSwapCache(state);
   if (cache.preloadTimer) {
     window.clearTimeout(cache.preloadTimer);
@@ -1973,90 +1954,7 @@ function resetProduceSwapCache(state, { preserveCycle = false, schedule = true }
   cache.entries.clear();
   cache.pending.clear();
   if (!preserveCycle) cache.activeCycle = null;
-  if (schedule) scheduleProduceSwapPreload(state);
-}
-
-function scheduleProduceSwapPreload(state) {
-  if (!state?.items?.some((item) => produceGroup(item?.food))) return;
-  const cache = ensureProduceSwapCache(state);
-  if (cache.preloadTimer) window.clearTimeout(cache.preloadTimer);
-  cache.preloadTimer = window.setTimeout(() => {
-    cache.preloadTimer = null;
-    preloadProduceSwapOptions(state);
-  }, 150);
-}
-
-async function preloadProduceSwapOptions(state) {
-  const cache = ensureProduceSwapCache(state);
-  const version = cache.version;
-  const produceItems = state.items
-    .map((item, itemIndex) => ({ itemIndex, group: produceGroup(item?.food) }))
-    .filter((entry) => entry.group);
-
-  for (const { itemIndex, group } of produceItems) {
-    if (ensureProduceSwapCache(state).version !== version) return;
-    try {
-      await loadProduceSwapOptionsForItem(state, itemIndex, group, { silent: true });
-    } catch (_error) {
-      // The click path still shows the user-facing error if this preload fails.
-    }
-  }
-}
-
-async function loadProduceSwapOptionsForItem(state, itemIndex, group, { silent = false } = {}) {
-  const cache = ensureProduceSwapCache(state);
-  const key = produceSwapCacheKey(state, itemIndex, group);
-  if (!key) return null;
-
-  const cached = cache.entries.get(key);
-  if (cached) return cached;
-  const pending = cache.pending.get(key);
-  if (pending) return pending;
-
-  const version = cache.version;
-  const request = fetch('/api/produce-swap-options', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      itemIndex,
-      currentItems: mealActionItems(state.items),
-      mealTarget: state.target,
-      dailyContext: {
-        dailyTargets,
-        weightKg: Number(currentPlanInput?.weightKg),
-      },
-      userPreferences: getUserPreferences(),
-      limit: 20,
-    }),
-  })
-    .then(async (res) => {
-      const payload = await readJsonResponse(res, 'Unable to swap produce.');
-      if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
-      const entry = {
-        key,
-        itemIndex,
-        group,
-        options: usableProduceOptions(payload.options),
-        nextIndex: 0,
-      };
-      entry.options.forEach((option) => preloadFoodImagesFromItems(option.items));
-      const latestCache = ensureProduceSwapCache(state);
-      if (latestCache.version === version && produceSwapCacheKey(state, itemIndex, group) === key) {
-        latestCache.entries.set(key, entry);
-      }
-      return entry;
-    })
-    .catch((error) => {
-      if (!silent) throw error;
-      return null;
-    })
-    .finally(() => {
-      const latestCache = ensureProduceSwapCache(state);
-      if (latestCache.pending.get(key) === request) latestCache.pending.delete(key);
-    });
-
-  cache.pending.set(key, request);
-  return request;
+  return cache;
 }
 
 function produceSwapCacheKey(state, itemIndex, group) {
@@ -2098,7 +1996,7 @@ async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { s
           weightKg: Number(currentPlanInput?.weightKg),
         },
         userPreferences: getUserPreferences(),
-        limit: 20,
+        limit: 'all',
       }),
     });
     const payload = await readJsonResponse(res, 'Unable to swap produce.');
@@ -2115,6 +2013,63 @@ async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { s
   } catch (error) {
     if (!silent) throw error;
     return null;
+  }
+}
+
+async function refreshProduceSwapOptionsForMeal(state, { silent = false } = {}) {
+  if (!state?.items?.length) return;
+  const produceItems = state.items
+    .map((item, itemIndex) => ({ itemIndex, group: produceGroup(item?.food) }))
+    .filter((entry) => entry.group);
+
+  if (!produceItems.length) {
+    state.items.forEach((item) => {
+      item.produceSwapOptions = null;
+      item.produceSwapIndex = 0;
+    });
+    return;
+  }
+
+  const cache = resetProduceSwapCache(state, { preserveCycle: false });
+  const entries = await Promise.all(produceItems.map(({ itemIndex, group }) => (
+    fetchProduceSwapEntryForItems(state, itemIndex, group, state.items, { silent: true })
+  )));
+
+  entries.forEach((entry, index) => {
+    const produceItem = produceItems[index];
+    if (!entry) {
+      const item = state.items[produceItem.itemIndex];
+      if (item) {
+        item.produceSwapOptions = { group: produceItem.group, options: [] };
+        item.produceSwapIndex = 0;
+      }
+      return;
+    }
+    cache.entries.set(entry.key, entry);
+    const item = state.items[entry.itemIndex];
+    if (item) {
+      item.produceSwapOptions = normalizeProduceSwapEntry({
+        group: entry.group,
+        options: entry.options,
+      });
+      item.produceSwapIndex = 0;
+    }
+  });
+
+  state.items.forEach((item) => {
+    if (!produceGroup(item?.food)) {
+      item.produceSwapOptions = null;
+      item.produceSwapIndex = 0;
+    }
+  });
+
+  renderFoodList(state);
+  if (!silent && entries.some((entry) => !entry)) {
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: 'Unable to refresh every produce option right now.',
+      cardClass: 'meal-card--flash-fail',
+    });
   }
 }
 
@@ -2150,42 +2105,109 @@ function usableProduceOptions(options) {
   ));
 }
 
+function normalizeProduceSwapEntry(entry) {
+  if (!entry) return null;
+  const options = usableProduceOptions(entry.options).map((option) => ({
+    food: option.food,
+    totals: option.totals || null,
+    items: (option.items || []).map(normalizeProduceSwapOptionItem),
+  }));
+
+  return {
+    group: entry.group || produceGroup(options[0]?.food) || null,
+    options,
+  };
+}
+
+function normalizeProduceSwapOptionItem(item) {
+  return {
+    food: item.food,
+    quantityG: Number(item.quantityG) || 0,
+    customFood: item.customFood || null,
+    pendingAdd: Boolean(item.pendingAdd),
+    pendingId: item.pendingId || null,
+    alternatives: item.alternatives || [],
+    broaderAlternatives: item.broaderAlternatives || [],
+    nearestAlternatives: item.nearestAlternatives || [],
+    component: item.component || null,
+    produceSwapOptions: null,
+    produceSwapIndex: 0,
+  };
+}
+
 function nextCachedProduceSwapOption(state, itemIndex, group) {
   const cache = ensureProduceSwapCache(state);
   const active = cache.activeCycle;
+  const currentFoodId = state.items[itemIndex]?.food?.id || '';
   if (active?.itemIndex === itemIndex && active.group === group) {
-    const option = active.options[active.nextIndex] || null;
-    if (option) {
-      active.nextIndex += 1;
-      if (active.nextIndex >= active.options.length) {
-        cache.activeCycle = null;
-        scheduleProduceSwapPreload(state);
-      }
-      return option;
+    const next = nextProduceOption(active.options, active.nextIndex, currentFoodId);
+    if (next) {
+      active.nextIndex = next.nextIndex;
+      return next.option;
     }
     cache.activeCycle = null;
   }
 
-  const entry = cache.entries.get(produceSwapCacheKey(state, itemIndex, group));
+  const key = produceSwapCacheKey(state, itemIndex, group);
+  const entry = cache.entries.get(key) || produceSwapEntryFromItem(state, itemIndex, group, key);
   return takeProduceOptionFromEntry(state, entry, itemIndex, group);
+}
+
+function produceSwapEntryFromItem(state, itemIndex, group, key) {
+  const entry = normalizeProduceSwapEntry(state.items[itemIndex]?.produceSwapOptions);
+  if (!entry || (entry.group && entry.group !== group)) return null;
+
+  const cacheEntry = {
+    key,
+    itemIndex,
+    group,
+    options: entry.options,
+    nextIndex: 0,
+  };
+  ensureProduceSwapCache(state).entries.set(key, cacheEntry);
+  return cacheEntry;
 }
 
 function takeProduceOptionFromEntry(state, entry, itemIndex, group) {
   if (!entry?.options?.length) return null;
-  const option = entry.options[entry.nextIndex] || null;
-  if (!option) return null;
-  entry.nextIndex += 1;
+  const currentFoodId = state.items[itemIndex]?.food?.id || '';
+  const next = nextProduceOption(entry.options, entry.nextIndex, currentFoodId);
+  if (!next) return null;
+  entry.nextIndex = next.nextIndex;
   ensureProduceSwapCache(state).activeCycle = {
     itemIndex,
     group,
     options: entry.options,
     nextIndex: entry.nextIndex,
   };
-  return option;
+  return next.option;
+}
+
+function nextProduceOption(options, startIndex, currentFoodId) {
+  if (!options?.length) return null;
+  const count = options.length;
+  const start = Number.isInteger(startIndex) ? startIndex : 0;
+  for (let offset = 0; offset < count; offset += 1) {
+    const index = (start + offset) % count;
+    const option = options[index];
+    if (option?.food?.id && option.food.id !== currentFoodId) {
+      return { option, nextIndex: (index + 1) % count };
+    }
+  }
+  return null;
 }
 
 function applyProduceSwapOption(state, option, { preserveCycle = false } = {}) {
-  applyMealItems(state, option.items, { source: 'produce_swap', preserveProduceSwapCycle: preserveCycle });
+  const itemsWithProduceOptions = option.items.map((item, itemIndex) => ({
+    ...item,
+    produceSwapOptions: produceGroup(item?.food)
+      ? state.items[itemIndex]?.produceSwapOptions || null
+      : null,
+  }));
+  applyMealItems(state, itemsWithProduceOptions, {
+    source: 'produce_swap',
+    preserveProduceSwapCycle: preserveCycle,
+  });
 }
 
 async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
@@ -2231,20 +2253,7 @@ async function attemptGuidedRebalance(state, {
     if (res.ok && payload.success) {
       const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
       if (shouldApplyImmediately) {
-        let preloadedProduceEntry = null;
-        if (action === 'add_food' && Number.isInteger(successRowIndex)) {
-          const addedGroup = produceGroup(proposedItems[successRowIndex]?.food);
-          if (addedGroup) {
-            preloadedProduceEntry = await fetchProduceSwapEntryForItems(
-              state,
-              successRowIndex,
-              addedGroup,
-              proposedItems,
-              { silent: true },
-            );
-          }
-        }
-        applyMealItems(state, proposedItems, { source: 'deterministic', preloadedProduceEntry });
+        applyMealItems(state, proposedItems, { source: 'deterministic', refreshProduceSwaps: true });
         if (action === 'remove_food' && deleteUndo) {
           showDeleteUndoToast({
             ...deleteUndo,
@@ -2360,7 +2369,6 @@ function applyMealItems(state, items, options = {}) {
   state.isOriginalTemplate = false;
   resetProduceSwapCache(state, {
     preserveCycle: options.source === 'produce_swap' && options.preserveProduceSwapCycle === true,
-    schedule: false,
   });
   if (
     options.preloadedProduceEntry?.key &&
@@ -2386,12 +2394,14 @@ function applyMealItems(state, items, options = {}) {
   refreshMealCycleButtons(state);
   refreshRedFlags();
   resetChat(state);
-  scheduleProduceSwapPreload(state);
   const panel = actionPanel(state);
   panel.hidden = true;
   panel.innerHTML = '';
   state.pendingProposal = null;
-  scheduleAutosave({ immediate: true });
+  if (options.refreshProduceSwaps === true || ['deterministic', 'undo_delete'].includes(options.source)) {
+    refreshProduceSwapOptionsForMeal(state, { silent: true }).catch(() => {});
+  }
+  markPlanUnsaved();
 }
 
 function pulseFoodRow(state, itemIndex) {
@@ -2690,12 +2700,12 @@ async function createGeneratedPlanRecord(planData) {
 async function savePlanRecord(planId, planData, { fallbackName = '', status = true } = {}) {
   const name = readPreGenerationPlanName() || fallbackName || currentPlanName || '';
   if (!name) {
-    if (status) setAutosaveStatus('Enter a plan name to autosave.');
+    if (status) setSaveStatus('Enter a plan name to save.');
     return false;
   }
 
   const { customerPayload, isActive } = preGenerationSavePayload();
-  if (status) setAutosaveStatus('Saving...');
+  if (status) setSaveStatus('Saving...');
   const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -2708,59 +2718,52 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
   });
   const data = await readJsonResponse(res, 'Unable to save plan changes.');
   if (!res.ok) {
-    if (status) setAutosaveStatus(data.error || 'Autosave failed.');
+    if (status) setSaveStatus(data.error || 'Save failed.');
     return false;
   }
 
   currentPlanName = data.plan?.name || name;
   currentPlanHasCustomer = Boolean(data.plan?.customer_id);
-  if (status) setAutosaveStatus('Saved');
+  hasUnsavedChanges = false;
+  if (status) setSaveStatus('Saved');
   return true;
 }
 
-function setAutosaveStatus(text) {
-  if (autosaveStatusEl) {
-    autosaveStatusEl.textContent = text || '';
+function setSaveStatus(text) {
+  if (saveStatusEl) {
+    saveStatusEl.textContent = text || '';
   } else if (text && /unable|failed|enter/i.test(text)) {
     message.textContent = text;
   }
 }
 
-async function flushAutosave({ force = false, planData = null } = {}) {
+async function saveCurrentPlanChanges({ force = false, planData = null } = {}) {
   if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return true;
   if (!force && !document.body.classList.contains('is-plan-view')) return true;
   if (!planData && !mealStates.length) return true;
-  if (force && autosaveTimer) {
-    window.clearTimeout(autosaveTimer);
-    autosaveTimer = null;
+
+  if (saveInFlight) {
+    saveQueued = true;
+    await saveInFlight;
+    if (!force && !saveQueued) return true;
   }
 
-  if (autosaveInFlight) {
-    autosaveQueued = true;
-    await autosaveInFlight;
-    if (!force && !autosaveQueued) return true;
-  }
-
-  autosaveQueued = false;
-  autosaveInFlight = savePlanRecord(currentPlanId, planData || buildPlanData());
-  const ok = await autosaveInFlight;
-  autosaveInFlight = null;
-  if (autosaveQueued) {
-    autosaveQueued = false;
-    return flushAutosave({ force });
+  saveQueued = false;
+  saveInFlight = savePlanRecord(currentPlanId, planData || buildPlanData());
+  const ok = await saveInFlight;
+  saveInFlight = null;
+  if (saveQueued) {
+    saveQueued = false;
+    return saveCurrentPlanChanges({ force });
   }
   return ok;
 }
 
-function scheduleAutosave({ immediate = false } = {}) {
+function markPlanUnsaved() {
   if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
   if (!document.body.classList.contains('is-plan-view')) return;
-  window.clearTimeout(autosaveTimer);
-  setAutosaveStatus('Saving soon...');
-  autosaveTimer = window.setTimeout(() => {
-    autosaveTimer = null;
-    flushAutosave();
-  }, immediate ? 0 : 800);
+  hasUnsavedChanges = true;
+  setSaveStatus('Unsaved changes');
 }
 
 async function deleteCurrentPlan(planId) {
@@ -2778,13 +2781,26 @@ function showEditBar(planId, initialName) {
   bar.id = 'edit-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <span class="save-action-bar__status" role="status" aria-live="polite">Saved</span>
+    <span class="save-action-bar__status" role="status" aria-live="polite">${hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}</span>
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
     <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
   `;
-  autosaveStatusEl = bar.querySelector('.save-action-bar__status');
+  saveStatusEl = bar.querySelector('.save-action-bar__status');
   currentPlanId = planId || currentPlanId;
   currentPlanName = initialName || currentPlanName;
   firstCreationPending = false;
+
+  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+    message.textContent = '';
+    const btn = bar.querySelector('.save-action-bar__save');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    const ok = await saveCurrentPlanChanges({ force: true });
+    btn.disabled = false;
+    btn.innerHTML = `${iconSvg('save')}Save changes`;
+    if (!ok) return;
+    message.textContent = 'Plan changes saved.';
+  });
 
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
     message.textContent = '';
@@ -2792,7 +2808,7 @@ function showEditBar(planId, initialName) {
     const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    const ok = await flushAutosave({ force: true });
+    const ok = await saveCurrentPlanChanges({ force: true });
     if (!ok) {
       btn.disabled = false;
       btn.innerHTML = `${iconSvg('file')}Export plan`;
@@ -2818,7 +2834,7 @@ function showInitialCreationBar(planId, initialName) {
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
   bar.className = 'save-action-bar';
-  autosaveStatusEl = null;
+  saveStatusEl = null;
   bar.innerHTML = `
     <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
     <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
@@ -2975,7 +2991,7 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
     match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
     match.hidden = false;
   }
-  scheduleAutosave();
+  markPlanUnsaved();
 }
 
 function initializeCustomerPickerFromPlan(plan) {
@@ -3044,6 +3060,8 @@ function buildPlanData() {
       originalItems: state.originalItems.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
+        produceSwapOptions: item.produceSwapOptions || null,
+        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
       })),
       items: state.items.filter((item) => item.food).map((item) => ({
         food: item.food,
@@ -3053,6 +3071,8 @@ function buildPlanData() {
         broaderAlternatives: item.broaderAlternatives || [],
         nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
+        produceSwapOptions: item.produceSwapOptions || null,
+        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
         totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
       })),
       mealOptions: state.mealOptions || [],
