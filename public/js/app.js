@@ -87,13 +87,16 @@ function foodIcon(food) {
 }
 
 function foodIconUrl(food) {
-  if (food?.iconUrl) return food.iconUrl;
+  if (food?.iconUrl && !failedFoodImageUrls.has(food.iconUrl)) return food.iconUrl;
+  if (food && Object.prototype.hasOwnProperty.call(food, 'iconUrl')) return '';
   if (!food?.id || food.custom) return '';
-  return `/food-icons/${encodeURIComponent(`${food.id}.png`)}`;
+  const src = `/food-icons/${encodeURIComponent(`${food.id}.png`)}`;
+  return failedFoodImageUrls.has(src) ? '' : src;
 }
 
 const preloadedFoodImageUrls = new Set();
 const decodedFoodImageUrls = new Set();
+const failedFoodImageUrls = new Set();
 
 function preloadFoodImage(food) {
   const src = foodIconUrl(food);
@@ -103,7 +106,9 @@ function preloadFoodImage(food) {
   img.decoding = 'async';
   img.onload = () => decodedFoodImageUrls.add(src);
   img.src = src;
-  img.decode?.().then(() => decodedFoodImageUrls.add(src)).catch(() => {});
+  img.decode?.()
+    .then(() => decodedFoodImageUrls.add(src))
+    .catch(() => failedFoodImageUrls.add(src));
 }
 
 function preloadFoodImagesFromItems(items) {
@@ -146,7 +151,10 @@ function setFoodMedia(el, food, fallbackSize = 15) {
   img.alt = '';
   img.loading = 'eager';
   img.decoding = 'async';
-  img.addEventListener('error', renderFallback, { once: true });
+  img.addEventListener('error', () => {
+    failedFoodImageUrls.add(src);
+    renderFallback();
+  }, { once: true });
   const showImage = () => {
     if (el.dataset.mediaKey !== mediaKey) return;
     el.classList.add('food-icon--image');
@@ -273,6 +281,7 @@ const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
 
 let foodsById = new Map();
+let allowedProduceFoods = [];
 // Declared up here because reserveSpaceForSaveBar() runs during init, before
 // the function that uses it appears further down the file.
 let saveBarResizeObserver = null;
@@ -552,7 +561,6 @@ function ensurePreferenceOptionsLoaded() {
 
 function scheduleReferenceDataLoad() {
   const load = () => {
-    ensureFoodsLoaded();
     ensurePreferenceOptionsLoaded().catch(() => {});
   };
 
@@ -688,8 +696,6 @@ function persistCurrentMealOption(state) {
     state.originalItems = updatedOption.items.map((item) => ({
       food: item.food,
       quantityG: item.quantityG,
-      produceSwapOptions: item.produceSwapOptions || null,
-      produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
     }));
     return;
   }
@@ -780,6 +786,7 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
   output.removeAttribute('aria-busy');
   mealStates.length = 0;
   currentPlanInput = plan.input || null;
+  allowedProduceFoods = normalizeAllowedProduceFoods(plan.allowedProduceFoods || []);
   output.hidden = false;
   emptyState.hidden = true;
   switchPlannerView('plan', { push: false });
@@ -858,8 +865,6 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
-        produceSwapOptions: item.produceSwapOptions || null,
-        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
       })),
       items: meal.items.map(normalizeStateItem),
       originalMealOption,
@@ -869,18 +874,15 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
       chatPrevWorkingItems: null,
       chatMessages: [],
       produceSwapCache: createProduceSwapCache(),
+      produceSwapBlockedFoodIds: new Set(),
       cardEl: null,
     };
     mealStates.push(state);
     preloadFoodImagesFromItems(state.items);
-    state.mealOptions.forEach((option) => preloadFoodImagesFromItems(option.items));
 
     const card = renderMealCard(state);
     state.cardEl = card;
     output.append(card);
-    if (stateNeedsProduceSwapHydration(state)) {
-      refreshProduceSwapOptionsForMeal(state, { silent: true }).catch(() => {});
-    }
   });
 
   if (plannerCtx?.exportPdf) {
@@ -1492,8 +1494,8 @@ function normalizeStateItem(item) {
     broaderAlternatives: item.broaderAlternatives || [],
     nearestAlternatives: item.nearestAlternatives || [],
     component: item.component || null,
-    produceSwapOptions: normalizeProduceSwapEntry(item.produceSwapOptions || item.swapOptions || null),
-    produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
+    produceSwapOptions: null,
+    produceSwapIndex: 0,
   };
 }
 
@@ -1575,6 +1577,7 @@ function applyReadyMealOption(state, option, optionIndex) {
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
   state.pendingProposal = null;
+  state.produceSwapBlockedFoodIds?.clear();
   resetProduceSwapCache(state);
 
   const panel = actionPanel(state);
@@ -1798,6 +1801,7 @@ function restoreDeletedFood(context) {
     ];
   }
 
+  unblockProduceSwapFood(state, context.deletedItem?.food);
   applyMealItems(state, restoredItems, { source: 'undo_delete' });
   pulseFoodRow(state, restoredIndex);
   showActionFeedback(state, {
@@ -1902,9 +1906,9 @@ async function handleCycleProduceSwap(state, itemIndex) {
 
   try {
     let option = nextCachedProduceSwapOption(state, itemIndex, group);
-    if (!option && itemNeedsProduceSwapHydration(state.items[itemIndex])) {
-      await refreshProduceSwapOptionsForMeal(state, { silent: true });
-      option = nextCachedProduceSwapOption(state, itemIndex, group);
+    if (!option) {
+      const entry = await ensureProduceSwapEntryForItem(state, itemIndex, group, { silent: true });
+      option = takeProduceOptionFromEntry(state, entry, itemIndex, group);
     }
     if (!option?.items?.length) {
       showActionFeedback(state, {
@@ -1933,9 +1937,6 @@ function createProduceSwapCache() {
     entries: new Map(),
     pending: new Map(),
     activeCycle: null,
-    hydrationInFlight: null,
-    hydrationAttempted: false,
-    preloadTimer: null,
   };
 }
 
@@ -1955,10 +1956,6 @@ function ensureProduceSwapCache(state) {
 
 function resetProduceSwapCache(state, { preserveCycle = false } = {}) {
   const cache = ensureProduceSwapCache(state);
-  if (cache.preloadTimer) {
-    window.clearTimeout(cache.preloadTimer);
-    cache.preloadTimer = null;
-  }
   cache.version += 1;
   cache.entries.clear();
   cache.pending.clear();
@@ -1985,7 +1982,32 @@ function produceSwapCacheKeyForItems(state, itemIndex, group, items) {
     roundForCache(target.fatG),
     roundForCache(Number(currentPlanInput?.weightKg)),
     userPreferenceCacheSignature(),
+    allowedProduceCacheSignature(group),
+    blockedProduceCacheSignature(state, group),
   ].join('|');
+}
+
+async function ensureProduceSwapEntryForItem(state, itemIndex, group, { silent = false } = {}) {
+  const key = produceSwapCacheKey(state, itemIndex, group);
+  if (!key) return null;
+
+  const cache = ensureProduceSwapCache(state);
+  if (cache.entries.has(key)) return cache.entries.get(key);
+  if (cache.pending.has(key)) return cache.pending.get(key);
+
+  const pending = fetchProduceSwapEntryForItems(state, itemIndex, group, state.items, { silent })
+    .then((entry) => {
+      if (entry) {
+        cache.entries.set(entry.key, entry);
+      }
+      return entry;
+    })
+    .finally(() => {
+      cache.pending.delete(key);
+    });
+
+  cache.pending.set(key, pending);
+  return pending;
 }
 
 async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { silent = false } = {}) {
@@ -1993,31 +2015,39 @@ async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { s
   if (!key) return null;
 
   try {
-    const res = await fetch('/api/produce-swap-options', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        itemIndex,
-        currentItems: mealActionItems(items),
-        mealTarget: state.target,
-        dailyContext: {
-          dailyTargets,
-          weightKg: Number(currentPlanInput?.weightKg),
-        },
-        userPreferences: getUserPreferences(),
-        limit: 'all',
-      }),
+    const currentItem = items[itemIndex];
+    if (!currentItem?.food || produceGroup(currentItem.food) !== group) return null;
+
+    const groupFoods = await allowedProduceFoodsForGroup(state, group);
+    const sortedGroupFoods = groupFoods
+      .filter((food) => food.id && food.id !== currentItem.food.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const currentIndex = groupFoods.findIndex((food) => food.id === currentItem.food.id);
+    const startIndex = Math.max(0, currentIndex);
+    const orderedCandidates = sortedGroupFoods.sort((a, b) => {
+      const aIndex = groupFoods.findIndex((food) => food.id === a.id);
+      const bIndex = groupFoods.findIndex((food) => food.id === b.id);
+      const aOffset = (aIndex - startIndex + groupFoods.length) % groupFoods.length;
+      const bOffset = (bIndex - startIndex + groupFoods.length) % groupFoods.length;
+      return aOffset - bOffset || a.name.localeCompare(b.name);
     });
-    const payload = await readJsonResponse(res, 'Unable to swap produce.');
-    if (!res.ok) throw new Error(payload.error || 'Unable to swap produce.');
+
+    const options = [];
+    for (let index = 0; index < orderedCandidates.length; index += 1) {
+      if (index > 0 && index % 8 === 0) await yieldToBrowser();
+      const candidate = orderedCandidates[index];
+      const option = produceSwapOptionForFood(state, itemIndex, items, candidate);
+      if (option) options.push(option);
+    }
+
     const entry = {
       key,
       itemIndex,
       group,
-      options: usableProduceOptions(payload.options),
+      options: usableProduceOptions(options),
       nextIndex: 0,
     };
-    entry.options.forEach((option) => preloadFoodImagesFromItems(option.items));
     return entry;
   } catch (error) {
     if (!silent) throw error;
@@ -2025,72 +2055,63 @@ async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { s
   }
 }
 
-async function refreshProduceSwapOptionsForMeal(state, { silent = false } = {}) {
-  if (!state?.items?.length) return;
-  const existingCache = ensureProduceSwapCache(state);
-  if (existingCache.hydrationInFlight) return existingCache.hydrationInFlight;
-
-  existingCache.hydrationInFlight = refreshProduceSwapOptionsForMealNow(state, { silent })
-    .finally(() => {
-      ensureProduceSwapCache(state).hydrationInFlight = null;
-    });
-  return existingCache.hydrationInFlight;
+function normalizeAllowedProduceFoods(foods) {
+  return uniqueFoods((foods || [])
+    .filter((food) => produceGroup(food))
+    .map((food) => ({
+      ...food,
+      categories: food.categories || [],
+      mealTags: food.mealTags || [],
+    })));
 }
 
-async function refreshProduceSwapOptionsForMealNow(state, { silent = false } = {}) {
-  const produceItems = state.items
-    .map((item, itemIndex) => ({ itemIndex, group: produceGroup(item?.food) }))
-    .filter((entry) => entry.group);
+async function allowedProduceFoodsForGroup(state, group) {
+  const blocked = produceSwapBlockedFoodIdsForGroup(state, group);
+  return allowedProduceFoods
+    .filter((food) => produceGroup(food) === group)
+    .filter((food) => !blocked.has(food.id))
+    .filter(foodAllowedForCurrentPreferences);
+}
 
-  if (!produceItems.length) {
-    state.items.forEach((item) => {
-      item.produceSwapOptions = null;
-      item.produceSwapIndex = 0;
-    });
-    return;
+function allowedProduceCacheSignature(group) {
+  return allowedProduceFoods
+    .filter((food) => produceGroup(food) === group)
+    .map((food) => food.id)
+    .sort()
+    .join(',');
+}
+
+function blockedProduceCacheSignature(state, group) {
+  return [...produceSwapBlockedFoodIdsForGroup(state, group)].sort().join(',');
+}
+
+function produceSwapBlockedFoodIdsForGroup(state, group) {
+  const blocked = state?.produceSwapBlockedFoodIds instanceof Set
+    ? state.produceSwapBlockedFoodIds
+    : new Set();
+  return new Set([...blocked].filter((foodId) => {
+    const food = allowedProduceFoods.find((candidate) => candidate.id === foodId);
+    return !food || produceGroup(food) === group;
+  }));
+}
+
+function blockProduceSwapFood(state, food) {
+  if (!state || !produceGroup(food)) return;
+  if (!(state.produceSwapBlockedFoodIds instanceof Set)) {
+    state.produceSwapBlockedFoodIds = new Set();
   }
+  state.produceSwapBlockedFoodIds.add(food.id);
+  resetProduceSwapCache(state);
+}
 
-  const cache = resetProduceSwapCache(state, { preserveCycle: false });
-  const entries = await Promise.all(produceItems.map(({ itemIndex, group }) => (
-    fetchProduceSwapEntryForItems(state, itemIndex, group, state.items, { silent: true })
-  )));
+function unblockProduceSwapFood(state, food) {
+  if (!state?.produceSwapBlockedFoodIds || !food?.id) return;
+  state.produceSwapBlockedFoodIds.delete(food.id);
+  resetProduceSwapCache(state);
+}
 
-  entries.forEach((entry, index) => {
-    const produceItem = produceItems[index];
-    if (!entry) {
-      const item = state.items[produceItem.itemIndex];
-      if (item) {
-        item.produceSwapOptions = { group: produceItem.group, options: [] };
-        item.produceSwapIndex = 0;
-      }
-      return;
-    }
-    cache.entries.set(entry.key, entry);
-    const item = state.items[entry.itemIndex];
-    if (item) {
-      item.produceSwapOptions = normalizeProduceSwapEntry({
-        group: entry.group,
-        options: entry.options,
-      });
-      item.produceSwapIndex = 0;
-    }
-  });
-
-  state.items.forEach((item) => {
-    if (!produceGroup(item?.food)) {
-      item.produceSwapOptions = null;
-      item.produceSwapIndex = 0;
-    }
-  });
-
-  renderFoodList(state);
-  if (!silent && entries.some((entry) => !entry)) {
-    showActionFeedback(state, {
-      tone: 'danger',
-      message: 'Unable to refresh every produce option right now.',
-      cardClass: 'meal-card--flash-fail',
-    });
-  }
+function yieldToBrowser() {
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 function mealItemsCacheSignature(items) {
@@ -2125,93 +2146,68 @@ function usableProduceOptions(options) {
   ));
 }
 
-function stateNeedsProduceSwapHydration(state) {
-  return Boolean(state?.items?.some(itemNeedsProduceSwapHydration));
-}
-
-function itemNeedsProduceSwapHydration(item) {
-  if (!produceGroup(item?.food)) return false;
-  return !item.produceSwapOptions || !Array.isArray(item.produceSwapOptions.options);
-}
-
-function normalizeProduceSwapEntry(entry) {
-  if (!entry) return null;
-  const options = usableProduceOptions(entry.options).map((option) => ({
-    food: option.food,
-    totals: option.totals || null,
-    items: (option.items || []).map(normalizeProduceSwapOptionItem),
-  }));
-
-  return {
-    group: entry.group || produceGroup(options[0]?.food) || null,
-    options,
-  };
-}
-
-function normalizeProduceSwapOptionItem(item) {
-  return {
-    food: item.food,
-    quantityG: Number(item.quantityG) || 0,
-    customFood: item.customFood || null,
-    pendingAdd: Boolean(item.pendingAdd),
-    pendingId: item.pendingId || null,
-    alternatives: item.alternatives || [],
-    broaderAlternatives: item.broaderAlternatives || [],
-    nearestAlternatives: item.nearestAlternatives || [],
-    component: item.component || null,
-    produceSwapOptions: null,
-    produceSwapIndex: 0,
-  };
-}
-
 function nextCachedProduceSwapOption(state, itemIndex, group) {
-  const itemOption = nextProduceSwapOptionFromItem(state, itemIndex, group);
-  if (itemOption) return itemOption;
-
   const cache = ensureProduceSwapCache(state);
   const active = cache.activeCycle;
   const currentFoodId = state.items[itemIndex]?.food?.id || '';
   if (active?.itemIndex === itemIndex && active.group === group) {
-    const next = nextProduceOption(active.options, active.nextIndex, currentFoodId);
-    if (next) {
-      active.nextIndex = next.nextIndex;
-      return next.option;
-    }
+    const option = takeProduceOptionFromActiveCycle(state, active, currentFoodId);
+    if (option) return option;
     cache.activeCycle = null;
   }
 
   const key = produceSwapCacheKey(state, itemIndex, group);
-  const entry = cache.entries.get(key) || produceSwapEntryFromItem(state, itemIndex, group, key);
+  const entry = cache.entries.get(key);
   return takeProduceOptionFromEntry(state, entry, itemIndex, group);
 }
 
-function nextProduceSwapOptionFromItem(state, itemIndex, group) {
-  const item = state.items[itemIndex];
-  const entry = normalizeProduceSwapEntry(item?.produceSwapOptions);
-  if (!entry?.options?.length || (entry.group && entry.group !== group)) return null;
+function produceSwapOptionForFood(state, itemIndex, items, candidate) {
+  const currentItem = items[itemIndex];
+  if (!candidate?.id || !currentItem?.food || candidate.id === currentItem.food.id) return null;
+  if (!foodAllowedForCurrentPreferences(candidate)) return null;
+  const group = produceGroup(currentItem.food);
+  if (!group || produceGroup(candidate) !== group) return null;
+  if (produceSwapBlockedFoodIdsForGroup(state, group).has(candidate.id)) return null;
 
-  const currentFoodId = item.food?.id || '';
-  const next = nextProduceOption(entry.options, item.produceSwapIndex, currentFoodId);
-  if (!next) return null;
+  const replacementQuantityG = clampGrams(candidate, currentItem.quantityG, 5) ||
+    candidate.defaultServingG ||
+    currentItem.quantityG;
+  const attemptedItems = items.map((rawItem, candidateIndex) => (
+    candidateIndex === itemIndex
+      ? normalizeStateItem({ ...rawItem, food: candidate, quantityG: replacementQuantityG })
+      : normalizeStateItem(rawItem)
+  ));
 
-  item.produceSwapOptions = entry;
-  item.produceSwapIndex = next.nextIndex;
-  return next.option;
+  const result = localRebalanceMeal({
+    mealTarget: state.target,
+    items: attemptedItems,
+    action: 'swap_food',
+    changedItemIndex: itemIndex,
+  });
+  if (!result.success) return null;
+
+  return {
+    food: candidate,
+    items: mergeSolvedQuantities(attemptedItems, result.items),
+    totals: result.totals,
+  };
 }
 
-function produceSwapEntryFromItem(state, itemIndex, group, key) {
-  const entry = normalizeProduceSwapEntry(state.items[itemIndex]?.produceSwapOptions);
-  if (!entry || (entry.group && entry.group !== group)) return null;
+function takeProduceOptionFromActiveCycle(state, active, currentFoodId) {
+  const foods = active.foods || [];
+  if (!foods.length) return null;
 
-  const cacheEntry = {
-    key,
-    itemIndex,
-    group,
-    options: entry.options,
-    nextIndex: 0,
-  };
-  ensureProduceSwapCache(state).entries.set(key, cacheEntry);
-  return cacheEntry;
+  for (let offset = 0; offset < foods.length; offset += 1) {
+    const index = ((Number(active.nextIndex) || 0) + offset) % foods.length;
+    const candidate = foods[index];
+    active.nextIndex = (index + 1) % foods.length;
+    if (!candidate?.id || candidate.id === currentFoodId) continue;
+
+    const option = produceSwapOptionForFood(state, active.itemIndex, state.items, candidate);
+    if (option) return option;
+  }
+
+  return null;
 }
 
 function takeProduceOptionFromEntry(state, entry, itemIndex, group) {
@@ -2223,7 +2219,7 @@ function takeProduceOptionFromEntry(state, entry, itemIndex, group) {
   ensureProduceSwapCache(state).activeCycle = {
     itemIndex,
     group,
-    options: entry.options,
+    foods: entry.options.map((option) => option.food).filter(Boolean),
     nextIndex: entry.nextIndex,
   };
   return next.option;
@@ -2244,16 +2240,12 @@ function nextProduceOption(options, startIndex, currentFoodId) {
 }
 
 function applyProduceSwapOption(state, option, { preserveCycle = false } = {}) {
-  const itemsWithProduceOptions = option.items.map((item, itemIndex) => ({
+  const cleanItems = option.items.map((item) => ({
     ...item,
-    produceSwapOptions: produceGroup(item?.food)
-      ? state.items[itemIndex]?.produceSwapOptions || null
-      : null,
-    produceSwapIndex: produceGroup(item?.food)
-      ? Number(state.items[itemIndex]?.produceSwapIndex) || 0
-      : 0,
+    produceSwapOptions: null,
+    produceSwapIndex: 0,
   }));
-  applyMealItems(state, itemsWithProduceOptions, {
+  applyMealItems(state, cleanItems, {
     source: 'produce_swap',
     preserveProduceSwapCycle: preserveCycle,
   });
@@ -2304,6 +2296,7 @@ async function attemptGuidedRebalance(state, {
       if (shouldApplyImmediately) {
         applyMealItems(state, proposedItems, { source: 'deterministic', refreshProduceSwaps: true });
         if (action === 'remove_food' && deleteUndo) {
+          blockProduceSwapFood(state, deleteUndo.deletedItem?.food);
           showDeleteUndoToast({
             ...deleteUndo,
             afterSignature: mealItemsUndoSignature(proposedItems),
@@ -2419,19 +2412,6 @@ function applyMealItems(state, items, options = {}) {
   resetProduceSwapCache(state, {
     preserveCycle: options.source === 'produce_swap' && options.preserveProduceSwapCycle === true,
   });
-  if (
-    options.preloadedProduceEntry?.key &&
-    options.preloadedProduceEntry.key === produceSwapCacheKey(
-      state,
-      options.preloadedProduceEntry.itemIndex,
-      options.preloadedProduceEntry.group,
-    )
-  ) {
-    ensureProduceSwapCache(state).entries.set(
-      options.preloadedProduceEntry.key,
-      options.preloadedProduceEntry,
-    );
-  }
   state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
@@ -2447,9 +2427,6 @@ function applyMealItems(state, items, options = {}) {
   panel.hidden = true;
   panel.innerHTML = '';
   state.pendingProposal = null;
-  if (options.refreshProduceSwaps === true || ['deterministic', 'undo_delete'].includes(options.source)) {
-    refreshProduceSwapOptionsForMeal(state, { silent: true }).catch(() => {});
-  }
   markPlanUnsaved();
 }
 
@@ -2652,6 +2629,297 @@ function mergeSolvedQuantities(attemptedItems, solvedItems) {
       ...item,
       quantityG: solvedById.get(String(item.food.id)),
     }));
+}
+
+function localRebalanceMeal({
+  mealTarget,
+  items,
+  action,
+  changedItemIndex,
+}) {
+  const resolvedItems = items.filter((item) => item.food).map(normalizeStateItem);
+  const bounds = mealTarget?.macroWindows;
+  if (!bounds) return { success: false, violatedMacro: 'meal_context' };
+
+  const initialTotals = computeTotals(resolvedItems);
+  if (!findLocalBoundsViolation(initialTotals, bounds)) {
+    return localRebalanceSuccess(resolvedItems, initialTotals, 'already_inside_ranges');
+  }
+
+  if (action === 'swap_food' && Number.isInteger(changedItemIndex)) {
+    const changedOnlyItems = findLocalChangedItemOnlyFit(resolvedItems, changedItemIndex, mealTarget, bounds);
+    if (changedOnlyItems) {
+      return localRebalanceSuccess(
+        changedOnlyItems,
+        computeTotals(changedOnlyItems),
+        'changed_item_only',
+      );
+    }
+  }
+
+  const wholeMealItems = findLocalWholeMealDistributionFit(resolvedItems, mealTarget, bounds);
+  if (wholeMealItems) {
+    return localRebalanceSuccess(
+      wholeMealItems,
+      computeTotals(wholeMealItems),
+      'whole_meal_distribution',
+    );
+  }
+
+  return { success: false, violatedMacro: findLocalBoundsViolation(initialTotals, bounds) };
+}
+
+function localRebalanceSuccess(items, totals, fitSource) {
+  return {
+    success: true,
+    fitSource,
+    items: items.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG })),
+    totals,
+  };
+}
+
+function findLocalChangedItemOnlyFit(items, changedItemIndex, target, bounds) {
+  if (changedItemIndex < 0 || changedItemIndex >= items.length) return null;
+  const changedItem = items[changedItemIndex];
+  if (!changedItem?.food) return null;
+
+  const baseTotals = subtractTotals(
+    computeTotals(items),
+    itemTotals(changedItem.food, changedItem.quantityG),
+  );
+  let bestQuantityG = null;
+  let bestScore = Infinity;
+
+  for (const quantityG of servingGridCandidates(changedItem.food, changedItem.quantityG, 1)) {
+    const totals = addTotals(baseTotals, itemTotals(changedItem.food, quantityG));
+    if (findLocalBoundsViolation(totals, bounds)) continue;
+    const score = localMacroBoundFitScore(totals, target);
+    const currentBestDistance = Math.abs((bestQuantityG ?? changedItem.quantityG) - changedItem.quantityG);
+    const candidateDistance = Math.abs(quantityG - changedItem.quantityG);
+    if (
+      score < bestScore ||
+      (score === bestScore && candidateDistance < currentBestDistance)
+    ) {
+      bestQuantityG = quantityG;
+      bestScore = score;
+    }
+  }
+
+  if (bestQuantityG === null) return null;
+  return items.map((item, index) => (
+    index === changedItemIndex ? { ...item, quantityG: bestQuantityG } : item
+  ));
+}
+
+function findLocalWholeMealDistributionFit(items, target, bounds) {
+  return findLocalBestPortionGridFit(items, target, bounds, { step: 1 })?.items ?? null;
+}
+
+function findLocalBestPortionGridFit(items, target, bounds, options = {}) {
+  const keys = localMacroBoundKeys(bounds);
+  const step = Number.isFinite(options.step) && options.step > 0 ? options.step : 1;
+  const variables = items
+    .map((item, index) => {
+      const min = Number.isFinite(item.food.minServingG) ? item.food.minServingG : 20;
+      const max = Number.isFinite(item.food.maxServingG) ? item.food.maxServingG : 500;
+      const seed = clampGrams(item.food, item.quantityG, step);
+      return {
+        item,
+        index,
+        min,
+        max,
+        seed,
+        rates: {
+          calories: item.food.caloriesPer100g / 100,
+          proteinG: item.food.proteinGPer100g / 100,
+          carbG: item.food.carbGPer100g / 100,
+          fatG: item.food.fatGPer100g / 100,
+        },
+      };
+    })
+    .filter((entry) => entry.max >= entry.min)
+    .sort((a, b) => (
+      servingStepCount(a.min, a.max, step) - servingStepCount(b.min, b.max, step) ||
+      localMacroLeverage(b, keys) - localMacroLeverage(a, keys)
+    ));
+
+  if (variables.length === 0) return null;
+
+  const suffix = Array.from({ length: variables.length + 1 }, () => emptyLocalMacroRange());
+  for (let index = variables.length - 1; index >= 0; index -= 1) {
+    suffix[index] = addLocalMacroRanges(variableLocalMacroRange(variables[index]), suffix[index + 1]);
+  }
+
+  let found = null;
+  let foundScore = Infinity;
+  const chosen = new Map();
+
+  function canStillFit(totals, pos) {
+    const remaining = suffix[pos];
+    return keys.every((key) => (
+      totals[key] + remaining.min[key] <= bounds[key].max &&
+      totals[key] + remaining.max[key] >= bounds[key].min
+    ));
+  }
+
+  function visit(pos, totals) {
+    if (found) return;
+    if (!canStillFit(totals, pos)) return;
+
+    if (pos >= variables.length) {
+      if (findLocalBoundsViolation(totals, bounds)) return;
+      const score = localMacroBoundFitScore(totals, target);
+      if (score < foundScore) {
+        foundScore = score;
+        found = new Map(chosen);
+      }
+      return;
+    }
+
+    const variable = variables[pos];
+    for (const quantityG of feasibleLocalQuantitiesForVariable(variable, totals, suffix[pos + 1], bounds, keys, step)) {
+      chosen.set(variable.index, quantityG);
+      visit(pos + 1, addTotals(totals, macrosForRates(variable.rates, quantityG)));
+      chosen.delete(variable.index);
+      if (found) break;
+    }
+  }
+
+  visit(0, { calories: 0, proteinG: 0, carbG: 0, fatG: 0 });
+  if (!found) return null;
+
+  return {
+    items: items.map((item, index) => (
+      found.has(index) ? { ...item, quantityG: found.get(index) } : item
+    )),
+  };
+}
+
+function feasibleLocalQuantitiesForVariable(variable, totals, remaining, bounds, keys, step) {
+  let min = variable.min;
+  let max = variable.max;
+
+  for (const key of keys) {
+    const rate = variable.rates[key] || 0;
+    if (rate <= 0) {
+      if (
+        totals[key] + remaining.min[key] > bounds[key].max ||
+        totals[key] + remaining.max[key] < bounds[key].min
+      ) {
+        return [];
+      }
+      continue;
+    }
+
+    min = Math.max(min, (bounds[key].min - totals[key] - remaining.max[key]) / rate);
+    max = Math.min(max, (bounds[key].max - totals[key] - remaining.min[key]) / rate);
+  }
+
+  const first = Math.ceil(min / step) * step;
+  const last = Math.floor(max / step) * step;
+  if (first > last) return [];
+
+  const candidates = [];
+  for (let quantityG = first; quantityG <= last; quantityG += step) {
+    candidates.push(quantityG);
+  }
+
+  return candidates.sort((a, b) => Math.abs(a - variable.seed) - Math.abs(b - variable.seed) || a - b);
+}
+
+function findLocalBoundsViolation(totals, bounds) {
+  if (totals.calories < bounds.calories.min || totals.calories > bounds.calories.max) return 'calories';
+  if (totals.proteinG < bounds.proteinG.min || totals.proteinG > bounds.proteinG.max) return 'protein';
+  if (totals.fatG < bounds.fatG.min || totals.fatG > bounds.fatG.max) return 'fat';
+  return null;
+}
+
+function localMacroBoundFitScore(totals, target) {
+  const [calorieScore, proteinScore, fatScore] = localMealRankTuple(totals, target);
+  return calorieScore * 1000000 + proteinScore * 1000 + fatScore;
+}
+
+function localMealRankTuple(totals, target) {
+  const bounds = target.macroWindows;
+  return [
+    Math.abs(totals.calories - target.calories),
+    Math.abs(totals.proteinG - rangeMidpoint(bounds.proteinG)),
+    Math.abs(totals.fatG - rangeMidpoint(bounds.fatG)),
+  ];
+}
+
+function localMacroBoundKeys(bounds) {
+  return ['calories', 'proteinG', 'fatG'].filter((key) => bounds[key]);
+}
+
+function servingGridCandidates(food, seedQuantityG, step = 5) {
+  const min = Number.isFinite(food.minServingG) ? food.minServingG : 20;
+  const max = Number.isFinite(food.maxServingG) ? food.maxServingG : 500;
+  const first = Math.ceil(min / step) * step;
+  const last = Math.floor(max / step) * step;
+  const candidates = [];
+
+  for (let quantityG = first; quantityG <= last; quantityG += step) {
+    candidates.push(quantityG);
+  }
+
+  const seed = clampGrams(food, seedQuantityG, step);
+  if (seed && !candidates.includes(seed)) candidates.push(seed);
+
+  return [...new Set(candidates)]
+    .sort((a, b) => Math.abs(a - seed) - Math.abs(b - seed) || a - b);
+}
+
+function servingStepCount(min, max, step) {
+  return Math.max(0, Math.floor(max / step) - Math.ceil(min / step) + 1);
+}
+
+function localMacroLeverage(variable, keys) {
+  const span = variable.max - variable.min;
+  return keys.reduce((score, key) => score + Math.abs(variable.rates[key] || 0) * span, 0);
+}
+
+function emptyLocalMacroRange() {
+  const empty = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+  return { min: { ...empty }, max: { ...empty } };
+}
+
+function variableLocalMacroRange(variable) {
+  return {
+    min: macrosForRates(variable.rates, variable.min),
+    max: macrosForRates(variable.rates, variable.max),
+  };
+}
+
+function addLocalMacroRanges(left, right) {
+  const range = emptyLocalMacroRange();
+  for (const key of Object.keys(range.min)) {
+    range.min[key] = left.min[key] + right.min[key];
+    range.max[key] = left.max[key] + right.max[key];
+  }
+  return range;
+}
+
+function macrosForRates(rates, quantityG) {
+  return {
+    calories: rates.calories * quantityG,
+    proteinG: rates.proteinG * quantityG,
+    carbG: rates.carbG * quantityG,
+    fatG: rates.fatG * quantityG,
+  };
+}
+
+function subtractTotals(left, right) {
+  return {
+    calories: left.calories - right.calories,
+    proteinG: left.proteinG - right.proteinG,
+    carbG: left.carbG - right.carbG,
+    fatG: left.fatG - right.fatG,
+  };
+}
+
+function rangeMidpoint(range) {
+  return (range.min + range.max) / 2;
 }
 
 function itemFromGuidedProposal(item) {
@@ -3095,6 +3363,7 @@ function buildPlanData() {
   return {
     input: readForm(),
     dailyTargets,
+    allowedProduceFoods,
     dailyActuals: actual,
     meals: mealStates.map((state) => ({
       name: state.name,

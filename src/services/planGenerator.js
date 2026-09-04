@@ -66,13 +66,6 @@ function _generatePlanInternal(rawInput) {
         mealTarget: displayTarget,
         proposedMealTotals: option.totals,
       }).valid);
-    const produceSwapContext = {
-      mealTarget: displayTarget,
-      dailyContext: { dailyTargets, weightKg: input.weightKg },
-      allowedFoods,
-      limit: Number.POSITIVE_INFINITY,
-    };
-    const selectedItems = attachProduceSwapOptionsToItems(meal.items, produceSwapContext);
     return {
       name: meal.name,
       tag: meal.tag,
@@ -89,16 +82,15 @@ function _generatePlanInternal(rawInput) {
       target: displayTarget,
       totals: mealTotals,
       isApproximate: !isWithinTolerance(plainItems, seedTarget),
-      items: selectedItems.map(serializeGeneratedMealItem),
+      items: meal.items.map(serializeGeneratedMealItem),
       mealOptions: mealOptions.map((option) => {
-        const optionItems = attachProduceSwapOptionsToItems(option.items, produceSwapContext);
         return {
           templateId: option.templateId ?? null,
           templateName: option.templateName ?? 'Alternate meal',
           templateFamily: option.templateFamily ?? null,
           readyMealId: option.readyMealId ?? option.templateId ?? null,
           readyMealTrack: option.readyMealTrack ?? null,
-          items: optionItems.map(serializeGeneratedMealItem),
+          items: option.items.map(serializeGeneratedMealItem),
           totals: option.totals,
           isApproximate: Boolean(option.isApproximate),
         };
@@ -110,6 +102,9 @@ function _generatePlanInternal(rawInput) {
   return {
     input,
     dailyTargets,
+    allowedProduceFoods: allowedFoods
+      .filter((food) => produceGroup(food))
+      .map(serializeAllowedProduceFood),
     nutritionCalculation: {
       bmr: nutritionCalculation.bmr,
       maintenanceCalories: nutritionCalculation.maintenanceCalories,
@@ -133,6 +128,27 @@ function _generatePlanInternal(rawInput) {
       status: 'error',
       isImpossible: true,
     } : {}),
+  };
+}
+
+function serializeAllowedProduceFood(food) {
+  return {
+    id: food.id,
+    name: food.name,
+    nameAr: food.nameAr || '',
+    macroRole: food.macroRole || null,
+    caloriesPer100g: food.caloriesPer100g,
+    proteinGPer100g: food.proteinGPer100g,
+    carbGPer100g: food.carbGPer100g,
+    fatGPer100g: food.fatGPer100g,
+    isVegan: Boolean(food.isVegan),
+    isVegetarian: Boolean(food.isVegetarian),
+    categories: food.categories || [],
+    mealTags: food.mealTags || [],
+    defaultServingG: food.defaultServingG,
+    minServingG: food.minServingG,
+    maxServingG: food.maxServingG,
+    iconUrl: food.iconUrl || null,
   };
 }
 
