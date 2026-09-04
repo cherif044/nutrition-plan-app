@@ -11,10 +11,13 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.0",
     "firebase-admin": "^12.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
     "puppeteer": "^25.8.0",

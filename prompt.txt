@@ -1,0 +1,904 @@
+I want you to inspect this entire codebase and generate a complete professional documentation and scalability report.
+
+The goal is to help me understand the project deeply, clean old unused code safely, and improve the website so it can scale to thousands or eventually millions of users.
+
+Do not modify or delete any code yet. This task is documentation, analysis, and planning only.
+
+---
+
+# Main Goal
+
+Create a full report that explains:
+
+1. What every meaningful file in the codebase does.
+2. What every function, class, component, route handler, middleware, hook, helper, and export does.
+3. How the files connect to each other.
+4. What code appears unused or left over from older approaches.
+5. What parts of the system may break or become slow when many users use the website.
+6. How to improve scalability, reliability, security, and maintainability.
+
+The final result should be both a PDF and Markdown documentation report.
+
+---
+
+# Scope
+
+Include all real application/source files.
+
+Exclude:
+
+- node_modules
+- .git
+- build folders
+- dist folders
+- output folders
+- cache folders
+- generated files
+- package lock internals unless relevant
+- docs/README/markdown documentation files unless they are needed to understand the app
+- environment files containing secrets
+- binary assets unless they are important to the app structure
+
+Do not print secrets. Never include actual environment variable values. You may mention environment variable names only if needed.
+
+---
+
+# Important Rules
+
+- Do not guess.
+- Base every claim on actual code inspection.
+- Search the whole codebase before saying a function, file, import, or component is unused.
+- If usage cannot be proven, mark it as “uncertain” instead of “unused.”
+- Consider indirect usage through framework conventions, routing systems, config files, string references, dependency injection, dynamic imports, frontend routing, backend route registration, and build tools.
+- Preserve exact file paths.
+- Do not delete anything.
+- Do not rewrite files.
+- Do not include secrets.
+- Do not include node_modules or generated code.
+- If a file is too large, summarize its major sections but still list all functions/classes/components/exports.
+- If something looks risky to delete, clearly say why.
+
+---
+
+# Required Output Files
+
+Generate these files:
+
+1. `codebase-documentation-report.pdf`
+   - Complete professional PDF report.
+
+2. `codebase-documentation-report.md`
+   - Editable Markdown version of the same report.
+
+3. `scalability-action-plan.md`
+   - A practical checklist explaining what to improve now, before launch, at thousands of users, and at hundreds of thousands/millions of users.
+
+4. `dead-code-cleanup-plan.md`
+   - A safe deletion/refactor plan listing what can likely be removed, what needs testing first, and what should not be touched yet.
+
+---
+
+# Before Creating the Final Report
+
+Before writing the final PDF, first show me:
+
+1. The detected project structure.
+2. The files you will include.
+3. The files you will exclude.
+4. Files you are unsure about.
+5. The report outline.
+6. Any assumptions you are making.
+
+Wait for my confirmation before generating the final PDF.
+
+---
+
+# Report Structure
+
+The final report should contain the following sections.
+
+---
+
+## A. Executive Summary
+
+Explain:
+
+- What the app appears to do.
+- The main architecture.
+- The main frontend/backend/database flow.
+- The major folders and their responsibilities.
+- The biggest cleanup concerns.
+- The biggest scalability risks.
+- The highest-priority improvements.
+
+Keep this section understandable for someone who did not write the code.
+
+---
+
+## B. Project Structure Map
+
+Show the folder tree, excluding ignored folders.
+
+For each major folder, explain:
+
+- What it contains.
+- Whether it belongs to frontend, backend, shared logic, database, config, tests, assets, or deployment.
+- Whether the folder organization is clean or confusing.
+- Whether any folders seem outdated or unused.
+
+---
+
+## C. Application Startup and Runtime Flow
+
+Explain the flow of the app from startup until a user interacts with it.
+
+Include:
+
+- Main entry point.
+- Server initialization.
+- Frontend initialization.
+- Routing setup.
+- Middleware setup.
+- Database connection setup.
+- Authentication/session setup if present.
+- API request lifecycle.
+- Frontend-to-backend communication.
+- Database read/write flow.
+- External service calls if present.
+
+Explain it step by step.
+
+---
+
+## D. File-by-File Documentation
+
+Create a separate section for every included file.
+
+For every file, include the following:
+
+### 1. File Path
+
+Write the exact relative path.
+
+### 2. File Purpose
+
+Explain what this file is responsible for.
+
+### 3. Runtime Role
+
+Classify the file as one of these:
+
+- app entry point
+- route/API handler
+- frontend page/component
+- backend controller
+- service/business logic
+- database/model/migration
+- utility/helper
+- config
+- middleware
+- test file
+- styling
+- asset reference
+- other
+
+### 4. Important Imports and Dependencies
+
+List important imports and explain why they are used.
+
+Also mention:
+
+- unused imports
+- suspicious imports
+- imports from old architecture
+- imports that create tight coupling
+- imports that may increase bundle size
+
+### 5. Exports
+
+List everything the file exports.
+
+For each export, explain:
+
+- what it is
+- what it does
+- where it appears to be used
+- whether its usage is confirmed, uncertain, or probably unused
+
+### 6. Functions, Classes, Components, Hooks, and Handlers
+
+For every function, class, React/Vue/Svelte component, route handler, middleware, hook, helper, exported constant, or important internal constant, document:
+
+- name
+- type: function/class/component/hook/middleware/route/helper/etc.
+- signature/parameters
+- return value
+- side effects
+- step-by-step explanation of what it does
+- files/functions that call it, if detectable
+- whether it appears used, probably unused, or uncertain
+- whether it is safe to delete
+- notes about readability and maintainability
+
+### 7. Data Flow
+
+Explain:
+
+- what data enters the file
+- where the data comes from
+- how the data is transformed
+- what data leaves the file
+- where the output goes
+
+For API files, include:
+
+- request params
+- query params
+- request body
+- response shape
+- error response shape if possible
+
+For UI files, include:
+
+- props
+- state
+- events
+- API calls
+- user interactions
+- conditional rendering
+
+For database files, include:
+
+- tables/models touched
+- queries
+- migrations
+- relationships
+- schema assumptions
+
+### 8. Error Handling
+
+Explain:
+
+- how errors are handled
+- whether errors are swallowed
+- whether errors are logged
+- whether errors leak sensitive information
+- whether failed database/API calls are handled properly
+- whether user-facing errors are clear
+
+### 9. Cleanup Notes
+
+Identify:
+
+- unused functions
+- unused imports
+- unused variables
+- unused files
+- duplicated logic
+- old approach leftovers
+- commented-out code that should probably be removed
+- code that is not used in runtime
+- code that may be used indirectly and needs confirmation
+
+For each cleanup item, include:
+
+- exact file path
+- item name
+- reason it appears unused
+- confidence: high / medium / low
+- deletion risk: low / medium / high
+- what test or check should be done before deletion
+
+### 10. Scalability Notes for This File
+
+For each file, explain any scalability concerns.
+
+Look for:
+
+- expensive repeated logic
+- repeated database queries
+- missing pagination
+- large responses
+- memory-heavy code
+- blocking/synchronous operations
+- slow external API calls
+- unnecessary frontend re-renders
+- unnecessary API calls
+- missing caching
+- missing rate limiting
+- missing validation
+- poor separation of concerns
+- code that would be hard to maintain with a larger team
+- code that would break if multiple server instances run at the same time
+
+---
+
+## E. Function Index
+
+Create a table listing every function/class/component/export in the project.
+
+Columns:
+
+- name
+- file path
+- type
+- purpose
+- used by
+- confirmed usage status: used / probably unused / uncertain
+- deletion risk
+- notes
+
+---
+
+## F. Dependency Map
+
+Explain how files depend on each other.
+
+Include:
+
+- important import relationships
+- frontend-to-backend connections
+- backend-to-database connections
+- shared utility usage
+- config dependencies
+- external services
+- circular dependencies if found
+- files that are too tightly coupled
+
+Add a simple dependency table:
+
+- source file
+- depends on
+- reason
+- concern if any
+
+---
+
+## G. Dead Code Candidates
+
+Create a dedicated table of code that appears unused.
+
+Columns:
+
+- file path
+- item name
+- item type
+- reason it appears unused
+- evidence
+- confidence: high / medium / low
+- deletion risk: low / medium / high
+- recommended action
+
+Important:
+Do not say something is definitely unused unless you searched the whole codebase and are highly confident.
+
+---
+
+## H. Scalability & Production Readiness Analysis
+
+Give practical advice on how to make this website scale to thousands or millions of users.
+
+Do not give generic advice only. Connect every recommendation to the actual codebase whenever possible.
+
+Analyze the following areas:
+
+---
+
+### 1. Caching
+
+Explain where caching would help:
+
+- repeated database queries
+- repeated API responses
+- expensive calculations
+- static data
+- user session lookups
+- frontend assets
+- images
+- public pages
+- dashboard data
+- third-party API responses
+
+Mention which type of caching fits each case:
+
+- browser cache
+- CDN cache
+- server memory cache
+- Redis cache
+- database query/result cache
+- framework-level cache
+- HTTP cache headers
+
+Also explain cache invalidation risks.
+
+For each caching recommendation, include:
+
+- affected file(s)
+- what should be cached
+- where it should be cached
+- how long it could be cached
+- when the cache should be invalidated
+- risk if implemented badly
+
+---
+
+### 2. Database Scalability
+
+Inspect all database usage and mention:
+
+- missing indexes
+- slow query risks
+- queries that may become expensive with many users
+- missing pagination
+- missing filtering limits
+- N+1 query problems
+- unnecessary repeated reads/writes
+- transactions needed for consistency
+- connection pooling
+- read replicas
+- database schema improvements
+- migration risks
+- backup and restore considerations
+- data growth risks
+- cleanup/archiving strategy
+
+For each issue, include:
+
+- affected file(s)
+- current behavior
+- why it may fail at scale
+- recommended fix
+- difficulty
+- priority
+
+---
+
+### 3. API Scalability
+
+For API routes/controllers, check:
+
+- whether responses are too large
+- whether pagination is missing
+- whether filtering/search limits are missing
+- whether validation is strong enough
+- whether rate limiting is needed
+- whether endpoints are idempotent where they should be
+- whether request bodies can become too large
+- whether expensive work should move to background jobs
+- whether errors leak sensitive information
+- whether API structure is maintainable
+- whether endpoint naming is consistent
+
+For each API issue, explain the problem and recommended fix.
+
+---
+
+### 4. Load Balancing and Statelessness
+
+Explain whether the app can safely run on multiple server instances behind a load balancer.
+
+Check for:
+
+- local in-memory sessions
+- local file uploads
+- local cache that would break across servers
+- background state stored inside one server process
+- scheduled jobs running on every server instance
+- WebSocket/session affinity concerns
+- reliance on local filesystem
+- assumptions that only one server instance exists
+
+Recommend improvements such as:
+
+- Redis-backed sessions
+- database-backed sessions
+- object storage for files
+- stateless API design
+- sticky sessions only if necessary
+- shared cache
+- centralized job queue
+- health checks
+- horizontal scaling strategy
+
+---
+
+### 5. Background Jobs and Queues
+
+Identify work that should not happen directly during a user request, such as:
+
+- sending emails
+- generating reports
+- processing files/images
+- calling slow third-party APIs
+- scheduled cleanup tasks
+- heavy calculations
+- bulk database operations
+- notifications
+- webhooks
+- imports/exports
+
+Recommend queue systems where useful, such as:
+
+- BullMQ with Redis
+- RabbitMQ
+- AWS SQS
+- Google Cloud Tasks
+- managed background jobs
+- cron jobs for simple scheduled tasks
+
+For each recommendation, explain:
+
+- what work should move to the queue
+- why
+- affected files
+- how the user experience improves
+- failure/retry behavior needed
+
+---
+
+### 6. File Storage and Uploads
+
+If the app handles files, images, documents, or user uploads, analyze:
+
+- whether files are stored locally
+- whether this breaks on deployment/serverless/multiple instances
+- whether object storage is needed
+- file size limits
+- file type validation
+- virus/malware scanning if relevant
+- signed URLs
+- CDN delivery
+- image optimization
+- user permissions for files
+
+Recommend storage options where useful:
+
+- S3
+- Cloudflare R2
+- Firebase Storage
+- Supabase Storage
+- Google Cloud Storage
+- Vercel Blob
+
+---
+
+### 7. Frontend Scalability
+
+For frontend files, inspect:
+
+- unnecessary re-renders
+- large components that should be split
+- repeated API calls
+- missing loading states
+- missing error states
+- large bundle size risks
+- lazy loading opportunities
+- route-level code splitting
+- image optimization
+- poor state management
+- duplicated UI logic
+- client-side state that could become messy
+- forms that need validation
+- whether data fetching should be cached with React Query, SWR, or framework-native caching
+
+For each frontend issue, include:
+
+- affected file(s)
+- current behavior
+- why it matters
+- recommended fix
+
+---
+
+### 8. Security at Scale
+
+Mention risks that become worse with more users:
+
+- missing authentication checks
+- missing authorization checks
+- insecure direct object reference risks
+- weak input validation
+- missing rate limiting
+- brute-force login risks
+- exposed secrets
+- unsafe error messages
+- missing CSRF protection where relevant
+- XSS risks
+- SQL injection risks
+- dependency vulnerabilities
+- insecure file uploads
+- overly permissive CORS
+- unsafe cookies
+- missing audit logs
+
+For each security issue, explain:
+
+- affected file(s)
+- risk
+- possible exploit scenario
+- recommended fix
+- priority
+
+---
+
+### 9. Observability
+
+Recommend what should be added for production:
+
+- structured logging
+- request IDs
+- error tracking such as Sentry
+- performance monitoring
+- uptime monitoring
+- database query monitoring
+- metrics for latency, error rate, throughput, memory, CPU
+- audit logs for important actions
+- alerting
+- slow request tracking
+- failed job tracking
+
+Explain where logging/monitoring should be added in the codebase.
+
+---
+
+### 10. Deployment and Infrastructure
+
+Explain what the project would need for serious production usage:
+
+- environment variables
+- staging vs production environments
+- CI/CD
+- automated tests before deploy
+- Dockerization if useful
+- horizontal scaling
+- load balancer
+- CDN
+- HTTPS
+- secrets management
+- database backups
+- rollback plan
+- health checks
+- preview deployments
+- dependency updates
+
+Separate recommendations into practical stages instead of overengineering.
+
+---
+
+### 11. Reliability and Failure Handling
+
+Check whether the app handles:
+
+- failed database connections
+- failed external API calls
+- retries
+- timeouts
+- partial failures
+- duplicate requests
+- race conditions
+- graceful shutdown
+- health checks
+- maintenance mode
+- queue failures
+- transaction failures
+- concurrent requests
+
+For each reliability issue, include:
+
+- affected file(s)
+- current problem
+- what could happen in production
+- recommended fix
+
+---
+
+### 12. Cost-Aware Scaling
+
+Do not recommend expensive enterprise infrastructure too early.
+
+Separate recommendations into:
+
+#### Needed Now
+Things that should be fixed immediately even for a small app.
+
+#### Needed Before Launch
+Things required before real users use the website.
+
+#### Needed at Thousands of Users
+Things likely needed once traffic becomes serious.
+
+#### Needed at Hundreds of Thousands/Millions of Users
+Things only needed at very large scale.
+
+For each item, explain:
+
+- why it belongs in that stage
+- estimated difficulty
+- expected impact
+
+---
+
+### 13. Scalability Priority Table
+
+Create a table with:
+
+- issue
+- affected file(s)
+- why it matters
+- user scale where it becomes a problem
+- recommended fix
+- difficulty: low / medium / high
+- priority: urgent / soon / later
+
+---
+
+### 14. Million-User Architecture Suggestion
+
+Based on the current app, suggest a realistic future architecture.
+
+Include:
+
+- frontend hosting
+- backend/API layer
+- database
+- cache
+- queue/background jobs
+- file storage
+- CDN
+- monitoring
+- load balancing
+- deployment strategy
+- security layer
+- backup strategy
+
+But keep it practical. Do not recommend Kubernetes, microservices, or enterprise-level tools unless the app actually needs them.
+
+Explain the path from current architecture to future scalable architecture in stages.
+
+---
+
+## I. Recommended Refactor Plan
+
+Give a safe step-by-step cleanup/refactor plan.
+
+Separate into:
+
+### 1. Low-Risk Deletions
+
+Code that appears clearly unused and safe to remove.
+
+### 2. Medium-Risk Cleanup
+
+Code that appears unused but needs tests or manual confirmation.
+
+### 3. High-Risk Areas
+
+Code that may be unused but could be used indirectly.
+
+### 4. Architecture Improvements
+
+Ways to improve project organization, separation of concerns, and maintainability.
+
+### 5. Scalability Improvements
+
+Practical changes that make the app handle more users.
+
+### 6. Tests Needed Before Cleanup
+
+List tests that should be added before deleting risky code.
+
+---
+
+## J. Testing Recommendations
+
+Recommend tests that should exist before cleanup and scaling work.
+
+Include:
+
+- unit tests
+- integration tests
+- API tests
+- frontend component tests
+- authentication tests
+- database tests
+- regression tests
+- load tests
+- smoke tests
+- end-to-end tests
+
+For each test recommendation, explain:
+
+- what it protects
+- affected files
+- why it matters
+
+---
+
+## K. Final Action Checklist
+
+End the report with a practical checklist.
+
+Organize it as:
+
+### Do First
+
+Highest-impact, low-risk fixes.
+
+### Do Next
+
+Important improvements after the first cleanup.
+
+### Do Later
+
+Bigger architecture/scaling work.
+
+### Do Only If the App Gets Big
+
+Advanced scaling work that should not be done too early.
+
+---
+
+# Specific Style Requirements
+
+- Write clearly and practically.
+- Use tables where useful.
+- Do not make vague recommendations.
+- For every recommendation, explain why it matters.
+- When possible, connect recommendations to exact files.
+- Avoid generic advice unless it is clearly labeled as general.
+- Make the PDF readable and organized.
+- Use headings, subheadings, tables, and bullet points.
+- Keep explanations beginner-friendly but technically accurate.
+- Assume I want to understand the code deeply, not just get a summary.
+
+---
+
+# Dead Code Detection Rules
+
+When detecting unused code:
+
+1. Search all source files.
+2. Check imports and exports.
+3. Check route registration.
+4. Check frontend routing.
+5. Check config references.
+6. Check dynamic imports.
+7. Check string-based references.
+8. Check framework conventions.
+9. Check tests only separately from runtime usage.
+10. Mark anything uncertain as uncertain.
+
+Do not delete anything.
+
+For each unused candidate, give confidence:
+
+- High confidence: no references found anywhere and no framework/dynamic usage likely.
+- Medium confidence: no direct references, but indirect usage is possible.
+- Low confidence: looks suspicious, but usage cannot be ruled out.
+
+Also give deletion risk:
+
+- Low risk: safe to delete after tests pass.
+- Medium risk: delete only after manual verification.
+- High risk: do not delete without deeper investigation.
+
+---
+
+# Final Deliverables
+
+After confirmation, generate:
+
+1. `codebase-documentation-report.pdf`
+2. `codebase-documentation-report.md`
+3. `scalability-action-plan.md`
+4. `dead-code-cleanup-plan.md`
+
+The PDF should be the polished final report.
+
+The Markdown file should contain the same content so I can edit it later.
+
+The scalability action plan should be a shorter practical checklist.
+
+The dead-code cleanup plan should be focused only on safe cleanup and refactoring.
+
+Remember: this is analysis only. Do not edit or delete code until I explicitly ask in a later step.
