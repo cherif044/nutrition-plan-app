@@ -2701,7 +2701,7 @@ async function createGeneratedPlanRecord(planData) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      planData,
+      planData: planDataForPersistence(planData),
       customer: customerPayload?.customer || null,
       isActive,
     }),
@@ -2727,7 +2727,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      planData,
+      planData: planDataForPersistence(planData),
       customer: customerPayload?.customer || null,
       isActive,
     }),
@@ -3076,8 +3076,6 @@ function buildPlanData() {
       originalItems: state.originalItems.map((item) => ({
         food: item.food,
         quantityG: item.quantityG,
-        produceSwapOptions: item.produceSwapOptions || null,
-        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
       })),
       items: state.items.filter((item) => item.food).map((item) => ({
         food: item.food,
@@ -3087,11 +3085,9 @@ function buildPlanData() {
         broaderAlternatives: item.broaderAlternatives || [],
         nearestAlternatives: item.nearestAlternatives || [],
         component: item.component || null,
-        produceSwapOptions: item.produceSwapOptions || null,
-        produceSwapIndex: Number.isInteger(item.produceSwapIndex) ? item.produceSwapIndex : 0,
         totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
       })),
-      mealOptions: state.mealOptions || [],
+      mealOptions: stripProduceSwapOptionsFromMealOptions(state.mealOptions || []),
       totals: computeTotals(state.items),
       templateId: state.templateId,
       templateName: state.templateName,
@@ -3102,6 +3098,39 @@ function buildPlanData() {
       candidateSource: state.candidateSource,
     })),
   };
+}
+
+function planDataForPersistence(planData) {
+  if (!planData?.meals) return planData;
+  return {
+    ...planData,
+    meals: planData.meals.map((meal) => ({
+      ...meal,
+      originalItems: stripProduceSwapOptionsFromItems(meal.originalItems || []),
+      items: stripProduceSwapOptionsFromItems(meal.items || []),
+      mealOptions: stripProduceSwapOptionsFromMealOptions(meal.mealOptions || []),
+    })),
+  };
+}
+
+function stripProduceSwapOptionsFromMealOptions(mealOptions) {
+  return mealOptions.map((option) => ({
+    ...option,
+    items: stripProduceSwapOptionsFromItems(option.items || []),
+  }));
+}
+
+function stripProduceSwapOptionsFromItems(items) {
+  return items.map((item) => {
+    const {
+      produceSwapOptions: _produceSwapOptions,
+      produceSwapIndex: _produceSwapIndex,
+      swapOptions: _swapOptions,
+      swapIndex: _swapIndex,
+      ...persistedItem
+    } = item;
+    return persistedItem;
+  });
 }
 
 function resetChat(state) {
