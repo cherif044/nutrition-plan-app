@@ -32,7 +32,8 @@ function calculateGoalCalories(input, maintenance) {
   }
 
   function withCalorieFloor(goalCalories, extras = {}) {
-    const targetCalories = Math.max(goalCalories, floorCalories);
+    const minimumTargetCalories = floorCalories / (1 - NUTRITION.dailyCalorieTolerancePercent);
+    const targetCalories = Math.max(goalCalories, minimumTargetCalories);
     return {
       ...extras,
       targetCalories,
