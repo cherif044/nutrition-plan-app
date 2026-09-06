@@ -74,8 +74,6 @@
   .navlinks{display:flex; gap:6px; margin-right:8px}
   .navlinks a{padding:9px 14px; border-radius:10px; font-size:14.5px; font-weight:600; color:var(--body); transition:.18s}
   .navlinks a:hover{background:var(--green-100); color:var(--green-800)}
-  .nav-actions{display:flex; align-items:center; gap:10px}
-  .nav-greeting{font-size:14.5px; font-weight:700; color:var(--body); white-space:nowrap}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:9px;
     font-family:inherit; font-weight:700; font-size:15px; border-radius:13px;
@@ -361,10 +359,8 @@
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
     </nav>
-    <div class="nav-actions" id="nav-actions">
-      <a class="btn btn-ghost" href="/login">Log in</a>
-      <a class="btn btn-primary" href="/register">Create account</a>
-    </div>
+    <a class="btn btn-ghost" href="#">Log in</a>
+    <a class="btn btn-primary" href="#">Create account</a>
   </div>
 </header>
 
@@ -378,7 +374,7 @@
         <h1>A daily plan that hits your numbers — and <span class="accent">still lets you choose.</span></h1>
         <p class="lede">Enter your stats, set a goal, and get a full day of meals with exact gram portions and macros. Don't like something? Flip to another meal, or swap a single food and keep the rest.</p>
         <div class="cta-row">
-          <a class="btn btn-primary btn-lg js-generate-cta" href="/login">
+          <a class="btn btn-primary btn-lg" href="#">
             Generate my plan
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
@@ -670,7 +666,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
         </div>
         <h3>Secure accounts</h3>
-        <p>Firebase-backed sign-in and protected sessions. Revoke access from any device, any time.</p>
+        <p>Hashed passwords and JWT sessions. Revoke access from any device, any time.</p>
       </div>
     </div>
   </div>
@@ -683,8 +679,8 @@
       <h2>Your first plan is about thirty seconds away.</h2>
       <p>No card, no trial timer. Enter your stats, get the full day, then make it yours.</p>
       <div class="cta-row">
-        <a class="btn btn-white btn-lg js-generate-cta" href="/login">Generate my plan</a>
-        <a class="btn btn-outline btn-lg" href="/register">Create account</a>
+        <a class="btn btn-white btn-lg" href="#">Generate my plan</a>
+        <a class="btn btn-outline btn-lg" href="#">Create account</a>
       </div>
       <p class="cta-note">223 ready meals · 104 nutrition foods · up to 20 alternatives per slot · free to use</p>
     </div>
@@ -700,58 +696,13 @@
       <div><div class="brand-name">Pinch</div><div class="brand-sub">Nutrition Plan</div></div>
     </div>
     <div class="foot-links">
-      <a href="#control">Swap &amp; edit</a><a href="#how">How it works</a><a href="#features">Features</a><a href="/login">Log in</a>
+      <a href="#control">Swap &amp; edit</a><a href="#how">How it works</a><a href="#features">Features</a><a href="#">Log in</a>
     </div>
     <div class="copy">© 2026 Pinch</div>
   </div>
 </footer>
 
 <script>
-  function escapeHtml(v) {
-    return String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  async function getCurrentUser() {
-    try {
-      var res = await fetch('/api/auth/me');
-      if (!res.ok) return null;
-      var data = await res.json();
-      return data.user || null;
-    } catch {
-      return null;
-    }
-  }
-
-  (async function syncLandingAuthState(){
-    var user = await getCurrentUser();
-    if (!user) return;
-
-    window.location.replace('/dashboard');
-
-    var nav = document.getElementById('nav-actions');
-    if (!nav) return;
-    nav.innerHTML =
-      '<span class="nav-greeting">Hi, ' + escapeHtml(user.firstname || user.email || 'there') + '</span>' +
-      '<a class="btn btn-ghost" href="/dashboard">Home</a>' +
-      '<button class="btn btn-primary" id="logout-btn" type="button">Log out</button>';
-
-    var logout = document.getElementById('logout-btn');
-    if (logout) {
-      logout.addEventListener('click', async function(){
-        await fetch('/api/auth/logout', { method: 'POST' });
-        location.reload();
-      });
-    }
-  })();
-
-  document.querySelectorAll('.js-generate-cta').forEach(function(link){
-    link.addEventListener('click', async function(event){
-      event.preventDefault();
-      var user = await getCurrentUser();
-      window.location.href = user ? '/dashboard' : '/login';
-    });
-  });
-
   // reveal on scroll
   var io = new IntersectionObserver(function(es){
     es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in-view'); io.unobserve(e.target); } });
