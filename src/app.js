@@ -154,7 +154,8 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.gstatic.com'],
+      // Firebase popup/redirect auth loads Google's iframe helper from this origin.
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.gstatic.com', 'https://apis.google.com'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'blob:'],
