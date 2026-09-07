@@ -18,7 +18,7 @@ const { logger } = require('./utils/logger');
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
-const foodIconsDir = path.join(__dirname, '..', 'icons');
+const foodIconsDir = path.join(__dirname, '..', 'public', 'food-icons');
 const isProduction = process.env.NODE_ENV === 'production';
 
 function envNumber(name, fallback) {
@@ -100,6 +100,14 @@ function setStaticCacheHeaders(res, filePath) {
 
   if (/\.html?$/i.test(filePath)) {
     res.setHeader('Cache-Control', 'no-cache');
+    return;
+  }
+
+  // Unhashed CSS/JS: serve from cache immediately and revalidate in the
+  // background, so a page load never blocks on a 304. Mirrors the
+  // Cache-Control set for these paths in vercel.json.
+  if (/\.(?:css|js)$/i.test(filePath)) {
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
     return;
   }
 

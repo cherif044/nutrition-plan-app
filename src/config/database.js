@@ -17,9 +17,9 @@ const sequelize = new Sequelize(databaseUrl, {
   dialectModule: pg,
   pool: {
     max: envNumber('DB_POOL_MAX', 5),
-    min: envNumber('DB_POOL_MIN', 0),
+    min: envNumber('DB_POOL_MIN', 1),
     acquire: envNumber('DB_POOL_ACQUIRE_MS', 30000),
-    idle: envNumber('DB_POOL_IDLE_MS', 10000),
+    idle: envNumber('DB_POOL_IDLE_MS', 600000),
   },
   logging: false,
   dialectOptions: {

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 let cache;
-const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'icons');
+const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'public', 'food-icons');
 
 function foodIconUrlForId(id) {
   const fileName = `${id}.png`;

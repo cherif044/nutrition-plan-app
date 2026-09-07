@@ -14,13 +14,42 @@
       "destination": "/api/index.js"
     }
   ],
+  "headers": [
+    {
+      "source": "/food-icons/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/css/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/js/(app|dashboard|auth|customer).js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, stale-while-revalidate=86400"
+        }
+      ]
+    }
+  ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{used_food_repository/**,public/**,icons/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}",
+      "includeFiles": "{used_food_repository/**,public/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}",
       "maxDuration": 60
     },
     "api/plan-export.js": {
-      "includeFiles": "{public/**,icons/**,node_modules/@sparticuz/chromium/**}",
+      "includeFiles": "{public/**,node_modules/@sparticuz/chromium/**}",
       "maxDuration": 60
     }
   }

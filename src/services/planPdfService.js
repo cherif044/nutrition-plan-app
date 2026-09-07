@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const publicDir = path.join(__dirname, '..', '..', 'public');
-const iconsDir = path.join(__dirname, '..', '..', 'icons');
+const iconsDir = path.join(__dirname, '..', '..', 'public', 'food-icons');
 const appCss = fs.readFileSync(path.join(publicDir, 'css', 'styles.css'), 'utf8');
 
 let browserPromise = null;

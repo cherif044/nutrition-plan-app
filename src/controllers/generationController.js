@@ -6,12 +6,27 @@ const {
   getProduceSwapOptions,
 } = require('../services/planGenerator');
 
+// The food catalog and preference taxonomy are fixed at deploy time, so both
+// responses are built once per instance and cached at the edge.
+const STATIC_DATA_CACHE_CONTROL =
+  'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800';
+
+let preferenceOptionsCache;
+
+function getCachedPreferenceOptions() {
+  if (!preferenceOptionsCache) {
+    preferenceOptionsCache = getPreferenceOptions(getFoods());
+  }
+  return preferenceOptionsCache;
+}
+
 function health(_req, res) {
   res.json({ status: 'ok' });
 }
 
 function getFoodsHandler(_req, res, next) {
   try {
+    res.setHeader('Cache-Control', STATIC_DATA_CACHE_CONTROL);
     res.json({ foods: getFoods() });
   } catch (error) {
     next(error);
@@ -20,7 +35,8 @@ function getFoodsHandler(_req, res, next) {
 
 function getPreferences(_req, res, next) {
   try {
-    res.json(getPreferenceOptions(getFoods()));
+    res.setHeader('Cache-Control', STATIC_DATA_CACHE_CONTROL);
+    res.json(getCachedPreferenceOptions());
   } catch (error) {
     next(error);
   }

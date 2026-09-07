@@ -303,6 +303,8 @@ let saveInFlight = null;
 let saveQueued = false;
 let saveStatusEl = null;
 let hasUnsavedChanges = false;
+let initialPlanCreateInFlight = null;
+let initialPlanCreateToken = 0;
 const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
@@ -356,12 +358,12 @@ async function generateAndRender(apiUrl) {
         setSaveStatus('Unsaved changes');
       }
     } else {
-      const createdPlan = await createGeneratedPlanRecord(payload);
-      currentPlanId = createdPlan.id;
-      currentPlanName = createdPlan.name || readPreGenerationPlanName();
-      currentPlanHasCustomer = Boolean(createdPlan.customer_id);
+      currentPlanId = null;
+      currentPlanName = readPreGenerationPlanName();
+      currentPlanHasCustomer = planWillHaveCustomer();
       firstCreationPending = true;
-      renderPlan(payload, { firstCreation: true, planId: currentPlanId, planName: currentPlanName });
+      renderPlan(payload, { firstCreation: true, planId: null, planName: currentPlanName });
+      startInitialPlanSave(payload);
     }
     switchPlannerView('plan', { push: true });
     setInputsExpanded(false);
@@ -3014,6 +3016,33 @@ async function createGeneratedPlanRecord(planData) {
   return data.plan;
 }
 
+function startInitialPlanSave(planData) {
+  const token = ++initialPlanCreateToken;
+  initialPlanCreateInFlight = createGeneratedPlanRecord(planData)
+    .then((createdPlan) => {
+      if (token !== initialPlanCreateToken) return null;
+      currentPlanId = createdPlan.id;
+      currentPlanName = createdPlan.name || currentPlanName || readPreGenerationPlanName();
+      currentPlanHasCustomer = Boolean(createdPlan.customer_id);
+      firstCreationPending = true;
+      showInitialCreationBar(currentPlanId, currentPlanName, { statusText: 'Saved' });
+      return createdPlan;
+    })
+    .catch((error) => {
+      if (token !== initialPlanCreateToken) return null;
+      currentPlanId = null;
+      showInitialCreationBar(null, currentPlanName || readPreGenerationPlanName(), {
+        statusText: 'Save failed',
+        allowRetry: true,
+      });
+      message.textContent = error.message || 'Plan generated, but saving failed.';
+      return null;
+    })
+    .finally(() => {
+      if (token === initialPlanCreateToken) initialPlanCreateInFlight = null;
+    });
+}
+
 async function savePlanRecord(planId, planData, { fallbackName = '', status = true } = {}) {
   const name = readPreGenerationPlanName() || fallbackName || currentPlanName || '';
   if (!name) {
@@ -3141,29 +3170,45 @@ function showEditBar(planId, initialName) {
   reserveSpaceForSaveBar();
 }
 
-function showInitialCreationBar(planId, initialName) {
+function showInitialCreationBar(planId, initialName, { statusText = null, allowRetry = false } = {}) {
   const existing = document.getElementById('folder-save-bar');
   if (existing) existing.remove();
   if (!saveBarSlot) return;
 
   const dashboardUrl = '/dashboard';
+  const isWaitingForPlanId = !planId && !allowRetry;
+  const resolvedStatus = statusText ?? (isWaitingForPlanId ? 'Saving...' : '');
 
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
   bar.className = 'save-action-bar';
-  saveStatusEl = null;
   bar.innerHTML = `
-    <button class="btn btn-ghost save-action-bar__discard" type="button">${iconSvg('rotate')}Discard plan</button>
-    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save plan</button>
-    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Save & export</button>
+    <span class="save-action-bar__status" role="status" aria-live="polite">${escapeHtml(resolvedStatus)}</span>
+    <button class="btn btn-ghost save-action-bar__discard" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('rotate')}Discard plan</button>
+    <button class="btn btn-primary save-action-bar__save" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('save')}${allowRetry ? 'Retry save' : 'Save plan'}</button>
+    <button class="btn btn-primary save-action-bar__export" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('file')}Save & export</button>
   `;
+  saveStatusEl = bar.querySelector('.save-action-bar__status');
 
   async function updatePendingPlan(btn, loadingText, restoreHtml) {
     message.textContent = '';
     const planData = buildPlanData();
     btn.disabled = true;
     btn.textContent = loadingText;
-    const ok = await savePlanRecord(planId, planData, { fallbackName: initialName });
+    let ok = false;
+    if (currentPlanId || planId) {
+      ok = await savePlanRecord(currentPlanId || planId, planData, { fallbackName: initialName });
+    } else {
+      try {
+        const createdPlan = await createGeneratedPlanRecord(planData);
+        currentPlanId = createdPlan.id;
+        currentPlanName = createdPlan.name || initialName || currentPlanName;
+        currentPlanHasCustomer = Boolean(createdPlan.customer_id);
+        ok = true;
+      } catch (error) {
+        setSaveStatus(error.message || 'Save failed.');
+      }
+    }
     if (!ok) {
       btn.disabled = false;
       btn.innerHTML = restoreHtml;
@@ -3193,7 +3238,7 @@ function showInitialCreationBar(planId, initialName) {
     btn.disabled = true;
     btn.textContent = 'Discarding...';
     try {
-      await deleteCurrentPlan(planId);
+      if (currentPlanId || planId) await deleteCurrentPlan(currentPlanId || planId);
       window.location.href = dashboardUrl;
     } catch (error) {
       btn.disabled = false;
