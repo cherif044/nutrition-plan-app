@@ -735,7 +735,7 @@
   {
     "id": "skimmed_milk_fat_free",
     "name": "Skimmed milk (fat free)",
-    "macro_role": "carb",
+    "macro_role": "protein",
     "calories_per_100g": 34,
     "protein_g_per_100g": 3.37,
     "carb_g_per_100g": 4.96,
@@ -1249,7 +1249,7 @@
   {
     "id": "avocados_raw",
     "name": "Avocados, raw",
-    "macro_role": "fat",
+    "macro_role": "carb",
     "calories_per_100g": 160,
     "protein_g_per_100g": 2,
     "carb_g_per_100g": 8.53,
@@ -1960,7 +1960,7 @@
   {
     "id": "soy_sauce_from_soy_and_wheat_shoyu",
     "name": "Soy sauce, from soy and wheat (shoyu)",
-    "macro_role": "mixed",
+    "macro_role": "protein",
     "calories_per_100g": 53,
     "protein_g_per_100g": 8.14,
     "carb_g_per_100g": 4.93,
@@ -3479,7 +3479,7 @@
   {
     "id": "asparagus_cooked_boiled",
     "name": "Asparagus, cooked, boiled",
-    "macro_role": "mixed",
+    "macro_role": "carb",
     "calories_per_100g": 22,
     "protein_g_per_100g": 2.4,
     "carb_g_per_100g": 4.11,

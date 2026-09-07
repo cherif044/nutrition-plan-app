@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { logger } = require('../utils/logger');
 
 let cache;
+let swapCache;
 const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'public', 'food-icons');
+const FOOD_SWAPS_PATH = path.join(__dirname, '..', '..', 'used_food_repository', 'food_swaps.json');
 
 function foodIconUrlForId(id) {
   const fileName = `${id}.png`;
@@ -77,4 +80,28 @@ function normalizeFood(food) {
   };
 }
 
-module.exports = { loadFoods };
+// Precomputed swap candidates, built by scripts/buildFoodSwaps.js. This is
+// read-only at request time — nothing here recomputes the index. Run
+// `npm run build:food-swaps` whenever used_food_repository/foods.json
+// changes (new food, edited macros, edited macro_role/sub_category).
+function loadFoodSwaps() {
+  if (swapCache) return swapCache;
+
+  const decoded = JSON.parse(fs.readFileSync(FOOD_SWAPS_PATH, 'utf8'));
+  if (!decoded || typeof decoded.swaps !== 'object') {
+    throw new Error('food_swaps.json is malformed: expected a { swaps: { ... } } object.');
+  }
+
+  const foods = loadFoods();
+  const missing = foods.filter((food) => !(food.id in decoded.swaps));
+  if (missing.length > 0) {
+    logger.warn('food_swaps.json is stale: missing entries for foods in the catalog. Run `npm run build:food-swaps`.', {
+      missingFoodIds: missing.map((food) => food.id),
+    });
+  }
+
+  swapCache = decoded.swaps;
+  return swapCache;
+}
+
+module.exports = { loadFoods, loadFoodSwaps };

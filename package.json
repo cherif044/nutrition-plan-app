@@ -7,7 +7,8 @@
     "test": "npm run check",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check public/js/dashboard.js && node --check public/js/customer.js"
+    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check public/js/dashboard.js && node --check public/js/customer.js",
+    "build:food-swaps": "node scripts/buildFoodSwaps.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",

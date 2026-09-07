@@ -1717,4 +1717,12 @@ module.exports = {
   getFoods,
   rebalanceMeal,
   getProduceSwapOptions,
+  // Exported so foodSwapService.js can apply the exact same dietType /
+  // avoidFoods / allergen filtering used by plan generation and the
+  // existing produce-swap flow, instead of a second filter implementation
+  // that could silently drift from this one.
+  filterFoods,
+  // Exported so foodSwapService.js can clamp a candidate's serving size to
+  // its own min/max/step the same way every other swap path does.
+  clampServing,
 };

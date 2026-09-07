@@ -5,6 +5,7 @@ const {
   rebalanceMeal,
   getProduceSwapOptions,
 } = require('../services/planGenerator');
+const { getSwapSuggestions } = require('../services/foodSwapService');
 const { logger } = require('../utils/logger');
 
 // The food catalog and preference taxonomy are fixed at deploy time, so both
@@ -184,6 +185,24 @@ function produceSwapOptionsHandler(req, res, next) {
   }
 }
 
+function swapSuggestionsHandler(req, res, next) {
+  try {
+    const {
+      foodId, userPreferences, limit, mealContext,
+    } = req.body;
+
+    if (!foodId) {
+      return res.status(400).json({ error: 'foodId is required.' });
+    }
+
+    return res.json(getSwapSuggestions({
+      foodId, userPreferences, limit, mealContext,
+    }));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   health,
   getFoodsHandler,
@@ -192,4 +211,5 @@ module.exports = {
   timelineEventHandler,
   rebalanceMealHandler,
   produceSwapOptionsHandler,
+  swapSuggestionsHandler,
 };

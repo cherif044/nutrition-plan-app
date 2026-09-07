@@ -1912,12 +1912,6 @@ function showSwapFoodAction(state, itemIndex = null) {
     return;
   }
 
-  const alternatives = uniqueFoods([
-    ...(item.alternatives || []),
-    ...(item.broaderAlternatives || []),
-    ...(item.nearestAlternatives || []),
-  ]).filter(foodAllowedForCurrentPreferences);
-
   const panel = actionPanel(state);
   resetActionPanel(panel);
   panel.hidden = false;
@@ -1931,32 +1925,79 @@ function showSwapFoodAction(state, itemIndex = null) {
   `;
   const list = panel.querySelector('.guided-choice-list');
 
-  if (!alternatives.length) {
-    const empty = document.createElement('div');
-    empty.className = 'suggestion-empty';
-    empty.textContent = 'No suggested swaps for this food. Search for another allowed food.';
-    list.append(empty);
+  const search = panel.querySelector('.guided-food-search');
+  const results = panel.querySelector('.guided-search-results');
+  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
+    attemptSwapFood(state, itemIndex, food);
+  }));
+
+  loadSwapSuggestionsIntoList(state, itemIndex, item, list);
+}
+
+function renderSwapSuggestionEmpty(list, message) {
+  list.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.className = 'suggestion-empty';
+  empty.textContent = message;
+  list.append(empty);
+}
+
+async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
+  renderSwapSuggestionEmpty(list, 'Finding good swaps...');
+
+  const foodId = item.food.id;
+  // Filters candidates down to ones that actually fit this meal at some
+  // valid serving size — the same rebalance check /api/rebalance-meal runs
+  // for a real swap — so nothing shown here can fail with "Cannot swap
+  // this food" after the user picks it.
+  const mealContext = {
+    itemIndex,
+    currentItems: mealActionItems(state.items),
+    mealTarget: state.target,
+    ...(dailyTargets ? { dailyContext: { dailyTargets, weightKg: Number(currentPlanInput?.weightKg) } } : {}),
+  };
+
+  let suggestions = [];
+  try {
+    const [, payload] = await Promise.all([
+      ensureFoodsLoaded(), // foodsById must be populated to resolve suggestion ids below
+      fetch('/api/swap-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ foodId, userPreferences: getUserPreferences(), mealContext }),
+      }).then((res) => readJsonResponse(res, 'Unable to load swap suggestions.').then((data) => {
+        if (!res.ok) throw new Error(data.error || 'Unable to load swap suggestions.');
+        return data;
+      })),
+    ]);
+    suggestions = payload.options || [];
+  } catch { /* fall through to the empty state below */ }
+
+  // The panel may have been closed, or switched to a different food, while
+  // this request was in flight. Bail rather than render stale suggestions.
+  if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
+
+  if (!suggestions.length) {
+    renderSwapSuggestionEmpty(list, 'No suggested swaps for this food. Search for another allowed food.');
+    return;
   }
 
-  alternatives.slice(0, 8).forEach((alt) => {
+  list.innerHTML = '';
+  suggestions.forEach((suggestion) => {
+    const alt = foodsById.get(suggestion.foodId);
+    if (!alt) return;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'suggestion-action-btn';
     btn.innerHTML = `
       ${foodMediaPlaceholder('suggestion-food-icon')}
       <strong>${escapeHtml(alt.name)}</strong>
-      <em>Swap</em>
+      <em>${suggestion.matchPct}% match</em>
     `;
     setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
     btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
     list.append(btn);
   });
-
-  const search = panel.querySelector('.guided-food-search');
-  const results = panel.querySelector('.guided-search-results');
-  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
-    attemptSwapFood(state, itemIndex, food);
-  }));
 }
 
 function uniqueFoods(foods) {
