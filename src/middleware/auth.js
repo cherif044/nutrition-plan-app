@@ -3,6 +3,15 @@ const { findUserById } = require('../repositories/userRepository');
 
 const SESSION_COOKIE_NAME = 'token';
 
+function elapsedMs(startedAt) {
+  return Number(process.hrtime.bigint() - startedAt) / 1e6;
+}
+
+function recordMetric(req, key, value) {
+  req.metrics = req.metrics || {};
+  req.metrics[key] = Number(value.toFixed(1));
+}
+
 function sessionCookieOptions(maxAge) {
   const options = {
     httpOnly: true,
@@ -42,9 +51,12 @@ function verifyAppJwtRequest(req) {
 }
 
 async function requireAuth(req, res, next) {
+  const authStartedAt = process.hrtime.bigint();
   let session;
   try {
+    const jwtStartedAt = process.hrtime.bigint();
     session = verifyAppJwtRequest(req);
+    recordMetric(req, 'authJwtMs', elapsedMs(jwtStartedAt));
     if (!session?.userId) {
       return res.status(401).json({ error: 'Authentication required.' });
     }
@@ -56,7 +68,9 @@ async function requireAuth(req, res, next) {
     });
   }
 
+  const userLookupStartedAt = process.hrtime.bigint();
   const user = await findUserById(session.userId).catch(() => null);
+  recordMetric(req, 'authUserLookupMs', elapsedMs(userLookupStartedAt));
   if (!user) {
     return res.status(401).json({ error: 'Application user not found. Please log in again.' });
   }
@@ -73,6 +87,7 @@ async function requireAuth(req, res, next) {
   req.session = session;
   req.firebaseUid = user.firebase_uid || session.firebaseUid || null;
   req.user = user;
+  recordMetric(req, 'authTotalMs', elapsedMs(authStartedAt));
   next();
 }
 

@@ -9,6 +9,24 @@ const {
   deleteFolder,
 } = require('../repositories/folderRepository');
 const { createPlan } = require('../repositories/planRepository');
+const { logger } = require('../utils/logger');
+
+function elapsedMs(startedAt) {
+  return Number(process.hrtime.bigint() - startedAt) / 1e6;
+}
+
+function recordMetric(req, key, value) {
+  req.metrics = req.metrics || {};
+  req.metrics[key] = Number(value.toFixed(1));
+}
+
+function timelineIdFromRequest(req) {
+  return String(req.get('x-plan-timeline-id') || req.body?.timelineId || '').slice(0, 128);
+}
+
+function generationRequestIdFromRequest(req) {
+  return String(req.get('x-plan-generation-request-id') || req.body?.generationRequestId || '').slice(0, 128);
+}
 
 async function getTree(req, res, next) {
   try {
@@ -79,7 +97,19 @@ async function savePlanInFolder(req, res, next) {
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
 
+    const saveStartedAt = process.hrtime.bigint();
     const plan = await createPlan(req.user.id, folder.id, name, planData, { customer, isActive });
+    recordMetric(req, 'planSaveDbMs', elapsedMs(saveStartedAt));
+    logger.info('Plan timeline: server saved plan', {
+      requestId: req.id,
+      timelineId: timelineIdFromRequest(req),
+      generationRequestId: generationRequestIdFromRequest(req),
+      planId: plan.id,
+      folderId: folder.id,
+      hasCustomer: Boolean(plan.customer_id),
+      isActive: Boolean(plan.is_active),
+      metrics: req.metrics,
+    });
     res.status(201).json({ plan });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });

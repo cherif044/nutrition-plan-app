@@ -20,6 +20,7 @@ const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
 const foodIconsDir = path.join(__dirname, '..', 'public', 'food-icons');
 const isProduction = process.env.NODE_ENV === 'production';
+let nextRequestIsColdStart = true;
 
 function envNumber(name, fallback) {
   const value = Number(process.env[name]);
@@ -45,6 +46,9 @@ function requestLogPath(req) {
 
 function requestLogger(req, res, next) {
   const startedAt = process.hrtime.bigint();
+  req.metrics = req.metrics || {};
+  req.metrics.coldStart = nextRequestIsColdStart;
+  nextRequestIsColdStart = false;
   res.on('finish', () => {
     if (!shouldLogRequest(req, res.statusCode)) return;
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
@@ -55,6 +59,7 @@ function requestLogger(req, res, next) {
       statusCode: res.statusCode,
       durationMs: Number(durationMs.toFixed(1)),
       ip: req.ip,
+      metrics: req.metrics,
     });
   });
   next();

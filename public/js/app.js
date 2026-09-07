@@ -305,6 +305,7 @@ let saveStatusEl = null;
 let hasUnsavedChanges = false;
 let initialPlanCreateInFlight = null;
 let initialPlanCreateToken = 0;
+let activeGenerationTimeline = null;
 const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
@@ -323,27 +324,96 @@ async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   }
 }
 
+function createGenerationTimeline() {
+  return {
+    id: makeGenerationTimelineId(),
+    startedAt: performance.now(),
+    generationRequestId: '',
+    serverTiming: '',
+    timings: {},
+  };
+}
+
+function makeGenerationTimelineId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function timelineElapsedMs(timeline) {
+  return Number((performance.now() - timeline.startedAt).toFixed(1));
+}
+
+function timelineHeaders(timeline) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Plan-Timeline-Id': timeline.id,
+  };
+  if (timeline.generationRequestId) {
+    headers['X-Plan-Generation-Request-Id'] = timeline.generationRequestId;
+  }
+  return headers;
+}
+
+function reportGenerationTimelineEvent(timeline, event, extra = {}) {
+  if (!timeline?.id) return;
+  const body = JSON.stringify({
+    timelineId: timeline.id,
+    generationRequestId: timeline.generationRequestId || '',
+    event,
+    elapsedMs: timelineElapsedMs(timeline),
+    timings: {
+      ...timeline.timings,
+      ...extra,
+    },
+  });
+
+  fetch('/api/generation-timeline', {
+    method: 'POST',
+    headers: timelineHeaders(timeline),
+    body,
+    keepalive: body.length < 60000,
+  }).catch(() => {});
+}
+
 // ── Form submit ──────────────────────────────────────────────────────────────
 
 async function generateAndRender(apiUrl) {
+  const timeline = createGenerationTimeline();
+  activeGenerationTimeline = timeline;
   message.textContent = '';
+  const validationStartedAt = performance.now();
   const saveDetailsOk = await validatePreGenerationSaveDetails();
-  if (!saveDetailsOk) return;
+  timeline.timings.validationMs = Number((performance.now() - validationStartedAt).toFixed(1));
+  if (!saveDetailsOk) {
+    reportGenerationTimelineEvent(timeline, 'validation_failed');
+    return;
+  }
   setLoading(true);
   try {
+    const requestStartedAt = performance.now();
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: timelineHeaders(timeline),
       body: JSON.stringify(readForm()),
     });
+    timeline.timings.generateRoundTripMs = Number((performance.now() - requestStartedAt).toFixed(1));
+    timeline.generationRequestId = response.headers.get('x-request-id') || '';
+    timeline.serverTiming = response.headers.get('server-timing') || '';
+    if (timeline.serverTiming) timeline.timings.serverTiming = timeline.serverTiming;
+
+    const parseStartedAt = performance.now();
     const payload = await readJsonResponse(response, 'Unable to generate a nutrition plan.');
+    timeline.timings.responseParseMs = Number((performance.now() - parseStartedAt).toFixed(1));
     if (!response.ok) {
       throw new Error(payload.error || 'Unable to generate a nutrition plan.');
     }
+    const renderStartedAt = performance.now();
     if (isImpossiblePlan(payload)) {
       renderPlan(payload);
       switchPlannerView('plan', { push: true });
       setInputsExpanded(false);
+      timeline.timings.renderMs = Number((performance.now() - renderStartedAt).toFixed(1));
+      reportGenerationTimelineEvent(timeline, 'plan_shown');
       return;
     }
     if (currentPlanId) {
@@ -363,12 +433,17 @@ async function generateAndRender(apiUrl) {
       currentPlanHasCustomer = planWillHaveCustomer();
       firstCreationPending = true;
       renderPlan(payload, { firstCreation: true, planId: null, planName: currentPlanName });
-      startInitialPlanSave(payload);
+      startInitialPlanSave(payload, timeline);
     }
     switchPlannerView('plan', { push: true });
     setInputsExpanded(false);
+    timeline.timings.renderMs = Number((performance.now() - renderStartedAt).toFixed(1));
+    reportGenerationTimelineEvent(timeline, 'plan_shown');
   } catch (error) {
     message.textContent = error.message;
+    reportGenerationTimelineEvent(timeline, 'generation_failed', {
+      error: error.message,
+    });
   } finally {
     setLoading(false);
   }
@@ -2997,11 +3072,12 @@ function startPlanExport(planId, { hasCustomer = currentPlanHasCustomer, clientN
   link.remove();
 }
 
-async function createGeneratedPlanRecord(planData) {
+async function createGeneratedPlanRecord(planData, timeline = null) {
   const { name, customerPayload, isActive } = preGenerationSavePayload();
+  const saveStartedAt = performance.now();
   const res = await fetch(planCreateUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: timeline ? timelineHeaders(timeline) : { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
       planData: planDataForPersistence(planData),
@@ -3009,16 +3085,32 @@ async function createGeneratedPlanRecord(planData) {
       isActive,
     }),
   });
+  if (timeline) {
+    timeline.timings.saveRoundTripMs = Number((performance.now() - saveStartedAt).toFixed(1));
+    timeline.timings.saveRequestId = res.headers.get('x-request-id') || '';
+  }
   const data = await readJsonResponse(res, 'Unable to save generated plan.');
   if (!res.ok || !data.plan?.id) {
+    if (timeline) {
+      reportGenerationTimelineEvent(timeline, 'save_failed', {
+        status: res.status,
+        error: data.error || 'Unable to save generated plan.',
+      });
+    }
     throw new Error(data.error || 'Unable to save generated plan.');
+  }
+  if (timeline) {
+    reportGenerationTimelineEvent(timeline, 'save_finished', {
+      planId: data.plan.id,
+      saveStatus: res.status,
+    });
   }
   return data.plan;
 }
 
-function startInitialPlanSave(planData) {
+function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
   const token = ++initialPlanCreateToken;
-  initialPlanCreateInFlight = createGeneratedPlanRecord(planData)
+  initialPlanCreateInFlight = createGeneratedPlanRecord(planData, timeline)
     .then((createdPlan) => {
       if (token !== initialPlanCreateToken) return null;
       currentPlanId = createdPlan.id;

@@ -5,6 +5,7 @@ const {
   getFoodsHandler,
   getPreferences,
   generatePlanHandler,
+  timelineEventHandler,
   rebalanceMealHandler,
   produceSwapOptionsHandler,
 } = require('../controllers/generationController');
@@ -15,6 +16,7 @@ router.get('/health', health);
 router.get('/foods', getFoodsHandler);
 router.get('/preferences', getPreferences);
 router.post('/generate-plan', requireAuth, generatePlanHandler);
+router.post('/generation-timeline', requireAuth, timelineEventHandler);
 router.post('/rebalance-meal', requireAuth, rebalanceMealHandler);
 router.post('/produce-swap-options', requireAuth, produceSwapOptionsHandler);
 
