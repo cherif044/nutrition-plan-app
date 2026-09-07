@@ -6922,6 +6922,79 @@ label,
   background: #f5faf7;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Portion-first hierarchy — the gram amount is the number a coach actually
+   dials in, so it reads as the primary value on every food row while the
+   per-food macros step back to supporting "extra info".
+══════════════════════════════════════════════════════════════════════════ */
+
+.food-table {
+  --col-portion: 118px;
+  --col-macro: 50px;
+}
+
+/* Portion: the hero value on the row — pulled into a solid accent pill so the
+   eye lands on "how much of this food" before anything else. */
+.food-item .food-cell--portion {
+  justify-self: end;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(15, 110, 86, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(15, 110, 86, 0.18);
+  color: var(--accent-strong);
+  font-weight: 750;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* Macros: quieter, smaller, secondary — present for reference, not the focus. */
+.food-item .food-cell--cal,
+.food-item .food-cell--protein,
+.food-item .food-cell--carb,
+.food-item .food-cell--fat {
+  font-size: 10.5px;
+  font-weight: 450;
+  opacity: 0.72;
+}
+
+/* Empty portion pill on an in-progress add/swap row would just read "0g". */
+.food-item--pending-add .food-cell--portion,
+.food-item--pending-swap .food-cell--portion {
+  visibility: hidden;
+}
+
+/* Column header follows the same weighting. */
+.food-list-head .food-cell--portion {
+  color: var(--ref-fg);
+  font-weight: 700;
+}
+
+.food-list-head .food-cell--cal,
+.food-list-head .food-cell--protein,
+.food-list-head .food-cell--carb,
+.food-list-head .food-cell--fat {
+  opacity: 0.7;
+}
+
+@media (max-width: 700px) {
+  /* Phone rows: the pill rides on the food's title line, still the loud element. */
+  .food-item .food-cell--portion {
+    padding: 3px 10px;
+    font-size: 13.5px;
+  }
+
+  .food-item .food-cell--cal,
+  .food-item .food-cell--protein,
+  .food-item .food-cell--carb,
+  .food-item .food-cell--fat {
+    font-size: 10px;
+  }
+}
+
 .planner-save-slot {
   margin-top: var(--polish-space-4);
 }
