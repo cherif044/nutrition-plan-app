@@ -298,6 +298,43 @@ function renderGoalBar(barId, legendId, counts) {
     : '<span class="dashboard-soft-copy">No goal data yet</span>';
 }
 
+function renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek }) {
+  const summary = document.getElementById('home-hero-summary');
+  if (!summary) return;
+
+  const activeLabel = activePlans === 1 ? 'active assignment' : 'active assignments';
+  const planLabel = plansThisWeek === 1 ? 'plan' : 'plans';
+  const customerLabel = customersThisWeek === 1 ? 'customer' : 'customers';
+  const rows = [
+    {
+      label: 'This week',
+      value: `${plansThisWeek.toLocaleString()} ${planLabel}`,
+      detail: `${customersThisWeek.toLocaleString()} new ${customerLabel}`,
+      tone: 'cal',
+    },
+    {
+      label: 'Active work',
+      value: `${activePlans.toLocaleString()} ${activeLabel}`,
+      detail: totalPlans ? `${Math.round((activePlans / totalPlans) * 100)}% of saved plans` : 'No active plans yet',
+      tone: 'fat',
+    },
+    {
+      label: 'Roster',
+      value: `${customers.toLocaleString()} customers`,
+      detail: totalPlans ? `${totalPlans.toLocaleString()} saved plans total` : 'No saved plans yet',
+      tone: 'protein',
+    },
+  ];
+
+  summary.innerHTML = rows.map((row) => `
+    <div class="dashboard-home-summary-row" data-tone="${row.tone}">
+      <span>${escapeHtml(row.label)}</span>
+      <strong>${escapeHtml(row.value)}</strong>
+      <small>${escapeHtml(row.detail)}</small>
+    </div>
+  `).join('');
+}
+
 function filterChip(key, label, count, active) {
   const color = key ? (GOAL_COLORS[key] || GOAL_COLORS.unknown) : '#123832';
   const activeStyle = active ? `background:${color};border-color:${color};color:#fff;` : `border-color:${color}35;`;
@@ -338,6 +375,7 @@ function renderStats() {
   document.getElementById('stat-active-trend').textContent = activePlans ? 'in progress' : 'none active';
   document.getElementById('dashboard-hero-sub').textContent =
     `You have ${totalPlans.toLocaleString()} plans across ${customers.toLocaleString()} customers, with ${activePlans.toLocaleString()} currently active.`;
+  renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek });
 }
 
 function sortByNewestCreated(plans) {
@@ -349,20 +387,29 @@ function sortByNewestCreated(plans) {
   });
 }
 
+function sortCustomersForHome(customers) {
+  return [...customers].sort((a, b) => {
+    const bUpdated = new Date(b.updated_at || b.created_at).getTime() || 0;
+    const aUpdated = new Date(a.updated_at || a.created_at).getTime() || 0;
+    if (bUpdated !== aUpdated) return bUpdated - aUpdated;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
 function renderHome() {
   renderStats();
-  const customers = state.customers.slice(0, 3);
-  const plans = sortByNewestCreated(state.generalPlans).slice(0, 3);
+  const customers = sortCustomersForHome(state.customers).slice(0, 4);
+  const plans = (state.recentPlans.length ? state.recentPlans : sortByNewestCreated(state.generalPlans)).slice(0, 4);
   document.getElementById('home-customers-list').innerHTML = customers.length
     ? [
       ...customers.map(customerRow),
-      ...Array.from({ length: 3 - customers.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
+      ...Array.from({ length: 4 - customers.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
     ].join('')
     : emptyState('customers', 'Attach a saved plan to a customer and they will appear here.');
   document.getElementById('home-plans-list').innerHTML = plans.length
     ? [
       ...plans.map((plan) => planRow(plan, { menu: false })),
-      ...Array.from({ length: 3 - plans.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
+      ...Array.from({ length: 4 - plans.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
     ].join('')
     : emptyState('plans', 'Create or open a plan and it will appear here.');
 }
@@ -608,6 +655,7 @@ async function refreshDashboard() {
   state.recentPlans = data.recentPlans || [];
   state.customerPlans.clear();
   renderRoute();
+  document.body.classList.remove('dashboard-loading');
 }
 
 async function submitNewCustomer(form) {
@@ -855,6 +903,7 @@ window.addEventListener('scroll', hideDashboardMenu, true);
     if (!location.hash) location.hash = '#/home';
     else renderRoute();
   } catch {
+    document.body.classList.remove('dashboard-loading');
     document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
   }
 })();

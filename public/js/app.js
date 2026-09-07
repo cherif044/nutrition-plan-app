@@ -35,6 +35,7 @@ function iconSvg(name, size = 16) {
     user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
     sliders: '<path d="M4 6h10"/><path d="M18 6h2"/><path d="M4 12h4"/><path d="M12 12h8"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   };
   return `<svg ${attrs}>${icons[name] || ''}</svg>`;
 }
@@ -1207,10 +1208,10 @@ function renderMealCard(state) {
 function setMealAiMode(state, enabled) {
   state.editModeEnabled = Boolean(enabled);
   if (!state.editModeEnabled) {
-    state.items = state.items.filter((item) => !item.pendingAdd);
-    const panel = actionPanel(state);
-    panel.hidden = true;
-    panel.innerHTML = '';
+    state.items = state.items
+      .map((item) => (item.pendingSwap && item.swapOriginal ? normalizeStateItem(item.swapOriginal) : item))
+      .filter((item) => !item.pendingAdd);
+    closeActionPanel(state);
     state.pendingProposal = null;
   }
   renderFoodList(state);
@@ -1292,7 +1293,7 @@ function renderFoodList(state) {
   if (!foodList) return;
   syncPendingAddLayer(state);
 
-  const rows = [...foodList.children];
+  const rows = [...foodList.querySelectorAll(':scope > .food-item')];
   const rowsByKey = rows.reduce((map, row) => {
     const key = row.dataset.foodKey;
     if (!key) return map;
@@ -1319,12 +1320,13 @@ function renderFoodList(state) {
     if (!existing) {
       const row = renderFoodItem(state, itemIndex);
       usedRows.add(row);
-      foodList.insertBefore(row, foodList.children[itemIndex] || null);
+      foodList.insertBefore(row, rows[itemIndex] || null);
       return;
     }
     usedRows.add(existing);
-    if (foodList.children[itemIndex] !== existing) {
-      foodList.insertBefore(existing, foodList.children[itemIndex] || null);
+    const currentRows = [...foodList.querySelectorAll(':scope > .food-item')];
+    if (currentRows[itemIndex] !== existing) {
+      foodList.insertBefore(existing, currentRows[itemIndex] || null);
     }
     updateFoodRow(existing, state, itemIndex);
   });
@@ -1337,6 +1339,7 @@ function renderFoodList(state) {
 
 function foodRowKey(item) {
   if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
+  if (item.pendingSwap) return `pending-swap:${item.pendingId || 'new'}`;
   return [
     item.food?.id ?? item.food?.name ?? '',
     item.customFood ? JSON.stringify(item.customFood) : '',
@@ -1346,12 +1349,13 @@ function foodRowKey(item) {
 function syncPendingAddLayer(state) {
   state.cardEl?.classList.toggle(
     'meal-card--has-pending-add',
-    state.items.some((item) => item.pendingAdd),
+    state.items.some((item) => item.pendingAdd || item.pendingSwap),
   );
 }
 
 function foodRowSignature(item) {
   if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
+  if (item.pendingSwap) return `pending-swap:${item.pendingId || 'new'}`;
   return [
     item.food?.id ?? item.food?.name ?? '',
     item.food?.name ?? '',
@@ -1372,12 +1376,13 @@ function updateFoodRow(row, state, itemIndex) {
   if (row.dataset.signature === signature) return false;
   row.dataset.signature = signature;
 
-  if (item.pendingAdd) {
-    renderPendingAddRow(row, state, itemIndex);
+  if (item.pendingAdd || item.pendingSwap) {
+    renderPendingFoodSearchRow(row, state, itemIndex);
     return true;
   }
 
   row.classList.remove('food-item--pending-add');
+  row.classList.remove('food-item--pending-swap');
   const food = item.food;
   const totals = itemTotals(food, item.quantityG);
 
@@ -1398,12 +1403,15 @@ function updateFoodRow(row, state, itemIndex) {
   return true;
 }
 
-function renderPendingAddRow(row, state, itemIndex) {
+function renderPendingFoodSearchRow(row, state, itemIndex) {
+  const item = state.items[itemIndex];
+  const isSwap = Boolean(item?.pendingSwap);
   row.classList.add('food-item--pending-add');
+  row.classList.toggle('food-item--pending-swap', isSwap);
   row.querySelector('.food-title').innerHTML = `
     <span class="food-icon" aria-hidden="true"></span>
     <span class="pending-food-search">
-      <input class="pending-food-search__input" type="search" placeholder="Search food" autocomplete="off" />
+      <input class="pending-food-search__input" type="search" placeholder="${isSwap ? 'Search replacement food' : 'Search food'}" autocomplete="off" />
       <span class="guided-search-results pending-food-search__results" hidden></span>
     </span>
     <button class="produce-cycle-btn" type="button" hidden aria-label="Next produce"><span aria-hidden="true">&rsaquo;</span></button>
@@ -1423,10 +1431,18 @@ function renderPendingAddRow(row, state, itemIndex) {
   const results = row.querySelector('.pending-food-search__results');
   search.addEventListener('input', () => {
     renderFoodSearchResults(state, search.value, results, (food) => {
-      attemptInlineAddFood(state, itemIndex, food);
+      attemptInlineFoodSearchSelection(state, itemIndex, food);
     });
   });
   window.requestAnimationFrame(() => search.focus());
+}
+
+function attemptInlineFoodSearchSelection(state, itemIndex, food) {
+  if (state.items[itemIndex]?.pendingSwap) {
+    attemptInlineSwapFood(state, itemIndex, food);
+    return;
+  }
+  attemptInlineAddFood(state, itemIndex, food);
 }
 
 // The actions column is always present in the grid, so toggling edit mode fills
@@ -1434,15 +1450,15 @@ function renderPendingAddRow(row, state, itemIndex) {
 function setRowActions(row, state, itemIndex) {
   const slot = row.querySelector('.food-actions');
   const item = state.items[itemIndex];
-  const mode = item?.pendingAdd ? 'pending-add' : (state.editModeEnabled ? 'edit' : 'none');
+  const mode = item?.pendingAdd || item?.pendingSwap ? 'pending-search' : (state.editModeEnabled ? 'edit' : 'none');
   if (slot.dataset.mode === mode) return;
 
   slot.dataset.mode = mode;
-  if (mode === 'pending-add') {
+  if (mode === 'pending-search') {
     slot.innerHTML = `
       <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove empty food row"><span aria-hidden="true">⌫</span></button>
     `;
-    slot.querySelector('.food-delete-btn')?.addEventListener('click', () => removePendingAddRow(state, Number(row.dataset.itemIndex)));
+    slot.querySelector('.food-delete-btn')?.addEventListener('click', () => removePendingFoodSearchRow(state, Number(row.dataset.itemIndex)));
     return;
   }
 
@@ -1582,7 +1598,9 @@ function normalizeStateItem(item) {
     quantityG: Number(item.quantityG) || 0,
     customFood: item.customFood || null,
     pendingAdd: Boolean(item.pendingAdd),
+    pendingSwap: Boolean(item.pendingSwap),
     pendingId: item.pendingId || null,
+    swapOriginal: item.swapOriginal || null,
     alternatives: item.alternatives || [],
     broaderAlternatives: item.broaderAlternatives || [],
     nearestAlternatives: item.nearestAlternatives || [],
@@ -1709,6 +1727,7 @@ function showAddFoodAction(state) {
     normalizeStateItem({ pendingAdd: true, pendingId: `pending_${Date.now()}` }),
   ];
   const panel = actionPanel(state);
+  moveActionPanelToCardEnd(state, panel);
   panel.hidden = true;
   panel.innerHTML = '';
   resetActionPanel(panel);
@@ -1730,6 +1749,25 @@ function removePendingAddRow(state, itemIndex) {
   refreshRedFlags();
 }
 
+function restorePendingSwapRow(state, itemIndex) {
+  const item = state.items[itemIndex];
+  if (!item?.pendingSwap || !item.swapOriginal) return;
+  state.items = state.items.map((candidate, index) => (
+    index === itemIndex ? normalizeStateItem(item.swapOriginal) : candidate
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function removePendingFoodSearchRow(state, itemIndex) {
+  if (state.items[itemIndex]?.pendingSwap) {
+    restorePendingSwapRow(state, itemIndex);
+    return;
+  }
+  removePendingAddRow(state, itemIndex);
+}
+
 function attemptInlineAddFood(state, itemIndex, food) {
   if (!state.items[itemIndex]?.pendingAdd || !food) return;
   const attempted = state.items.map((item, index) => (
@@ -1747,6 +1785,17 @@ function attemptInlineAddFood(state, itemIndex, food) {
   });
 }
 
+function attemptInlineSwapFood(state, itemIndex, food) {
+  const item = state.items[itemIndex];
+  if (!item?.pendingSwap || !item.swapOriginal?.food || !food) return;
+  state.items = state.items.map((candidate, index) => (
+    index === itemIndex ? normalizeStateItem(item.swapOriginal) : candidate
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  attemptSwapFood(state, itemIndex, food);
+}
+
 function showRemoveFoodAction(state, itemIndex = null) {
   const foods = state.items.filter((item) => item.food);
   if (foods.length <= 1) {
@@ -1761,6 +1810,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
   if (Number.isInteger(itemIndex)) {
     const item = state.items[itemIndex];
     if (!item?.food) return;
+    moveActionPanelToCardEnd(state, actionPanel(state));
     const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
     const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
     attemptGuidedRebalance(state, {
@@ -1775,6 +1825,7 @@ function showRemoveFoodAction(state, itemIndex = null) {
   }
 
   const panel = actionPanel(state);
+  moveActionPanelToCardEnd(state, panel);
   resetActionPanel(panel);
   panel.hidden = false;
   panel.innerHTML = `
@@ -1913,29 +1964,45 @@ function showSwapFoodAction(state, itemIndex = null) {
   }
 
   const panel = actionPanel(state);
+  if (
+    !panel.hidden
+    && panel.classList.contains('meal-action-panel--swap')
+    && panel.dataset.swapItemIndex === String(itemIndex)
+  ) {
+    closeActionPanel(state);
+    return;
+  }
+
+  clearFeedbackTimer(state);
   resetActionPanel(panel);
+  panel.classList.add('meal-action-panel--swap');
+  panel.dataset.swapItemIndex = String(itemIndex);
+  moveActionPanelAfterFoodRow(state, itemIndex, panel);
   panel.hidden = false;
   panel.innerHTML = `
-    <p class="meal-action-title">Swap ${escapeHtml(item.food.name)}</p>
-    <div class="guided-choice-list"></div>
-    <div class="meal-action-grid swap-search-block">
-      <label>Search foods <input class="guided-food-search" type="search" placeholder="Find a replacement food" autocomplete="off" /></label>
-      <div class="guided-search-results" hidden></div>
+    <div class="swap-action-heading">
+      <p class="meal-action-title">Swap with</p>
     </div>
+    <div class="guided-choice-list swap-choice-rail" aria-label="Suggested swaps"></div>
   `;
   const list = panel.querySelector('.guided-choice-list');
-
-  const search = panel.querySelector('.guided-food-search');
-  const results = panel.querySelector('.guided-search-results');
-  search.addEventListener('input', () => renderFoodSearchResults(state, search.value, results, (food) => {
-    attemptSwapFood(state, itemIndex, food);
-  }));
 
   loadSwapSuggestionsIntoList(state, itemIndex, item, list);
 }
 
+function appendSwapSearchButton(state, itemIndex, list) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'suggestion-action-btn swap-suggestion-btn swap-suggestion-btn--search';
+  btn.innerHTML = `
+    <span class="food-icon swap-search-icon" aria-hidden="true">${iconSvg('plus', 14)}</span>
+    <strong>Search food</strong>
+  `;
+  btn.addEventListener('click', () => beginInlineSwapSearch(state, itemIndex));
+  list.append(btn);
+}
+
 function renderSwapSuggestionEmpty(list, message) {
-  list.innerHTML = '';
   const empty = document.createElement('div');
   empty.className = 'suggestion-empty';
   empty.textContent = message;
@@ -1943,6 +2010,8 @@ function renderSwapSuggestionEmpty(list, message) {
 }
 
 async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
+  list.innerHTML = '';
+  appendSwapSearchButton(state, itemIndex, list);
   renderSwapSuggestionEmpty(list, 'Finding good swaps...');
 
   const foodId = item.food.id;
@@ -1978,26 +2047,47 @@ async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
   if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
 
   if (!suggestions.length) {
-    renderSwapSuggestionEmpty(list, 'No suggested swaps for this food. Search for another allowed food.');
+    list.innerHTML = '';
+    appendSwapSearchButton(state, itemIndex, list);
+    renderSwapSuggestionEmpty(list, 'No suggested swaps for this food.');
     return;
   }
 
   list.innerHTML = '';
+  appendSwapSearchButton(state, itemIndex, list);
   suggestions.forEach((suggestion) => {
     const alt = foodsById.get(suggestion.foodId);
     if (!alt) return;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'suggestion-action-btn';
+    btn.className = 'suggestion-action-btn swap-suggestion-btn';
     btn.innerHTML = `
-      ${foodMediaPlaceholder('suggestion-food-icon')}
+      ${foodMediaPlaceholder('swap-suggestion-media')}
       <strong>${escapeHtml(alt.name)}</strong>
-      <em>${suggestion.matchPct}% match</em>
     `;
     setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
     btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
     list.append(btn);
   });
+}
+
+function beginInlineSwapSearch(state, itemIndex) {
+  const original = state.items[itemIndex];
+  if (!original?.food) return;
+
+  closeActionPanel(state);
+  state.items = state.items.map((item, index) => (
+    index === itemIndex
+      ? normalizeStateItem({
+        pendingSwap: true,
+        pendingId: `pending_swap_${Date.now()}`,
+        swapOriginal: normalizeStateItem(original),
+      })
+      : item
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  focusPendingAddRow(state, itemIndex);
 }
 
 function uniqueFoods(foods) {
@@ -2606,16 +2696,41 @@ function actionPanel(state) {
   return state.cardEl.querySelector('.meal-action-panel');
 }
 
+function moveActionPanelToCardEnd(state, panel) {
+  if (!state?.cardEl || !panel || panel.parentElement === state.cardEl) return;
+  state.cardEl.append(panel);
+}
+
+function moveActionPanelAfterFoodRow(state, itemIndex, panel) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!row?.parentElement || !panel) {
+    moveActionPanelToCardEnd(state, panel);
+    return;
+  }
+  row.insertAdjacentElement('afterend', panel);
+}
+
+function closeActionPanel(state) {
+  const panel = actionPanel(state);
+  clearFeedbackTimer(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  resetActionPanel(panel);
+  moveActionPanelToCardEnd(state, panel);
+}
+
 function showActionMessage(state, text) {
   const panel = actionPanel(state);
   clearFeedbackTimer(state);
+  moveActionPanelToCardEnd(state, panel);
   panel.hidden = false;
   resetActionPanel(panel);
   panel.innerHTML = `<p class="meal-action-message">${escapeHtml(text)}</p>`;
 }
 
 function resetActionPanel(panel) {
-  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact');
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact', 'meal-action-panel--swap');
+  delete panel.dataset.swapItemIndex;
   panel.removeAttribute('role');
 }
 
@@ -2632,7 +2747,7 @@ function showActionFeedback(state, { tone = 'success', message, cardClass = '', 
   const panel = actionPanel(state);
   clearFeedbackTimer(state);
   panel.hidden = false;
-  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact');
+  resetActionPanel(panel);
   panel.classList.add(tone === 'danger' ? 'meal-action-panel--danger' : 'meal-action-panel--success');
   if (compact) panel.classList.add('meal-action-panel--compact');
   panel.setAttribute('role', tone === 'danger' ? 'alert' : 'status');
