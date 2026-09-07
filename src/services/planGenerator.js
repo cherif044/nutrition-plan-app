@@ -123,7 +123,7 @@ function _generatePlanInternal(rawInput, trace = null) {
   }
 
   phaseStartedAt = process.hrtime.bigint();
-  const generatedMeals = generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods, trace });
+  const generatedMeals = generateReadyMealDay({ mealTargets, allowedFoods, trace });
   tracePhase(trace, 'generate_ready_meal_day', phaseStartedAt, {
     mealCount: generatedMeals.length,
     emptyMealCount: generatedMeals.filter((meal) => meal.items.length === 0).length,
@@ -656,7 +656,7 @@ function roundedMacros(macros) {
   );
 }
 
-function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods, trace = null }) {
+function generateReadyMealDay({ mealTargets, allowedFoods, trace = null }) {
   const candidateSets = mealTargets.map((target) => ({
     target,
     candidates: readyMealCandidatesForMeal({
@@ -692,7 +692,7 @@ function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods, trace =
     });
   }
 
-  const selected = selectReadyMealDayCombination(candidateSets, dailyTargets, trace);
+  const selected = selectRandomReadyMealDayCombination(candidateSets, trace);
   return candidateSets.map((slot, index) => buildReadyMealFromCandidate({
     target: slot.target,
     candidate: selected[index],
@@ -762,76 +762,30 @@ function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = nul
   return withinTolerance;
 }
 
-function selectReadyMealDayCombination(candidateSets, dailyTargets, trace = null) {
-  const beamStartedAt = process.hrtime.bigint();
-  const beamWidth = 2500;
-  let beam = [{
-    candidates: [],
-    totals: { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
-    mealScore: 0,
-  }];
+function selectRandomReadyMealDayCombination(candidateSets, trace = null) {
+  const selectionStartedAt = process.hrtime.bigint();
+  const selected = candidateSets.map((slot) => randomItem(slot.candidates));
 
-  const slotStats = [];
-  for (const slot of candidateSets) {
-    const slotStartedAt = process.hrtime.bigint();
-    const next = [];
-    for (const partial of beam) {
-      for (const candidate of slot.candidates) {
-        const totals = addMacros(partial.totals, candidate.totals);
-        next.push({
-          candidates: [...partial.candidates, candidate],
-          totals,
-          mealScore: partial.mealScore + candidate.score,
-        });
-      }
-    }
-
-    const sortStartedAt = process.hrtime.bigint();
-    next.sort((a, b) => compareDayCandidates(a, b, dailyTargets));
-    const sortMs = roundedMs(elapsedMs(sortStartedAt));
-    const previousBeamSize = beam.length;
-    beam = next.slice(0, beamWidth);
-    slotStats.push({
+  traceLog(trace, 'Plan generator trace: random meal selection', {
+    phase: 'select_random_ready_meal_day_combination',
+    slotStats: candidateSets.map((slot, index) => ({
       name: slot.target.name,
       tag: slot.target.tag,
-      previousBeamSize,
-      slotCandidateCount: slot.candidates.length,
-      expandedCandidateCount: next.length,
-      retainedBeamSize: beam.length,
-      sortMs,
-      slotMs: roundedMs(elapsedMs(slotStartedAt)),
-    });
-  }
-
-  traceLog(trace, 'Plan generator trace: beam search', {
-    phase: 'select_ready_meal_day_combination',
-    beamWidth,
-    slotStats,
-    selectedTemplateIds: beam[0]?.candidates.map((candidate) => candidate.readyMeal.id) || [],
-    selectedTotals: roundedMacros(beam[0]?.totals),
-    dailyTargets: roundedMacros(dailyTargets),
-    beamMs: roundedMs(elapsedMs(beamStartedAt)),
+      candidateCount: slot.candidates.length,
+      selectedTemplateId: selected[index]?.readyMeal.id || null,
+    })),
+    selectedTemplateIds: selected.map((candidate) => candidate.readyMeal.id),
+    selectedTotals: roundedMacros(totalsForMeals(selected.map((candidate) => ({
+      totals: candidate.totals,
+    })))),
+    selectionMs: roundedMs(elapsedMs(selectionStartedAt)),
   });
 
-  return beam[0].candidates;
+  return selected;
 }
 
-function compareDayCandidates(a, b, dailyTargets) {
-  const aWithin = residualWithinTolerance(a.totals, dailyTargets);
-  const bWithin = residualWithinTolerance(b.totals, dailyTargets);
-  if (aWithin !== bWithin) return aWithin ? -1 : 1;
-
-  const aScore = calculateResidualScore(a.totals, dailyTargets);
-  const bScore = calculateResidualScore(b.totals, dailyTargets);
-  return (
-    aScore - bScore ||
-    a.mealScore - b.mealScore ||
-    daySignature(a).localeCompare(daySignature(b), undefined, { numeric: true })
-  );
-}
-
-function daySignature(day) {
-  return day.candidates.map((candidate) => candidate.readyMeal.id).join('|');
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 function buildReadyMealFromCandidate({ target, candidate, alternates }) {
