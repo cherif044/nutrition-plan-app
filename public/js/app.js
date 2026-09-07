@@ -287,6 +287,8 @@ let allowedProduceFoods = [];
 let saveBarResizeObserver = null;
 let foodsLoadPromise = null;
 let preferenceOptionsLoadPromise = null;
+let customerOptionsLoadPromise = null;
+let customerOptions = [];
 
 const mealStates = [];
 let dailyTargets = null;
@@ -309,7 +311,7 @@ let activeGenerationTimeline = null;
 const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
-  : { selected: null, exactMatch: null, requestId: 0 };
+  : { mode: 'general', selected: null, exactMatch: null, requestId: 0 };
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   const text = await response.text();
@@ -508,22 +510,17 @@ async function validatePreGenerationSaveDetails() {
   const customerInput = form.elements.customerName;
   const customerName = customerInput?.value.trim() || '';
   const makeActive = Boolean(form.elements.makeActive?.checked);
-  if (makeActive && !customerName && !preGenerationCustomerState.selected) {
+  const hasCustomerSelection = preGenerationCustomerState.mode === 'existing' || preGenerationCustomerState.mode === 'new';
+  if (makeActive && !hasCustomerSelection) {
     message.textContent = 'Choose or enter a customer before making a plan active.';
     customerInput?.focus();
     return false;
   }
 
-  if (customerName && !preGenerationCustomerState.selected) {
-    await refreshCustomerMatches(
-      customerName,
-      preGenerationCustomerState,
-      preGenerationCustomerPicker.querySelector('.save-customer-picker__results'),
-      preGenerationCustomerPicker.querySelector('.save-customer-picker__match'),
-    );
-    if (preGenerationCustomerState.exactMatch) {
-      selectCustomer(preGenerationCustomerState.exactMatch, preGenerationCustomerState, preGenerationCustomerPicker);
-    }
+  if (preGenerationCustomerState.mode === 'new' && !customerName) {
+    message.textContent = 'Enter a customer name before adding a new customer.';
+    customerInput?.focus();
+    return false;
   }
 
   return true;
@@ -636,9 +633,28 @@ function ensurePreferenceOptionsLoaded() {
   return preferenceOptionsLoadPromise;
 }
 
+async function loadCustomerOptions() {
+  const res = await fetch('/api/customers?limit=100');
+  const data = await readJsonResponse(res, 'Unable to load customers.');
+  if (!res.ok) throw new Error(data.error || 'Unable to load customers.');
+  customerOptions = Array.isArray(data.customers) ? data.customers : [];
+  return customerOptions;
+}
+
+function ensureCustomerOptionsLoaded() {
+  if (!customerOptionsLoadPromise) {
+    customerOptionsLoadPromise = loadCustomerOptions().catch((error) => {
+      customerOptionsLoadPromise = null;
+      throw error;
+    });
+  }
+  return customerOptionsLoadPromise;
+}
+
 function scheduleReferenceDataLoad() {
   const load = () => {
     ensurePreferenceOptionsLoaded().catch(() => {});
+    if (preGenerationCustomerPicker) ensureCustomerOptionsLoaded().catch(() => {});
   };
 
   if (!plannerCtx?.planId) {
@@ -3057,7 +3073,8 @@ function requestPdfClientName({ hasCustomer = currentPlanHasCustomer } = {}) {
 }
 
 function planWillHaveCustomer() {
-  return currentPlanHasCustomer || Boolean(preGenerationCustomerState.selected || form.elements.customerName?.value.trim());
+  if (!preGenerationCustomerPicker) return currentPlanHasCustomer;
+  return Boolean(buildCustomerPayload(preGenerationCustomerPicker, preGenerationCustomerState)?.customer);
 }
 
 function startPlanExport(planId, { hasCustomer = currentPlanHasCustomer, clientName = null } = {}) {
@@ -3349,14 +3366,16 @@ function showPlanSaveBar(folderId = null) {
 }
 
 function bindCustomerPicker(bar) {
-  const state = { selected: null, exactMatch: null, requestId: 0 };
+  const state = { mode: 'general', selected: null, exactMatch: null, requestId: 0 };
   const input = bar.querySelector('.save-action-bar__customer');
   const results = bar.querySelector('.save-customer-picker__results');
   const match = bar.querySelector('.save-customer-picker__match');
   if (!input || !results || !match) return state;
 
   input.addEventListener('input', () => {
+    if (state.mode !== 'new') state.mode = 'general';
     state.selected = null;
+    state.exactMatch = null;
     refreshCustomerMatches(input.value.trim(), state, results, match);
   });
 
@@ -3372,36 +3391,93 @@ async function refreshCustomerMatches(query, state, resultsEl, matchEl) {
   resultsEl.hidden = true;
   matchEl.hidden = true;
   matchEl.innerHTML = '';
-  if (!query) {
-    state.exactMatch = null;
-    return;
-  }
 
   try {
-    const [listRes, matchRes] = await Promise.all([
-      fetch(`/api/customers?query=${encodeURIComponent(query)}`),
-      fetch(`/api/customers/match?name=${encodeURIComponent(query)}`),
-    ]);
+    const customers = await ensureCustomerOptionsLoaded();
     if (requestId !== state.requestId) return;
 
-    const listData = await readJsonResponse(listRes, 'Unable to search customers.');
-    const matchData = await readJsonResponse(matchRes, 'Unable to check customer.');
-    state.exactMatch = matchData.customer || null;
+    const filtered = filterCustomerOptions(customers, query);
+    state.exactMatch = exactCustomerMatch(customers, query);
 
     renderCustomerExactMatch(query, state, matchEl);
-    renderCustomerResults(listData.customers || [], state, resultsEl, matchEl);
+    renderCustomerResults(filtered, query, state, resultsEl, matchEl);
   } catch {
     resultsEl.hidden = true;
   }
 }
 
+function filterCustomerOptions(customers, query) {
+  const normalized = normalizeCustomerQuery(query);
+  if (!normalized) return customers;
+  return customers.filter((customer) => normalizeCustomerQuery(customer.name).includes(normalized));
+}
+
+function exactCustomerMatch(customers, query) {
+  const normalized = normalizeCustomerQuery(query);
+  if (!normalized) return null;
+  return customers.find((customer) => normalizeCustomerQuery(customer.name) === normalized) || null;
+}
+
+function normalizeCustomerQuery(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function renderCustomerExactMatch(query, state, matchEl) {
+  if (state.mode === 'existing' && state.selected) {
+    matchEl.innerHTML = `<span>Selected ${escapeHtml(state.selected.name)}</span>`;
+    matchEl.hidden = false;
+    return;
+  }
+
+  if (state.mode === 'new') {
+    const name = query || state.newName || '';
+    matchEl.innerHTML = `<span>New customer${name ? `: ${escapeHtml(name)}` : ''}</span>`;
+    matchEl.hidden = false;
+    return;
+  }
+
+  if (state.mode === 'general') {
+    matchEl.innerHTML = '<span>Saving in general</span>';
+    matchEl.hidden = false;
+    return;
+  }
+
   matchEl.hidden = true;
   matchEl.innerHTML = '';
 }
 
-function renderCustomerResults(customers, state, resultsEl, matchEl) {
+function renderCustomerResults(customers, query, state, resultsEl, matchEl) {
   resultsEl.innerHTML = '';
+  const newName = query.trim();
+  const newBtn = document.createElement('button');
+  newBtn.type = 'button';
+  newBtn.className = 'save-customer-result';
+  newBtn.innerHTML = `
+    <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true">${iconSvg('user', 15)}</span>
+    <span><strong>New customer</strong><small>${newName ? escapeHtml(newName) : 'Type at least one letter'}</small></span>
+  `;
+  newBtn.addEventListener('click', () => {
+    if (!newName) {
+      message.textContent = 'Type at least one letter before adding a new customer.';
+      resultsEl.closest('.save-customer-picker')?.querySelector('.save-action-bar__customer')?.focus();
+      return;
+    }
+    selectNewCustomer(newName, state, resultsEl.closest('.save-customer-picker'));
+  });
+  resultsEl.append(newBtn);
+
+  const generalBtn = document.createElement('button');
+  generalBtn.type = 'button';
+  generalBtn.className = 'save-customer-result';
+  generalBtn.innerHTML = `
+    <span class="dashboard-icon-square" data-tone="carb" aria-hidden="true">${iconSvg('file', 15)}</span>
+    <span><strong>Add in general</strong><small>General plans</small></span>
+  `;
+  generalBtn.addEventListener('click', () => {
+    selectGeneralCustomer(state, resultsEl.closest('.save-customer-picker'));
+  });
+  resultsEl.append(generalBtn);
+
   customers.slice(0, 6).forEach((customer) => {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -3412,11 +3488,10 @@ function renderCustomerResults(customers, state, resultsEl, matchEl) {
     `;
     btn.addEventListener('click', () => {
       selectCustomer(customer, state, resultsEl.closest('.save-customer-picker'));
-      matchEl.hidden = true;
     });
     resultsEl.append(btn);
   });
-  resultsEl.hidden = customers.length === 0;
+  resultsEl.hidden = false;
 }
 
 async function loadCustomerForPlanning(customerId) {
@@ -3434,7 +3509,9 @@ async function loadCustomerForPlanning(customerId) {
 }
 
 function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId } = {}) {
+  state.mode = 'existing';
   state.selected = customer;
+  state.newName = '';
   const input = picker?.querySelector('.save-action-bar__customer');
   const results = picker?.querySelector('.save-customer-picker__results');
   const match = picker?.querySelector('.save-customer-picker__match');
@@ -3443,6 +3520,39 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
   if (results) results.hidden = true;
   if (match) {
     match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
+    match.hidden = false;
+  }
+  markPlanUnsaved();
+}
+
+function selectNewCustomer(name, state, picker) {
+  state.mode = 'new';
+  state.selected = null;
+  state.newName = name.trim();
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const results = picker?.querySelector('.save-customer-picker__results');
+  const match = picker?.querySelector('.save-customer-picker__match');
+  if (input) input.value = state.newName;
+  if (results) results.hidden = true;
+  if (match) {
+    match.innerHTML = `<span>New customer: ${escapeHtml(state.newName)}</span>`;
+    match.hidden = false;
+  }
+  markPlanUnsaved();
+}
+
+function selectGeneralCustomer(state, picker) {
+  state.mode = 'general';
+  state.selected = null;
+  state.newName = '';
+  state.exactMatch = null;
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const results = picker?.querySelector('.save-customer-picker__results');
+  const match = picker?.querySelector('.save-customer-picker__match');
+  if (input) input.value = '';
+  if (results) results.hidden = true;
+  if (match) {
+    match.innerHTML = '<span>Saving in general</span>';
     match.hidden = false;
   }
   markPlanUnsaved();
@@ -3476,11 +3586,13 @@ function setFormValue(name, value) {
 function buildCustomerPayload(bar, state) {
   const name = bar.querySelector('.save-action-bar__customer')?.value.trim() || '';
   const touchedFields = Array.from(touchedProfileFields);
-  if (!name && !state.selected) return null;
 
-  if (state.selected) {
+  if (state.mode === 'existing' && state.selected) {
     return { customer: { id: state.selected.id, touchedFields } };
   }
+
+  if (state.mode !== 'new') return null;
+  if (!name) return null;
 
   return { customer: { name, touchedFields } };
 }

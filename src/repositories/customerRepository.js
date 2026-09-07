@@ -121,7 +121,7 @@ async function syncTouchedProfileFields(customer, planInput, touchedFields, tran
   await customer.update(updates, { transaction });
 }
 
-async function listCustomers(userId, { query = '' } = {}) {
+async function listCustomers(userId, { query = '', limit = 25 } = {}) {
   const whereClause = { user_id: userId };
   const normalized = normalizeCustomerName(query);
   if (normalized) {
@@ -136,8 +136,14 @@ async function listCustomers(userId, { query = '' } = {}) {
     where: whereClause,
     attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'goal', 'created_at', 'updated_at'],
     order: [['name', 'ASC']],
-    limit: 25,
+    limit: customerListLimit(limit),
   });
+}
+
+function customerListLimit(value) {
+  const limit = Number(value);
+  if (!Number.isFinite(limit) || limit <= 0) return 25;
+  return Math.min(Math.round(limit), 100);
 }
 
 async function listCustomersWithPlanSummary(userId) {

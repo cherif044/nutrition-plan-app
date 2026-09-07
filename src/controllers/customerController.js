@@ -10,7 +10,10 @@ const {
 
 async function listCustomersHandler(req, res, next) {
   try {
-    const customers = await listCustomers(req.user.id, { query: req.query.query || '' });
+    const customers = await listCustomers(req.user.id, {
+      query: req.query.query || '',
+      limit: req.query.limit,
+    });
     res.json({ customers });
   } catch (err) { next(err); }
 }
