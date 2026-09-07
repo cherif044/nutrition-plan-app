@@ -174,6 +174,10 @@ app.use(helmet({
     },
   },
 }));
+// OAuth popups must retain their connection to the page that opened them.
+// Keep Helmet's stricter default on all other pages.
+app.use(['/login', '/register', '/login.html', '/register.html'],
+  helmet.crossOriginOpenerPolicy({ policy: 'same-origin-allow-popups' }));
 app.use(compression({
   threshold: envNumber('COMPRESSION_THRESHOLD_BYTES', 1024),
 }));
