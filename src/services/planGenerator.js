@@ -20,28 +20,121 @@ const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
 const EXACT_PORTION_SEARCH_STEP_G = 2;
+const PLAN_GENERATION_TRACE_ENABLED = process.env.PLAN_GENERATION_TRACE !== '0';
+const TRACE_SLOW_SOLVE_LIMIT = 5;
 
 function getFoods() {
   return loadFoods();
 }
 
-function generatePlan(rawInput) {
-  return _generatePlanInternal(rawInput);
+function elapsedMs(startedAt) {
+  return Number(process.hrtime.bigint() - startedAt) / 1e6;
 }
 
-function _generatePlanInternal(rawInput) {
+function roundedMs(value) {
+  return Number(value.toFixed(1));
+}
+
+function createGenerationTrace(options = {}) {
+  return {
+    enabled: PLAN_GENERATION_TRACE_ENABLED,
+    requestId: options.requestId || '',
+    timelineId: options.timelineId || '',
+    events: options.traceEvents || [],
+    startedAt: process.hrtime.bigint(),
+  };
+}
+
+function traceLog(trace, message, meta = {}) {
+  if (!trace?.enabled) return;
+  trace.events.push({
+    message,
+    meta: {
+    requestId: trace.requestId,
+    timelineId: trace.timelineId,
+    elapsedMs: roundedMs(elapsedMs(trace.startedAt)),
+    ...meta,
+    },
+  });
+}
+
+function tracePhase(trace, name, startedAt, meta = {}) {
+  traceLog(trace, 'Plan generator trace: phase', {
+    phase: name,
+    phaseMs: roundedMs(elapsedMs(startedAt)),
+    ...meta,
+  });
+}
+
+function generatePlan(rawInput, options = {}) {
+  const trace = createGenerationTrace(options);
+  try {
+    return _generatePlanInternal(rawInput, trace);
+  } catch (error) {
+    traceLog(trace, 'Plan generator trace: failed', {
+      error: {
+        name: error.name,
+        message: error.message,
+      },
+    });
+    throw error;
+  }
+}
+
+function _generatePlanInternal(rawInput, trace = null) {
+  const totalStartedAt = process.hrtime.bigint();
+  let phaseStartedAt = process.hrtime.bigint();
   const input = normalizeInput(rawInput);
+  tracePhase(trace, 'normalize_input', phaseStartedAt, {
+    numberOfMeals: input.numberOfMeals,
+    mealDistribution: input.mealDistribution,
+    dietType: input.dietType,
+    ramadanMode: Boolean(input.ramadanMode),
+    avoidFoodCount: input.avoidFoods.length,
+    allergyCount: input.allergies.length,
+    dislikeCount: input.dislikes.length,
+  });
+
+  phaseStartedAt = process.hrtime.bigint();
   const nutritionCalculation = calculateNutritionDetails(input);
   const dailyTargets = nutritionCalculation.targets;
+  tracePhase(trace, 'calculate_nutrition', phaseStartedAt, {
+    dailyTargets: roundedMacros(dailyTargets),
+  });
+
+  phaseStartedAt = process.hrtime.bigint();
   const mealTargets = buildMealTargets(dailyTargets, input);
+  tracePhase(trace, 'build_meal_targets', phaseStartedAt, {
+    mealTargets: mealTargets.map((target) => ({
+      name: target.name,
+      tag: target.tag,
+      targets: roundedMacros(target.targets),
+    })),
+  });
+
+  phaseStartedAt = process.hrtime.bigint();
   const allowedFoods = filterFoods(loadFoods(), input);
+  tracePhase(trace, 'load_and_filter_foods', phaseStartedAt, {
+    allowedFoodCount: allowedFoods.length,
+  });
 
   if (allowedFoods.length === 0) {
     throw new Error('No foods match the selected restrictions. Try removing one filter.');
   }
 
-  const generatedMeals = generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods });
+  phaseStartedAt = process.hrtime.bigint();
+  const generatedMeals = generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods, trace });
+  tracePhase(trace, 'generate_ready_meal_day', phaseStartedAt, {
+    mealCount: generatedMeals.length,
+    emptyMealCount: generatedMeals.filter((meal) => meal.items.length === 0).length,
+  });
+
+  phaseStartedAt = process.hrtime.bigint();
   const diagnostics = buildPlanDiagnostics(totalsForMeals(generatedMeals), dailyTargets, generatedMeals);
+  tracePhase(trace, 'build_diagnostics', phaseStartedAt, {
+    warningCount: diagnostics.warnings.length,
+    errorCount: diagnostics.errors.length,
+  });
   const optimization = {
     meals: generatedMeals,
     warnings: diagnostics.warnings,
@@ -49,6 +142,7 @@ function _generatePlanInternal(rawInput) {
     diagnostics,
   };
 
+  phaseStartedAt = process.hrtime.bigint();
   const meals = optimization.meals.map((meal) => {
     const plainItems = meal.items.map((item) => ({ food: item.food, quantityG: item.quantityG }));
     const mealTotals = sumTargets(plainItems.map((item) => macrosForFoodPortion(item.food, item.quantityG)));
@@ -98,13 +192,24 @@ function _generatePlanInternal(rawInput) {
       originalItems: plainItems.map((item) => ({ food: item.food, quantityG: item.quantityG })),
     };
   });
+  tracePhase(trace, 'serialize_meals', phaseStartedAt, {
+    mealCount: meals.length,
+    itemCount: meals.reduce((sum, meal) => sum + meal.items.length, 0),
+    mealOptionCount: meals.reduce((sum, meal) => sum + meal.mealOptions.length, 0),
+  });
 
-  return {
+  phaseStartedAt = process.hrtime.bigint();
+  const allowedProduceFoods = allowedFoods
+    .filter((food) => produceGroup(food))
+    .map(serializeAllowedProduceFood);
+  tracePhase(trace, 'serialize_allowed_produce', phaseStartedAt, {
+    allowedProduceFoodCount: allowedProduceFoods.length,
+  });
+
+  const plan = {
     input,
     dailyTargets,
-    allowedProduceFoods: allowedFoods
-      .filter((food) => produceGroup(food))
-      .map(serializeAllowedProduceFood),
+    allowedProduceFoods,
     nutritionCalculation: {
       bmr: nutritionCalculation.bmr,
       maintenanceCalories: nutritionCalculation.maintenanceCalories,
@@ -129,6 +234,10 @@ function _generatePlanInternal(rawInput) {
       isImpossible: true,
     } : {}),
   };
+  tracePhase(trace, 'total', totalStartedAt, {
+    status: plan.status || 'ok',
+  });
+  return plan;
 }
 
 function serializeAllowedProduceFood(food) {
@@ -547,13 +656,15 @@ function roundedMacros(macros) {
   );
 }
 
-function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods }) {
+function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods, trace = null }) {
   const candidateSets = mealTargets.map((target) => ({
     target,
     candidates: readyMealCandidatesForMeal({
       mealTag: target.tag,
       allowedFoods,
       target: target.targets,
+      trace,
+      targetName: target.name,
     }),
   }));
   const missing = candidateSets.filter((slot) => slot.candidates.length === 0);
@@ -581,7 +692,7 @@ function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods }) {
     });
   }
 
-  const selected = selectReadyMealDayCombination(candidateSets, dailyTargets);
+  const selected = selectReadyMealDayCombination(candidateSets, dailyTargets, trace);
   return candidateSets.map((slot, index) => buildReadyMealFromCandidate({
     target: slot.target,
     candidate: selected[index],
@@ -589,21 +700,70 @@ function generateReadyMealDay({ mealTargets, dailyTargets, allowedFoods }) {
   }));
 }
 
-function readyMealCandidatesForMeal({ mealTag, allowedFoods, target }) {
+function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = null, targetName = '' }) {
+  const slotStartedAt = process.hrtime.bigint();
   const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
   const tags = templateTagsForMealTag(mealTag);
   const acceptanceBounds = computeMealBounds(target);
-  return loadReadyMealBundles()
-    .filter((readyMeal) => tags.includes(readyMeal.mealTag))
-    .map((readyMeal) => solveReadyMealCandidate(readyMeal, allowedFoodByName, target, {
+  const readyMeals = loadReadyMealBundles().filter((readyMeal) => tags.includes(readyMeal.mealTag));
+  const solveStats = [];
+  const solvedCandidates = [];
+
+  for (const readyMeal of readyMeals) {
+    const solveStartedAt = process.hrtime.bigint();
+    const candidate = solveReadyMealCandidate(readyMeal, allowedFoodByName, target, {
       bounds: acceptanceBounds,
-    }))
-    .filter(Boolean)
-    .filter((candidate) => totalsWithinMealTolerance(candidate.totals, target))
-    .sort((a, b) => compareRankedMealCandidates(a, b, target));
+    });
+    const solveMs = roundedMs(elapsedMs(solveStartedAt));
+    solveStats.push({
+      readyMealId: readyMeal.id,
+      mealTag: readyMeal.mealTag,
+      componentCount: readyMeal.components.length,
+      solveMs,
+      solved: Boolean(candidate),
+      gridVisited: candidate?.solveStats?.gridVisited ?? 0,
+    });
+    if (candidate) solvedCandidates.push(candidate);
+  }
+
+  const withinTolerance = solvedCandidates.filter((candidate) => totalsWithinMealTolerance(candidate.totals, target));
+  const sortStartedAt = process.hrtime.bigint();
+  withinTolerance.sort((a, b) => compareRankedMealCandidates(a, b, target));
+  const sortMs = roundedMs(elapsedMs(sortStartedAt));
+  const acceptedSolveStats = solveStats.filter((stat) => stat.solved);
+  const slowestSolves = solveStats
+    .slice()
+    .sort((a, b) => (
+      b.solveMs - a.solveMs ||
+      b.gridVisited - a.gridVisited ||
+      a.readyMealId.localeCompare(b.readyMealId, undefined, { numeric: true })
+    ))
+    .slice(0, TRACE_SLOW_SOLVE_LIMIT);
+
+  traceLog(trace, 'Plan generator trace: meal slot candidates', {
+    phase: 'ready_meal_candidates',
+    targetName,
+    mealTag,
+    acceptedTags: tags,
+    target: roundedMacros(target),
+    matchingTemplateCount: readyMeals.length,
+    solvedCandidateCount: solvedCandidates.length,
+    acceptedCandidateCount: withinTolerance.length,
+    rejectedAfterSolveCount: solvedCandidates.length - withinTolerance.length,
+    failedSolveCount: readyMeals.length - solvedCandidates.length,
+    totalGridVisited: acceptedSolveStats.reduce((sum, stat) => sum + stat.gridVisited, 0),
+    maxGridVisited: acceptedSolveStats.reduce((max, stat) => Math.max(max, stat.gridVisited), 0),
+    totalSolveMs: roundedMs(solveStats.reduce((sum, stat) => sum + stat.solveMs, 0)),
+    sortMs,
+    slotMs: roundedMs(elapsedMs(slotStartedAt)),
+    slowestSolves,
+  });
+
+  return withinTolerance;
 }
 
-function selectReadyMealDayCombination(candidateSets, dailyTargets) {
+function selectReadyMealDayCombination(candidateSets, dailyTargets, trace = null) {
+  const beamStartedAt = process.hrtime.bigint();
   const beamWidth = 2500;
   let beam = [{
     candidates: [],
@@ -611,7 +771,9 @@ function selectReadyMealDayCombination(candidateSets, dailyTargets) {
     mealScore: 0,
   }];
 
+  const slotStats = [];
   for (const slot of candidateSets) {
+    const slotStartedAt = process.hrtime.bigint();
     const next = [];
     for (const partial of beam) {
       for (const candidate of slot.candidates) {
@@ -624,9 +786,32 @@ function selectReadyMealDayCombination(candidateSets, dailyTargets) {
       }
     }
 
+    const sortStartedAt = process.hrtime.bigint();
     next.sort((a, b) => compareDayCandidates(a, b, dailyTargets));
+    const sortMs = roundedMs(elapsedMs(sortStartedAt));
+    const previousBeamSize = beam.length;
     beam = next.slice(0, beamWidth);
+    slotStats.push({
+      name: slot.target.name,
+      tag: slot.target.tag,
+      previousBeamSize,
+      slotCandidateCount: slot.candidates.length,
+      expandedCandidateCount: next.length,
+      retainedBeamSize: beam.length,
+      sortMs,
+      slotMs: roundedMs(elapsedMs(slotStartedAt)),
+    });
   }
+
+  traceLog(trace, 'Plan generator trace: beam search', {
+    phase: 'select_ready_meal_day_combination',
+    beamWidth,
+    slotStats,
+    selectedTemplateIds: beam[0]?.candidates.map((candidate) => candidate.readyMeal.id) || [],
+    selectedTotals: roundedMacros(beam[0]?.totals),
+    dailyTargets: roundedMacros(dailyTargets),
+    beamMs: roundedMs(elapsedMs(beamStartedAt)),
+  });
 
   return beam[0].candidates;
 }
@@ -723,6 +908,11 @@ function solveReadyMealCandidate(readyMeal, allowedFoodByName, target, options =
     totals: fit.totals,
     fit,
     rankTuple: mealRankTuple(fit.totals, target, acceptanceBounds),
+    solveStats: {
+      gridVisited: gridFit.visited,
+      gridStepG: EXACT_PORTION_SEARCH_STEP_G,
+      variableCount: gridFit.variableCount,
+    },
     score: fit.score + servingRealismPenalty(withTotals) * 0.25,
   };
 }
@@ -1140,6 +1330,7 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
     totals: foundTotals,
     score: foundScore,
     visited,
+    variableCount: variables.length,
   };
 }
 

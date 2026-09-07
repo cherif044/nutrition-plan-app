@@ -48,6 +48,12 @@ function serverTimingValue(metrics = {}) {
     .join(', ');
 }
 
+function logGeneratorTraceEvents(events) {
+  for (const event of events) {
+    logger.info(event.message, event.meta);
+  }
+}
+
 function getCachedPreferenceOptions() {
   if (!preferenceOptionsCache) {
     preferenceOptionsCache = getPreferenceOptions(getFoods());
@@ -78,17 +84,24 @@ function getPreferences(_req, res, next) {
 }
 
 function generatePlanHandler(req, res, next) {
+  const generatorTraceEvents = [];
   try {
+    const timelineId = timelineIdFromRequest(req);
     const generationStartedAt = process.hrtime.bigint();
-    const plan = generatePlan(req.body);
+    const plan = generatePlan(req.body, {
+      requestId: req.id,
+      timelineId,
+      traceEvents: generatorTraceEvents,
+    });
     recordMetric(req, 'planGenerationMs', elapsedMs(generationStartedAt));
+    logGeneratorTraceEvents(generatorTraceEvents);
 
     const timing = serverTimingValue(req.metrics);
     if (timing) res.setHeader('Server-Timing', timing);
 
     logger.info('Plan timeline: server generated plan', {
       requestId: req.id,
-      timelineId: timelineIdFromRequest(req),
+      timelineId,
       status: plan.status || 'ok',
       numberOfMeals: plan.input?.numberOfMeals,
       mealDistribution: plan.input?.mealDistribution,
@@ -100,6 +113,7 @@ function generatePlanHandler(req, res, next) {
 
     res.json(plan);
   } catch (error) {
+    logGeneratorTraceEvents(generatorTraceEvents);
     next(error);
   }
 }
