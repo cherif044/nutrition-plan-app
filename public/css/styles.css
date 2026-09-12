@@ -9666,6 +9666,7 @@ body.dashboard-page .dashboard-bottom-nav {
 
 .save-action-bar__discard,
 .save-action-bar__save,
+.save-action-bar__revert,
 .save-action-bar__export {
   flex: 0 0 auto;
 }
@@ -9684,10 +9685,41 @@ body.dashboard-page .dashboard-bottom-nav {
   color: #65766b;
 }
 
+.save-action-bar__revert {
+  border-color: #f0c7c0;
+  background: #fff;
+  color: var(--danger);
+  box-shadow: 0 8px 18px rgba(232, 93, 78, 0.12);
+}
+
 .save-action-bar__save,
 .save-action-bar__export {
   background: #31b66a;
   box-shadow: 0 8px 18px rgba(49, 182, 106, 0.22);
+}
+
+.planner-save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--save-bar-height, 0px) + 30px);
+  z-index: 40;
+  transform: translate(-50%, 10px);
+  padding: 10px 14px;
+  border: 1px solid rgba(49, 182, 106, 0.24);
+  border-radius: 12px;
+  background: #fff;
+  color: #236a46;
+  box-shadow: 0 14px 34px rgba(18, 56, 50, 0.16);
+  font-size: 13px;
+  font-weight: 800;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.planner-save-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 body.is-plan-view {
@@ -9707,10 +9739,29 @@ body.is-plan-view {
     justify-content: stretch;
   }
 
+  .save-action-bar--dirty {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
   .save-action-bar .btn {
     flex: 1 1 0;
     min-width: 0;
     padding-inline: 11px;
+  }
+
+  .save-action-bar--dirty .save-action-bar__save,
+  .save-action-bar--dirty .save-action-bar__revert {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 8px;
+    font-size: 0.72rem;
+    line-height: 1.08;
+    white-space: normal;
+  }
+
+  .save-action-bar--dirty .save-action-bar__export {
+    grid-column: 1 / -1;
   }
 
   body.is-plan-view {

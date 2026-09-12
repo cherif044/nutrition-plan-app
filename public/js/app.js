@@ -824,6 +824,7 @@ async function loadPlanForEdit(planId) {
     currentPlanName = plan.name || '';
     currentPlanHasCustomer = Boolean(plan.customer_id);
     firstCreationPending = false;
+    hasUnsavedChanges = false;
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
     switchPlannerView('plan', { push: false });
@@ -3245,6 +3246,16 @@ function startPlanExport(planId, { hasCustomer = currentPlanHasCustomer, clientN
   link.remove();
 }
 
+function replacePlannerUrlWithSavedPlan(planId) {
+  if (!planId || plannerCtx?.exportPdf) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('planId', planId);
+  url.searchParams.set('view', 'plan');
+  url.searchParams.delete('customerId');
+  url.searchParams.delete('export');
+  history.replaceState({ plannerView: 'plan', planId: String(planId) }, '', url);
+}
+
 async function createGeneratedPlanRecord(planData, timeline = null) {
   const { name, customerPayload, isActive } = preGenerationSavePayload();
   const saveStartedAt = performance.now();
@@ -3290,6 +3301,7 @@ function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
       currentPlanName = createdPlan.name || currentPlanName || readPreGenerationPlanName();
       currentPlanHasCustomer = Boolean(createdPlan.customer_id);
       firstCreationPending = true;
+      replacePlannerUrlWithSavedPlan(currentPlanId);
       showInitialCreationBar(currentPlanId, currentPlanName, { statusText: 'Saved' });
       return createdPlan;
     })
@@ -3341,10 +3353,19 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
 }
 
 function setSaveStatus(text) {
-  if (saveStatusEl) {
-    saveStatusEl.textContent = text || '';
-  } else if (text && /unable|failed|enter/i.test(text)) {
+  if (text && /unable|failed|enter/i.test(text)) {
     message.textContent = text;
+    return;
+  }
+
+  if (text === 'Saved') {
+    hasUnsavedChanges = false;
+    refreshEditBar();
+    return;
+  }
+
+  if (text === 'Unsaved changes') {
+    refreshEditBar();
   }
 }
 
@@ -3373,14 +3394,40 @@ async function saveCurrentPlanChanges({ force = false, planData = null } = {}) {
 function markPlanUnsaved() {
   if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
   if (!document.body.classList.contains('is-plan-view')) return;
+  if (hasUnsavedChanges) return;
   hasUnsavedChanges = true;
-  setSaveStatus('Unsaved changes');
+  refreshEditBar();
 }
 
 async function deleteCurrentPlan(planId) {
   const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, { method: 'DELETE' });
   const data = await readJsonResponse(res, 'Unable to discard plan.');
   if (!res.ok) throw new Error(data.error || 'Unable to discard plan.');
+}
+
+function refreshEditBar() {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
+  if (!document.getElementById('edit-bar')) return;
+  showEditBar(currentPlanId, currentPlanName);
+}
+
+let saveToastTimer = null;
+
+function showSaveToast(text) {
+  let toast = document.querySelector('.planner-save-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'planner-save-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.append(toast);
+  }
+  toast.textContent = text;
+  toast.classList.add('is-visible');
+  window.clearTimeout(saveToastTimer);
+  saveToastTimer = window.setTimeout(() => {
+    toast.classList.remove('is-visible');
+  }, 5000);
 }
 
 function showEditBar(planId, initialName) {
@@ -3390,27 +3437,35 @@ function showEditBar(planId, initialName) {
 
   const bar = document.createElement('div');
   bar.id = 'edit-bar';
-  bar.className = 'save-action-bar';
-  bar.innerHTML = `
-    <span class="save-action-bar__status" role="status" aria-live="polite">${hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}</span>
+  bar.className = `save-action-bar${hasUnsavedChanges ? ' save-action-bar--dirty' : ''}`;
+  bar.innerHTML = hasUnsavedChanges ? `
     <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
+    <button class="btn btn-ghost save-action-bar__revert" type="button">${iconSvg('rotate')}Revert all changes</button>
+    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
+  ` : `
     <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
   `;
-  saveStatusEl = bar.querySelector('.save-action-bar__status');
+  saveStatusEl = null;
   currentPlanId = planId || currentPlanId;
   currentPlanName = initialName || currentPlanName;
   firstCreationPending = false;
 
-  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+  bar.querySelector('.save-action-bar__save')?.addEventListener('click', async () => {
     message.textContent = '';
     const btn = bar.querySelector('.save-action-bar__save');
     btn.disabled = true;
     btn.textContent = 'Saving...';
     const ok = await saveCurrentPlanChanges({ force: true });
-    btn.disabled = false;
-    btn.innerHTML = `${iconSvg('save')}Save changes`;
     if (!ok) return;
-    message.textContent = 'Plan changes saved.';
+    showSaveToast('Changes saved');
+  });
+
+  bar.querySelector('.save-action-bar__revert')?.addEventListener('click', async () => {
+    message.textContent = '';
+    const btn = bar.querySelector('.save-action-bar__revert');
+    btn.disabled = true;
+    btn.textContent = 'Reverting...';
+    await loadPlanForEdit(currentPlanId || planId);
   });
 
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
@@ -3442,18 +3497,16 @@ function showInitialCreationBar(planId, initialName, { statusText = null, allowR
 
   const dashboardUrl = '/dashboard';
   const isWaitingForPlanId = !planId && !allowRetry;
-  const resolvedStatus = statusText ?? (isWaitingForPlanId ? 'Saving...' : '');
 
   const bar = document.createElement('div');
   bar.id = 'folder-save-bar';
   bar.className = 'save-action-bar';
   bar.innerHTML = `
-    <span class="save-action-bar__status" role="status" aria-live="polite">${escapeHtml(resolvedStatus)}</span>
     <button class="btn btn-ghost save-action-bar__discard" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('rotate')}Discard plan</button>
     <button class="btn btn-primary save-action-bar__save" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('save')}${allowRetry ? 'Retry save' : 'Save plan'}</button>
-    <button class="btn btn-primary save-action-bar__export" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('file')}Save & export</button>
+    <button class="btn btn-primary save-action-bar__export" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('file')}Export plan</button>
   `;
-  saveStatusEl = bar.querySelector('.save-action-bar__status');
+  saveStatusEl = null;
 
   async function updatePendingPlan(btn, loadingText, restoreHtml) {
     message.textContent = '';
@@ -3492,9 +3545,10 @@ function showInitialCreationBar(planId, initialName, { statusText = null, allowR
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
     const btn = bar.querySelector('.save-action-bar__export');
     const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
-    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('file')}Save & export`))) return;
-    startPlanExport(planId, { clientName });
-    showEditBar(planId, currentPlanName || initialName);
+    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('file')}Export plan`))) return;
+    const resolvedPlanId = currentPlanId || planId;
+    startPlanExport(resolvedPlanId, { clientName });
+    showEditBar(resolvedPlanId, currentPlanName || initialName);
     message.textContent = 'PDF export started.';
   });
 
@@ -3664,7 +3718,7 @@ async function loadCustomerForPlanning(customerId) {
   }
 }
 
-function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId } = {}) {
+function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId, markUnsaved = true } = {}) {
   state.mode = 'existing';
   state.selected = customer;
   state.newName = '';
@@ -3678,7 +3732,7 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
     match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
     match.hidden = false;
   }
-  markPlanUnsaved();
+  if (markUnsaved) markPlanUnsaved();
 }
 
 function selectNewCustomer(name, state, picker) {
@@ -3717,7 +3771,10 @@ function selectGeneralCustomer(state, picker) {
 function initializeCustomerPickerFromPlan(plan) {
   const customer = plan?.Customer || plan?.customer || null;
   if (!customer || !preGenerationCustomerPicker) return;
-  selectCustomer(customer, preGenerationCustomerState, preGenerationCustomerPicker, { hydrateProfile: false });
+  selectCustomer(customer, preGenerationCustomerState, preGenerationCustomerPicker, {
+    hydrateProfile: false,
+    markUnsaved: false,
+  });
 }
 
 function applyCustomerProfileToForm(customer) {

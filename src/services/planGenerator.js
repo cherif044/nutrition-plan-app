@@ -19,7 +19,12 @@ const MEAL_DISTRIBUTIONS = new Set(Object.keys(MEAL_DISTRIBUTION_FACTORS));
 const DIETS = new Set(['standard', 'vegetarian', 'vegan']);
 const DEBUG_OPTIMIZER = process.env.NUTRITION_DEBUG === '1';
 const DEBUG_MEAL_GENERATION = process.env.DEBUG_MEAL_GENERATION === 'true';
-const EXACT_PORTION_SEARCH_STEP_G = 2;
+const DEFAULT_EXACT_PORTION_SEARCH_STEP_G = 2;
+const configuredPortionGridStepG = Number.parseFloat(process.env.PORTION_GRID_STEP_G || '');
+const EXACT_PORTION_SEARCH_STEP_G =
+  Number.isFinite(configuredPortionGridStepG) && configuredPortionGridStepG > 0
+    ? configuredPortionGridStepG
+    : DEFAULT_EXACT_PORTION_SEARCH_STEP_G;
 const PLAN_GENERATION_TRACE_ENABLED = process.env.PLAN_GENERATION_TRACE !== '0';
 const TRACE_SLOW_SOLVE_LIMIT = 5;
 

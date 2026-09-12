@@ -28,3 +28,4 @@ ios/Runner.xcodeproj/xcuserdata/
 .DS_Store
 .vercel
 .env*
+testing_data/
