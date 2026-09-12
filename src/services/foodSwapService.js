@@ -5,7 +5,7 @@
  * precomputed candidate list built by scripts/buildFoodSwaps.js, apply the
  * user's live dietType/allergen/dislike filters, optionally check that each
  * candidate can actually be substituted into the meal it's being swapped
- * into, and return the top N.
+ * into, and return every valid option unless a caller explicitly limits it.
  *
  * It never computes distances or scores itself — that only happens in the
  * precompute script. Keeping the two apart means a slow request never
@@ -16,21 +16,23 @@
 const { loadFoods, loadFoodSwaps } = require('../repositories/foodRepository');
 const { filterFoods, clampServing, rebalanceMeal } = require('./planGenerator');
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = Number.POSITIVE_INFINITY;
 // A candidate whose tier-adjusted score is >= 1 would produce a match_pct
 // <= 0 — not a looser match, a non-match. Tier-4 condiment fallbacks can
 // hit this (e.g. mustard as a "swap" for BBQ sauce). Drop them rather than
 // show a 0% or negative "suggestion".
 const MAX_SCORE = 1;
-// When meal-fit checking is on, this bounds how many candidates we're
-// willing to test (each test is a rebalanceMeal call — cheap in the common
-// case, but can fall back to a full portion-grid solve). Without a cap, a
-// food whose whole tier-3/4 pool is a poor fit for a tightly-bounded meal
-// could otherwise run dozens of solves on a single panel-open.
-const MAX_CANDIDATES_TO_TEST = 30;
-
 function scoreToMatchPct(score) {
   return Math.round(100 - score * 100);
+}
+
+function normalizeLimit(limit) {
+  if (limit === undefined || limit === null || limit === 'all') return DEFAULT_LIMIT;
+  if (limit === Number.POSITIVE_INFINITY) return DEFAULT_LIMIT;
+  const parsed = Number(limit);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.floor(parsed)
+    : DEFAULT_LIMIT;
 }
 
 /**
@@ -81,7 +83,7 @@ function isUsableMealContext(mealContext) {
  * @param {string} params.foodId - the food being swapped out
  * @param {object} [params.userPreferences] - { dietType, avoidFoods, dislikes },
  *   the same shape produced by the frontend's getUserPreferences()
- * @param {number} [params.limit] - max results (default 10)
+ * @param {number|string} [params.limit] - max results, or "all" for every result
  * @param {object} [params.mealContext] - { itemIndex, currentItems, mealTarget,
  *   dailyContext }, the same shapes /api/rebalance-meal takes. When present,
  *   candidates are additionally required to actually fit the meal at some
@@ -107,9 +109,7 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
     return { foodId: id, options: [] };
   }
 
-  const safeLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
-    ? Math.floor(Number(limit))
-    : DEFAULT_LIMIT;
+  const safeLimit = normalizeLimit(limit);
 
   // Resolve candidate ids to full food objects, preserving the precomputed
   // tier-then-score order. Drop non-matches up front (score >= MAX_SCORE)
@@ -163,16 +163,11 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
   }
 
   // Meal-fit filtering. The precomputed list is stored in full (not sliced
-  // to 10) specifically so there's headroom to backfill here: rather than
-  // stopping at "test the top 10, keep whoever passes" (which could hand
-  // back as few as 0-1 results if several near the top don't fit), keep
-  // walking the already-ranked, already-preference-filtered list until
-  // `safeLimit` candidates pass the fit check or the test budget runs out.
+  // to 10) so the UI can show every candidate that actually works in this
+  // meal, while still preserving the precomputed tier-then-score order.
   const options = [];
-  let tested = 0;
   for (const food of allowedCandidateFoods) {
-    if (options.length >= safeLimit || tested >= MAX_CANDIDATES_TO_TEST) break;
-    tested += 1;
+    if (options.length >= safeLimit) break;
     if (fitsMeal(food, mealContext)) {
       options.push(toOption(food));
     }
