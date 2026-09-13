@@ -1,0 +1,160 @@
+{{!--
+  Home / dashboard — Pinch
+  Scoped under .pinch-home.
+  Expected context:
+    greeting        "Good afternoon"   (computed server-side from the hour)
+    user.firstName
+    stats: { totalPlans, plansDelta, totalCustomers, customersDelta, activePlans }
+    week:  { plans, newCustomers, activeCount, activePct }
+    roster:      [{ id, name, initials, planCount }]        max ~4
+    recentPlans: [{ id, name, goal, goalLabel, relativeTime }]  max ~4
+--}}
+
+<section class="pinch-home">
+
+  <div class="ph-hero">
+    <div class="ph-hero__intro">
+      <h1>{{greeting}}, {{user.firstName}}</h1>
+      <p class="ph-hero__sub">
+        You have {{stats.totalPlans}} plans across {{stats.totalCustomers}} customers,
+        with {{stats.activePlans}} currently active.
+      </p>
+
+      <div class="ph-actions">
+        <a href="/plans/new" class="ph-btn ph-btn--primary">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          <span>New plan</span>
+        </a>
+        <a href="/customers/new" class="ph-btn ph-btn--ghost">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="2.75"/><path d="M2.5 16c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4"/><path d="M14.5 7.5v4M12.5 9.5h4"/></svg>
+          <span>Add customer</span>
+        </a>
+      </div>
+    </div>
+
+    <ul class="ph-snapshot">
+      <li>
+        <span class="ph-snapshot__label"><span class="ph-dot ph-dot--green"></span>This week</span>
+        <span class="ph-snapshot__value">{{week.plans}} plans</span>
+        <span class="ph-snapshot__note">{{week.newCustomers}} new customers</span>
+      </li>
+      <li>
+        <span class="ph-snapshot__label"><span class="ph-dot ph-dot--amber"></span>Active work</span>
+        <span class="ph-snapshot__value">{{week.activeCount}} active {{#if (eq week.activeCount 1)}}assignment{{else}}assignments{{/if}}</span>
+        <span class="ph-snapshot__note">{{week.activePct}}% of saved plans</span>
+      </li>
+      <li>
+        <span class="ph-snapshot__label"><span class="ph-dot ph-dot--blue"></span>Roster</span>
+        <span class="ph-snapshot__value">{{stats.totalCustomers}} customers</span>
+        <span class="ph-snapshot__note">{{stats.totalPlans}} saved plans total</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="ph-stats">
+    <div class="ph-stat">
+      <div class="ph-stat__top">
+        <span class="ph-stat__label">Total plans</span>
+        <span class="ph-stat__icon ph-stat__icon--green" aria-hidden="true">
+          <svg viewBox="0 0 20 20"><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4"/></svg>
+        </span>
+      </div>
+      <div class="ph-stat__bottom">
+        <p class="ph-stat__value">{{stats.totalPlans}}</p>
+        {{#if stats.plansDelta}}<span class="ph-pill ph-pill--green">+{{stats.plansDelta}} this week</span>{{/if}}
+      </div>
+    </div>
+
+    <div class="ph-stat">
+      <div class="ph-stat__top">
+        <span class="ph-stat__label">Total customers</span>
+        <span class="ph-stat__icon ph-stat__icon--blue" aria-hidden="true">
+          <svg viewBox="0 0 20 20"><circle cx="7.5" cy="7" r="2.75"/><path d="M2.5 16c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4"/><path d="M13.5 11.8c2.2.3 3.9 2 3.9 4.2"/><circle cx="14" cy="7.4" r="2.2"/></svg>
+        </span>
+      </div>
+      <div class="ph-stat__bottom">
+        <p class="ph-stat__value">{{stats.totalCustomers}}</p>
+        {{#if stats.customersDelta}}<span class="ph-pill ph-pill--blue">+{{stats.customersDelta}} this week</span>{{/if}}
+      </div>
+    </div>
+
+    <div class="ph-stat">
+      <div class="ph-stat__top">
+        <span class="ph-stat__label">Current active plans</span>
+        <span class="ph-stat__icon ph-stat__icon--amber" aria-hidden="true">
+          <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z"/></svg>
+        </span>
+      </div>
+      <div class="ph-stat__bottom">
+        <p class="ph-stat__value">{{stats.activePlans}}</p>
+        {{#if stats.activePlans}}<span class="ph-pill ph-pill--amber">in progress</span>{{/if}}
+      </div>
+    </div>
+  </div>
+
+  <div class="ph-panels">
+
+    <div class="ph-panel">
+      <div class="ph-panel__head">
+        <div>
+          <h2>Customer roster</h2>
+          <p>Recently updated profiles</p>
+        </div>
+        <a href="/customers" class="ph-viewall">View all</a>
+      </div>
+
+      <ul class="ph-rows">
+        {{#each roster}}
+          <li class="ph-row">
+            <a class="ph-row__link" href="/customers/{{id}}">
+              <span class="ph-avatar" aria-hidden="true">{{initials}}</span>
+              <span class="ph-row__text">
+                <span class="ph-row__name">{{name}}</span>
+                <span class="ph-row__meta">{{planCount}} {{#if (eq planCount 1)}}plan{{else}}plans{{/if}}</span>
+              </span>
+              <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </a>
+            <button type="button" class="ph-row__more" aria-label="More actions for {{name}}">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>
+            </button>
+          </li>
+        {{else}}
+          <li><p class="ph-empty">No customers yet.</p></li>
+        {{/each}}
+      </ul>
+    </div>
+
+    <div class="ph-panel">
+      <div class="ph-panel__head">
+        <div>
+          <h2>Recent plans</h2>
+          <p>Latest plan activity</p>
+        </div>
+        <a href="/plans" class="ph-viewall">View all</a>
+      </div>
+
+      <ul class="ph-rows">
+        {{#each recentPlans}}
+          <li class="ph-row">
+            <a class="ph-row__link" href="/plans/{{id}}">
+              <span class="ph-row__text">
+                <span class="ph-row__name">{{name}}</span>
+                <span class="ph-row__meta">
+                  <span class="ph-goal ph-goal--{{goal}}"><span class="ph-dot"></span>{{goalLabel}}</span>
+                  {{relativeTime}}
+                </span>
+              </span>
+              <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </a>
+            <button type="button" class="ph-row__more" aria-label="More actions for {{name}}">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>
+            </button>
+          </li>
+        {{else}}
+          <li><p class="ph-empty">No plans yet.</p></li>
+        {{/each}}
+      </ul>
+    </div>
+
+  </div>
+</section>

@@ -1,0 +1,169 @@
+{{!--
+  Plans page — Pinch
+  Scoped under .pinch-plans.
+  Expected context:
+    plans: [{ id, name, goal ("lose"|"gain"), goalLabel, relativeTime }]
+    stats: { total, assigned, newest }
+    goals: { lose, gain, losePct, gainPct }
+--}}
+
+<section class="pinch-plans">
+
+  <header class="pp-head">
+    <div class="pp-head__text">
+      <h1>Plans</h1>
+      <p>{{stats.total}} general {{#if (eq stats.total 1)}}plan{{else}}plans{{/if}}</p>
+    </div>
+
+    <a href="/plans/new" class="pp-btn">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+      <span>Create plan</span>
+    </a>
+  </header>
+
+  {{!-- Open by default; the summary row only appears on phones --}}
+  <details class="pp-insights" open>
+    <summary class="pp-insights__summary">
+      Plan insights
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
+    </summary>
+
+    <div class="pp-insights__body">
+      <div class="pp-stats">
+        <div class="pp-stat">
+          <div class="pp-stat__top">
+            <span class="pp-stat__label">Total general plans</span>
+            <span class="pp-stat__icon pp-stat__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 20 20"><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4"/></svg>
+            </span>
+          </div>
+          <p class="pp-stat__value">{{stats.total}}</p>
+        </div>
+
+        <div class="pp-stat">
+          <div class="pp-stat__top">
+            <span class="pp-stat__label">Assigned to customers</span>
+            <span class="pp-stat__icon pp-stat__icon--amber" aria-hidden="true">
+              <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z"/></svg>
+            </span>
+          </div>
+          <p class="pp-stat__value">{{stats.assigned}}</p>
+        </div>
+
+        <div class="pp-stat">
+          <div class="pp-stat__top">
+            <span class="pp-stat__label">Newest plan</span>
+            <span class="pp-stat__icon pp-stat__icon--violet" aria-hidden="true">
+              <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/></svg>
+            </span>
+          </div>
+          <p class="pp-stat__value pp-stat__value--text">{{stats.newest}}</p>
+        </div>
+      </div>
+
+      <div class="pp-breakdown">
+        <h2>Plan goals breakdown</h2>
+
+        <div class="pp-bar" role="img"
+             aria-label="{{goals.lose}} lose weight, {{goals.gain}} gain weight">
+          <div class="pp-bar__seg pp-bar__seg--lose" style="width: {{goals.losePct}}%"></div>
+          <div class="pp-bar__seg pp-bar__seg--gain" style="width: {{goals.gainPct}}%"></div>
+        </div>
+
+        <ul class="pp-legend">
+          <li><span class="pp-dot pp-dot--lose"></span> Lose weight <b>{{goals.lose}}</b></li>
+          <li><span class="pp-dot pp-dot--gain"></span> Gain weight <b>{{goals.gain}}</b></li>
+        </ul>
+      </div>
+    </div>
+  </details>
+
+  <div class="pp-search">
+    <svg class="pp-search__icon" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="9" cy="9" r="6"/><path d="m13.5 13.5 3.5 3.5"/>
+    </svg>
+    <input type="search" id="pp-search-input" class="pp-search__input"
+           placeholder="Search plans" autocomplete="off" aria-label="Search plans">
+  </div>
+
+  <div class="pp-filters" role="group" aria-label="Filter plans by goal">
+    <button type="button" class="pp-chip" data-goal="all" aria-pressed="true">
+      <span class="pp-dot" style="background: currentColor"></span> All <span>{{stats.total}}</span>
+    </button>
+    <button type="button" class="pp-chip" data-goal="lose" aria-pressed="false">
+      <span class="pp-dot pp-dot--lose"></span> Lose weight <span>{{goals.lose}}</span>
+    </button>
+    <button type="button" class="pp-chip" data-goal="gain" aria-pressed="false">
+      <span class="pp-dot pp-dot--gain"></span> Gain weight <span>{{goals.gain}}</span>
+    </button>
+  </div>
+
+  <div class="pp-list">
+    <h2 class="pp-list__title">All general plans</h2>
+
+    <ul class="pp-rows" id="pp-rows">
+      {{#each plans}}
+        <li class="pp-row" data-name="{{name}}" data-goal="{{goal}}">
+          <a class="pp-row__link" href="/plans/{{id}}">
+            <span class="pp-row__text">
+              <span class="pp-row__name">{{name}}</span>
+              <span class="pp-goal pp-goal--{{goal}}">
+                <span class="pp-dot"></span>{{goalLabel}}
+              </span>
+            </span>
+            <span class="pp-row__time">{{relativeTime}}</span>
+          </a>
+
+          <button type="button" class="pp-row__more" aria-label="More actions for {{name}}">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>
+          </button>
+        </li>
+      {{/each}}
+    </ul>
+
+    <p class="pp-empty" id="pp-empty" hidden>No plans match those filters.</p>
+
+    {{#unless plans.length}}
+      <div class="pp-empty-state">
+        <p>No plans yet.</p>
+        <a href="/plans/new" class="pp-btn">Create your first plan</a>
+      </div>
+    {{/unless}}
+  </div>
+
+</section>
+
+<script>
+  (function () {
+    var input = document.getElementById('pp-search-input');
+    var rows  = Array.prototype.slice.call(document.querySelectorAll('#pp-rows .pp-row'));
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.pinch-plans .pp-chip'));
+    var empty = document.getElementById('pp-empty');
+    var goal  = 'all';
+    if (!input) return;
+
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (row) {
+        var match = row.dataset.name.toLowerCase().indexOf(q) !== -1 &&
+                    (goal === 'all' || row.dataset.goal === goal);
+        row.hidden = !match;
+        if (match) shown++;
+      });
+      empty.hidden = shown !== 0 || rows.length === 0;
+    }
+
+    input.addEventListener('input', apply);
+
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        goal = chip.dataset.goal;
+        chips.forEach(function (c) {
+          c.setAttribute('aria-pressed', String(c === chip));
+        });
+        apply();
+      });
+    });
+  })();
+</script>

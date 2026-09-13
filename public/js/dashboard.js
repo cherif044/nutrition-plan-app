@@ -249,6 +249,46 @@ function planRow(
   `;
 }
 
+function planGoalVisualKey(goal) {
+  if (goal === 'lose_weight') return 'lose';
+  if (goal === 'gain_weight') return 'gain';
+  if (goal === 'maintain') return 'maintain';
+  return 'unknown';
+}
+
+function planGoalColor(goal) {
+  return GOAL_COLORS[goal] || GOAL_COLORS.unknown;
+}
+
+function planPageRow(plan) {
+  const updatedAt = plan.updated_at || plan.created_at;
+  const goal = planGoalKey(plan);
+  const visualKey = planGoalVisualKey(goal);
+  return `
+    <li class="pp-row" data-name="${escapeHtml(plan.name)}" data-goal="${escapeHtml(goal)}">
+      <a class="pp-row__link" href="${escapeHtml(planHref(plan))}">
+        <span class="pp-row__text">
+          <span class="pp-row__name">${escapeHtml(plan.name)}</span>
+          <span class="pp-goal pp-goal--${escapeHtml(visualKey)}">
+            <span class="pp-dot"></span>${escapeHtml(goalLabel(goal))}
+          </span>
+        </span>
+        <span class="pp-row__time">${escapeHtml(formatRelativeTime(updatedAt))}</span>
+      </a>
+      <button
+        class="pp-row__more dashboard-plan-menu-btn"
+        type="button"
+        title="Plan options"
+        aria-label="More actions for ${escapeHtml(plan.name)}"
+        data-plan-id="${escapeHtml(plan.id)}"
+        data-plan-name="${escapeHtml(plan.name)}"
+        data-customer-id="${escapeHtml(plan.customer_id || '')}"
+        data-export-href="${escapeHtml(planExportHref(plan))}"
+      >${iconSvg('more', 18)}</button>
+    </li>
+  `;
+}
+
 function customerRow(customer) {
   const index = state.customers.findIndex((item) => String(item.id) === String(customer.id));
   const tone = AVATAR_TONES[(index >= 0 ? index : 0) % AVATAR_TONES.length];
@@ -272,6 +312,161 @@ function customerRow(customer) {
         data-customer-name="${escapeHtml(customer.name)}"
       >${iconSvg('more', 18)}</button>
     </article>
+  `;
+}
+
+function customerPageRow(customer) {
+  const count = Number(customer.planCount || 0);
+  const name = customer.name || 'Customer';
+  return `
+    <li class="pc-row" data-customer-id="${escapeHtml(customer.id)}">
+      <a class="pc-row__link" href="#/customers/${encodeURIComponent(customer.id)}">
+        <span class="pc-avatar" aria-hidden="true">${escapeHtml(initials(name).toLowerCase())}</span>
+        <span class="pc-row__text">
+          <span class="pc-row__name">${escapeHtml(name)}</span>
+          <span class="pc-row__meta">
+            ${count} plan${count === 1 ? '' : 's'}
+            ${customer.activePlan ? '<span class="pc-tag">Active</span>' : ''}
+          </span>
+        </span>
+        <svg class="pc-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+      </a>
+      <button
+        class="pc-row__more dashboard-customer-menu-btn"
+        type="button"
+        title="Customer options"
+        aria-label="More actions for ${escapeHtml(name)}"
+        data-customer-id="${escapeHtml(customer.id)}"
+        data-customer-name="${escapeHtml(name)}"
+      >${iconSvg('more', 18)}</button>
+    </li>
+  `;
+}
+
+function homeCustomerRow(customer) {
+  const count = Number(customer.planCount || 0);
+  const name = customer.name || 'Customer';
+  return `
+    <li class="ph-row">
+      <a class="ph-row__link" href="#/customers/${encodeURIComponent(customer.id)}">
+        <span class="ph-avatar" aria-hidden="true">${escapeHtml(initials(name).toLowerCase())}</span>
+        <span class="ph-row__text">
+          <span class="ph-row__name">${escapeHtml(name)}</span>
+          <span class="ph-row__meta">${count} plan${count === 1 ? '' : 's'}</span>
+        </span>
+        <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+      </a>
+      <button
+        type="button"
+        class="ph-row__more dashboard-customer-menu-btn"
+        aria-label="More actions for ${escapeHtml(name)}"
+        data-customer-id="${escapeHtml(customer.id)}"
+        data-customer-name="${escapeHtml(name)}"
+      >${iconSvg('more', 18)}</button>
+    </li>
+  `;
+}
+
+function homePlanRow(plan) {
+  const goal = planGoalKey(plan);
+  const visualKey = planGoalVisualKey(goal);
+  const updatedAt = plan.updated_at || plan.created_at;
+  return `
+    <li class="ph-row">
+      <a class="ph-row__link" href="${escapeHtml(planHref(plan))}">
+        <span class="ph-row__text">
+          <span class="ph-row__name">${escapeHtml(plan.name)}</span>
+          <span class="ph-row__meta">
+            <span class="ph-goal ph-goal--${escapeHtml(visualKey)}"><span class="ph-dot"></span>${escapeHtml(goalLabel(goal))}</span>
+            ${escapeHtml(formatRelativeTime(updatedAt))}
+          </span>
+        </span>
+        <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+      </a>
+      <button
+        type="button"
+        class="ph-row__more dashboard-plan-menu-btn"
+        aria-label="More actions for ${escapeHtml(plan.name)}"
+        data-plan-id="${escapeHtml(plan.id)}"
+        data-plan-name="${escapeHtml(plan.name)}"
+        data-customer-id="${escapeHtml(plan.customer_id || '')}"
+        data-export-href="${escapeHtml(planExportHref(plan))}"
+      >${iconSvg('more', 18)}</button>
+    </li>
+  `;
+}
+
+function customerDetailGoalKey(customer) {
+  return customer.goal || customer.activePlan?.goal || 'unknown';
+}
+
+function detailTextValue(value, fallback = '-') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function detailNumberValue(value, fallback = '-') {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString() : fallback;
+}
+
+function customerDetailMeta(customer, planCount) {
+  const goal = customerDetailGoalKey(customer);
+  const visualKey = planGoalVisualKey(goal);
+  return `
+    <span class="pd-tag pd-tag--${escapeHtml(visualKey)}">
+      <span class="pd-dot"></span>${escapeHtml(goalLabel(goal))}
+    </span>
+    ${customer.activePlan ? '<span class="pd-tag pd-tag--active">Active plan</span>' : '<span class="pd-tag pd-tag--idle">No active plan</span>'}
+    <span>${Number(planCount || 0).toLocaleString()} assigned ${Number(planCount || 0) === 1 ? 'plan' : 'plans'}</span>
+  `;
+}
+
+function customerDetailGrid(customer) {
+  const goal = customerDetailGoalKey(customer);
+  const details = [
+    { label: 'Age', value: detailNumberValue(customer.age), text: false },
+    { label: 'Sex', value: customer.sex ? titleCase(customer.sex) : '-', text: true },
+    { label: 'Weight', value: detailNumberValue(customer.weight), unit: customer.weight ? 'kg' : '', text: false },
+    { label: 'Height', value: detailNumberValue(customer.height), unit: customer.height ? 'cm' : '', text: false },
+    { label: 'Activity level', value: customer.activity_level ? titleCase(customer.activity_level) : '-', text: true },
+    { label: 'Goal', value: goalLabel(goal), text: true },
+  ];
+
+  return details.map((item) => `
+    <div class="pd-detail">
+      <span class="pd-detail__label">${escapeHtml(item.label)}</span>
+      <span class="pd-detail__value${item.text ? ' pd-detail__value--text' : ''}">
+        ${escapeHtml(item.value)}${item.unit ? `<span class="pd-detail__unit">${escapeHtml(item.unit)}</span>` : ''}
+      </span>
+    </div>
+  `).join('');
+}
+
+function customerDetailPlanRow(plan) {
+  const goal = planGoalKey(plan);
+  const visualKey = planGoalVisualKey(goal);
+  const updatedAt = plan.updated_at || plan.created_at;
+  return `
+    <li class="pd-row">
+      <a class="pd-row__link" href="${escapeHtml(planHref(plan))}">
+        <span class="pd-row__text">
+          <span class="pd-row__name">${escapeHtml(plan.name)}</span>
+          <span class="pd-tag pd-tag--${escapeHtml(visualKey)}"><span class="pd-dot"></span>${escapeHtml(goalLabel(goal))}</span>
+        </span>
+        <span class="pd-row__time">${escapeHtml(formatRelativeTime(updatedAt))}</span>
+      </a>
+      <button
+        type="button"
+        class="pd-row__more dashboard-plan-menu-btn"
+        aria-label="More actions for ${escapeHtml(plan.name)}"
+        data-plan-id="${escapeHtml(plan.id)}"
+        data-plan-name="${escapeHtml(plan.name)}"
+        data-customer-id="${escapeHtml(plan.customer_id || '')}"
+        data-export-href="${escapeHtml(planExportHref(plan))}"
+      >${iconSvg('more', 18)}</button>
+    </li>
   `;
 }
 
@@ -299,40 +494,15 @@ function renderGoalBar(barId, legendId, counts) {
 }
 
 function renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek }) {
-  const summary = document.getElementById('home-hero-summary');
-  if (!summary) return;
-
   const activeLabel = activePlans === 1 ? 'active assignment' : 'active assignments';
   const planLabel = plansThisWeek === 1 ? 'plan' : 'plans';
   const customerLabel = customersThisWeek === 1 ? 'customer' : 'customers';
-  const rows = [
-    {
-      label: 'This week',
-      value: `${plansThisWeek.toLocaleString()} ${planLabel}`,
-      detail: `${customersThisWeek.toLocaleString()} new ${customerLabel}`,
-      tone: 'cal',
-    },
-    {
-      label: 'Active work',
-      value: `${activePlans.toLocaleString()} ${activeLabel}`,
-      detail: totalPlans ? `${Math.round((activePlans / totalPlans) * 100)}% of saved plans` : 'No active plans yet',
-      tone: 'fat',
-    },
-    {
-      label: 'Roster',
-      value: `${customers.toLocaleString()} customers`,
-      detail: totalPlans ? `${totalPlans.toLocaleString()} saved plans total` : 'No saved plans yet',
-      tone: 'protein',
-    },
-  ];
-
-  summary.innerHTML = rows.map((row) => `
-    <div class="dashboard-home-summary-row" data-tone="${row.tone}">
-      <span>${escapeHtml(row.label)}</span>
-      <strong>${escapeHtml(row.value)}</strong>
-      <small>${escapeHtml(row.detail)}</small>
-    </div>
-  `).join('');
+  document.getElementById('home-week-plans').textContent = `${plansThisWeek.toLocaleString()} ${planLabel}`;
+  document.getElementById('home-week-customers').textContent = `${customersThisWeek.toLocaleString()} new ${customerLabel}`;
+  document.getElementById('home-active-work').textContent = `${activePlans.toLocaleString()} ${activeLabel}`;
+  document.getElementById('home-active-percent').textContent = totalPlans ? `${Math.round((activePlans / totalPlans) * 100)}% of saved plans` : 'No active plans yet';
+  document.getElementById('home-roster-count').textContent = `${customers.toLocaleString()} customer${customers === 1 ? '' : 's'}`;
+  document.getElementById('home-roster-plans').textContent = totalPlans ? `${totalPlans.toLocaleString()} saved plans total` : 'No saved plans yet';
 }
 
 function filterChip(key, label, count, active) {
@@ -361,6 +531,63 @@ function renderFilterChips(containerId, counts, total, activeKey, order) {
   ].join('');
 }
 
+function planFilterChip(key, label, count, active) {
+  const visualKey = key ? planGoalVisualKey(key) : 'all';
+  return `
+    <button type="button" class="pp-chip" data-key="${escapeHtml(key || '')}" aria-pressed="${active ? 'true' : 'false'}">
+      <span class="pp-dot pp-dot--${escapeHtml(visualKey)}"></span>
+      ${escapeHtml(label)}
+      <span>${Number(count || 0).toLocaleString()}</span>
+    </button>
+  `;
+}
+
+function renderPlanFilterChips(counts, total, activeKey) {
+  const container = document.getElementById('plan-filter-chips');
+  if (!container) return;
+  const keys = [
+    ...GOAL_ORDER.filter((key) => counts[key]),
+    ...Object.keys(counts).filter((key) => !GOAL_ORDER.includes(key)),
+  ];
+  container.innerHTML = [
+    planFilterChip(null, 'All', total, activeKey === null),
+    ...keys.map((key) => planFilterChip(key, goalLabel(key), counts[key], activeKey === key)),
+  ].join('');
+}
+
+function renderPlanGoalBreakdown(counts) {
+  const bar = document.getElementById('plan-goal-bar');
+  const legend = document.getElementById('plan-goal-legend');
+  if (!bar || !legend) return;
+
+  const entries = [
+    ...GOAL_ORDER.filter((key) => counts[key]).map((key) => [key, counts[key]]),
+    ...Object.keys(counts).filter((key) => !GOAL_ORDER.includes(key)).map((key) => [key, counts[key]]),
+  ].filter(([, count]) => count > 0);
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+
+  bar.setAttribute('aria-label', entries.length
+    ? entries.map(([key, count]) => `${count} ${goalLabel(key)}`).join(', ')
+    : 'No goal data yet');
+  bar.innerHTML = total
+    ? entries.map(([key, count]) => `
+      <div
+        class="pp-bar__seg pp-bar__seg--${escapeHtml(planGoalVisualKey(key))}"
+        style="width: ${(count / total * 100).toFixed(1)}%; background: ${escapeHtml(planGoalColor(key))};"
+      ></div>
+    `).join('')
+    : '<div class="pp-bar__seg pp-bar__seg--unknown" style="width:100%;"></div>';
+  legend.innerHTML = entries.length
+    ? entries.map(([key, count]) => `
+      <li>
+        <span class="pp-dot pp-dot--${escapeHtml(planGoalVisualKey(key))}"></span>
+        ${escapeHtml(goalLabel(key))}
+        <b>${Number(count).toLocaleString()}</b>
+      </li>
+    `).join('')
+    : '<li>No goal data yet</li>';
+}
+
 function renderStats() {
   const totalPlans = Number(state.stats.totalPlans || 0);
   const customers = Number(state.stats.customers || 0);
@@ -371,8 +598,11 @@ function renderStats() {
   document.getElementById('stat-customers').textContent = customers.toLocaleString();
   document.getElementById('stat-active-plans').textContent = activePlans.toLocaleString();
   document.getElementById('stat-plans-trend').textContent = plansThisWeek ? `+${plansThisWeek.toLocaleString()} this week` : 'no new plans';
+  document.getElementById('stat-plans-trend').hidden = !plansThisWeek;
   document.getElementById('stat-customers-trend').textContent = customersThisWeek ? `+${customersThisWeek.toLocaleString()} this week` : 'no new clients';
+  document.getElementById('stat-customers-trend').hidden = !customersThisWeek;
   document.getElementById('stat-active-trend').textContent = activePlans ? 'in progress' : 'none active';
+  document.getElementById('stat-active-trend').hidden = !activePlans;
   document.getElementById('dashboard-hero-sub').textContent =
     `You have ${totalPlans.toLocaleString()} plans across ${customers.toLocaleString()} customers, with ${activePlans.toLocaleString()} currently active.`;
   renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek });
@@ -401,17 +631,11 @@ function renderHome() {
   const customers = sortCustomersForHome(state.customers).slice(0, 4);
   const plans = (state.recentPlans.length ? state.recentPlans : sortByNewestCreated(state.generalPlans)).slice(0, 4);
   document.getElementById('home-customers-list').innerHTML = customers.length
-    ? [
-      ...customers.map(customerRow),
-      ...Array.from({ length: 4 - customers.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
-    ].join('')
-    : emptyState('customers', 'Attach a saved plan to a customer and they will appear here.');
+    ? customers.map(homeCustomerRow).join('')
+    : '<li><p class="ph-empty">No customers yet.</p></li>';
   document.getElementById('home-plans-list').innerHTML = plans.length
-    ? [
-      ...plans.map((plan) => planRow(plan, { menu: false })),
-      ...Array.from({ length: 4 - plans.length }, () => '<div class="dashboard-home-row-placeholder" aria-hidden="true"></div>'),
-    ].join('')
-    : emptyState('plans', 'Create or open a plan and it will appear here.');
+    ? plans.map(homePlanRow).join('')
+    : '<li><p class="ph-empty">No plans yet.</p></li>';
 }
 
 function renderCustomersPage() {
@@ -425,10 +649,10 @@ function renderCustomersPage() {
   document.getElementById('customer-stat-active').textContent = state.customers.filter((customer) => customer.activePlan).length.toLocaleString();
   document.getElementById('customer-stat-average').textContent = state.customers.length ? (totalPlans / state.customers.length).toFixed(1) : '0';
   document.getElementById('customer-list-count').textContent =
-    state.customerSearch ? `Showing ${filtered.length} of ${state.customers.length}` : '';
+    state.customerSearch ? `(${filtered.length} of ${state.customers.length})` : '';
   document.getElementById('customers-list').innerHTML = filtered.length
-    ? filtered.map(customerRow).join('')
-    : emptyState('customers');
+    ? filtered.map(customerPageRow).join('')
+    : '<li class="pc-empty-state">No customers match that search.</li>';
 }
 
 function renderPlansPage() {
@@ -445,12 +669,14 @@ function renderPlansPage() {
   document.getElementById('plan-stat-assigned').textContent = assignedCount.toLocaleString();
   document.getElementById('plan-stat-newest').textContent = newest ? formatRelativeTime(newest) : '-';
   document.getElementById('plan-list-count').textContent =
-    (state.planFilter || state.planSearch) ? `Showing ${filtered.length} of ${state.generalPlans.length}` : '';
+    (state.planFilter || state.planSearch) ? `(${filtered.length} of ${state.generalPlans.length})` : '';
   document.getElementById('recent-plans').innerHTML = filtered.length
-    ? filtered.map((plan) => planRow(plan, { menu: true })).join('')
-    : emptyState('plans');
-  renderFilterChips('plan-filter-chips', counts, state.generalPlans.length, state.planFilter, GOAL_ORDER);
-  renderGoalBar('plan-goal-bar', 'plan-goal-legend', counts);
+    ? filtered.map(planPageRow).join('')
+    : state.generalPlans.length
+      ? '<li class="pp-empty">No plans match those filters.</li>'
+      : '<li class="pp-empty-state"><p>No plans yet.</p><a href="/planner" class="pp-btn">Create your first plan</a></li>';
+  renderPlanFilterChips(counts, state.generalPlans.length, state.planFilter);
+  renderPlanGoalBreakdown(counts);
 }
 
 async function loadCustomerPlans(customerId) {
@@ -470,29 +696,31 @@ async function renderCustomerDetail(customerId) {
     return;
   }
 
-  document.getElementById('detail-customer-avatar').textContent = initials(customer.name);
+  document.getElementById('detail-customer-avatar').textContent = initials(customer.name).toLowerCase();
   document.getElementById('detail-customer-title').textContent = customer.name;
-  document.getElementById('detail-customer-stats').innerHTML = customerDetailStats(customer);
+  document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, customer.planCount || 0);
+  document.getElementById('detail-customer-details').innerHTML = customerDetailGrid(customer);
+  document.getElementById('detail-edit-link').href = `#/customers/${encodeURIComponent(customer.id)}/edit`;
   document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
   document.getElementById('detail-plan-count').textContent = 'Loading...';
-  document.getElementById('detail-customer-plans').innerHTML = emptyState('plans', 'Loading assigned plans.');
+  document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Loading assigned plans.</p></div></li>';
 
   try {
     const { plans } = await loadCustomerPlans(customerId);
-    document.getElementById('detail-plan-count').textContent = plans.length ? `${plans.length} total` : '';
+    document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, plans.length);
+    document.getElementById('detail-plan-count').textContent = `${plans.length} total`;
     document.getElementById('detail-customer-plans').innerHTML = plans.length
-      ? plans.map((plan) => planRow(plan, {
-        menu: true,
-        activeStyle: true,
-        showGoal: true,
-        showActiveChip: false,
-        tableStyle: true,
-      })).join('')
-      : emptyState('plans', 'This customer has no assigned plans yet.');
+      ? plans.map(customerDetailPlanRow).join('')
+      : `<li>
+          <div class="pd-empty">
+            <p>No plans assigned yet.</p>
+            <a href="/planner?customerId=${encodeURIComponent(customer.id)}" class="pd-btn">Assign a plan</a>
+          </div>
+        </li>`;
   } catch {
     if (page.classList.contains('is-active')) {
       document.getElementById('detail-plan-count').textContent = '';
-      document.getElementById('detail-customer-plans').innerHTML = emptyState('plans', 'Failed to load customer plans.');
+      document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Failed to load customer plans.</p></div></li>';
     }
   }
 }
@@ -832,7 +1060,7 @@ function bindEvents() {
     renderPlansPage();
   });
   document.getElementById('plan-filter-chips')?.addEventListener('click', (event) => {
-    const chip = event.target.closest('.dashboard-filter-chip');
+    const chip = event.target.closest('.dashboard-filter-chip, .pp-chip');
     if (!chip) return;
     state.planFilter = chip.dataset.key || null;
     renderPlansPage();

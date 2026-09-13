@@ -1,0 +1,106 @@
+{{!--
+  Customer detail — Pinch
+  Scoped under .pinch-customer.
+  Expected context:
+    customer: { id, name, initials, age, sex, heightCm, weightKg,
+                activityLevel, goal ("lose"|"gain"), goalLabel, hasActivePlan }
+    plans: [{ id, name, goal, goalLabel, relativeTime }]
+--}}
+
+<section class="pinch-customer">
+
+  <a href="/customers" class="pd-back">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg>
+    Back to customers
+  </a>
+
+  <div class="pd-profile">
+    <span class="pd-avatar" aria-hidden="true">{{customer.initials}}</span>
+
+    <div class="pd-profile__text">
+      <h1>{{customer.name}}</h1>
+      <div class="pd-profile__meta">
+        <span class="pd-tag pd-tag--{{customer.goal}}">
+          <span class="pd-dot"></span>{{customer.goalLabel}}
+        </span>
+        {{#if customer.hasActivePlan}}
+          <span class="pd-tag pd-tag--active">Active plan</span>
+        {{else}}
+          <span class="pd-tag pd-tag--idle">No active plan</span>
+        {{/if}}
+        <span>{{plans.length}} assigned {{#if (eq plans.length 1)}}plan{{else}}plans{{/if}}</span>
+      </div>
+    </div>
+
+    <a href="/customers/{{customer.id}}/edit" class="pd-btn">Edit profile</a>
+  </div>
+
+  <div class="pd-card">
+    <div class="pd-card__head">
+      <h2>Profile details</h2>
+    </div>
+
+    <div class="pd-details">
+      <div class="pd-detail">
+        <span class="pd-detail__label">Age</span>
+        <span class="pd-detail__value">{{customer.age}}</span>
+      </div>
+      <div class="pd-detail">
+        <span class="pd-detail__label">Sex</span>
+        <span class="pd-detail__value pd-detail__value--text">{{customer.sex}}</span>
+      </div>
+      <div class="pd-detail">
+        <span class="pd-detail__label">Weight</span>
+        <span class="pd-detail__value">{{customer.weightKg}}<span class="pd-detail__unit">kg</span></span>
+      </div>
+      <div class="pd-detail">
+        <span class="pd-detail__label">Height</span>
+        <span class="pd-detail__value">{{customer.heightCm}}<span class="pd-detail__unit">cm</span></span>
+      </div>
+      <div class="pd-detail">
+        <span class="pd-detail__label">Activity level</span>
+        <span class="pd-detail__value pd-detail__value--text">{{customer.activityLevel}}</span>
+      </div>
+      <div class="pd-detail">
+        <span class="pd-detail__label">Goal</span>
+        <span class="pd-detail__value pd-detail__value--text">{{customer.goalLabel}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pd-card">
+    <div class="pd-card__head">
+      <h2>Assigned plans</h2>
+      <span class="pd-card__count">{{plans.length}} total</span>
+      <a href="/customers/{{customer.id}}/plans/new" class="pd-btn">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+        <span>Add plan</span>
+      </a>
+    </div>
+
+    <ul class="pd-rows">
+      {{#each plans}}
+        <li class="pd-row">
+          <a class="pd-row__link" href="/plans/{{id}}">
+            <span class="pd-row__text">
+              <span class="pd-row__name">{{name}}</span>
+              <span class="pd-tag pd-tag--{{goal}}"><span class="pd-dot"></span>{{goalLabel}}</span>
+            </span>
+            <span class="pd-row__time">{{relativeTime}}</span>
+          </a>
+          <button type="button" class="pd-row__more" aria-label="More actions for {{name}}">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>
+          </button>
+        </li>
+      {{else}}
+        <li>
+          <div class="pd-empty">
+            <p>No plans assigned yet.</p>
+            <a href="/customers/{{../customer.id}}/plans/new" class="pd-btn">Assign a plan</a>
+          </div>
+        </li>
+      {{/each}}
+    </ul>
+  </div>
+
+</section>

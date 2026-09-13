@@ -1,0 +1,523 @@
+/* ==========================================================================
+   Pinch — Plans page
+   Scoped under .pinch-plans. Same token set as customers.css so the two
+   pages stay visually identical, but nothing leaks between them.
+   ========================================================================== */
+
+.pinch-plans {
+  --pp-ink:        #10261d;
+  --pp-ink-soft:   #6b7b73;
+  --pp-green:      #1c5741;
+  --pp-green-dark: #16442f;
+  --pp-line:       #e6ebe8;
+  --pp-surface:    #ffffff;
+  --pp-hover:      #f3f6f4;
+  --pp-lose:       #c0563f;
+  --pp-lose-bg:    #fbeeea;
+  --pp-gain:       #3f66b5;
+  --pp-gain-bg:    #eaf0fb;
+  --pp-radius:     16px;
+  --pp-gap:        20px;
+
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  color: var(--pp-ink);
+  box-sizing: border-box;
+}
+
+.pinch-plans *,
+.pinch-plans *::before,
+.pinch-plans *::after { box-sizing: border-box; }
+
+.pinch-plans svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pinch-plans a:focus-visible,
+.pinch-plans button:focus-visible,
+.pinch-plans input:focus-visible,
+.pinch-plans summary:focus-visible {
+  outline: 2px solid var(--pp-green);
+  outline-offset: 2px;
+}
+
+/* --- Header ------------------------------------------------------------- */
+
+.pinch-plans .pp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.pinch-plans .pp-head h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 1.3rem + 1.8vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.pinch-plans .pp-head p {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: var(--pp-ink-soft);
+}
+
+.pinch-plans .pp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pp-green);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pinch-plans .pp-btn:hover { background: var(--pp-green-dark); }
+.pinch-plans .pp-btn svg { width: 18px; height: 18px; }
+
+/* --- Insights (stats + goals breakdown) --------------------------------- */
+
+.pinch-plans .pp-insights {
+  margin-bottom: 24px;
+}
+
+/* The summary row is the mobile accordion header. Hidden on desktop. */
+.pinch-plans .pp-insights__summary {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-line);
+  border-radius: var(--pp-radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pinch-plans .pp-insights__summary::-webkit-details-marker { display: none; }
+
+.pinch-plans .pp-insights__summary svg {
+  width: 18px;
+  height: 18px;
+  color: var(--pp-ink-soft);
+  transition: transform 0.2s ease;
+}
+
+.pinch-plans .pp-insights[open] .pp-insights__summary svg { transform: rotate(180deg); }
+
+.pinch-plans .pp-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--pp-gap);
+  margin-bottom: var(--pp-gap);
+}
+
+.pinch-plans .pp-stat {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-line);
+  border-radius: var(--pp-radius);
+  padding: 20px;
+}
+
+.pinch-plans .pp-stat__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pinch-plans .pp-stat__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--pp-ink-soft);
+  line-height: 1.35;
+}
+
+.pinch-plans .pp-stat__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.pinch-plans .pp-stat__icon svg { width: 17px; height: 17px; }
+.pinch-plans .pp-stat__icon--green  { background: #e6f3ec; color: #1c7a4f; }
+.pinch-plans .pp-stat__icon--amber  { background: #fdf1e3; color: #b3762a; }
+.pinch-plans .pp-stat__icon--violet { background: #f0ecfb; color: #6a54b8; }
+
+.pinch-plans .pp-stat__value {
+  margin: 14px 0 0;
+  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* Text values like "15 hours ago" shouldn't be set at numeral size */
+.pinch-plans .pp-stat__value--text {
+  font-size: clamp(1.125rem, 0.9rem + 0.9vw, 1.5rem);
+  line-height: 1.2;
+}
+
+/* --- Goals breakdown ---------------------------------------------------- */
+
+.pinch-plans .pp-breakdown {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-line);
+  border-radius: var(--pp-radius);
+  padding: 20px;
+}
+
+.pinch-plans .pp-breakdown h2 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.pinch-plans .pp-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--pp-line);
+}
+
+.pinch-plans .pp-bar__seg { height: 100%; }
+.pinch-plans .pp-bar__seg--lose { background: var(--pp-lose); }
+.pinch-plans .pp-bar__seg--gain { background: var(--pp-gain); }
+
+.pinch-plans .pp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.pinch-plans .pp-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pp-ink-soft);
+}
+
+.pinch-plans .pp-legend b {
+  color: var(--pp-ink);
+  font-weight: 600;
+}
+
+.pinch-plans .pp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.pinch-plans .pp-dot--lose { background: var(--pp-lose); }
+.pinch-plans .pp-dot--gain { background: var(--pp-gain); }
+
+/* --- Search ------------------------------------------------------------- */
+
+.pinch-plans .pp-search {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.pinch-plans .pp-search__icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--pp-ink-soft);
+  pointer-events: none;
+}
+
+.pinch-plans .pp-search__input {
+  width: 100%;
+  padding: 13px 16px 13px 46px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--pp-ink);
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-line);
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.pinch-plans .pp-search__input::placeholder { color: var(--pp-ink-soft); }
+.pinch-plans .pp-search__input:focus { border-color: var(--pp-green); }
+
+/* --- Filter chips ------------------------------------------------------- */
+
+.pinch-plans .pp-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.pinch-plans .pp-filters::-webkit-scrollbar { display: none; }
+
+.pinch-plans .pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 9px 16px;
+  border: 1px solid var(--pp-line);
+  border-radius: 999px;
+  background: var(--pp-surface);
+  color: var(--pp-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pinch-plans .pp-chip span {
+  color: var(--pp-ink-soft);
+  font-weight: 600;
+}
+
+.pinch-plans .pp-chip:hover { background: var(--pp-hover); }
+
+.pinch-plans .pp-chip[aria-pressed="true"] {
+  background: var(--pp-green);
+  border-color: var(--pp-green);
+  color: #fff;
+}
+
+.pinch-plans .pp-chip[aria-pressed="true"] span { color: rgba(255,255,255,0.75); }
+.pinch-plans .pp-chip[aria-pressed="true"] .pp-dot { background: #fff; }
+
+/* --- List --------------------------------------------------------------- */
+
+.pinch-plans .pp-list {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-line);
+  border-radius: var(--pp-radius);
+  overflow: hidden;
+}
+
+.pinch-plans .pp-list__title {
+  margin: 0;
+  padding: 18px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--pp-line);
+}
+
+.pinch-plans .pp-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pinch-plans .pp-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--pp-line);
+}
+
+.pinch-plans .pp-row:last-child { border-bottom: 0; }
+.pinch-plans .pp-row:hover { background: var(--pp-hover); }
+
+.pinch-plans .pp-row__link {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 8px 14px 20px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.pinch-plans .pp-row__text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pinch-plans .pp-row__name {
+  font-size: 1rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinch-plans .pp-goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pinch-plans .pp-goal--lose { background: var(--pp-lose-bg); color: var(--pp-lose); }
+.pinch-plans .pp-goal--gain { background: var(--pp-gain-bg); color: var(--pp-gain); }
+.pinch-plans .pp-goal .pp-dot { width: 6px; height: 6px; background: currentColor; }
+
+.pinch-plans .pp-row__time {
+  flex: none;
+  font-size: 0.85rem;
+  color: var(--pp-ink-soft);
+  white-space: nowrap;
+}
+
+.pinch-plans .pp-row__more {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--pp-ink-soft);
+  cursor: pointer;
+}
+
+.pinch-plans .pp-row__more:hover { background: #e8edea; color: var(--pp-ink); }
+.pinch-plans .pp-row__more svg { width: 18px; height: 18px; }
+
+.pinch-plans .pp-empty,
+.pinch-plans .pp-empty-state {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--pp-ink-soft);
+}
+
+.pinch-plans .pp-empty-state p { margin: 0 0 16px; }
+
+/* --- Tablet ------------------------------------------------------------- */
+
+@media (max-width: 820px) {
+  .pinch-plans { padding: 24px 18px 48px; }
+  .pinch-plans .pp-stats { gap: 14px; }
+  .pinch-plans .pp-stat { padding: 16px; }
+}
+
+/* --- Phone -------------------------------------------------------------- */
+
+@media (max-width: 620px) {
+  .pinch-plans { padding: 20px 14px 40px; }
+
+  .pinch-plans .pp-head {
+    align-items: stretch;
+    margin-bottom: 20px;
+  }
+
+  .pinch-plans .pp-head__text { flex: 1 1 100%; }
+  .pinch-plans .pp-btn { width: 100%; padding: 14px 20px; }
+
+  /* Stats + breakdown collapse behind a "Plan insights" accordion */
+  .pinch-plans .pp-insights__summary { display: flex; }
+
+  .pinch-plans .pp-insights[open] .pp-insights__summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-color: transparent;
+  }
+
+  .pinch-plans .pp-insights__body {
+    border: 1px solid var(--pp-line);
+    border-top: 0;
+    border-bottom-left-radius: var(--pp-radius);
+    border-bottom-right-radius: var(--pp-radius);
+    padding: 4px 14px 14px;
+    background: var(--pp-surface);
+  }
+
+  .pinch-plans .pp-stats {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 14px;
+  }
+
+  .pinch-plans .pp-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 0;
+    border-bottom: 1px solid var(--pp-line);
+    border-radius: 0;
+    padding: 12px 2px;
+  }
+
+  .pinch-plans .pp-stat__top {
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .pinch-plans .pp-stat__value,
+  .pinch-plans .pp-stat__value--text {
+    margin: 0;
+    font-size: 1.25rem;
+    text-align: right;
+  }
+
+  .pinch-plans .pp-breakdown {
+    border: 0;
+    border-radius: 0;
+    padding: 4px 2px 0;
+  }
+
+  .pinch-plans .pp-breakdown h2 { font-size: 0.9rem; }
+
+  /* Plan name and goal tag stack; time sits on the right */
+  .pinch-plans .pp-row__link { padding: 12px 4px 12px 14px; gap: 12px; }
+
+  .pinch-plans .pp-row__text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .pinch-plans .pp-row__more { margin-right: 6px; }
+  .pinch-plans .pp-list__title { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinch-plans * { transition: none !important; }
+}

@@ -64,181 +64,165 @@
         </aside>
 
         <section class="dashboard-shell" aria-live="polite">
-          <section class="dashboard-page-view" id="page-home" aria-labelledby="dashboard-title">
-            <section class="dashboard-hero dashboard-home-hero">
-              <div class="dashboard-home-hero__content">
+          <section class="dashboard-page-view pinch-home" id="page-home" aria-labelledby="dashboard-title">
+            <div class="ph-hero">
+              <div class="ph-hero__intro">
                 <h1 id="dashboard-title">Good afternoon</h1>
-                <p id="dashboard-hero-sub">Your customers, general plans, and active assignments are gathered here.</p>
-                <div class="dashboard-home-hero__actions" aria-label="Primary actions">
-                  <a class="hero-cta" href="/planner">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M12 5v14" />
-                      <path d="M5 12h14" />
-                    </svg>
-                    New plan
+                <p class="ph-hero__sub" id="dashboard-hero-sub">Your customers, general plans, and active assignments are gathered here.</p>
+
+                <div class="ph-actions">
+                  <a href="/planner" class="ph-btn ph-btn--primary">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12" /><path d="M4 10h12" /></svg>
+                    <span>New plan</span>
                   </a>
-                  <a class="dashboard-secondary-cta" href="#/customers/new">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                    Add customer
+                  <a href="#/customers/new" class="ph-btn ph-btn--ghost">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="2.75" /><path d="M2.5 16c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4" /><path d="M14.5 7.5v4M12.5 9.5h4" /></svg>
+                    <span>Add customer</span>
                   </a>
                 </div>
               </div>
-              <div class="dashboard-home-hero__summary" id="home-hero-summary" aria-label="Dashboard summary">
-                <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-              </div>
-            </section>
 
-            <section class="dashboard-stats" aria-label="Plan statistics">
-              <div class="dashboard-stat-card" data-tone="cal">
-                <span class="dashboard-stat-label">Total plans</span>
-                <span class="dashboard-stat-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 2h6v4H9z" />
-                    <path d="M6 6h12v14H6z" />
-                  </svg>
-                </span>
-                <span class="dashboard-stat-bottom">
-                  <strong id="stat-total-plans">—</strong>
-                  <span class="dashboard-trend" id="stat-plans-trend">—</span>
-                </span>
-              </div>
-              <div class="dashboard-stat-card" data-tone="protein">
-                <span class="dashboard-stat-label">Total customers</span>
-                <span class="dashboard-stat-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </span>
-                <span class="dashboard-stat-bottom">
-                  <strong id="stat-customers">—</strong>
-                  <span class="dashboard-trend" id="stat-customers-trend">—</span>
-                </span>
-              </div>
-              <div class="dashboard-stat-card" data-tone="fat">
-                <span class="dashboard-stat-label">Current active plans</span>
-                <span class="dashboard-stat-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />
-                  </svg>
-                </span>
-                <span class="dashboard-stat-bottom">
-                  <strong id="stat-active-plans">—</strong>
-                  <span class="dashboard-trend" id="stat-active-trend">—</span>
-                </span>
-              </div>
-            </section>
+              <ul class="ph-snapshot" id="home-hero-summary">
+                <li>
+                  <span class="ph-snapshot__label"><span class="ph-dot ph-dot--green"></span>This week</span>
+                  <span class="ph-snapshot__value" id="home-week-plans">— plans</span>
+                  <span class="ph-snapshot__note" id="home-week-customers">— new customers</span>
+                </li>
+                <li>
+                  <span class="ph-snapshot__label"><span class="ph-dot ph-dot--amber"></span>Active work</span>
+                  <span class="ph-snapshot__value" id="home-active-work">— active assignments</span>
+                  <span class="ph-snapshot__note" id="home-active-percent">—% of saved plans</span>
+                </li>
+                <li>
+                  <span class="ph-snapshot__label"><span class="ph-dot ph-dot--blue"></span>Roster</span>
+                  <span class="ph-snapshot__value" id="home-roster-count">— customers</span>
+                  <span class="ph-snapshot__note" id="home-roster-plans">— saved plans total</span>
+                </li>
+              </ul>
+            </div>
 
-            <div class="dashboard-home-workspace">
-              <div class="dashboard-home-main">
-                <section class="dashboard-section dashboard-panel-card" aria-labelledby="home-customers-title">
-                  <header class="dashboard-section__header">
-                    <div>
-                      <h2 id="home-customers-title">Customer roster</h2>
-                      <p class="dashboard-section__subcopy">Recently updated profiles</p>
-                    </div>
-                    <a class="dashboard-view-all" href="#/customers" aria-label="View all customers">
-                      <span>View all</span>
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M5 12h14" />
-                        <path d="m13 6 6 6-6 6" />
-                      </svg>
-                    </a>
-                  </header>
-                  <div class="dashboard-customer-grid" id="home-customers-list">
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
+            <div class="ph-stats">
+              <div class="ph-stat">
+                <div class="ph-stat__top">
+                  <span class="ph-stat__label">Total plans</span>
+                  <span class="ph-stat__icon ph-stat__icon--green" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><path d="M5 2.5h6l4 4v11H5z" /><path d="M11 2.5v4h4" /></svg>
+                  </span>
+                </div>
+                <div class="ph-stat__bottom">
+                  <p class="ph-stat__value" id="stat-total-plans">—</p>
+                  <span class="ph-pill ph-pill--green" id="stat-plans-trend">—</span>
+                </div>
+              </div>
+
+              <div class="ph-stat">
+                <div class="ph-stat__top">
+                  <span class="ph-stat__label">Total customers</span>
+                  <span class="ph-stat__icon ph-stat__icon--blue" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><circle cx="7.5" cy="7" r="2.75" /><path d="M2.5 16c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4" /><path d="M13.5 11.8c2.2.3 3.9 2 3.9 4.2" /><circle cx="14" cy="7.4" r="2.2" /></svg>
+                  </span>
+                </div>
+                <div class="ph-stat__bottom">
+                  <p class="ph-stat__value" id="stat-customers">—</p>
+                  <span class="ph-pill ph-pill--blue" id="stat-customers-trend">—</span>
+                </div>
+              </div>
+
+              <div class="ph-stat">
+                <div class="ph-stat__top">
+                  <span class="ph-stat__label">Current active plans</span>
+                  <span class="ph-stat__icon ph-stat__icon--amber" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z" /></svg>
+                  </span>
+                </div>
+                <div class="ph-stat__bottom">
+                  <p class="ph-stat__value" id="stat-active-plans">—</p>
+                  <span class="ph-pill ph-pill--amber" id="stat-active-trend">—</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ph-panels">
+              <div class="ph-panel">
+                <div class="ph-panel__head">
+                  <div>
+                    <h2 id="home-customers-title">Customer roster</h2>
+                    <p>Recently updated profiles</p>
                   </div>
-                </section>
+                  <a href="#/customers" class="ph-viewall">View all</a>
+                </div>
 
-                <section class="dashboard-section dashboard-panel-card" aria-labelledby="home-plans-title">
-                  <header class="dashboard-section__header">
-                    <div>
-                      <h2 id="home-plans-title">Recent plans</h2>
-                      <p class="dashboard-section__subcopy">Latest plan activity</p>
-                    </div>
-                    <a class="dashboard-view-all" href="#/plans" aria-label="View all plans">
-                      <span>View all</span>
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M5 12h14" />
-                        <path d="m13 6 6 6-6 6" />
-                      </svg>
-                    </a>
-                  </header>
-                  <div class="dashboard-plan-grid" id="home-plans-list">
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
-                    <div class="dashboard-skeleton-row" aria-hidden="true"></div>
+                <ul class="ph-rows" id="home-customers-list"></ul>
+              </div>
+
+              <div class="ph-panel">
+                <div class="ph-panel__head">
+                  <div>
+                    <h2 id="home-plans-title">Recent plans</h2>
+                    <p>Latest plan activity</p>
                   </div>
-                </section>
+                  <a href="#/plans" class="ph-viewall">View all</a>
+                </div>
+
+                <ul class="ph-rows" id="home-plans-list"></ul>
               </div>
             </div>
           </section>
 
-          <section class="dashboard-page-view" id="page-customers" aria-labelledby="customers-title">
-            <header class="dashboard-page-header">
-              <div>
+          <section class="dashboard-page-view pinch-customers" id="page-customers" aria-labelledby="customers-title">
+            <header class="pc-head">
+              <div class="pc-head__text">
                 <h1 id="customers-title">Customers</h1>
                 <p id="customers-subtitle">Customers total</p>
               </div>
-              <a class="hero-cta" href="#/customers/new">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
+              <a class="pc-btn pc-btn--primary" href="#/customers/new">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M10 4v12" />
+                  <path d="M4 10h12" />
                 </svg>
-                Add customer
+                <span>Add customer</span>
               </a>
             </header>
 
-            <button class="dashboard-insights-toggle" id="customer-insights-toggle" type="button" aria-expanded="false">
-              <span>Customer insights</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-
-            <div class="dashboard-insights-block" id="customer-insights">
-              <section class="dashboard-stats" aria-label="Customer statistics">
-                <div class="dashboard-stat-card" data-tone="protein">
-                  <span class="dashboard-stat-label">Total customers</span>
-                  <span class="dashboard-stat-icon" data-icon="customers" aria-hidden="true"></span>
-                  <strong id="customer-stat-total">—</strong>
+            <div class="pc-stats" aria-label="Customer statistics">
+              <div class="pc-stat">
+                <div class="pc-stat__top">
+                  <span class="pc-stat__label">Total customers</span>
+                  <span class="pc-stat__icon pc-stat__icon--blue" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><circle cx="7.5" cy="7" r="2.75" /><path d="M2.5 16c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4" /><path d="M13.5 11.8c2.2.3 3.9 2 3.9 4.2" /><circle cx="14" cy="7.4" r="2.2" /></svg>
+                  </span>
                 </div>
-                <div class="dashboard-stat-card" data-tone="cal">
-                  <span class="dashboard-stat-label">With an active plan</span>
-                  <span class="dashboard-stat-icon" data-icon="active" aria-hidden="true"></span>
-                  <strong id="customer-stat-active">—</strong>
+                <p class="pc-stat__value" id="customer-stat-total">—</p>
+              </div>
+              <div class="pc-stat">
+                <div class="pc-stat__top">
+                  <span class="pc-stat__label">With an active plan</span>
+                  <span class="pc-stat__icon pc-stat__icon--green" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z" /></svg>
+                  </span>
                 </div>
-                <div class="dashboard-stat-card" data-tone="carb">
-                  <span class="dashboard-stat-label">Avg. plans / customer</span>
-                  <span class="dashboard-stat-icon" data-icon="chart" aria-hidden="true"></span>
-                  <strong id="customer-stat-average">—</strong>
+                <p class="pc-stat__value" id="customer-stat-active">—</p>
+              </div>
+              <div class="pc-stat">
+                <div class="pc-stat__top">
+                  <span class="pc-stat__label">Avg. plans / customer</span>
+                  <span class="pc-stat__icon pc-stat__icon--violet" aria-hidden="true">
+                    <svg viewBox="0 0 20 20"><path d="M4 16V9M10 16V4M16 16v-5" /></svg>
+                  </span>
                 </div>
-              </section>
+                <p class="pc-stat__value" id="customer-stat-average">—</p>
+              </div>
             </div>
 
-            <label class="dashboard-search">
+            <label class="pc-search">
               <span class="sr-only">Search customers</span>
-              <input id="customer-search" type="search" placeholder="Search customers" autocomplete="off" />
+              <svg class="pc-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="m13.5 13.5 3.5 3.5" /></svg>
+              <input class="pc-search__input" id="customer-search" type="search" placeholder="Search customers" autocomplete="off" />
             </label>
-            <section class="dashboard-section dashboard-panel-card">
-              <header class="dashboard-section__header">
-                <h2>All customers</h2>
-                <span class="dashboard-soft-copy" id="customer-list-count"></span>
-              </header>
-              <div class="dashboard-customer-grid" id="customers-list"></div>
+
+            <section class="pc-list">
+              <h2 class="pc-list__title">All customers <span id="customer-list-count"></span></h2>
+              <ul class="pc-rows" id="customers-list"></ul>
             </section>
           </section>
 
@@ -367,96 +351,121 @@
             </form>
           </section>
 
-          <section class="dashboard-page-view" id="page-customer-detail" aria-labelledby="detail-customer-title">
-            <a class="dashboard-back-link" href="#/customers">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m15 18-6-6 6-6" />
-              </svg>
+          <section class="dashboard-page-view pinch-customer" id="page-customer-detail" aria-labelledby="detail-customer-title">
+            <a href="#/customers" class="pd-back">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
               Back to customers
             </a>
-            <div class="customer-detail-layout">
-              <div class="customer-detail-overview">
-                <section class="dashboard-panel-card customer-header-card">
-                  <span class="dashboard-icon-square" data-tone="protein" id="detail-customer-avatar" aria-hidden="true"></span>
-                  <div>
-                    <h1 id="detail-customer-title">Customer</h1>
-                    <p>Customer profile</p>
-                  </div>
-                </section>
-                <section class="customer-detail-stats" id="detail-customer-stats" aria-label="Customer statistics"></section>
+
+            <div class="pd-profile">
+              <span class="pd-avatar" id="detail-customer-avatar" aria-hidden="true"></span>
+
+              <div class="pd-profile__text">
+                <h1 id="detail-customer-title">Customer</h1>
+                <div class="pd-profile__meta" id="detail-customer-meta"></div>
               </div>
-              <section class="dashboard-section dashboard-panel-card customer-detail-plans">
-                <header class="dashboard-section__header">
-                  <h2>Assigned plans</h2>
-                  <span class="dashboard-detail-actions">
-                    <span class="dashboard-soft-copy" id="detail-plan-count"></span>
-                    <a class="hero-cta dashboard-add-plan-btn" id="detail-add-plan-link" href="/planner">
-                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 5v14" />
-                        <path d="M5 12h14" />
-                      </svg>
-                      Add plan
-                    </a>
-                  </span>
-                </header>
-                <div class="dashboard-plan-grid" id="detail-customer-plans"></div>
-              </section>
+
+              <a href="#/customers" class="pd-btn" id="detail-edit-link">Edit profile</a>
+            </div>
+
+            <div class="pd-card">
+              <div class="pd-card__head">
+                <h2>Profile details</h2>
+              </div>
+
+              <div class="pd-details" id="detail-customer-details"></div>
+            </div>
+
+            <div class="pd-card">
+              <div class="pd-card__head">
+                <h2>Assigned plans</h2>
+                <span class="pd-card__count" id="detail-plan-count"></span>
+                <a href="/planner" class="pd-btn" id="detail-add-plan-link">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12" /><path d="M4 10h12" /></svg>
+                  <span>Add plan</span>
+                </a>
+              </div>
+
+              <ul class="pd-rows" id="detail-customer-plans">
+                <li>
+                  <div class="pd-empty">
+                    <p>Loading assigned plans.</p>
+                  </div>
+                </li>
+              </ul>
             </div>
           </section>
 
-          <section class="dashboard-page-view" id="page-plans" aria-labelledby="plans-title">
-            <header class="dashboard-page-header">
-              <div>
+          <section class="dashboard-page-view pinch-plans" id="page-plans" aria-labelledby="plans-title">
+            <header class="pp-head">
+              <div class="pp-head__text">
                 <h1 id="plans-title">Plans</h1>
                 <p id="plans-subtitle">General plans</p>
               </div>
+              <a href="/planner" class="pp-btn">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12" /><path d="M4 10h12" /></svg>
+                <span>Create plan</span>
+              </a>
             </header>
 
-            <button class="dashboard-insights-toggle" id="plan-insights-toggle" type="button" aria-expanded="false">
-              <span>Plan insights</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
+            <details class="pp-insights" open>
+              <summary class="pp-insights__summary">
+                Plan insights
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg>
+              </summary>
 
-            <div class="dashboard-insights-block" id="plan-insights">
-              <section class="dashboard-stats" aria-label="Plan statistics">
-                <div class="dashboard-stat-card" data-tone="cal">
-                  <span class="dashboard-stat-label">Total general plans</span>
-                  <span class="dashboard-stat-icon" data-icon="plans" aria-hidden="true"></span>
-                  <strong id="plan-stat-total">—</strong>
+              <div class="pp-insights__body">
+                <div class="pp-stats" aria-label="Plan statistics">
+                  <div class="pp-stat">
+                    <div class="pp-stat__top">
+                      <span class="pp-stat__label">Total general plans</span>
+                      <span class="pp-stat__icon pp-stat__icon--green" aria-hidden="true">
+                        <svg viewBox="0 0 20 20"><path d="M5 2.5h6l4 4v11H5z" /><path d="M11 2.5v4h4" /></svg>
+                      </span>
+                    </div>
+                    <p class="pp-stat__value" id="plan-stat-total">—</p>
+                  </div>
+
+                  <div class="pp-stat">
+                    <div class="pp-stat__top">
+                      <span class="pp-stat__label">Assigned to customers</span>
+                      <span class="pp-stat__icon pp-stat__icon--amber" aria-hidden="true">
+                        <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z" /></svg>
+                      </span>
+                    </div>
+                    <p class="pp-stat__value" id="plan-stat-assigned">—</p>
+                  </div>
+
+                  <div class="pp-stat">
+                    <div class="pp-stat__top">
+                      <span class="pp-stat__label">Newest plan</span>
+                      <span class="pp-stat__icon pp-stat__icon--violet" aria-hidden="true">
+                        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l2.5 2" /></svg>
+                      </span>
+                    </div>
+                    <p class="pp-stat__value pp-stat__value--text" id="plan-stat-newest">—</p>
+                  </div>
                 </div>
-                <div class="dashboard-stat-card" data-tone="fat">
-                  <span class="dashboard-stat-label">Assigned to customers</span>
-                  <span class="dashboard-stat-icon" data-icon="active" aria-hidden="true"></span>
-                  <strong id="plan-stat-assigned">—</strong>
-                </div>
-                <div class="dashboard-stat-card" data-tone="carb">
-                  <span class="dashboard-stat-label">Newest plan</span>
-                  <span class="dashboard-stat-icon" data-icon="clock" aria-hidden="true"></span>
-                  <strong class="dashboard-stat-small" id="plan-stat-newest">—</strong>
-                </div>
-              </section>
-              <section class="dashboard-panel-card">
-                <header class="dashboard-section__header">
+
+                <section class="pp-breakdown">
                   <h2>Plan goals breakdown</h2>
-                </header>
-                <div class="dashboard-goal-bar" id="plan-goal-bar"></div>
-                <div class="dashboard-goal-legend" id="plan-goal-legend"></div>
-              </section>
-            </div>
+                  <div class="pp-bar" id="plan-goal-bar" role="img" aria-label="Plan goals breakdown"></div>
+                  <ul class="pp-legend" id="plan-goal-legend"></ul>
+                </section>
+              </div>
+            </details>
 
-            <label class="dashboard-search">
+            <label class="pp-search">
               <span class="sr-only">Search plans</span>
-              <input id="general-plan-search" type="search" placeholder="Search plans" autocomplete="off" />
+              <svg class="pp-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="m13.5 13.5 3.5 3.5" /></svg>
+              <input class="pp-search__input" id="general-plan-search" type="search" placeholder="Search plans" autocomplete="off" />
             </label>
-            <div class="dashboard-filter-row" id="plan-filter-chips"></div>
-            <section class="dashboard-section dashboard-panel-card">
-              <header class="dashboard-section__header">
-                <h2>All general plans</h2>
-                <span class="dashboard-soft-copy" id="plan-list-count"></span>
-              </header>
-              <div class="dashboard-plan-grid" id="recent-plans"></div>
+
+            <div class="pp-filters" id="plan-filter-chips" role="group" aria-label="Filter plans by goal"></div>
+
+            <section class="pp-list">
+              <h2 class="pp-list__title">All general plans <span id="plan-list-count"></span></h2>
+              <ul class="pp-rows" id="recent-plans"></ul>
             </section>
           </section>
 

@@ -1,0 +1,375 @@
+/* ==========================================================================
+   Pinch — Customer detail
+   Scoped under .pinch-customer. Same tokens as the other pages.
+   ========================================================================== */
+
+.pinch-customer {
+  --pd-ink:        #10261d;
+  --pd-ink-soft:   #6b7b73;
+  --pd-green:      #1c5741;
+  --pd-green-dark: #16442f;
+  --pd-line:       #e6ebe8;
+  --pd-surface:    #ffffff;
+  --pd-hover:      #f3f6f4;
+  --pd-lose:       #c0563f;
+  --pd-lose-bg:    #fbeeea;
+  --pd-gain:       #3f66b5;
+  --pd-gain-bg:    #eaf0fb;
+  --pd-radius:     16px;
+  --pd-gap:        20px;
+
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+  color: var(--pd-ink);
+  box-sizing: border-box;
+}
+
+.pinch-customer *,
+.pinch-customer *::before,
+.pinch-customer *::after { box-sizing: border-box; }
+
+.pinch-customer svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pinch-customer a:focus-visible,
+.pinch-customer button:focus-visible {
+  outline: 2px solid var(--pd-green);
+  outline-offset: 2px;
+}
+
+/* --- Back link ---------------------------------------------------------- */
+
+.pinch-customer .pd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--pd-green);
+  text-decoration: none;
+}
+
+.pinch-customer .pd-back:hover { text-decoration: underline; }
+.pinch-customer .pd-back svg { width: 16px; height: 16px; }
+
+/* --- Profile header ----------------------------------------------------- */
+
+.pinch-customer .pd-profile {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--pd-surface);
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  padding: 22px 24px;
+  margin-bottom: var(--pd-gap);
+}
+
+.pinch-customer .pd-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #eef2f0;
+  color: var(--pd-green);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.pinch-customer .pd-profile__text {
+  min-width: 0;
+  flex: 1;
+}
+
+.pinch-customer .pd-profile__text h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.pinch-customer .pd-profile__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--pd-ink-soft);
+}
+
+.pinch-customer .pd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  padding: 12px 20px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--pd-green);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pinch-customer .pd-btn:hover { background: var(--pd-green-dark); }
+.pinch-customer .pd-btn svg { width: 18px; height: 18px; }
+
+/* --- Goal / status tags ------------------------------------------------- */
+
+.pinch-customer .pd-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pinch-customer .pd-tag--lose    { background: var(--pd-lose-bg); color: var(--pd-lose); }
+.pinch-customer .pd-tag--gain    { background: var(--pd-gain-bg); color: var(--pd-gain); }
+.pinch-customer .pd-tag--active  { background: #e6f3ec; color: #1c7a4f; }
+.pinch-customer .pd-tag--idle    { background: #eef1ef; color: var(--pd-ink-soft); }
+
+.pinch-customer .pd-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+/* --- Details grid ------------------------------------------------------- */
+
+.pinch-customer .pd-card {
+  background: var(--pd-surface);
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  overflow: hidden;
+  margin-bottom: var(--pd-gap);
+}
+
+.pinch-customer .pd-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pd-line);
+}
+
+.pinch-customer .pd-card__head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.pinch-customer .pd-card__count {
+  font-size: 0.9rem;
+  color: var(--pd-ink-soft);
+  margin-left: auto;
+}
+
+.pinch-customer .pd-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+}
+
+.pinch-customer .pd-detail {
+  padding: 18px 20px;
+  border-right: 1px solid var(--pd-line);
+  border-bottom: 1px solid var(--pd-line);
+}
+
+/* last column and last row lose their edge borders */
+.pinch-customer .pd-detail:nth-child(4n) { border-right: 0; }
+.pinch-customer .pd-detail:nth-last-child(-n+4) { border-bottom: 0; }
+
+.pinch-customer .pd-detail__label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--pd-ink-soft);
+  margin-bottom: 8px;
+}
+
+.pinch-customer .pd-detail__value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.pinch-customer .pd-detail__value--text {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.pinch-customer .pd-detail__unit {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--pd-ink-soft);
+  margin-left: 2px;
+}
+
+/* --- Assigned plans ----------------------------------------------------- */
+
+.pinch-customer .pd-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pinch-customer .pd-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--pd-line);
+}
+
+.pinch-customer .pd-row:last-child { border-bottom: 0; }
+.pinch-customer .pd-row:hover { background: var(--pd-hover); }
+
+.pinch-customer .pd-row__link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 8px 14px 20px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.pinch-customer .pd-row__text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pinch-customer .pd-row__name {
+  font-size: 1rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinch-customer .pd-row__time {
+  flex: none;
+  font-size: 0.85rem;
+  color: var(--pd-ink-soft);
+  white-space: nowrap;
+}
+
+.pinch-customer .pd-row__more {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--pd-ink-soft);
+  cursor: pointer;
+}
+
+.pinch-customer .pd-row__more:hover { background: #e8edea; color: var(--pd-ink); }
+.pinch-customer .pd-row__more svg { width: 18px; height: 18px; }
+
+.pinch-customer .pd-empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--pd-ink-soft);
+}
+
+.pinch-customer .pd-empty p { margin: 0 0 16px; }
+
+/* --- Tablet ------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .pinch-customer { padding: 24px 18px 48px; }
+
+  .pinch-customer .pd-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pinch-customer .pd-detail:nth-child(4n) { border-right: 1px solid var(--pd-line); }
+  .pinch-customer .pd-detail:nth-child(2n) { border-right: 0; }
+  .pinch-customer .pd-detail:nth-last-child(-n+4) { border-bottom: 1px solid var(--pd-line); }
+  .pinch-customer .pd-detail:nth-last-child(-n+2) { border-bottom: 0; }
+}
+
+/* --- Phone -------------------------------------------------------------- */
+
+@media (max-width: 620px) {
+  .pinch-customer { padding: 20px 14px 40px; }
+
+  .pinch-customer .pd-profile {
+    padding: 18px 16px;
+    gap: 14px;
+  }
+
+  .pinch-customer .pd-avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 1.15rem;
+  }
+
+  .pinch-customer .pd-profile__text { flex: 1 1 auto; }
+
+  .pinch-customer .pd-btn {
+    width: 100%;
+    padding: 13px 20px;
+  }
+
+  .pinch-customer .pd-detail { padding: 14px 16px; }
+  .pinch-customer .pd-detail__value { font-size: 1.15rem; }
+  .pinch-customer .pd-detail__value--text { font-size: 0.98rem; }
+
+  .pinch-customer .pd-card__head { padding: 16px; }
+
+  .pinch-customer .pd-card__head .pd-btn {
+    width: 100%;
+    order: 3;
+  }
+
+  .pinch-customer .pd-row__link {
+    padding: 12px 4px 12px 14px;
+    gap: 10px;
+  }
+
+  .pinch-customer .pd-row__text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .pinch-customer .pd-row__more { margin-right: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinch-customer * { transition: none !important; }
+}
