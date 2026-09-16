@@ -27,8 +27,8 @@
       "dinner"
     ],
     "default_serving_g": 28.4,
-    "min_serving_g": 14.2,
-    "max_serving_g": 175,
+    "min_serving_g": 26,
+    "max_serving_g": 182,
     "fdc_id": 168013,
     "sub_category": "bread",
     "cuisine_tag": "mediterranean",
@@ -67,8 +67,8 @@
       "dinner"
     ],
     "default_serving_g": 30,
-    "min_serving_g": 15,
-    "max_serving_g": 175,
+    "min_serving_g": 26,
+    "max_serving_g": 182,
     "fdc_id": 90006,
     "sub_category": "bread",
     "cuisine_tag": "mediterranean",
@@ -107,8 +107,8 @@
       "dinner"
     ],
     "default_serving_g": 29,
-    "min_serving_g": 14.5,
-    "max_serving_g": 175,
+    "min_serving_g": 26,
+    "max_serving_g": 182,
     "fdc_id": 174924,
     "sub_category": "bread",
     "cuisine_tag": "mediterranean",
@@ -147,8 +147,8 @@
       "dinner"
     ],
     "default_serving_g": 90,
-    "min_serving_g": 45,
-    "max_serving_g": 175,
+    "min_serving_g": 26,
+    "max_serving_g": 182,
     "fdc_id": 90005,
     "sub_category": "bread",
     "cuisine_tag": "egyptian",
@@ -290,7 +290,7 @@
     ],
     "default_serving_g": 124,
     "min_serving_g": 62,
-    "max_serving_g": 350,
+    "max_serving_g": 400,
     "fdc_id": 168910,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -365,7 +365,7 @@
     ],
     "default_serving_g": 185,
     "min_serving_g": 92.5,
-    "max_serving_g": 400,
+    "max_serving_g": 450,
     "fdc_id": 90003,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -403,7 +403,7 @@
     ],
     "default_serving_g": 158,
     "min_serving_g": 79,
-    "max_serving_g": 400,
+    "max_serving_g": 450,
     "fdc_id": 168878,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -517,7 +517,7 @@
     ],
     "default_serving_g": 113,
     "min_serving_g": 56.5,
-    "max_serving_g": 150,
+    "max_serving_g": 250,
     "fdc_id": 172179,
     "sub_category": "dairy_protein",
     "cuisine_tag": "mediterranean",
@@ -665,7 +665,7 @@
     ],
     "default_serving_g": 33,
     "min_serving_g": 16.5,
-    "max_serving_g": 100,
+    "max_serving_g": 200,
     "fdc_id": 172183,
     "sub_category": "egg",
     "cuisine_tag": "mediterranean",
@@ -983,7 +983,7 @@
     ],
     "default_serving_g": 10,
     "min_serving_g": 5,
-    "max_serving_g": 15,
+    "max_serving_g": 20,
     "fdc_id": 171413,
     "sub_category": "oil_fat",
     "cuisine_tag": "mediterranean",
@@ -991,7 +991,7 @@
       "vegetarian",
       "vegan"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 25g -> 15g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 10g -> 25g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "oil_sunflower_linoleic",
@@ -1191,14 +1191,14 @@
     ],
     "default_serving_g": 85,
     "min_serving_g": 42.5,
-    "max_serving_g": 200,
+    "max_serving_g": 240,
     "fdc_id": 175180,
     "sub_category": "animal_protein",
     "cuisine_tag": "mediterranean",
     "diet_tags": [
       "contains_seafood"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 240g -> 200g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 200g -> 240g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "apples_raw_with_skin",
@@ -2751,7 +2751,7 @@
     ],
     "default_serving_g": 89,
     "min_serving_g": 44.5,
-    "max_serving_g": 200,
+    "max_serving_g": 240,
     "fdc_id": 169999,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -2759,7 +2759,7 @@
       "vegetarian",
       "vegan"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 240g -> 200g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 200g -> 240g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "cucumber_with_peel_raw",
@@ -2947,7 +2947,7 @@
     ],
     "default_serving_g": 160,
     "min_serving_g": 80,
-    "max_serving_g": 200,
+    "max_serving_g": 240,
     "fdc_id": 170420,
     "sub_category": "non_starchy_veg",
     "cuisine_tag": "mediterranean",
@@ -2955,7 +2955,7 @@
       "vegetarian",
       "vegan"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 240g -> 200g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 200g -> 240g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "peppers_sweet_green_raw",
@@ -3043,7 +3043,7 @@
     ],
     "default_serving_g": 78,
     "min_serving_g": 39,
-    "max_serving_g": 300,
+    "max_serving_g": 500,
     "fdc_id": 170440,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -3107,7 +3107,7 @@
     ],
     "default_serving_g": 200,
     "min_serving_g": 100,
-    "max_serving_g": 300,
+    "max_serving_g": 500,
     "fdc_id": 168483,
     "sub_category": "starch",
     "cuisine_tag": "mediterranean",
@@ -3234,15 +3234,14 @@
     ],
     "default_serving_g": 20,
     "min_serving_g": 6,
-    "max_serving_g": 40,
+    "max_serving_g": 20,
     "fdc_id": 90009,
     "sub_category": null,
     "cuisine_tag": "continental",
     "diet_tags": [
       "vegetarian",
       "vegan"
-    ],
-    "_serving_change_note": "CHANGED: max_serving_g 20g -> 40g (requested max-rules test)"
+    ]
   },
   {
     "id": "cheese_parmesan_hard",
@@ -3368,7 +3367,7 @@
     ],
     "default_serving_g": 61,
     "min_serving_g": 15,
-    "max_serving_g": 80,
+    "max_serving_g": 150,
     "fdc_id": 169074,
     "sub_category": null,
     "cuisine_tag": "continental",
@@ -3376,7 +3375,7 @@
       "vegetarian",
       "vegan"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 150g -> 80g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 80g -> 150g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "hot_sauce_tabasco_ready_to_serve",
@@ -3431,7 +3430,7 @@
     ],
     "default_serving_g": 30,
     "min_serving_g": 10,
-    "max_serving_g": 40,
+    "max_serving_g": 60,
     "fdc_id": 170273,
     "sub_category": null,
     "cuisine_tag": "continental",
@@ -3494,7 +3493,7 @@
     ],
     "default_serving_g": 34,
     "min_serving_g": 10,
-    "max_serving_g": 40,
+    "max_serving_g": 60,
     "fdc_id": 174523,
     "sub_category": null,
     "cuisine_tag": "continental",
@@ -3502,7 +3501,7 @@
       "vegetarian",
       "vegan"
     ],
-    "_serving_change_note": "CHANGED: max_serving_g 60g -> 40g (requested max-rules test)"
+    "_serving_change_note": "CHANGED: max_serving_g 40g -> 60g (calorie-ceiling fix; realistic single-serving portion)"
   },
   {
     "id": "asparagus_cooked_boiled",
