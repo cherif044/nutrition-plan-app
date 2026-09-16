@@ -35,6 +35,9 @@ function folderPathFromArrays(ids = [], names = []) {
 }
 
 function planRowToSummary(row) {
+  const calories = row.plan_calories === null || row.plan_calories === undefined
+    ? null
+    : Number(row.plan_calories);
   return {
     id: row.id,
     folder_id: row.folder_id,
@@ -48,6 +51,7 @@ function planRowToSummary(row) {
     status: row.status || row.diagnostic_status || null,
     goal: row.goal || null,
     dietType: row.diet_type || null,
+    calories: Number.isFinite(calories) && calories > 0 ? calories : null,
   };
 }
 
@@ -187,6 +191,11 @@ async function listGeneralPlans(userId, { query = '', limit = DEFAULT_DASHBOARD_
       p.plan_data#>>'{diagnostics,status}' AS diagnostic_status,
       p.plan_data#>>'{input,goal}' AS goal,
       p.plan_data#>>'{input,dietType}' AS diet_type,
+      COALESCE(
+        p.plan_data#>>'{dailyActuals,calories}',
+        p.plan_data#>>'{dailyTargets,calories}',
+        p.plan_data#>>'{nutritionCalculation,targetCalories}'
+      ) AS plan_calories,
       COALESCE(fp.folder_path_ids, ARRAY[]::text[]) AS folder_path_ids,
       COALESCE(fp.folder_path_names, ARRAY[]::text[]) AS folder_path_names
     FROM plans p
@@ -249,6 +258,11 @@ async function listRecentPlans(userId) {
       p.plan_data#>>'{diagnostics,status}' AS diagnostic_status,
       p.plan_data#>>'{input,goal}' AS goal,
       p.plan_data#>>'{input,dietType}' AS diet_type,
+      COALESCE(
+        p.plan_data#>>'{dailyActuals,calories}',
+        p.plan_data#>>'{dailyTargets,calories}',
+        p.plan_data#>>'{nutritionCalculation,targetCalories}'
+      ) AS plan_calories,
       COALESCE(fp.folder_path_ids, ARRAY[]::text[]) AS folder_path_ids,
       COALESCE(fp.folder_path_names, ARRAY[]::text[]) AS folder_path_names
     FROM plans p

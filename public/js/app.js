@@ -294,6 +294,10 @@ let customerOptions = [];
 const mealStates = [];
 let dailyTargets = null;
 let dailyBounds = null;
+let showTargets = false;
+let manualMode = false;
+let manualModeLocked = false;
+let latestSavedPlanData = null;
 let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
@@ -313,6 +317,24 @@ const touchedProfileFields = new Set();
 const preGenerationCustomerState = preGenerationCustomerPicker
   ? bindCustomerPicker(preGenerationCustomerPicker)
   : { mode: 'general', selected: null, exactMatch: null, requestId: 0 };
+
+window.addEventListener('pageshow', () => {
+  setShowTargets(false);
+});
+
+function isManualModeActive() {
+  return manualMode || manualModeLocked;
+}
+
+function clonePlanData(planData) {
+  if (!planData) return null;
+  if (typeof structuredClone === 'function') return structuredClone(planData);
+  return JSON.parse(JSON.stringify(planData));
+}
+
+function setLatestSavedPlanData(planData) {
+  latestSavedPlanData = clonePlanData(planDataForPersistence(planData));
+}
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
   const text = await response.text();
@@ -435,6 +457,7 @@ async function generateAndRender(apiUrl) {
       currentPlanName = readPreGenerationPlanName();
       currentPlanHasCustomer = planWillHaveCustomer();
       firstCreationPending = true;
+      setLatestSavedPlanData(payload);
       renderPlan(payload, { firstCreation: true, planId: null, planName: currentPlanName });
       startInitialPlanSave(payload, timeline);
     }
@@ -825,6 +848,7 @@ async function loadPlanForEdit(planId) {
     currentPlanHasCustomer = Boolean(plan.customer_id);
     firstCreationPending = false;
     hasUnsavedChanges = false;
+    setLatestSavedPlanData(plan.plan_data);
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
     switchPlannerView('plan', { push: false });
@@ -879,6 +903,11 @@ function populateFormFromInput(input) {
 function renderPlan(plan, { editMode = false, firstCreation = false, planId = null, planName = '' } = {}) {
   output.innerHTML = '';
   output.removeAttribute('aria-busy');
+  manualModeLocked = Boolean(plan.manualMode);
+  manualMode = manualModeLocked;
+  showTargets = false;
+  output.classList.toggle('plan-output--hide-targets', !showTargets);
+  output.classList.toggle('plan-output--manual', isManualModeActive());
   mealStates.length = 0;
   currentPlanInput = plan.input || null;
   allowedProduceFoods = normalizeAllowedProduceFoods(plan.allowedProduceFoods || []);
@@ -929,9 +958,10 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
   }
 
   plan.meals.forEach((meal, mealIndex) => {
-    const mealOptions = (meal.mealOptions || [])
-      .map(normalizeMealOption)
-      .filter((option) => mealOptionFitsTarget(option, meal.target));
+    const mealOptions = (meal.mealOptions || []).map(normalizeMealOption);
+    const displayMealOptions = isManualModeActive()
+      ? mealOptions
+      : mealOptions.filter((option) => mealOptionFitsTarget(option, meal.target));
     const originalMealOption = normalizeMealOption({
       templateId: meal.originalTemplateId || null,
       templateName: meal.originalTemplateName || meal.name,
@@ -953,9 +983,9 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
       candidateSource: meal.candidateSource || null,
       isApproximate: Boolean(meal.isApproximate),
       unavailableReason: meal.unavailableReason || null,
-      mealOptions,
-      mealOptionIndex: restoredMealOptionIndex(meal, originalMealOption, mealOptions),
-      editModeEnabled: false,
+      mealOptions: displayMealOptions,
+      mealOptionIndex: restoredMealOptionIndex(meal, originalMealOption, displayMealOptions),
+      editModeEnabled: isManualModeActive(),
       pendingProposal: null,
       originalItems: (meal.originalItems || meal.items).map((item) => ({
         food: item.food,
@@ -985,6 +1015,7 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
   }
 
   refreshRedFlags();
+  refreshManualModeUi();
   if (plannerCtx?.exportPdf) schedulePdfExport();
 }
 
@@ -1057,6 +1088,21 @@ function renderSummary(targets, serverBounds = null) {
   dailyTargets = targets;
   dailyBounds = serverBounds;
   const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
+  const summaryHeader = summary.querySelector('.summary__header');
+  if (summaryHeader) {
+    const summaryControls = summaryHeader.querySelector('.summary__controls') || summaryHeader;
+    const targetToggle = document.createElement('label');
+    targetToggle.className = 'target-toggle';
+    targetToggle.innerHTML = `
+      <input type="checkbox" ${showTargets ? 'checked' : ''} ${isManualModeActive() ? 'disabled' : ''} />
+      <span>Show targets</span>
+    `;
+    targetToggle.querySelector('input').addEventListener('change', (event) => {
+      setShowTargets(event.target.checked);
+    });
+    summaryControls.prepend(targetToggle);
+    bindManualModeSwitch(summaryControls);
+  }
   const metrics = summary.querySelector('.metrics');
   const rangeNote = summary.querySelector('.summary__ranges');
   if (rangeNote) {
@@ -1131,6 +1177,94 @@ function dailyRangeNoteHtml(targets, serverBounds = null) {
   `).join('');
 }
 
+function setShowTargets(nextValue) {
+  showTargets = isManualModeActive() ? false : Boolean(nextValue);
+  output?.classList.toggle('plan-output--hide-targets', !showTargets);
+  output?.querySelectorAll('.target-toggle input').forEach((input) => {
+    input.checked = showTargets;
+    input.disabled = isManualModeActive();
+  });
+  refreshRedFlags();
+}
+
+function manualModeControlHtml() {
+  const disabled = manualModeLocked ? 'disabled' : '';
+  return `
+    <button class="manual-mode-button${isManualModeActive() ? ' is-active' : ''}" type="button" ${disabled}>
+      ${isManualModeActive() ? 'Manual mode on' : 'Manual mode'}
+    </button>
+  `;
+}
+
+function bindManualModeSwitch(root) {
+  root.querySelector('.manual-mode-button')?.addEventListener('click', () => {
+    setManualMode(!isManualModeActive());
+  });
+}
+
+function refreshManualModeUi() {
+  output?.classList.toggle('plan-output--manual', isManualModeActive());
+  output?.classList.toggle('plan-output--hide-targets', !showTargets || isManualModeActive());
+  if (isManualModeActive()) {
+    mealStates.forEach((state) => removeManualModeMealControls(state.cardEl));
+  }
+  document.querySelectorAll('.manual-mode-button').forEach((button) => {
+    button.classList.toggle('is-active', isManualModeActive());
+    button.disabled = manualModeLocked;
+    button.textContent = isManualModeActive() ? 'Manual mode on' : 'Manual mode';
+  });
+  output?.querySelectorAll('.target-toggle input').forEach((input) => {
+    input.checked = showTargets && !isManualModeActive();
+    input.disabled = isManualModeActive();
+  });
+}
+
+function setManualMode(enabled) {
+  if (manualModeLocked) {
+    refreshManualModeUi();
+    return;
+  }
+
+  if (!enabled) {
+    manualMode = false;
+    showTargets = false;
+    hasUnsavedChanges = false;
+    const snapshot = clonePlanData(latestSavedPlanData || buildPlanData());
+    renderPlan(snapshot, {
+      editMode: Boolean(currentPlanId) && !firstCreationPending,
+      firstCreation: firstCreationPending,
+      planId: currentPlanId,
+      planName: currentPlanName,
+    });
+    message.textContent = 'Manual changes reverted to the latest saved plan.';
+    return;
+  }
+
+  manualMode = true;
+  showTargets = false;
+  closeAllActionPanels();
+  mealStates.forEach((state) => {
+    state.editModeEnabled = true;
+    renderFoodList(state);
+    refreshMealCustomizationControls(state);
+    refreshMealCardHeader(state.cardEl, state);
+  });
+  refreshRedFlags();
+  refreshManualModeUi();
+}
+
+function closeAllActionPanels() {
+  mealStates.forEach((state) => {
+    if (state.cardEl?.isConnected) closeActionPanel(state);
+    state.pendingProposal = null;
+  });
+}
+
+function removeManualModeMealControls(card) {
+  if (!card) return;
+  card.querySelectorAll('.meal-cycle-btn, .edit-mode-switch').forEach((el) => el.remove());
+}
+
 // ── Red flags (daily level) ──────────────────────────────────────────────────
 
 function refreshRedFlags() {
@@ -1150,7 +1284,7 @@ function refreshRedFlags() {
 
   for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
     const tgt = dailyTargets[key];
-    const flagged = !dailyMetricFitsTarget(key, actual[key], dailyTargets, dailyBounds);
+    const flagged = showTargets && !dailyMetricFitsTarget(key, actual[key], dailyTargets, dailyBounds);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
     if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
@@ -1158,7 +1292,7 @@ function refreshRedFlags() {
     const actualEl = summaryEl.querySelector(`.daily-actual-${key}`);
     if (actualEl) actualEl.textContent = formatNumber(actual[key]);
 
-    const percent = tgt > 0 ? (actual[key] / tgt) * 100 : 0;
+    const percent = showTargets && tgt > 0 ? (actual[key] / tgt) * 100 : 100;
     const clamped = Math.min(Math.max(percent, 0), 100);
     const barEl = metricEl?.querySelector('.metric-bar i');
     if (barEl) barEl.style.width = `${clamped}%`;
@@ -1197,11 +1331,17 @@ function renderMealCard(state) {
   card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
   card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
   card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
-  card.querySelector('.edit-mode-toggle').addEventListener('change', (event) => {
+  const editToggle = card.querySelector('.edit-mode-toggle');
+  if (editToggle) {
+    editToggle.checked = state.editModeEnabled;
+    editToggle.disabled = isManualModeActive();
+  }
+  editToggle?.addEventListener('change', (event) => {
     setMealAiMode(state, event.target.checked);
   });
   refreshMealCustomizationControls(state);
   refreshMealCycleButtons(state);
+  if (isManualModeActive()) removeManualModeMealControls(card);
 
   return card;
 }
@@ -1223,6 +1363,11 @@ function setMealAiMode(state, enabled) {
 function refreshMealCustomizationControls(state) {
   const tray = state.cardEl?.querySelector('.meal-add-tray');
   if (tray) tray.hidden = !state.editModeEnabled;
+  const toggle = state.cardEl?.querySelector('.edit-mode-toggle');
+  if (toggle) {
+    toggle.checked = state.editModeEnabled;
+    toggle.disabled = isManualModeActive();
+  }
 }
 
 function refreshMealCardHeader(card, state) {
@@ -1362,6 +1507,7 @@ function foodRowSignature(item) {
     item.food?.name ?? '',
     Number(item.quantityG) || 0,
     item.customFood ? '1' : '0',
+    isManualModeActive() ? 'manual' : 'standard',
   ].join('|');
 }
 
@@ -1391,8 +1537,9 @@ function updateFoodRow(row, state, itemIndex) {
   setFoodMedia(iconEl, food, 15);
   row.querySelector('.food-name').textContent = food.name;
 
+  renderPortionCell(row, state, itemIndex, item);
+
   const cells = {
-    '.food-cell--portion': formatPortion(item),
     '.food-cell--cal': formatNumber(totals.calories),
     '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
     '.food-cell--carb': `${formatNumber(totals.carbG)}g`,
@@ -1402,6 +1549,70 @@ function updateFoodRow(row, state, itemIndex) {
     row.querySelector(selector).textContent = value;
   }
   return true;
+}
+
+function renderPortionCell(row, state, itemIndex, item) {
+  const cell = row.querySelector('.food-cell--portion');
+  if (!cell) return;
+  if (!isManualModeActive() || plannerCtx?.exportPdf) {
+    cell.textContent = formatPortion(item);
+    return;
+  }
+
+  cell.innerHTML = `
+    <input
+      class="manual-grams-input"
+      type="number"
+      min="1"
+      step="1"
+      inputmode="decimal"
+      value="${escapeHtml(Math.round((Number(item.quantityG) || 0) * 10) / 10)}"
+      aria-label="Grams of ${escapeHtml(item.food?.name || 'food')}"
+    />
+    <span>g</span>
+  `;
+  const input = cell.querySelector('.manual-grams-input');
+  input.addEventListener('input', () => updateManualItemQuantity(state, itemIndex, input.value));
+  input.addEventListener('change', () => {
+    const itemNow = state.items[itemIndex];
+    if (!itemNow?.food) return;
+    const next = Math.max(1, Number(input.value) || 1);
+    itemNow.quantityG = Math.round(next * 10) / 10;
+    input.value = String(itemNow.quantityG);
+    updateManualItemQuantity(state, itemIndex, input.value, { force: true });
+  });
+}
+
+function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } = {}) {
+  if (!isManualModeActive()) return;
+  const item = state.items[itemIndex];
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!item?.food || !row) return;
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value <= 0) {
+    if (force) return;
+    return;
+  }
+  item.quantityG = Math.round(value * 10) / 10;
+  row.dataset.signature = foodRowSignature(item);
+  updateFoodMacroCells(row, item);
+  persistCurrentMealOption(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+  markPlanUnsaved();
+}
+
+function updateFoodMacroCells(row, item) {
+  const totals = itemTotals(item.food, item.quantityG);
+  const cells = {
+    '.food-cell--cal': formatNumber(totals.calories),
+    '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
+    '.food-cell--carb': `${formatNumber(totals.carbG)}g`,
+    '.food-cell--fat': `${formatNumber(totals.fatG)}g`,
+  };
+  for (const [selector, value] of Object.entries(cells)) {
+    row.querySelector(selector).textContent = value;
+  }
 }
 
 function renderPendingFoodSearchRow(row, state, itemIndex) {
@@ -1647,6 +1858,7 @@ function readyMealOptions(state) {
 }
 
 async function handleCycleMealOption(state, direction) {
+  if (isManualModeActive()) return;
   persistCurrentMealOption(state);
   const options = readyMealOptions(state);
   if (options.length <= 1) {
@@ -1655,7 +1867,9 @@ async function handleCycleMealOption(state, direction) {
     return;
   }
 
-  const nextIndex = nextDaySafeMealOptionIndex(state, direction, options);
+  const nextIndex = isManualModeActive()
+    ? nextMealOptionIndex(state, direction, options)
+    : nextDaySafeMealOptionIndex(state, direction, options);
   if (nextIndex === null) {
     showActionMessage(state, 'No other ready meal fits this meal window.');
     refreshMealCycleButtons(state);
@@ -1663,6 +1877,13 @@ async function handleCycleMealOption(state, direction) {
   }
 
   applyReadyMealOption(state, options[nextIndex], nextIndex);
+}
+
+function nextMealOptionIndex(state, direction, options) {
+  if (!options.length) return null;
+  const currentIndex = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  const step = direction >= 0 ? 1 : -1;
+  return (currentIndex + step + options.length) % options.length;
 }
 
 function nextDaySafeMealOptionIndex(state, direction, options) {
@@ -1776,6 +1997,10 @@ function attemptInlineAddFood(state, itemIndex, food) {
       ? normalizeStateItem({ food, quantityG: food.defaultServingG })
       : item
   ));
+  if (isManualModeActive()) {
+    applyManualMealItems(state, attempted, { successRowIndex: itemIndex });
+    return;
+  }
   attemptGuidedRebalance(state, {
     action: 'add_food',
     attemptedItems: attempted,
@@ -1794,11 +2019,19 @@ function attemptInlineSwapFood(state, itemIndex, food) {
   ));
   renderFoodList(state);
   refreshMealCardHeader(state.cardEl, state);
+  if (isManualModeActive()) {
+    applyManualFoodSwap(state, itemIndex, food);
+    return;
+  }
   attemptSwapFood(state, itemIndex, food);
 }
 
 function showRemoveFoodAction(state, itemIndex = null) {
   const foods = state.items.filter((item) => item.food);
+  if (isManualModeActive() && Number.isInteger(itemIndex)) {
+    applyManualMealItems(state, state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex));
+    return;
+  }
   if (foods.length <= 1) {
     showActionFeedback(state, {
       tone: 'danger',
@@ -1847,6 +2080,10 @@ function showRemoveFoodAction(state, itemIndex = null) {
     btn.addEventListener('click', () => {
       const itemIndex = state.items.findIndex((candidate) => candidate === item);
       if (itemIndex < 0) return;
+      if (isManualModeActive()) {
+        applyManualMealItems(state, state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex));
+        return;
+      }
       const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
       const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
       attemptGuidedRebalance(state, {
@@ -1860,6 +2097,34 @@ function showRemoveFoodAction(state, itemIndex = null) {
     });
     list.append(btn);
   });
+}
+
+function applyManualFoodSwap(state, itemIndex, food) {
+  const item = state.items[itemIndex];
+  if (!item?.food || !food) return;
+  const quantityG = clampGrams(food, item.quantityG, 1) || food.defaultServingG || item.quantityG || 100;
+  const attempted = state.items.map((candidate, candidateIndex) => (
+    candidateIndex === itemIndex
+      ? normalizeStateItem({ ...candidate, food, quantityG })
+      : candidate
+  ));
+  applyManualMealItems(state, attempted, { successRowIndex: itemIndex });
+}
+
+function applyManualMealItems(state, items, { successRowIndex = null } = {}) {
+  state.items = items.map(normalizeStateItem);
+  state.isOriginalTemplate = false;
+  state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
+  resetProduceSwapCache(state);
+  persistCurrentMealOption(state);
+  closeActionPanel(state);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
+  refreshRedFlags();
+  resetChat(state);
+  if (Number.isInteger(successRowIndex)) pulseFoodRow(state, successRowIndex);
+  markPlanUnsaved();
 }
 
 function createDeleteUndoContext(state, itemIndex, item) {
@@ -2013,6 +2278,10 @@ function renderSwapSuggestionEmpty(list, message) {
 async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
   list.innerHTML = '';
   appendSwapSearchButton(state, itemIndex, list);
+  if (isManualModeActive()) {
+    renderSwapSuggestionEmpty(list, 'Search any food to swap manually.');
+    return;
+  }
   renderSwapSuggestionEmpty(list, 'Finding good swaps...');
 
   const foodId = item.food.id;
@@ -2103,6 +2372,10 @@ function uniqueFoods(foods) {
 function attemptSwapFood(state, itemIndex, alt) {
   const item = state.items[itemIndex];
   if (!item?.food || !alt) return;
+  if (isManualModeActive()) {
+    applyManualFoodSwap(state, itemIndex, alt);
+    return;
+  }
   const replacementQuantityG = clampGrams(alt, item.quantityG, 5) || alt.defaultServingG || item.quantityG;
   const attempted = state.items.map((candidate, candidateIndex) => (
     candidateIndex === itemIndex
@@ -2130,6 +2403,25 @@ async function handleCycleProduceSwap(state, itemIndex) {
   if (btn) btn.disabled = true;
 
   try {
+    if (isManualModeActive()) {
+      const candidates = (await allowedProduceFoodsForGroup(state, group))
+        .filter((food) => food.id !== item.food.id)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!candidates.length) {
+        showActionFeedback(state, {
+          tone: 'danger',
+          message: `No other ${group} is available right now.`,
+          cardClass: 'meal-card--flash-fail',
+        });
+        return;
+      }
+      const index = Math.max(0, Number(item.produceSwapIndex || 0)) % candidates.length;
+      const nextFood = candidates[index];
+      state.items[itemIndex].produceSwapIndex = (index + 1) % candidates.length;
+      applyManualFoodSwap(state, itemIndex, nextFood);
+      return;
+    }
+
     let option = nextCachedProduceSwapOption(state, itemIndex, group);
     if (!option) {
       const entry = await ensureProduceSwapEntryForItem(state, itemIndex, group, { silent: true });
@@ -2494,6 +2786,10 @@ async function attemptGuidedRebalance(state, {
   successRowIndex = null,
   deleteUndo = null,
 } = {}) {
+  if (isManualModeActive()) {
+    applyManualMealItems(state, attemptedItems, { successRowIndex });
+    return;
+  }
   const shouldApplyImmediately = state.editModeEnabled && ['add_food', 'add_custom_food', 'remove_food', 'swap_food'].includes(action);
   if (!shouldApplyImmediately) {
     showActionMessage(state, 'Checking meal fit...');
@@ -3258,13 +3554,17 @@ function replacePlannerUrlWithSavedPlan(planId) {
 
 async function createGeneratedPlanRecord(planData, timeline = null) {
   const { name, customerPayload, isActive } = preGenerationSavePayload();
+  const planDataToSave = {
+    ...planData,
+    manualMode: Boolean(planData?.manualMode || isManualModeActive()),
+  };
   const saveStartedAt = performance.now();
   const res = await fetch(planCreateUrl(), {
     method: 'POST',
     headers: timeline ? timelineHeaders(timeline) : { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      planData: planDataForPersistence(planData),
+      planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
       isActive,
     }),
@@ -3289,6 +3589,7 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
       saveStatus: res.status,
     });
   }
+  setLatestSavedPlanData(planDataToSave);
   return data.plan;
 }
 
@@ -3301,6 +3602,7 @@ function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
       currentPlanName = createdPlan.name || currentPlanName || readPreGenerationPlanName();
       currentPlanHasCustomer = Boolean(createdPlan.customer_id);
       firstCreationPending = true;
+      setLatestSavedPlanData(planData);
       replacePlannerUrlWithSavedPlan(currentPlanId);
       showInitialCreationBar(currentPlanId, currentPlanName, { statusText: 'Saved' });
       return createdPlan;
@@ -3328,13 +3630,17 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
   }
 
   const { customerPayload, isActive } = preGenerationSavePayload();
+  const planDataToSave = {
+    ...planData,
+    manualMode: Boolean(planData?.manualMode || isManualModeActive()),
+  };
   if (status) setSaveStatus('Saving...');
   const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      planData: planDataForPersistence(planData),
+      planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
       isActive,
     }),
@@ -3347,6 +3653,19 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
 
   currentPlanName = data.plan?.name || name;
   currentPlanHasCustomer = Boolean(data.plan?.customer_id);
+  setLatestSavedPlanData(planDataToSave);
+  if (planDataToSave.manualMode) {
+    manualMode = true;
+    manualModeLocked = true;
+    output?.classList.add('plan-output--manual', 'plan-output--hide-targets');
+    mealStates.forEach((state) => {
+      state.editModeEnabled = true;
+      renderFoodList(state);
+      refreshMealCustomizationControls(state);
+      refreshMealCardHeader(state.cardEl, state);
+    });
+    refreshManualModeUi();
+  }
   hasUnsavedChanges = false;
   if (status) setSaveStatus('Saved');
   return true;
@@ -3458,6 +3777,7 @@ function showEditBar(planId, initialName) {
     const ok = await saveCurrentPlanChanges({ force: true });
     if (!ok) return;
     showSaveToast('Changes saved');
+    showEditBar(currentPlanId || planId, currentPlanName || initialName);
   });
 
   bar.querySelector('.save-action-bar__revert')?.addEventListener('click', async () => {
@@ -3531,6 +3851,11 @@ function showInitialCreationBar(planId, initialName, { statusText = null, allowR
       btn.disabled = false;
       btn.innerHTML = restoreHtml;
       return;
+    }
+    if (isManualModeActive() || planData.manualMode) {
+      manualMode = true;
+      manualModeLocked = true;
+      refreshManualModeUi();
     }
     firstCreationPending = false;
     return true;
@@ -3824,6 +4149,7 @@ function buildPlanData() {
 
   return {
     input: readForm(),
+    manualMode: isManualModeActive(),
     dailyTargets,
     allowedProduceFoods,
     dailyActuals: actual,

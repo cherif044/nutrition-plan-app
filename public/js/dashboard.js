@@ -36,6 +36,7 @@ const GOAL_COLORS = {
   inactive: '#9aa6a0',
   unknown: '#9aa6a0',
 };
+const PLAN_CALORIE_RANGE_SIZE = 200;
 
 const state = {
   user: null,
@@ -132,6 +133,40 @@ function planGoalKey(plan) {
   return plan.goal || plan.plan_data?.input?.goal || plan.planData?.input?.goal || 'unknown';
 }
 
+function planCalories(plan) {
+  const value = Number(
+    plan.calories
+    ?? plan.targetCalories
+    ?? plan.plan_data?.dailyActuals?.calories
+    ?? plan.planData?.dailyActuals?.calories
+    ?? plan.plan_data?.dailyTargets?.calories
+    ?? plan.planData?.dailyTargets?.calories
+    ?? plan.plan_data?.nutritionCalculation?.targetCalories
+    ?? plan.planData?.nutritionCalculation?.targetCalories
+  );
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function planCalorieRange(plan) {
+  const calories = planCalories(plan);
+  if (!calories) return null;
+  const min = Math.floor(calories / PLAN_CALORIE_RANGE_SIZE) * PLAN_CALORIE_RANGE_SIZE;
+  const max = min + PLAN_CALORIE_RANGE_SIZE;
+  return {
+    key: `${min}-${max}`,
+    label: `${min}-${max}`,
+    searchLabel: `${min}-${max} calories`,
+  };
+}
+
+function planCalorieRangeKey(plan) {
+  return planCalorieRange(plan)?.key || null;
+}
+
+function planCalorieRangeLabel(plan) {
+  return planCalorieRange(plan)?.label || '';
+}
+
 function matchesSearch(values, term) {
   if (!term) return true;
   const haystack = values.filter(Boolean).join(' ').toLowerCase();
@@ -141,6 +176,7 @@ function matchesSearch(values, term) {
 function countBy(items, keyFn) {
   return items.reduce((counts, item) => {
     const key = keyFn(item);
+    if (!key) return counts;
     counts[key] = (counts[key] || 0) + 1;
     return counts;
   }, {});
@@ -264,13 +300,17 @@ function planPageRow(plan) {
   const updatedAt = plan.updated_at || plan.created_at;
   const goal = planGoalKey(plan);
   const visualKey = planGoalVisualKey(goal);
+  const calorieRange = planCalorieRangeLabel(plan);
   return `
-    <li class="pp-row" data-name="${escapeHtml(plan.name)}" data-goal="${escapeHtml(goal)}">
+    <li class="pp-row" data-name="${escapeHtml(plan.name)}" data-goal="${escapeHtml(goal)}" data-calorie-range="${escapeHtml(calorieRange)}">
       <a class="pp-row__link" href="${escapeHtml(planHref(plan))}">
         <span class="pp-row__text">
           <span class="pp-row__name">${escapeHtml(plan.name)}</span>
-          <span class="pp-goal pp-goal--${escapeHtml(visualKey)}">
-            <span class="pp-dot"></span>${escapeHtml(goalLabel(goal))}
+          <span class="pp-row__tags">
+            <span class="pp-goal pp-goal--${escapeHtml(visualKey)}">
+              <span class="pp-dot"></span>${escapeHtml(goalLabel(goal))}
+            </span>
+            ${calorieRange ? `<span class="pp-calorie-range">${escapeHtml(calorieRange)}</span>` : ''}
           </span>
         </span>
         <span class="pp-row__time">${escapeHtml(formatRelativeTime(updatedAt))}</span>
@@ -532,26 +572,31 @@ function renderFilterChips(containerId, counts, total, activeKey, order) {
 }
 
 function planFilterChip(key, label, count, active) {
-  const visualKey = key ? planGoalVisualKey(key) : 'all';
   return `
     <button type="button" class="pp-chip" data-key="${escapeHtml(key || '')}" aria-pressed="${active ? 'true' : 'false'}">
-      <span class="pp-dot pp-dot--${escapeHtml(visualKey)}"></span>
+      <span class="pp-dot pp-dot--calories"></span>
       ${escapeHtml(label)}
       <span>${Number(count || 0).toLocaleString()}</span>
     </button>
   `;
 }
 
+function sortCalorieRangeKeys(keys) {
+  return [...keys].sort((a, b) => {
+    const left = Number(String(a).split('-')[0]);
+    const right = Number(String(b).split('-')[0]);
+    if (Number.isFinite(left) && Number.isFinite(right) && left !== right) return left - right;
+    return String(a).localeCompare(String(b));
+  });
+}
+
 function renderPlanFilterChips(counts, total, activeKey) {
   const container = document.getElementById('plan-filter-chips');
   if (!container) return;
-  const keys = [
-    ...GOAL_ORDER.filter((key) => counts[key]),
-    ...Object.keys(counts).filter((key) => !GOAL_ORDER.includes(key)),
-  ];
+  const keys = sortCalorieRangeKeys(Object.keys(counts));
   container.innerHTML = [
     planFilterChip(null, 'All', total, activeKey === null),
-    ...keys.map((key) => planFilterChip(key, goalLabel(key), counts[key], activeKey === key)),
+    ...keys.map((key) => planFilterChip(key, `${key} calories`, counts[key], activeKey === key)),
   ].join('');
 }
 
@@ -657,10 +702,16 @@ function renderCustomersPage() {
 
 function renderPlansPage() {
   const assignedCount = Math.max(0, Number(state.stats.totalPlans || 0) - state.generalPlans.length);
-  const counts = countBy(state.generalPlans, planGoalKey);
+  const goalCounts = countBy(state.generalPlans, planGoalKey);
+  const rangeCounts = countBy(state.generalPlans, planCalorieRangeKey);
   const filtered = state.generalPlans.filter((plan) => (
-    (state.planFilter === null || planGoalKey(plan) === state.planFilter)
-    && matchesSearch([plan.name, folderBreadcrumb(plan), goalLabel(planGoalKey(plan))], state.planSearch)
+    (state.planFilter === null || planCalorieRangeKey(plan) === state.planFilter)
+    && matchesSearch([
+      plan.name,
+      folderBreadcrumb(plan),
+      goalLabel(planGoalKey(plan)),
+      planCalorieRange(plan)?.searchLabel,
+    ], state.planSearch)
   ));
   const newest = state.generalPlans[0]?.updated_at || state.generalPlans[0]?.created_at;
 
@@ -675,8 +726,8 @@ function renderPlansPage() {
     : state.generalPlans.length
       ? '<li class="pp-empty">No plans match those filters.</li>'
       : '<li class="pp-empty-state"><p>No plans yet.</p><a href="/planner" class="pp-btn">Create your first plan</a></li>';
-  renderPlanFilterChips(counts, state.generalPlans.length, state.planFilter);
-  renderPlanGoalBreakdown(counts);
+  renderPlanFilterChips(rangeCounts, state.generalPlans.length, state.planFilter);
+  renderPlanGoalBreakdown(goalCounts);
 }
 
 async function loadCustomerPlans(customerId) {

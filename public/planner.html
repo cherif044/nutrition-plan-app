@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/styles.css?v=manual-mode-controls-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -220,6 +220,9 @@
       <section class="summary panel">
         <header class="summary__header">
           <h2>Daily totals</h2>
+          <div class="summary__controls">
+            <button class="manual-mode-button" type="button">Manual mode</button>
+          </div>
         </header>
         <div class="summary__ranges" aria-label="Allowed daily macro ranges"></div>
         <div class="metrics"></div>
@@ -278,6 +281,6 @@
       </article>
     </template>
 
-    <script src="/js/app.js" defer></script>
+    <script src="/js/app.js?v=manual-mode-controls-2" defer></script>
   </body>
 </html>

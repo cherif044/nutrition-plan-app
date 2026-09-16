@@ -2564,6 +2564,81 @@ select:focus,
   font-size: 1rem;
 }
 
+.target-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--ref-muted-fg);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.target-toggle input {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.target-toggle span {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+}
+
+.summary__controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.manual-mode-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--ref-border);
+  border-radius: 8px;
+  background: var(--ref-card);
+  color: var(--ref-muted-fg);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manual-mode-button.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.manual-mode-button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.plan-output--hide-targets .summary__ranges,
+.plan-output--hide-targets .meal-card__ranges,
+.plan-output--hide-targets .metric-range,
+.plan-output--hide-targets .flag-detail,
+.plan-output--hide-targets .cal-ring__caption b,
+.plan-output--hide-targets .metric--macro .metric__top strong small {
+  display: none !important;
+}
+
+.plan-output--hide-targets .metric--flagged,
+.plan-output--hide-targets .metric--macro.metric--flagged {
+  border-color: var(--ref-border);
+  background: var(--ref-card);
+}
+
 .metrics {
   gap: 14px;
 }
@@ -6951,6 +7026,39 @@ label,
   line-height: 1.2;
 }
 
+.manual-grams-input {
+  width: 58px;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  font-weight: inherit;
+  text-align: right;
+  outline: none;
+  box-shadow: none;
+}
+
+.manual-grams-input::-webkit-outer-spin-button,
+.manual-grams-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.plan-output--manual .target-toggle {
+  opacity: 0.58;
+}
+
+.plan-output--manual .edit-mode-switch {
+  display: none;
+}
+
+.plan-output--manual .meal-cycle-btn {
+  display: none;
+}
+
 /* Macros: quieter, smaller, secondary — present for reference, not the focus. */
 .food-item .food-cell--cal,
 .food-item .food-cell--protein,
@@ -7534,7 +7642,8 @@ body.is-pdf-export .meal-card__actions,
 body.is-pdf-export .meal-add-tray,
 body.is-pdf-export .meal-action-panel,
 body.is-pdf-export .produce-cycle-btn,
-body.is-pdf-export .food-actions {
+body.is-pdf-export .food-actions,
+body.is-pdf-export .manual-mode-button {
   display: none !important;
 }
 
@@ -11702,6 +11811,14 @@ body.dashboard-page .pinch-plans .pp-row__text {
   min-width: 0;
 }
 
+body.dashboard-page .pinch-plans .pp-row__tags {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: none;
+  gap: 6px;
+}
+
 body.dashboard-page .pinch-plans .pp-row__name {
   overflow: hidden;
   color: var(--pp-ink);
@@ -11746,6 +11863,24 @@ body.dashboard-page .pinch-plans .pp-goal .pp-dot {
   width: 6px;
   height: 6px;
   background: currentColor;
+}
+
+body.dashboard-page .pinch-plans .pp-dot--calories {
+  background: #1f9d77;
+}
+
+body.dashboard-page .pinch-plans .pp-calorie-range {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid rgba(31, 157, 119, 0.22);
+  border-radius: 999px;
+  background: rgba(31, 157, 119, 0.08);
+  color: #0f6e56;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 body.dashboard-page .pinch-plans .pp-row__time {
