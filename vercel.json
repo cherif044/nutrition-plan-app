@@ -49,7 +49,7 @@
       "maxDuration": 60
     },
     "api/plan-export.js": {
-      "includeFiles": "{public/food-icons/**}",
+      "includeFiles": "{public/food-icons/**,node_modules/pdfkit/js/standard-fonts/**,node_modules/pdfkit/js/data/**}",
       "maxDuration": 60
     }
   }
