@@ -160,7 +160,6 @@ async function syncFirebaseUser(profile) {
       firebase_uid: firebaseUid,
       email,
       username,
-      password_hash: null,
       firstname: profile.firstname || 'User',
       lastname: profile.lastname || '',
       last_login: new Date(),
