@@ -221,7 +221,17 @@ async function getCustomerPlans(userId, customerId) {
 
   const plans = await Plan.findAll({
     where: { user_id: userId, customer_id: customerId },
-    attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'plan_data', 'created_at', 'updated_at'],
+    attributes: [
+      'id',
+      'folder_id',
+      'customer_id',
+      'name',
+      'is_active',
+      'created_at',
+      'updated_at',
+      [sequelize.literal("plan_data #>> '{input,goal}'"), 'goal'],
+      [sequelize.literal("plan_data #>> '{input,dietType}'"), 'dietType'],
+    ],
     order: [['is_active', 'DESC'], ['updated_at', 'DESC'], ['created_at', 'DESC']],
   });
 
@@ -237,8 +247,8 @@ async function getCustomerPlans(userId, customerId) {
         is_active: data.is_active,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        goal: data.plan_data?.input?.goal || null,
-        dietType: data.plan_data?.input?.dietType || null,
+        goal: data.goal || null,
+        dietType: data.dietType || null,
       };
     }),
   };

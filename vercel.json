@@ -49,7 +49,7 @@
       "maxDuration": 60
     },
     "api/plan-export.js": {
-      "includeFiles": "{public/**,node_modules/@sparticuz/chromium/**}",
+      "includeFiles": "{public/food-icons/**}",
       "maxDuration": 60
     }
   }

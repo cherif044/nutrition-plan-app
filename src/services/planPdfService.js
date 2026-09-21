@@ -1,498 +1,174 @@
 const fs = require('fs');
 const path = require('path');
+const PDFDocument = require('pdfkit');
 
-const publicDir = path.join(__dirname, '..', '..', 'public');
 const iconsDir = path.join(__dirname, '..', '..', 'public', 'food-icons');
-const appCss = fs.readFileSync(path.join(publicDir, 'css', 'styles.css'), 'utf8');
+const imageCache = new Map();
+const C = {
+  page: '#f4faf7', card: '#ffffff', soft: '#f7faf9', border: '#dce8df',
+  ink: '#123832', muted: '#6f7d77', accent: '#1e8c70', protein: '#d97757',
+  carbs: '#d4a72c', fat: '#7a74c9',
+};
 
-let browserPromise = null;
-
+// Direct PDF generation avoids Puppeteer/Chromium cold starts and keeps the
+// export independent of the user's device and browser.
 async function generatePlanPdf(plan, options = {}) {
   return withTimeout(renderPlanPdf(plan, options), process.env.VERCEL ? 55000 : 30000, 'PDF export timed out.');
 }
 
-async function renderPlanPdf(plan, options = {}) {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setViewport({ width: 1180, height: 1600, deviceScaleFactor: 1 });
-    page.setDefaultTimeout(process.env.VERCEL ? 10000 : 30000);
-    page.setDefaultNavigationTimeout(process.env.VERCEL ? 10000 : 30000);
-    await page.setContent(renderPlanExportHtml(plan, options), {
-      waitUntil: 'domcontentloaded',
-      timeout: process.env.VERCEL ? 10000 : 30000,
-    });
-    await page.emulateMediaType('print');
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close().catch(() => {});
-  }
-}
-
-function withTimeout(promise, timeoutMs, message) {
-  let timeoutId;
-  const timeout = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(Object.assign(new Error(message), { status: 504 })), timeoutMs);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
-}
-
-async function getBrowser() {
-  if (!browserPromise) {
-    browserPromise = launchBrowser().catch((error) => {
-      browserPromise = null;
-      throw error;
-    });
-  }
-  return browserPromise;
-}
-
-async function launchBrowser() {
-  if (process.env.VERCEL) {
-    const chromiumModule = await import('@sparticuz/chromium');
-    const chromium = chromiumModule.default || chromiumModule;
-    const puppeteerModule = await import('puppeteer-core');
-    const puppeteer = puppeteerModule.default || puppeteerModule;
-    const headless = 'shell';
-    chromium.setGraphicsMode = false;
-    return puppeteer.launch({
-      args: await puppeteer.defaultArgs({ args: chromium.args, headless }),
-      defaultViewport: {
-        deviceScaleFactor: 1,
-        hasTouch: false,
-        height: 1600,
-        isLandscape: false,
-        isMobile: false,
-        width: 1180,
-      },
-      executablePath: await chromium.executablePath(),
-      headless,
-    });
-  }
-
-  const puppeteer = require('puppeteer');
-  return puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+function renderPlanPdf(record, options = {}) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, compress: true, info: { Title: String(record?.name || 'Nutrition Plan') } });
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    try { drawPlan(doc, record, options); doc.end(); } catch (error) { reject(error); }
   });
 }
 
-function renderPlanExportHtml(planRecord, options = {}) {
-  const plan = planRecord?.plan_data || {};
+function drawPlan(doc, record, options) {
+  const page = { width: 595.28, height: 841.89 };
+  const margin = 23;
+  const width = page.width - margin * 2;
+  const plan = record?.plan_data || {};
   const meals = Array.isArray(plan.meals) ? plan.meals : [];
-  const actual = totalsForMeals(meals);
-  const summary = renderSummary(plan.dailyTargets || {}, actual);
-  const customer = planRecord?.Customer || planRecord?.customer || null;
-  const customClientName = String(options.clientName || '').trim();
-  const customerName = (planRecord?.customer_id && customer?.name) || (!planRecord?.customer_id && customClientName) || '';
-  const clientSection = customerName
-    ? `<section class="plan-client-label">Client: ${escapeHtml(customerName)}</section>`
-    : '';
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(planRecord?.name || 'Nutrition Plan')}</title>
-    <style>${appCss}</style>
-    <style>${exportCss()}</style>
-  </head>
-  <body class="pdf-export-document is-plan-view is-pdf-export">
-    <main class="app-shell">
-      <section class="workspace">
-        <section class="results" id="plan-output">
-          ${clientSection}
-          ${meals.map(renderMealCard).join('')}
-          ${summary}
-        </section>
-      </section>
-    </main>
-  </body>
-</html>`;
+  const customer = record?.Customer || record?.customer || null;
+  const customName = String(options.clientName || '').trim();
+  const clientName = (record?.customer_id && customer?.name) || (!record?.customer_id && customName) || '';
+  doc.rect(0, 0, page.width, page.height).fill(C.page);
+  let y = margin;
+  if (clientName) {
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(C.ink).text(`Client: ${clientName}`, margin, y, { width });
+    y += 20;
+  }
+  for (const meal of meals) {
+    const height = mealHeight(meal);
+    if (y > margin && y + height > page.height - margin) { doc.addPage({ size: 'A4', margin: 0 }); doc.rect(0, 0, page.width, page.height).fill(C.page); y = margin; }
+    drawMeal(doc, meal, margin, y, width);
+    y += height + 14;
+  }
+  if (y + 126 > page.height - margin) { doc.addPage({ size: 'A4', margin: 0 }); doc.rect(0, 0, page.width, page.height).fill(C.page); y = margin; }
+  drawSummary(doc, plan.dailyTargets || {}, totalsForMeals(meals), margin, y, width);
 }
 
-function renderMealCard(meal, mealIndex) {
-  const items = Array.isArray(meal.items) ? meal.items : [];
-  const totals = normalizeTotals(meal.totals || totalsForItems(items));
-  return `
-    <article class="meal-card panel" data-meal-index="${mealIndex}" data-meal-type="${escapeHtml(mealTypeKey(meal.tag))}">
-      <div class="meal-card__header">
-        <span class="meal-card__icon" aria-hidden="true">${iconSvg(mealIconName(meal.tag), 20)}</span>
-        <div>
-          <div class="meal-card__title-line">
-            <h2>${escapeHtml(meal.name || 'Meal')}</h2>
-          </div>
-        </div>
-        <span class="meal-card__kcal"><b>${formatNumber(totals.calories)}</b> kcal</span>
-        <div class="meal-card__actions"></div>
-      </div>
-      <div class="food-table">
-        <div class="food-list-head">
-          <span class="food-col-title">Food</span>
-          <span class="food-cell food-cell--portion">Portion</span>
-          <span class="food-cell food-cell--cal">Calories</span>
-          <span class="food-cell food-cell--protein">Protein</span>
-          <span class="food-cell food-cell--carb">Carbs</span>
-          <span class="food-cell food-cell--fat">Fat</span>
-          <span class="food-actions-spacer" aria-hidden="true"></span>
-        </div>
-        <div class="food-list">
-          ${items.map(renderFoodRow).join('')}
-        </div>
-        <div class="meal-card__totals">
-          <span class="food-col-title meal-card__totals-label">Meal totals</span>
-          <span class="food-cell food-cell--portion"></span>
-          <span class="food-cell food-cell--cal meal-metric"><strong>${formatNumber(totals.calories)}</strong></span>
-          <span class="food-cell food-cell--protein meal-metric"><strong>${formatNumber(totals.proteinG)}</strong></span>
-          <span class="food-cell food-cell--carb meal-metric"><strong>${formatNumber(totals.carbG)}</strong></span>
-          <span class="food-cell food-cell--fat meal-metric"><strong>${formatNumber(totals.fatG)}</strong></span>
-          <span class="food-actions-spacer" aria-hidden="true"></span>
-        </div>
-      </div>
-    </article>`;
+function mealHeight(meal) { return 42 + 25 + (Array.isArray(meal?.items) ? meal.items.length : 0) * 25 + 29; }
+
+function drawMeal(doc, meal, x, y, width) {
+  const items = Array.isArray(meal?.items) ? meal.items : [];
+  const totals = normalizeTotals(meal?.totals || totalsForItems(items));
+  const height = mealHeight(meal);
+  doc.roundedRect(x, y, width, height, 7).fillAndStroke(C.card, C.border);
+  doc.rect(x, y, width, 42).fill(C.card);
+  drawMealIcon(doc, meal?.tag, x + 12, y + 12);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(C.ink).text(String(meal?.name || 'Meal'), x + 39, y + 13, { width: width - 140, lineBreak: false });
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(C.ink).text(`${fmt(totals.calories)} kcal`, x + width - 92, y + 14, { width: 80, align: 'right' });
+
+  const tableY = y + 42;
+  const titleWidth = width - 68 - 4 * 51;
+  const columns = [
+    { x: x + 10, w: titleWidth, a: 'left', label: 'Food' },
+    { x: x + 10 + titleWidth, w: 51, a: 'right', label: 'Portion' },
+    { x: x + 10 + titleWidth + 51, w: 51, a: 'right', label: 'Calories' },
+    { x: x + 10 + titleWidth + 102, w: 51, a: 'right', label: 'Protein' },
+    { x: x + 10 + titleWidth + 153, w: 51, a: 'right', label: 'Carbs' },
+    { x: x + 10 + titleWidth + 204, w: 51, a: 'right', label: 'Fat' },
+  ];
+  doc.rect(x, tableY, width, 25).fill(C.card);
+  columns.forEach((col) => doc.font('Helvetica-Bold').fontSize(6.5).fillColor(C.muted).text(col.label, col.x, tableY + 9, { width: col.w - 2, align: col.a, lineBreak: false }));
+  line(doc, x, tableY + 25, x + width, tableY + 25, 0.7);
+  let rowY = tableY + 25;
+  for (const item of items) {
+    const totalsForRow = normalizeTotals(item?.totals || totalsForItem(item));
+    drawFoodIcon(doc, item?.food, x + 10, rowY + 4, 17);
+    doc.font('Helvetica').fontSize(7.8).fillColor(C.ink).text(item?.food?.name || item?.customFood?.name || 'Food', x + 32, rowY + 8, { width: titleWidth - 25, height: 12, ellipsis: true, lineBreak: false });
+    [ `${fmt(item?.quantityG)}g`, fmt(totalsForRow.calories), `${fmt(totalsForRow.proteinG)}g`, `${fmt(totalsForRow.carbG)}g`, `${fmt(totalsForRow.fatG)}g` ].forEach((value, i) => {
+      const col = columns[i + 1];
+      doc.font('Helvetica').fontSize(7.5).fillColor(C.ink).text(value, col.x, rowY + 8, { width: col.w - 2, align: 'right', lineBreak: false });
+    });
+    line(doc, x, rowY + 25, x + width, rowY + 25, 0.45);
+    rowY += 25;
+  }
+  doc.rect(x, rowY, width, 29).fill(C.soft);
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(C.ink).text('Meal totals', x + 10, rowY + 10, { width: titleWidth - 25, lineBreak: false });
+  [fmt(totals.calories), `${fmt(totals.proteinG)}g`, `${fmt(totals.carbG)}g`, `${fmt(totals.fatG)}g`].forEach((value, i) => {
+    const col = columns[i + 2];
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(C.ink).text(value, col.x, rowY + 10, { width: col.w - 2, align: 'right', lineBreak: false });
+  });
+  line(doc, x, rowY, x + width, rowY, 0.7);
 }
 
-function renderFoodRow(item) {
-  const food = item?.food || {};
-  const totals = normalizeTotals(item?.totals || totalsForItem(item));
-  return `
-    <div class="food-item">
-      <div class="food-title">
-        ${foodMedia(food)}
-        <span class="food-name">${escapeHtml(food.name || item?.customFood?.name || 'Food')}</span>
-        <button class="produce-cycle-btn" type="button" hidden aria-hidden="true"></button>
-      </div>
-      <div class="food-cell food-cell--portion">${formatNumber(item?.quantityG)}g</div>
-      <div class="food-cell food-cell--cal">${formatNumber(totals.calories)}</div>
-      <div class="food-cell food-cell--protein">${formatNumber(totals.proteinG)}g</div>
-      <div class="food-cell food-cell--carb">${formatNumber(totals.carbG)}g</div>
-      <div class="food-cell food-cell--fat">${formatNumber(totals.fatG)}g</div>
-      <div class="food-actions"></div>
-    </div>`;
+function drawSummary(doc, targets, actual, x, y, width) {
+  doc.roundedRect(x, y, width, 126, 7).fillAndStroke(C.card, C.border);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(C.ink).text('Daily totals', x + 14, y + 14);
+  const targetCalories = Number(targets.calories) || 0;
+  const ratio = targetCalories > 0 ? clamp(actual.calories / targetCalories, 0, 1.25) : 0;
+  drawRing(doc, x + 58, y + 73, 30, ratio);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(C.ink).text(fmt(actual.calories), x + 28, y + 67, { width: 60, align: 'center' });
+  doc.font('Helvetica').fontSize(6.5).fillColor(C.muted).text('kcal', x + 28, y + 81, { width: 60, align: 'center' });
+  doc.font('Helvetica').fontSize(7).fillColor(C.muted).text('Calories', x + 102, y + 61);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(C.ink).text(`of ${fmt(targetCalories)} target`, x + 102, y + 73);
+  [['Protein', actual.proteinG, targets.proteinG, C.protein], ['Carbs', actual.carbG, targets.carbG, C.carbs], ['Fat', actual.fatG, targets.fatG, C.fat]].forEach(([label, value, target, color], i) => {
+    const mx = x + 205 + i * 103;
+    const safeTarget = Number(target) || 0;
+    const percent = safeTarget > 0 ? clamp(Number(value) / safeTarget, 0, 1.25) : 0;
+    doc.font('Helvetica').fontSize(7).fillColor(C.muted).text(label, mx, y + 59);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(C.ink).text(`${fmt(value)} / ${fmt(safeTarget)}g`, mx, y + 72);
+    doc.roundedRect(mx, y + 92, 88, 5, 2).fill('#e6eee9');
+    if (percent) doc.roundedRect(mx, y + 92, 88 * Math.min(percent, 1), 5, 2).fill(color);
+  });
 }
 
-function renderSummary(targets, actual) {
-  const calorieTarget = Number(targets.calories) || 0;
-  const circumference = 326.7;
-  const caloriePercent = calorieTarget > 0 ? clamp(actual.calories / calorieTarget, 0, 1.25) : 0;
-  const dashOffset = circumference * (1 - Math.min(caloriePercent, 1));
-
-  return `
-    <section class="summary panel">
-      <header class="summary__header">
-        <h2>Daily totals</h2>
-      </header>
-      <div class="metrics">
-        <div class="metric metric--ring" data-metric="calories">
-          <div class="cal-ring">
-            <svg viewBox="0 0 120 120" aria-hidden="true">
-              <circle class="cal-ring__track" cx="60" cy="60" r="52"></circle>
-              <circle class="cal-ring__value" cx="60" cy="60" r="52"
-                stroke-dasharray="${circumference}"
-                stroke-dashoffset="${dashOffset.toFixed(1)}"></circle>
-            </svg>
-            <div class="cal-ring__center">
-              <strong class="daily-actual daily-actual-calories">${formatNumber(actual.calories)}</strong>
-              <span class="cal-ring__unit">kcal</span>
-            </div>
-          </div>
-          <div class="cal-ring__caption">
-            <span>Calories</span>
-            <b>of ${formatNumber(targets.calories)} target</b>
-          </div>
-          <div class="flag-detail"></div>
-        </div>
-        <div class="macro-bars">
-          ${['proteinG', 'carbG', 'fatG'].map((key) => renderMacroMetric(key, targets, actual)).join('')}
-        </div>
-      </div>
-    </section>`;
+function drawRing(doc, cx, cy, radius, ratio) {
+  doc.circle(cx, cy, radius).lineWidth(6).strokeColor('#e6eee9').stroke();
+  if (!ratio) return;
+  const end = -Math.PI / 2 + Math.PI * 2 * Math.min(ratio, 1);
+  const points = [];
+  for (let i = 0; i <= 48; i += 1) { const a = -Math.PI / 2 + (end + Math.PI / 2) * (i / 48); points.push([cx + radius * Math.cos(a), cy + radius * Math.sin(a)]); }
+  doc.moveTo(points[0][0], points[0][1]);
+  points.slice(1).forEach(([px, py]) => doc.lineTo(px, py));
+  doc.lineWidth(6).lineCap('round').strokeColor(C.accent).stroke().lineCap('butt');
 }
 
-function renderMacroMetric(key, targets, actual) {
-  const target = Number(targets[key]) || 0;
-  const value = Number(actual[key]) || 0;
-  const width = target > 0 ? clamp(value / target * 100, 0, 125) : 0;
-  const label = labels[key][0];
-  const unit = labels[key][1];
-  return `
-    <div class="metric metric--macro" data-metric="${key}">
-      <div class="metric__top">
-        <span><i class="macro-dot" aria-hidden="true"></i>${label}</span>
-        <strong>
-          <span class="daily-actual daily-actual-${key}">${formatNumber(value)}</span>
-          <small>/ ${formatNumber(target)}${unit}</small>
-        </strong>
-      </div>
-      <div class="metric-bar" aria-hidden="true"><i style="width: ${width.toFixed(1)}%"></i></div>
-      <div class="flag-detail"></div>
-    </div>`;
+function drawMealIcon(doc, tag, x, y) {
+  const key = String(tag || '').toLowerCase();
+  const color = key === 'lunch' ? C.carbs : key === 'dinner' || key === 'iftar' ? C.fat : C.accent;
+  doc.circle(x + 9, y + 9, 9).fill(color);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff').text(key === 'dinner' || key === 'iftar' ? 'D' : key === 'lunch' ? 'L' : key === 'snack' ? 'S' : 'B', x + 3, y + 5, { width: 12, align: 'center' });
 }
 
-const labels = {
-  calories: ['Calories', 'kcal'],
-  proteinG: ['Protein', 'g'],
-  carbG: ['Carbs', 'g'],
-  fatG: ['Fat', 'g'],
-};
-
-function exportCss() {
-  return `
-    @page { size: A4; margin: 0; }
-    html, body { background: #f4faf7 !important; }
-    body.pdf-export-document {
-      padding: 8mm !important;
-      min-height: auto !important;
-    }
-    body.pdf-export-document::before,
-    body.pdf-export-document::after {
-      display: none !important;
-    }
-    body.pdf-export-document .app-shell,
-    body.pdf-export-document .workspace,
-    body.pdf-export-document .results,
-    body.pdf-export-document #plan-output {
-      display: grid !important;
-      align-content: start !important;
-      align-items: start !important;
-      justify-items: stretch !important;
-      width: 100% !important;
-      max-width: 1040px !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-      gap: 14px !important;
-    }
-    body.pdf-export-document .summary {
-      order: 99;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    body.pdf-export-document .meal-card {
-      break-inside: avoid;
-      page-break-inside: avoid;
-      margin: 0 !important;
-      overflow: hidden !important;
-      animation: none !important;
-      border: 1px solid #dce8df !important;
-      border-radius: 10px !important;
-      box-shadow: none !important;
-    }
-    body.pdf-export-document .plan-client-label {
-      display: block !important;
-      width: fit-content !important;
-      justify-self: start !important;
-      margin: 0 0 2px !important;
-      color: #123832 !important;
-      font-family: Inter, system-ui, sans-serif !important;
-      font-size: 12px !important;
-      font-weight: 800 !important;
-      line-height: 1.25 !important;
-    }
-    body.pdf-export-document .meal-card__actions,
-    body.pdf-export-document .meal-card__ranges,
-    body.pdf-export-document .summary__ranges,
-    body.pdf-export-document .metric-range,
-    body.pdf-export-document .meal-add-tray,
-    body.pdf-export-document .meal-action-panel,
-    body.pdf-export-document .produce-cycle-btn,
-    body.pdf-export-document .food-actions,
-    body.pdf-export-document .food-actions-spacer {
-      display: none !important;
-    }
-    body.pdf-export-document .food-table {
-      overflow: visible !important;
-      --col-portion: 68px;
-      --col-macro: 62px;
-      --col-actions: 0px;
-    }
-    body.pdf-export-document .food-list-head,
-    body.pdf-export-document .food-item,
-    body.pdf-export-document .meal-card__totals {
-      min-width: 0 !important;
-      grid-template-columns: minmax(180px, 1fr) var(--col-portion) repeat(4, var(--col-macro)) !important;
-      grid-template-areas: "title portion cal prot carb fat" !important;
-    }
-    body.pdf-export-document .food-list-head {
-      border-bottom: 1px solid #dce8df !important;
-      background: #fff !important;
-    }
-    body.pdf-export-document .food-item {
-      border-top: 0 !important;
-      border-bottom: 1px solid #dce8df !important;
-      background: #fff !important;
-      box-shadow: none !important;
-    }
-    body.pdf-export-document .food-item:last-child {
-      border-bottom: 0 !important;
-    }
-    body.pdf-export-document .meal-card__totals {
-      border-top: 1px solid #dce8df !important;
-      background: #f7faf9 !important;
-    }
-    body.pdf-export-document .food-icon {
-      overflow: hidden;
-      border-radius: 999px !important;
-    }
-    body.pdf-export-document .food-icon img {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    body.pdf-export-document .cal-ring__value {
-      transform: rotate(-90deg);
-      transform-origin: 50% 50%;
-    }
-  `;
-}
-
-function totalsForMeals(meals) {
-  return (meals || []).reduce((acc, meal) => addTotals(acc, normalizeTotals(meal.totals || totalsForItems(meal.items || []))), zeroTotals());
-}
-
-function totalsForItems(items) {
-  return (items || []).reduce((acc, item) => addTotals(acc, normalizeTotals(item?.totals || totalsForItem(item))), zeroTotals());
-}
-
-function totalsForItem(item) {
-  const food = item?.food || {};
-  const factor = (Number(item?.quantityG) || 0) / 100;
-  return {
-    calories: (Number(food.caloriesPer100g) || 0) * factor,
-    proteinG: (Number(food.proteinGPer100g) || 0) * factor,
-    carbG: (Number(food.carbGPer100g) || 0) * factor,
-    fatG: (Number(food.fatGPer100g) || 0) * factor,
-  };
-}
-
-function zeroTotals() {
-  return { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
-}
-
-function normalizeTotals(totals = {}) {
-  return {
-    calories: Number(totals.calories) || 0,
-    proteinG: Number(totals.proteinG) || 0,
-    carbG: Number(totals.carbG) || 0,
-    fatG: Number(totals.fatG) || 0,
-  };
-}
-
-function addTotals(left, right) {
-  return {
-    calories: left.calories + right.calories,
-    proteinG: left.proteinG + right.proteinG,
-    carbG: left.carbG + right.carbG,
-    fatG: left.fatG + right.fatG,
-  };
-}
-
-function foodMedia(food) {
+function drawFoodIcon(doc, food, x, y, size) {
   const iconPath = food?.id ? path.join(iconsDir, `${food.id}.png`) : '';
   if (iconPath && fs.existsSync(iconPath)) {
-    const dataUrl = imageDataUrl(iconPath);
-    return `<span class="food-icon food-icon--image" aria-hidden="true"><img src="${dataUrl}" alt="" /></span>`;
+    let image = imageCache.get(iconPath);
+    if (!image) { image = fs.readFileSync(iconPath); imageCache.set(iconPath, image); }
+    doc.image(image, x, y, { fit: [size, size] });
+    return;
   }
-  const { icon, tone } = foodIcon(food);
-  return `<span class="food-icon" data-tone="${tone}" aria-hidden="true">${iconSvg(icon, 15)}</span>`;
+  const tone = foodTone(food);
+  const color = tone === 'protein' ? C.protein : tone === 'fat' ? C.fat : tone === 'carb' ? C.carbs : C.muted;
+  doc.circle(x + size / 2, y + size / 2, size / 2).fill(color);
+  doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(String(food?.name || 'F').trim().charAt(0).toUpperCase(), x, y + 4, { width: size, align: 'center' });
 }
 
-function imageDataUrl(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
-  return `data:${mime};base64,${fs.readFileSync(filePath).toString('base64')}`;
-}
-
-function foodIcon(food) {
+function foodTone(food) {
   const name = `${food?.name || ''} ${food?.category || ''}`;
-  const rules = [
-    [/whey|protein (powder|concentrate|isolate)|supplement/i, 'powder', 'protein'],
-    [/coffee|espresso|tea\b/i, 'coffee', 'carb'],
-    [/milk|yog(h)?urt|labneh|cheese|cream/i, 'milk', 'protein'],
-    [/egg/i, 'egg', 'protein'],
-    [/fish|tuna|salmon|shrimp|prawn|sardine|seafood/i, 'fish', 'protein'],
-    [/chicken|beef|lamb|turkey|meat|steak|liver|mince/i, 'meat', 'protein'],
-    [/oil|butter|ghee|tahini|mayonnaise/i, 'oil', 'fat'],
-    [/nut|almond|peanut|walnut|cashew|pistachio|seed|sesame|avocado/i, 'nut', 'fat'],
-    [/bread|rice|pasta|oat|cereal|potato|corn|flour|toast|bun|couscous|barley|wheat/i, 'bread', 'carb'],
-    [/apple|banana|orange|berry|berries|grape|melon|mango|date|fruit|peach|pear|kiwi/i, 'apple', 'carb'],
-    [/tomato|lettuce|salad|cucumber|pepper|onion|carrot|spinach|broccoli|vegetable|greens|bean|lentil|chickpea/i, 'salad', 'carb'],
-  ];
-  for (const [pattern, icon, tone] of rules) {
-    if (pattern.test(name)) return { icon, tone };
-  }
-  return { icon: 'salad', tone: 'neutral' };
+  if (/milk|yog|cheese|egg|fish|chicken|beef|meat|protein|whey/i.test(name)) return 'protein';
+  if (/oil|butter|ghee|tahini|nut|seed|avocado/i.test(name)) return 'fat';
+  if (/bread|rice|pasta|oat|potato|fruit|vegetable|bean|lentil/i.test(name)) return 'carb';
+  return 'neutral';
 }
 
-function iconSvg(name, size = 16) {
-  const icons = {
-    sunrise: '<path d="M12 2v6"/><path d="m5 10-1.5-1.5"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19 10 1.5-1.5"/><path d="M8 18a4 4 0 0 1 8 0"/><path d="M3 22h18"/>',
-    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.3 17.7-1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/>',
-    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
-    apple: '<path d="M12 8c-1-2-3-3-5-2-2.5 1.2-3 5 0 10 1 1.7 2 3 3.5 3 .8 0 1-.4 1.5-.4s.7.4 1.5.4c1.5 0 2.5-1.3 3.5-3 3-5 2.5-8.8 0-10-2-1-4 0-5 2Z"/><path d="M12 8V5"/><path d="M12 5c1.5 0 2.5-1 2.5-2.5"/>',
-    fish: '<path d="M3 12c3-4 7-6 12-6 3 0 6 2 6 6s-3 6-6 6c-5 0-9-2-12-6Z"/><path d="M3 12c1.5 1.5 2 3 2 5"/><path d="M3 12c1.5-1.5 2-3 2-5"/><circle cx="16" cy="10.5" r="0.6" fill="currentColor"/>',
-    bread: '<path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4c0 1.2-1 2-2 2v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-6c-1 0-2-.8-2-2Z"/>',
-    salad: '<path d="M4 13h16a8 8 0 0 1-16 0Z"/><path d="M6 20h12"/><path d="M12 10c0-2 1.5-3.5 3.5-3.5"/><path d="M10 10c-.5-1.5-2-2.5-3.5-2"/>',
-    milk: '<path d="M9 2h6"/><path d="M9 2v3L7 8v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8l-2-3V2"/><path d="M7 13h10"/>',
-    egg: '<path d="M12 2c3.5 0 7 6 7 11a7 7 0 0 1-14 0c0-5 3.5-11 7-11Z"/>',
-    nut: '<path d="M12 3c4 0 7 3.5 7 8s-3 10-7 10-7-5.5-7-10 3-8 7-8Z"/><path d="M12 6v12"/>',
-    oil: '<path d="M10 3h4v3l4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l4-4V3Z"/><path d="M9 16h6"/>',
-    coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z"/><path d="M6 2v2"/><path d="M10 2v2"/><path d="M14 2v2"/>',
-    meat: '<path d="M13.5 3a5.5 5.5 0 0 1 5 8.2c-.6 1.1-1.7 1.8-3 1.9l-.6 2.4-2.6 1.3-1.2-1.2-5.4 5.4a2 2 0 0 1-2.8-2.8l5.4-5.4-1.2-1.2 1.3-2.6 2.4-.6c.1-1.3.8-2.4 1.9-3 .8-.4 1.7-.6 2.8-.4Z"/>',
-    powder: '<path d="M9 4h6a1 1 0 0 1 1 1v3H8V5a1 1 0 0 1 1-1Z"/><path d="M7 8h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M9 13h6"/>',
-  };
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.salad}</svg>`;
-}
+function line(doc, x1, y1, x2, y2, width) { doc.moveTo(x1, y1).lineTo(x2, y2).strokeColor(C.border).lineWidth(width).stroke(); }
+function withTimeout(promise, ms, message) { let id; const timer = new Promise((_, reject) => { id = setTimeout(() => reject(Object.assign(new Error(message), { status: 504 })), ms); }); return Promise.race([promise, timer]).finally(() => clearTimeout(id)); }
+function totalsForMeals(meals) { return (meals || []).reduce((a, m) => add(a, normalizeTotals(m.totals || totalsForItems(m.items || []))), zero()); }
+function totalsForItems(items) { return (items || []).reduce((a, i) => add(a, normalizeTotals(i?.totals || totalsForItem(i))), zero()); }
+function totalsForItem(item) { const food = item?.food || {}; const factor = (Number(item?.quantityG) || 0) / 100; return { calories: (Number(food.caloriesPer100g) || 0) * factor, proteinG: (Number(food.proteinGPer100g) || 0) * factor, carbG: (Number(food.carbGPer100g) || 0) * factor, fatG: (Number(food.fatGPer100g) || 0) * factor }; }
+function zero() { return { calories: 0, proteinG: 0, carbG: 0, fatG: 0 }; }
+function normalizeTotals(value = {}) { return { calories: Number(value.calories) || 0, proteinG: Number(value.proteinG) || 0, carbG: Number(value.carbG) || 0, fatG: Number(value.fatG) || 0 }; }
+function add(a, b) { return { calories: a.calories + b.calories, proteinG: a.proteinG + b.proteinG, carbG: a.carbG + b.carbG, fatG: a.fatG + b.fatG }; }
+function fmt(value) { const n = Number(value); if (!Number.isFinite(n)) return '0'; return Math.round(n) === n ? String(n) : n.toFixed(1); }
+function clamp(value, min, max) { return Math.min(Math.max(value, min), max); }
+function pdfFilename(plan) { const base = String(plan?.name || 'nutrition-plan').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'nutrition-plan'; return `${base}.pdf`; }
 
-function mealIconName(tag) {
-  const icons = { breakfast: 'sunrise', suhoor: 'sunrise', snack: 'apple', lunch: 'sun', dinner: 'moon', iftar: 'moon' };
-  return icons[String(tag || '').toLowerCase()] || 'salad';
-}
-
-function mealTypeKey(tag) {
-  const key = String(tag || '').toLowerCase();
-  if (key === 'suhoor') return 'breakfast';
-  if (key === 'iftar') return 'dinner';
-  return ['breakfast', 'snack', 'lunch', 'dinner'].includes(key) ? key : 'other';
-}
-
-function formatNumber(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return '0';
-  return Math.round(number) === number ? String(number) : number.toFixed(1);
-}
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function pdfFilename(plan) {
-  const base = String(plan?.name || 'nutrition-plan')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'nutrition-plan';
-  return `${base}.pdf`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[char]));
-}
-
-module.exports = {
-  generatePlanPdf,
-  pdfFilename,
-};
+module.exports = { generatePlanPdf, pdfFilename };
