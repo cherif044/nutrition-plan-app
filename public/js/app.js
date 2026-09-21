@@ -532,12 +532,13 @@ async function validatePreGenerationSaveDetails() {
   }
 
   const customerInput = form.elements.customerName;
+  const customerSelect = form.elements.customerChoice;
   const customerName = customerInput?.value.trim() || '';
   const makeActive = Boolean(form.elements.makeActive?.checked);
   const hasCustomerSelection = preGenerationCustomerState.mode === 'existing' || preGenerationCustomerState.mode === 'new';
   if (makeActive && !hasCustomerSelection) {
     message.textContent = 'Choose or enter a customer before making a plan active.';
-    customerInput?.focus();
+    customerSelect?.focus();
     return false;
   }
 
@@ -3803,7 +3804,6 @@ function showEditBar(planId, initialName) {
     startPlanExport(planId, { clientName });
     btn.disabled = false;
     btn.innerHTML = `${iconSvg('file')}Export plan`;
-    message.textContent = 'PDF export started.';
   });
 
   saveBarSlot.replaceChildren(bar);
@@ -3874,7 +3874,6 @@ function showInitialCreationBar(planId, initialName, { statusText = null, allowR
     const resolvedPlanId = currentPlanId || planId;
     startPlanExport(resolvedPlanId, { clientName });
     showEditBar(resolvedPlanId, currentPlanName || initialName);
-    message.textContent = 'PDF export started.';
   });
 
   bar.querySelector('.save-action-bar__discard').addEventListener('click', async () => {
@@ -3901,132 +3900,58 @@ function showPlanSaveBar(folderId = null) {
 }
 
 function bindCustomerPicker(bar) {
-  const state = { mode: 'general', selected: null, exactMatch: null, requestId: 0 };
+  const state = { mode: 'general', selected: null, newName: '' };
+  const select = bar.querySelector('.save-action-bar__customer-select');
   const input = bar.querySelector('.save-action-bar__customer');
-  const results = bar.querySelector('.save-customer-picker__results');
-  const match = bar.querySelector('.save-customer-picker__match');
-  if (!input || !results || !match) return state;
+  if (!select || !input) return state;
+
+  select.addEventListener('change', () => {
+    const value = select.value;
+    if (value === 'new') {
+      selectNewCustomer('', state, bar);
+      window.requestAnimationFrame(() => input.focus());
+      return;
+    }
+    if (value === 'general') {
+      selectGeneralCustomer(state, bar);
+      return;
+    }
+    const customerId = value.startsWith('existing:') ? value.slice('existing:'.length) : '';
+    const customer = customerOptions.find((item) => String(item.id) === customerId);
+    if (customer) selectCustomer(customer, state, bar);
+  });
 
   input.addEventListener('input', () => {
-    if (state.mode !== 'new') state.mode = 'general';
+    state.mode = 'new';
     state.selected = null;
-    state.exactMatch = null;
-    refreshCustomerMatches(input.value.trim(), state, results, match);
+    state.newName = input.value.trim();
+    markPlanUnsaved();
   });
 
-  input.addEventListener('focus', () => {
-    refreshCustomerMatches(input.value.trim(), state, results, match);
-  });
-
+  ensureCustomerOptionsLoaded()
+    .then((customers) => populateNativeCustomerSelect(select, customers, state))
+    .catch(() => {});
   return state;
 }
 
-async function refreshCustomerMatches(query, state, resultsEl, matchEl) {
-  const requestId = ++state.requestId;
-  resultsEl.hidden = true;
-  matchEl.hidden = true;
-  matchEl.innerHTML = '';
-
-  try {
-    const customers = await ensureCustomerOptionsLoaded();
-    if (requestId !== state.requestId) return;
-
-    const filtered = filterCustomerOptions(customers, query);
-    state.exactMatch = exactCustomerMatch(customers, query);
-
-    renderCustomerExactMatch(query, state, matchEl);
-    renderCustomerResults(filtered, query, state, resultsEl, matchEl);
-  } catch {
-    resultsEl.hidden = true;
+function populateNativeCustomerSelect(select, customers, state) {
+  if (!select) return;
+  const selectedValue = state.mode === 'existing' && state.selected
+    ? `existing:${state.selected.id}`
+    : state.mode;
+  select.replaceChildren();
+  select.add(new Option('General', 'general'));
+  select.add(new Option('New customer', 'new'));
+  if (customers.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Current customers';
+    customers.forEach((customer) => group.append(new Option(customer.name, `existing:${customer.id}`)));
+    select.append(group);
   }
-}
-
-function filterCustomerOptions(customers, query) {
-  const normalized = normalizeCustomerQuery(query);
-  if (!normalized) return customers;
-  return customers.filter((customer) => normalizeCustomerQuery(customer.name).includes(normalized));
-}
-
-function exactCustomerMatch(customers, query) {
-  const normalized = normalizeCustomerQuery(query);
-  if (!normalized) return null;
-  return customers.find((customer) => normalizeCustomerQuery(customer.name) === normalized) || null;
-}
-
-function normalizeCustomerQuery(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function renderCustomerExactMatch(query, state, matchEl) {
-  if (state.mode === 'existing' && state.selected) {
-    matchEl.innerHTML = `<span>Selected ${escapeHtml(state.selected.name)}</span>`;
-    matchEl.hidden = false;
-    return;
+  if (state.mode === 'existing' && state.selected && !customers.some((item) => String(item.id) === String(state.selected.id))) {
+    select.add(new Option(state.selected.name, `existing:${state.selected.id}`));
   }
-
-  if (state.mode === 'new') {
-    const name = query || state.newName || '';
-    matchEl.innerHTML = `<span>New customer${name ? `: ${escapeHtml(name)}` : ''}</span>`;
-    matchEl.hidden = false;
-    return;
-  }
-
-  if (state.mode === 'general') {
-    matchEl.innerHTML = '<span>Saving in general</span>';
-    matchEl.hidden = false;
-    return;
-  }
-
-  matchEl.hidden = true;
-  matchEl.innerHTML = '';
-}
-
-function renderCustomerResults(customers, query, state, resultsEl, matchEl) {
-  resultsEl.innerHTML = '';
-  const newName = query.trim();
-  const newBtn = document.createElement('button');
-  newBtn.type = 'button';
-  newBtn.className = 'save-customer-result';
-  newBtn.innerHTML = `
-    <span class="dashboard-icon-square" data-tone="protein" aria-hidden="true">${iconSvg('user', 15)}</span>
-    <span><strong>New customer</strong><small>${newName ? escapeHtml(newName) : 'Type at least one letter'}</small></span>
-  `;
-  newBtn.addEventListener('click', () => {
-    if (!newName) {
-      message.textContent = 'Type at least one letter before adding a new customer.';
-      resultsEl.closest('.save-customer-picker')?.querySelector('.save-action-bar__customer')?.focus();
-      return;
-    }
-    selectNewCustomer(newName, state, resultsEl.closest('.save-customer-picker'));
-  });
-  resultsEl.append(newBtn);
-
-  const generalBtn = document.createElement('button');
-  generalBtn.type = 'button';
-  generalBtn.className = 'save-customer-result';
-  generalBtn.innerHTML = `
-    <span class="dashboard-icon-square" data-tone="carb" aria-hidden="true">${iconSvg('file', 15)}</span>
-    <span><strong>Add in general</strong><small>General plans</small></span>
-  `;
-  generalBtn.addEventListener('click', () => {
-    selectGeneralCustomer(state, resultsEl.closest('.save-customer-picker'));
-  });
-  resultsEl.append(generalBtn);
-
-  customers.slice(0, 6).forEach((customer) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'save-customer-result';
-    btn.innerHTML = `
-      <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('user', 15)}</span>
-      <span><strong>${escapeHtml(customer.name)}</strong><small>${escapeHtml(customer.activity_level ? titleCase(customer.activity_level) : 'Customer')}</small></span>
-    `;
-    btn.addEventListener('click', () => {
-      selectCustomer(customer, state, resultsEl.closest('.save-customer-picker'));
-    });
-    resultsEl.append(btn);
-  });
-  resultsEl.hidden = false;
+  select.value = selectedValue || 'general';
 }
 
 async function loadCustomerForPlanning(customerId) {
@@ -4047,16 +3972,18 @@ function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?
   state.mode = 'existing';
   state.selected = customer;
   state.newName = '';
+  const select = picker?.querySelector('.save-action-bar__customer-select');
   const input = picker?.querySelector('.save-action-bar__customer');
-  const results = picker?.querySelector('.save-customer-picker__results');
-  const match = picker?.querySelector('.save-customer-picker__match');
-  if (input) input.value = customer.name;
-  if (picker === preGenerationCustomerPicker && hydrateProfile) applyCustomerProfileToForm(customer);
-  if (results) results.hidden = true;
-  if (match) {
-    match.innerHTML = `<span>Selected ${escapeHtml(customer.name)}</span>`;
-    match.hidden = false;
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) {
+    if (![...select.options].some((option) => option.value === `existing:${customer.id}`)) {
+      select.add(new Option(customer.name, `existing:${customer.id}`));
+    }
+    select.value = `existing:${customer.id}`;
   }
+  if (input) input.value = customer.name;
+  if (newNameField) newNameField.hidden = true;
+  if (picker === preGenerationCustomerPicker && hydrateProfile) applyCustomerProfileToForm(customer);
   if (markUnsaved) markPlanUnsaved();
 }
 
@@ -4064,15 +3991,12 @@ function selectNewCustomer(name, state, picker) {
   state.mode = 'new';
   state.selected = null;
   state.newName = name.trim();
+  const select = picker?.querySelector('.save-action-bar__customer-select');
   const input = picker?.querySelector('.save-action-bar__customer');
-  const results = picker?.querySelector('.save-customer-picker__results');
-  const match = picker?.querySelector('.save-customer-picker__match');
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) select.value = 'new';
   if (input) input.value = state.newName;
-  if (results) results.hidden = true;
-  if (match) {
-    match.innerHTML = `<span>New customer: ${escapeHtml(state.newName)}</span>`;
-    match.hidden = false;
-  }
+  if (newNameField) newNameField.hidden = false;
   markPlanUnsaved();
 }
 
@@ -4080,16 +4004,12 @@ function selectGeneralCustomer(state, picker) {
   state.mode = 'general';
   state.selected = null;
   state.newName = '';
-  state.exactMatch = null;
+  const select = picker?.querySelector('.save-action-bar__customer-select');
   const input = picker?.querySelector('.save-action-bar__customer');
-  const results = picker?.querySelector('.save-customer-picker__results');
-  const match = picker?.querySelector('.save-customer-picker__match');
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) select.value = 'general';
   if (input) input.value = '';
-  if (results) results.hidden = true;
-  if (match) {
-    match.innerHTML = '<span>Saving in general</span>';
-    match.hidden = false;
-  }
+  if (newNameField) newNameField.hidden = true;
   markPlanUnsaved();
 }
 

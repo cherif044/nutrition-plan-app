@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/styles.css?v=manual-mode-controls-2" />
+    <link rel="stylesheet" href="/css/styles.css?v=mobile-ui-20260921" />
   </head>
   <body>
     <main class="app-shell">
@@ -64,10 +64,6 @@
               <h1 id="planner-title">Your inputs</h1>
               <div class="input-chip-row" id="input-chip-row"></div>
             </div>
-            <button class="inputs-card__toggle" id="inputs-toggle" type="button" aria-expanded="true">
-              <span>Edit inputs</span>
-              <b aria-hidden="true">⌄</b>
-            </button>
           </header>
 
           <div class="inputs-card__body" id="inputs-card-body">
@@ -78,12 +74,17 @@
                 <input type="text" name="planName" placeholder="Cutting plan - week 1" autocomplete="off" required />
               </label>
               <div class="save-customer-picker" id="pre-generation-customer-picker">
-                <label class="save-customer-picker__field">
+                <label class="save-customer-picker__field" for="customer-choice">
                   <span>Customer</span>
-                  <input class="save-action-bar__customer" type="search" name="customerName" placeholder="Search customers" autocomplete="off" />
+                  <select class="save-action-bar__customer-select" id="customer-choice" name="customerChoice">
+                    <option value="general">General</option>
+                    <option value="new">New customer</option>
+                  </select>
                 </label>
-                <div class="save-customer-picker__match" hidden></div>
-                <div class="save-customer-picker__results" hidden></div>
+                <label class="save-customer-picker__field save-customer-picker__new-name" for="new-customer-name" hidden>
+                  <span>Customer name</span>
+                  <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Enter customer name" autocomplete="off" />
+                </label>
                 <label class="save-active-toggle">
                   <input class="save-action-bar__active" type="checkbox" name="makeActive" />
                   <span>Make active</span>
@@ -281,6 +282,6 @@
       </article>
     </template>
 
-    <script src="/js/app.js?v=manual-mode-controls-2" defer></script>
+    <script src="/js/app.js?v=mobile-ui-20260921" defer></script>
   </body>
 </html>

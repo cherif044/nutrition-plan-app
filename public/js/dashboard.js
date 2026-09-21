@@ -50,6 +50,8 @@ const state = {
   customerSearch: '',
   planSearch: '',
   menu: null,
+  menuTrigger: null,
+  menuOpenedAt: 0,
 };
 
 const AVATAR_TONES = ['coral', 'sky', 'violet', 'amber', 'jade'];
@@ -341,7 +343,6 @@ function customerRow(customer) {
           <strong>${escapeHtml(customer.name)}</strong>
           <small>${count} plan${count === 1 ? '' : 's'}</small>
         </span>
-        <span class="dashboard-row-chevron" aria-hidden="true">${iconSvg('chevron', 14)}</span>
       </button>
       <button
         class="dashboard-customer-menu-btn"
@@ -369,7 +370,6 @@ function customerPageRow(customer) {
             ${customer.activePlan ? '<span class="pc-tag">Active</span>' : ''}
           </span>
         </span>
-        <svg class="pc-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
       </a>
       <button
         class="pc-row__more dashboard-customer-menu-btn"
@@ -394,7 +394,6 @@ function homeCustomerRow(customer) {
           <span class="ph-row__name">${escapeHtml(name)}</span>
           <span class="ph-row__meta">${count} plan${count === 1 ? '' : 's'}</span>
         </span>
-        <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
       </a>
       <button
         type="button"
@@ -421,7 +420,6 @@ function homePlanRow(plan) {
             ${escapeHtml(formatRelativeTime(updatedAt))}
           </span>
         </span>
-        <svg class="ph-row__chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
       </a>
       <button
         type="button"
@@ -884,10 +882,17 @@ function ensureDashboardMenu() {
 
 function hideDashboardMenu() {
   if (state.menu) state.menu.hidden = true;
+  state.menuTrigger?.setAttribute('aria-expanded', 'false');
+  state.menuTrigger = null;
+  state.menuOpenedAt = 0;
 }
 
 function positionDashboardMenu(button) {
   const menu = ensureDashboardMenu();
+  state.menuTrigger?.setAttribute('aria-expanded', 'false');
+  state.menuTrigger = button;
+  state.menuOpenedAt = performance.now();
+  button.setAttribute('aria-expanded', 'true');
   menu.hidden = false;
   const buttonRect = button.getBoundingClientRect();
   const menuRect = menu.getBoundingClientRect();
@@ -913,7 +918,6 @@ function exportHrefWithClientName(exportHref, hasCustomer) {
 }
 
 function downloadPlanPdf(exportHref, planName, { hasCustomer = false } = {}) {
-  const message = document.getElementById('dashboard-message');
   const href = exportHrefWithClientName(exportHref, hasCustomer);
   const link = document.createElement('a');
   link.href = href;
@@ -921,7 +925,6 @@ function downloadPlanPdf(exportHref, planName, { hasCustomer = false } = {}) {
   document.body.append(link);
   link.click();
   link.remove();
-  message.textContent = 'PDF export started.';
 }
 
 async function refreshDashboard() {
@@ -1140,6 +1143,10 @@ document.addEventListener('click', (event) => {
   if (menuButton) {
     event.preventDefault();
     event.stopPropagation();
+    if (menuButton.getAttribute('aria-expanded') === 'true' && state.menu && !state.menu.hidden) {
+      hideDashboardMenu();
+      return;
+    }
     showPlanMenu(menuButton);
     return;
   }
@@ -1148,6 +1155,10 @@ document.addEventListener('click', (event) => {
   if (customerMenuButton) {
     event.preventDefault();
     event.stopPropagation();
+    if (customerMenuButton.getAttribute('aria-expanded') === 'true' && state.menu && !state.menu.hidden) {
+      hideDashboardMenu();
+      return;
+    }
     showCustomerMenu(customerMenuButton);
     return;
   }
@@ -1169,7 +1180,11 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('hashchange', renderRoute);
-window.addEventListener('scroll', hideDashboardMenu, true);
+window.addEventListener('scroll', () => {
+  if (!state.menu || state.menu.hidden) return;
+  if (performance.now() - state.menuOpenedAt < 250) return;
+  hideDashboardMenu();
+}, true);
 
 (async () => {
   installStaticIcons();

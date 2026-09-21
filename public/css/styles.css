@@ -13187,3 +13187,61 @@ body.dashboard-page .pinch-customer .pd-empty p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Generated plans are final: editing meals remains available, but the source
+   inputs and regeneration controls are intentionally removed from plan view. */
+body.is-plan-view #plan-form {
+  display: none !important;
+}
+
+/* Customer assignment uses the platform's native select UI. */
+.save-action-bar__customer-select {
+  width: 100%;
+  min-height: 40px;
+  color: var(--ref-fg);
+  font-size: 14px;
+}
+
+.save-customer-picker__new-name[hidden] {
+  display: none;
+}
+
+/* Keep food names readable inside inline add/swap search results. */
+.pending-food-search__results .suggestion-item {
+  min-width: 0;
+}
+
+.pending-food-search__results .suggestion-item__body,
+.pending-food-search__results .suggestion-item__body strong {
+  min-width: 0;
+  color: var(--ref-fg);
+}
+
+@media (max-width: 700px) {
+  .food-item--pending-add,
+  .food-item--pending-swap {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas: "title actions";
+    gap: 8px;
+  }
+
+  .food-item--pending-add > .food-cell,
+  .food-item--pending-swap > .food-cell {
+    display: none;
+  }
+
+  .food-item--pending-add .food-title,
+  .food-item--pending-swap .food-title {
+    grid-template-columns: 26px minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .pending-food-search__results .suggestion-item {
+    gap: 8px;
+    padding: 10px 8px;
+  }
+
+  .pending-food-search__results .suggestion-item em {
+    display: none;
+  }
+}

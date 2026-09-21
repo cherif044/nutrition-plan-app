@@ -153,6 +153,82 @@ test('autosaved generated plan replaces transient URL with a durable plan URL', 
   await expect(page.getByRole('button', { name: 'Export plan' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & export' })).toHaveCount(0);
   await expect(page.locator('#folder-save-bar .save-action-bar__status')).toHaveCount(0);
+  await expect(page.locator('#plan-form')).toBeHidden();
+});
+
+test('customer assignment uses a native select with a conditional new-customer name field', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { firstname: 'QA' } }),
+  }));
+  await page.route('**/api/preferences', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ allergyOptions: [] }),
+  }));
+  await page.route('**/api/customers?limit=100', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ customers: [{ id: 45, name: 'QA Customer', activity_level: 'moderate' }] }),
+  }));
+
+  await page.goto('/planner');
+  const customerSelect = page.getByRole('combobox', { name: 'Customer', exact: true });
+  const customerName = page.getByLabel('Customer name', { exact: true });
+
+  await expect(customerSelect).toHaveValue('general');
+  await expect(customerName).toBeHidden();
+  await customerSelect.selectOption('new');
+  await expect(customerName).toBeVisible();
+  await customerName.fill('New QA Customer');
+  await customerSelect.selectOption('existing:45');
+  await expect(customerSelect).toHaveValue('existing:45');
+  await expect(customerName).toBeHidden();
+  await expect(customerName).toHaveValue('QA Customer');
+});
+
+test('mobile inline food search keeps food names visible', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { firstname: 'QA' } }),
+  }));
+  await page.route('**/api/preferences', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ allergyOptions: [] }),
+  }));
+  await page.route('**/api/customers?limit=100', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ customers: [] }),
+  }));
+  await page.route('**/api/foods', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ foods: [food] }),
+  }));
+  await page.route('**/api/generation-timeline', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true }),
+  }));
+  await page.route('**/api/generate-plan', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify(generatedPlan),
+  }));
+  await page.route('**/api/plans', (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({ plan: { id: 988, name: 'Mobile Food Test', customer_id: null } }),
+  }));
+
+  await page.goto('/planner');
+  await page.getByLabel('Plan name').fill('Mobile Food Test');
+  await page.locator('#plan-form button[type="submit"]').click();
+  await expect(page.locator('#plan-form')).toBeHidden();
+  await page.locator('.edit-mode-switch').click();
+  await page.getByRole('button', { name: 'Add food' }).click();
+  await page.locator('.pending-food-search__input').fill('Chicken');
+
+  const resultName = page.locator('.pending-food-search__results .suggestion-item__body strong');
+  await expect(resultName).toHaveText(food.name);
+  await expect(resultName).toBeVisible();
+  expect((await resultName.boundingBox())?.width || 0).toBeGreaterThan(100);
 });
 
 test('customer-linked saved plan opens without being marked dirty', async ({ page }) => {
