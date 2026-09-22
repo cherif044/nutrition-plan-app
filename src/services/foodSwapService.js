@@ -1,30 +1,23 @@
 /**
- * Per-request "swap suggestions" lookup.
+ * Per-request swap suggestions.
  *
- * This file does exactly one thing: given a food id, look up the
- * precomputed candidate list built by scripts/buildFoodSwaps.js, apply the
- * user's live dietType/allergen/dislike filters, optionally check that each
- * candidate can actually be substituted into the meal it's being swapped
- * into, and return every valid option unless a caller explicitly limits it.
- *
- * It never computes distances or scores itself — that only happens in the
- * precompute script. Keeping the two apart means a slow request never
- * triggers a full-catalog recompute, and the precompute logic has exactly
- * one place to live.
+ * Candidates are generated from the live food catalog for the meal being
+ * edited. A food is eligible only when it has the same macro role as the
+ * food being replaced and is tagged for that meal. Live dietary filters and
+ * the normal rebalance check are then applied before it is returned.
  */
 
-const { loadFoods, loadFoodSwaps } = require('../repositories/foodRepository');
+const { loadFoods } = require('../repositories/foodRepository');
 const { filterFoods, clampServing, rebalanceMeal } = require('./planGenerator');
 
 const DEFAULT_LIMIT = Number.POSITIVE_INFINITY;
-// A candidate whose tier-adjusted score is >= 1 would produce a match_pct
-// <= 0 — not a looser match, a non-match. Tier-4 condiment fallbacks can
-// hit this (e.g. mustard as a "swap" for BBQ sauce). Drop them rather than
-// show a 0% or negative "suggestion".
-const MAX_SCORE = 1;
-function scoreToMatchPct(score) {
-  return Math.round(100 - score * 100);
-}
+
+const MEAL_TAG_ALIASES = {
+  iftar: ['dinner', 'lunch'],
+  suhoor: ['breakfast', 'dinner'],
+  main: ['lunch', 'dinner'],
+  main_meal: ['lunch', 'dinner'],
+};
 
 function normalizeLimit(limit) {
   if (limit === undefined || limit === null || limit === 'all') return DEFAULT_LIMIT;
@@ -78,17 +71,26 @@ function isUsableMealContext(mealContext) {
   );
 }
 
+function mealTagsForSuggestions(mealContext, sourceFood) {
+  const currentMealTag = String(mealContext?.mealTag ?? '').trim().toLowerCase();
+  if (currentMealTag) {
+    return MEAL_TAG_ALIASES[currentMealTag] || [currentMealTag];
+  }
+
+  // The planner always supplies mealTag. Retaining this fallback keeps the
+  // service usable for non-planner callers while still limiting suggestions
+  // to a meal in which the source itself is allowed.
+  return Array.isArray(sourceFood.mealTags) ? sourceFood.mealTags : [];
+}
+
 /**
  * @param {object} params
  * @param {string} params.foodId - the food being swapped out
  * @param {object} [params.userPreferences] - { dietType, avoidFoods, dislikes },
  *   the same shape produced by the frontend's getUserPreferences()
  * @param {number|string} [params.limit] - max results, or "all" for every result
- * @param {object} [params.mealContext] - { itemIndex, currentItems, mealTarget,
- *   dailyContext }, the same shapes /api/rebalance-meal takes. When present,
- *   candidates are additionally required to actually fit the meal at some
- *   valid serving size. Omit it to get pure nutritional-similarity ranking
- *   (e.g. for a food browser with no meal in context).
+ * @param {object} [params.mealContext] - { mealTag, itemIndex, currentItems,
+ *   mealTarget, dailyContext }, where mealTag is the current meal's tag.
  */
 function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMIT, mealContext = null }) {
   const id = String(foodId ?? '');
@@ -103,26 +105,13 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
     return { foodId: id, options: [] };
   }
 
-  const swaps = loadFoodSwaps();
-  const candidates = swaps[id] || [];
-  if (candidates.length === 0) {
-    return { foodId: id, options: [] };
-  }
-
   const safeLimit = normalizeLimit(limit);
-
-  // Resolve candidate ids to full food objects, preserving the precomputed
-  // tier-then-score order. Drop non-matches up front (score >= MAX_SCORE)
-  // and anything the catalog no longer has (stale precompute).
-  const candidateFoods = [];
-  const candidateById = new Map();
-  for (const candidate of candidates) {
-    if (candidate.score >= MAX_SCORE) continue;
-    const food = foodById.get(candidate.candidateId);
-    if (!food) continue;
-    candidateFoods.push(food);
-    candidateById.set(food.id, candidate);
-  }
+  const allowedMealTags = new Set(mealTagsForSuggestions(mealContext, sourceFood));
+  const candidateFoods = foods.filter((food) => (
+    food.id !== sourceFood.id
+    && food.macroRole === sourceFood.macroRole
+    && food.mealTags.some((mealTag) => allowedMealTags.has(mealTag))
+  ));
 
   // Same filtering plan generation and the existing produce-swap endpoint
   // use: dietType (vegan/vegetarian) + avoidFoods/dislikes resolved through
@@ -149,12 +138,13 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
   }
 
   const toOption = (food) => {
-    const candidate = candidateById.get(food.id);
     return {
       foodId: food.id,
       name: food.name,
-      matchPct: scoreToMatchPct(candidate.score),
-      tier: candidate.tier,
+      // These legacy fields are not rendered by the frontend, but retaining
+      // them preserves the existing API response shape for other callers.
+      matchPct: 100,
+      tier: 1,
     };
   };
 

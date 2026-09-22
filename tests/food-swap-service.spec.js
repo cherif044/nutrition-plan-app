@@ -5,7 +5,7 @@ const servicePath = require.resolve('../src/services/foodSwapService');
 const foodRepositoryPath = require.resolve('../src/repositories/foodRepository');
 const planGeneratorPath = require.resolve('../src/services/planGenerator');
 
-function makeFood(id, name = id) {
+function makeFood(id, name = id, { macroRole = 'protein', mealTags = ['lunch'] } = {}) {
   return {
     id,
     name,
@@ -17,20 +17,14 @@ function makeFood(id, name = id) {
     carbGPer100g: 10,
     fatGPer100g: 2,
     categories: ['protein'],
-    mealTags: ['lunch'],
+    macroRole,
+    mealTags,
   };
 }
 
-function loadFoodSwapServiceWithMocks({ candidateCount = 35 } = {}) {
+function loadFoodSwapServiceWithMocks({ candidateCount = 35, extraFoods = [] } = {}) {
   const source = makeFood('source_food', 'Source food');
   const candidates = Array.from({ length: candidateCount }, (_, index) => makeFood(`candidate_${index + 1}`, `Candidate ${index + 1}`));
-  const foodSwaps = {
-    source_food: candidates.map((food, index) => ({
-      candidateId: food.id,
-      score: 0.01 + index / 1000,
-      tier: 1,
-    })),
-  };
 
   let rebalanceCalls = 0;
   const originalLoad = Module._load;
@@ -39,8 +33,7 @@ function loadFoodSwapServiceWithMocks({ candidateCount = 35 } = {}) {
     const resolved = Module._resolveFilename(request, parent, isMain);
     if (resolved === foodRepositoryPath) {
       return {
-        loadFoods: () => [source, ...candidates],
-        loadFoodSwaps: () => foodSwaps,
+        loadFoods: () => [source, ...candidates, ...extraFoods],
       };
     }
     if (resolved === planGeneratorPath) {
@@ -92,6 +85,7 @@ test('meal-context swap suggestions scan past the old thirty-candidate ceiling',
   const result = service.getSwapSuggestions({
     foodId: 'source_food',
     mealContext: {
+      mealTag: 'lunch',
       itemIndex: 0,
       currentItems: [{ foodId: 'source_food', quantityG: 100 }],
       mealTarget: { calories: 500 },
@@ -100,4 +94,27 @@ test('meal-context swap suggestions scan past the old thirty-candidate ceiling',
 
   expect(result.options).toHaveLength(35);
   expect(getRebalanceCalls()).toBe(35);
+});
+
+test('swap suggestions use the current meal tag and the source macro role', () => {
+  const wrongMeal = makeFood('wrong_meal', 'Wrong meal', { mealTags: ['breakfast'] });
+  const wrongRole = makeFood('wrong_role', 'Wrong role', { macroRole: 'carb' });
+  const { service, getRebalanceCalls } = loadFoodSwapServiceWithMocks({
+    candidateCount: 1,
+    extraFoods: [wrongMeal, wrongRole],
+  });
+
+  const result = service.getSwapSuggestions({
+    foodId: 'source_food',
+    mealContext: {
+      mealTag: 'lunch',
+      itemIndex: 0,
+      currentItems: [{ foodId: 'source_food', quantityG: 100 }],
+      mealTarget: { calories: 500 },
+    },
+  });
+
+  expect(result.options).toHaveLength(1);
+  expect(result.options[0]).toMatchObject({ foodId: 'candidate_1' });
+  expect(getRebalanceCalls()).toBe(1);
 });

@@ -2291,6 +2291,7 @@ async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
   // for a real swap — so nothing shown here can fail with "Cannot swap
   // this food" after the user picks it.
   const mealContext = {
+    mealTag: state.tag,
     itemIndex,
     currentItems: mealActionItems(state.items),
     mealTarget: state.target,
