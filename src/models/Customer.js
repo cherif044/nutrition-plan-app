@@ -10,7 +10,6 @@ const Customer = sequelize.define('Customer', {
   weight:         { type: DataTypes.DECIMAL, allowNull: true },
   height:         { type: DataTypes.DECIMAL, allowNull: true },
   activity_level: { type: DataTypes.STRING(50), allowNull: true },
-  goal:           { type: DataTypes.STRING(50), allowNull: true },
   created_at:     { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   updated_at:     { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
 }, {

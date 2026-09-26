@@ -1,4 +1,4 @@
-const { createPlan, getPlanById, updatePlan, deletePlan, duplicatePlan, setPlanActive } = require('../repositories/planRepository');
+const { createPlan, getPlanById, updatePlan, deletePlan, duplicatePlan } = require('../repositories/planRepository');
 const { logger } = require('../utils/logger');
 
 function elapsedMs(startedAt) {
@@ -20,11 +20,11 @@ function generationRequestIdFromRequest(req) {
 
 async function createPlanHandler(req, res, next) {
   try {
-    const { name, planData, folderId = null, customer = null, isActive = false } = req.body;
+    const { name, planData, folderId = null, customer = null } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
     const saveStartedAt = process.hrtime.bigint();
-    const plan = await createPlan(req.user.id, folderId || null, name, planData, { customer, isActive });
+    const plan = await createPlan(req.user.id, folderId || null, name, planData, { customer });
     recordMetric(req, 'planSaveDbMs', elapsedMs(saveStartedAt));
     logger.info('Plan timeline: server saved plan', {
       requestId: req.id,
@@ -33,7 +33,6 @@ async function createPlanHandler(req, res, next) {
       planId: plan.id,
       folderId: folderId || null,
       hasCustomer: Boolean(plan.customer_id),
-      isActive: Boolean(plan.is_active),
       metrics: req.metrics,
     });
     res.status(201).json({ plan });
@@ -70,11 +69,11 @@ async function exportPlanPdfHandler(req, res, next) {
 
 async function updatePlanHandler(req, res, next) {
   try {
-    const { name, planData, folderId, customer, isActive } = req.body;
-    if (!name && !planData && folderId === undefined && customer === undefined && isActive === undefined) {
-      return res.status(400).json({ error: 'name, planData, folderId, customer, or isActive required.' });
+    const { name, planData, folderId, customer } = req.body;
+    if (!name && !planData && folderId === undefined && customer === undefined) {
+      return res.status(400).json({ error: 'name, planData, folderId, or customer required.' });
     }
-    const plan = await updatePlan(req.params.id, req.user.id, { name, planData, folderId, customer, isActive });
+    const plan = await updatePlan(req.params.id, req.user.id, { name, planData, folderId, customer });
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
     res.json({ plan });
   } catch (err) { next(err); }
@@ -99,17 +98,6 @@ async function duplicatePlanHandler(req, res, next) {
   }
 }
 
-async function setPlanActiveHandler(req, res, next) {
-  try {
-    const plan = await setPlanActive(req.params.id, req.user.id);
-    if (!plan) return res.status(404).json({ error: 'Plan not found.' });
-    res.json({ plan });
-  } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
-    next(err);
-  }
-}
-
 module.exports = {
   createPlanHandler,
   getPlan,
@@ -117,5 +105,4 @@ module.exports = {
   updatePlanHandler,
   deletePlanHandler,
   duplicatePlanHandler,
-  setPlanActiveHandler,
 };

@@ -93,12 +93,12 @@ async function savePlanInFolder(req, res, next) {
     const folder = await getFolderById(req.params.id, req.user.id);
     if (!folder) return res.status(404).json({ error: 'Folder not found.' });
 
-    const { name, planData, customer = null, isActive = false } = req.body;
+    const { name, planData, customer = null } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
 
     const saveStartedAt = process.hrtime.bigint();
-    const plan = await createPlan(req.user.id, folder.id, name, planData, { customer, isActive });
+    const plan = await createPlan(req.user.id, folder.id, name, planData, { customer });
     recordMetric(req, 'planSaveDbMs', elapsedMs(saveStartedAt));
     logger.info('Plan timeline: server saved plan', {
       requestId: req.id,
@@ -107,7 +107,6 @@ async function savePlanInFolder(req, res, next) {
       planId: plan.id,
       folderId: folder.id,
       hasCustomer: Boolean(plan.customer_id),
-      isActive: Boolean(plan.is_active),
       metrics: req.metrics,
     });
     res.status(201).json({ plan });

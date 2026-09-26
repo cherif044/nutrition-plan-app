@@ -43,7 +43,6 @@ function planRowToSummary(row) {
     folder_id: row.folder_id,
     customer_id: row.customer_id,
     name: row.name,
-    is_active: row.is_active,
     last_opened_at: row.last_opened_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -64,13 +63,9 @@ function customerRowToSummary(row) {
     weight: row.weight,
     height: row.height,
     activity_level: row.activity_level,
-    goal: row.goal,
     created_at: row.created_at,
     updated_at: row.updated_at,
     planCount: Number(row.plan_count || 0),
-    activePlan: row.active_plan_id
-      ? { id: row.active_plan_id, name: row.active_plan_name }
-      : null,
   };
 }
 
@@ -78,7 +73,6 @@ async function getStats(userId) {
   const [row] = await sequelize.query(`
     SELECT
       COUNT(*)::int AS "totalPlans",
-      COUNT(*) FILTER (WHERE is_active = TRUE)::int AS "activePlans",
       COUNT(*) FILTER (WHERE created_at >= date_trunc('week', now()))::int AS "plansThisWeek",
       (SELECT COUNT(*)::int FROM customers WHERE user_id = :userId) AS customers,
       (
@@ -97,7 +91,6 @@ async function getStats(userId) {
   return {
     totalPlans: Number(row?.totalPlans || 0),
     customers: Number(row?.customers || 0),
-    activePlans: Number(row?.activePlans || 0),
     plansThisWeek: Number(row?.plansThisWeek || 0),
     customersThisWeek: Number(row?.customersThisWeek || 0),
   };
@@ -107,7 +100,7 @@ async function listDashboardCustomers(userId, { query = '', limit = DEFAULT_DASH
   const normalized = normalizeSearch(query);
   const rows = await sequelize.query(`
     WITH matching_customers AS (
-      SELECT id, name, age, sex, weight, height, activity_level, goal, created_at, updated_at
+      SELECT id, name, age, sex, weight, height, activity_level, created_at, updated_at
       FROM customers
       WHERE user_id = :userId
         AND (:query = '' OR lower(btrim(name)) LIKE :likeQuery)
@@ -120,26 +113,12 @@ async function listDashboardCustomers(userId, { query = '', limit = DEFAULT_DASH
       WHERE user_id = :userId
         AND customer_id IN (SELECT id FROM matching_customers)
       GROUP BY customer_id
-    ),
-    active_plans AS (
-      SELECT DISTINCT ON (customer_id)
-        customer_id,
-        id AS active_plan_id,
-        name AS active_plan_name
-      FROM plans
-      WHERE user_id = :userId
-        AND is_active = TRUE
-        AND customer_id IN (SELECT id FROM matching_customers)
-      ORDER BY customer_id, updated_at DESC, created_at DESC, id DESC
     )
     SELECT
       c.*,
-      COALESCE(pc.plan_count, 0) AS plan_count,
-      ap.active_plan_id,
-      ap.active_plan_name
+      COALESCE(pc.plan_count, 0) AS plan_count
     FROM matching_customers c
     LEFT JOIN plan_counts pc ON pc.customer_id = c.id
-    LEFT JOIN active_plans ap ON ap.customer_id = c.id
     ORDER BY c.name ASC, c.id ASC
   `, {
     replacements: {
@@ -183,7 +162,6 @@ async function listGeneralPlans(userId, { query = '', limit = DEFAULT_DASHBOARD_
       p.folder_id,
       p.customer_id,
       p.name,
-      p.is_active,
       p.last_opened_at,
       p.created_at,
       p.updated_at,
@@ -250,7 +228,6 @@ async function listRecentPlans(userId) {
       p.folder_id,
       p.customer_id,
       p.name,
-      p.is_active,
       p.last_opened_at,
       p.created_at,
       p.updated_at,

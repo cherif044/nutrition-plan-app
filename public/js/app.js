@@ -189,13 +189,6 @@ function foodMediaPlaceholder(extraClass = '') {
 const DELETE_UNDO_MS = 6000;
 let deleteUndoSequence = 0;
 
-function produceGroup(food) {
-  const categories = new Set(food?.categories || []);
-  if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
-  if (categories.has('vegetables') || categories.has('vegetable')) return 'vegetable';
-  return null;
-}
-
 // Auth guard
 (async () => {
   try {
@@ -267,7 +260,6 @@ const PROFILE_SYNC_FIELDS = new Map([
   ['weightKg', 'weightKg'],
   ['heightCm', 'heightCm'],
   ['activityLevel', 'activityLevel'],
-  ['goal', 'goal'],
 ]);
 
 const labels = {
@@ -282,7 +274,6 @@ const preferenceState = { avoidFoods: [] };
 let preferenceOptions = { avoidFoods: [] };
 
 let foodsById = new Map();
-let allowedProduceFoods = [];
 // Declared up here because reserveSpaceForSaveBar() runs during init, before
 // the function that uses it appears further down the file.
 let saveBarResizeObserver = null;
@@ -534,13 +525,7 @@ async function validatePreGenerationSaveDetails() {
   const customerInput = form.elements.customerName;
   const customerSelect = form.elements.customerChoice;
   const customerName = customerInput?.value.trim() || '';
-  const makeActive = Boolean(form.elements.makeActive?.checked);
   const hasCustomerSelection = preGenerationCustomerState.mode === 'existing' || preGenerationCustomerState.mode === 'new';
-  if (makeActive && !hasCustomerSelection) {
-    message.textContent = 'Choose or enter a customer before making a plan active.';
-    customerSelect?.focus();
-    return false;
-  }
 
   if (preGenerationCustomerState.mode === 'new' && !customerName) {
     message.textContent = 'Enter a customer name before adding a new customer.';
@@ -555,7 +540,6 @@ function preGenerationSavePayload() {
   return {
     name: readPreGenerationPlanName(),
     customerPayload: buildCustomerPayload(preGenerationCustomerPicker, preGenerationCustomerState),
-    isActive: Boolean(form.elements.makeActive?.checked),
   };
 }
 
@@ -842,7 +826,6 @@ async function loadPlanForEdit(planId) {
       populateFormFromInput(plan.plan_data.input);
     }
     if (form.elements.planName) form.elements.planName.value = plan.name || '';
-    if (form.elements.makeActive) form.elements.makeActive.checked = Boolean(plan.is_active);
     initializeCustomerPickerFromPlan(plan);
     currentPlanId = plan.id;
     currentPlanName = plan.name || '';
@@ -911,7 +894,6 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
   output.classList.toggle('plan-output--manual', isManualModeActive());
   mealStates.length = 0;
   currentPlanInput = plan.input || null;
-  allowedProduceFoods = normalizeAllowedProduceFoods(plan.allowedProduceFoods || []);
   output.hidden = false;
   emptyState.hidden = true;
   switchPlannerView('plan', { push: false });
@@ -999,8 +981,6 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
       chatWorkingItems: null,
       chatPrevWorkingItems: null,
       chatMessages: [],
-      produceSwapCache: createProduceSwapCache(),
-      produceSwapBlockedFoodIds: new Set(),
       cardEl: null,
     };
     mealStates.push(state);
@@ -1191,15 +1171,17 @@ function setShowTargets(nextValue) {
 function manualModeControlHtml() {
   const disabled = manualModeLocked ? 'disabled' : '';
   return `
-    <button class="manual-mode-button${isManualModeActive() ? ' is-active' : ''}" type="button" ${disabled}>
-      ${isManualModeActive() ? 'Manual mode on' : 'Manual mode'}
-    </button>
+    <label class="manual-mode-switch${isManualModeActive() ? ' is-active' : ''}">
+      <input class="manual-mode-toggle" type="checkbox" ${isManualModeActive() ? 'checked' : ''} ${disabled} />
+      <i aria-hidden="true"></i>
+      <span>Manual mode</span>
+    </label>
   `;
 }
 
 function bindManualModeSwitch(root) {
-  root.querySelector('.manual-mode-button')?.addEventListener('click', () => {
-    setManualMode(!isManualModeActive());
+  root.querySelector('.manual-mode-toggle')?.addEventListener('change', (event) => {
+    setManualMode(event.target.checked);
   });
 }
 
@@ -1208,15 +1190,41 @@ function refreshManualModeUi() {
   output?.classList.toggle('plan-output--hide-targets', !showTargets || isManualModeActive());
   if (isManualModeActive()) {
     mealStates.forEach((state) => removeManualModeMealControls(state.cardEl));
+  } else {
+    removeNonManualPortionEditors();
+    mealStates.forEach((state) => renderFoodList(state));
+    removeNonManualPortionEditors();
   }
-  document.querySelectorAll('.manual-mode-button').forEach((button) => {
-    button.classList.toggle('is-active', isManualModeActive());
-    button.disabled = manualModeLocked;
-    button.textContent = isManualModeActive() ? 'Manual mode on' : 'Manual mode';
+  document.querySelectorAll('.manual-mode-switch').forEach((control) => {
+    control.classList.toggle('is-active', isManualModeActive());
+    control.classList.toggle('is-disabled', manualModeLocked);
+    const input = control.querySelector('.manual-mode-toggle');
+    if (input) {
+      input.checked = isManualModeActive();
+      input.disabled = manualModeLocked;
+    }
   });
   output?.querySelectorAll('.target-toggle input').forEach((input) => {
     input.checked = showTargets && !isManualModeActive();
     input.disabled = isManualModeActive();
+  });
+}
+
+function removeNonManualPortionEditors() {
+  if (isManualModeActive()) return;
+  output?.querySelectorAll('.food-item .food-cell--portion').forEach((cell) => {
+    const editor = cell.querySelector('.portion');
+    if (!editor) return;
+    const input = editor.querySelector('.manual-grams-input');
+    const value = input?.value || editor.textContent || '';
+    const number = Number(value);
+    const grams = Number.isFinite(number) ? formatNumber(number) : value.replace(/[−+\s]/g, '').replace(/g$/i, '');
+    cell.innerHTML = `
+      <span class="portion portion--readonly" aria-label="${escapeHtml(`${grams}g`)}">
+        <span class="portion-value">${escapeHtml(grams)}</span>
+        <span class="unit">g</span>
+      </span>
+    `;
   });
 }
 
@@ -1227,6 +1235,11 @@ function setManualMode(enabled) {
   }
 
   if (!enabled) {
+    const confirmed = confirm("Your manual changes won't be saved. The plan will return to the last saved state. Are you sure you want to proceed?");
+    if (!confirmed) {
+      refreshManualModeUi();
+      return;
+    }
     manualMode = false;
     showTargets = false;
     hasUnsavedChanges = false;
@@ -1238,6 +1251,12 @@ function setManualMode(enabled) {
       planName: currentPlanName,
     });
     message.textContent = 'Manual changes reverted to the latest saved plan.';
+    return;
+  }
+
+  const confirmed = confirm('Manual mode frees the plan from automatic food tracking and macro balancing. You will have complete control over the foods and portions. Continue?');
+  if (!confirmed) {
+    refreshManualModeUi();
     return;
   }
 
@@ -1518,7 +1537,6 @@ function updateFoodRow(row, state, itemIndex) {
   row.dataset.itemIndex = itemIndex;
   row.dataset.foodKey = foodRowKey(item);
   setRowActions(row, state, itemIndex);
-  setProduceCycleControl(row, state, itemIndex);
 
   const signature = foodRowSignature(item);
   if (row.dataset.signature === signature) return false;
@@ -1556,32 +1574,72 @@ function renderPortionCell(row, state, itemIndex, item) {
   const cell = row.querySelector('.food-cell--portion');
   if (!cell) return;
   if (!isManualModeActive() || plannerCtx?.exportPdf) {
-    cell.textContent = formatPortion(item);
+    row.classList.remove('food-item--wide-portion');
+    if (plannerCtx?.exportPdf) {
+      cell.replaceChildren(document.createTextNode(formatPortion(item)));
+    } else {
+      renderReadOnlyPortionCell(cell, item);
+    }
     return;
   }
 
   cell.innerHTML = `
-    <input
-      class="manual-grams-input"
-      type="number"
-      min="1"
-      step="1"
-      inputmode="decimal"
-      value="${escapeHtml(Math.round((Number(item.quantityG) || 0) * 10) / 10)}"
-      aria-label="Grams of ${escapeHtml(item.food?.name || 'food')}"
-    />
-    <span>g</span>
+    <span class="portion">
+      <button type="button" class="portion-step" data-step="-5" aria-label="Decrease">−</button>
+      <input
+        class="manual-grams-input"
+        type="number"
+        min="0"
+        step="5"
+        inputmode="decimal"
+        value="${escapeHtml(Math.round((Number(item.quantityG) || 0) * 10) / 10)}"
+        aria-label="Grams of ${escapeHtml(item.food?.name || 'food')}"
+      />
+      <span class="unit">g</span>
+      <button type="button" class="portion-step" data-step="5" aria-label="Increase">+</button>
+    </span>
   `;
   const input = cell.querySelector('.manual-grams-input');
+  const fitInput = () => {
+    const length = String(input.value).length;
+    input.style.width = `${Math.max(2, length) + 0.4}ch`;
+    row.classList.toggle('food-item--wide-portion', length >= 5);
+  };
+  fitInput();
+  input.addEventListener('input', fitInput);
+  cell.querySelectorAll('.portion-step').forEach((button) => {
+    button.addEventListener('click', () => {
+      const itemNow = state.items[itemIndex];
+      if (!itemNow?.food) return;
+      const step = Number(button.dataset.step) || 0;
+      const current = Number(input.value || itemNow.quantityG || 0);
+      const next = Math.max(0, current + step);
+      itemNow.quantityG = Math.round(next * 10) / 10;
+      input.value = String(itemNow.quantityG);
+      fitInput();
+      updateManualItemQuantity(state, itemIndex, input.value, { force: true });
+    });
+  });
   input.addEventListener('input', () => updateManualItemQuantity(state, itemIndex, input.value));
   input.addEventListener('change', () => {
     const itemNow = state.items[itemIndex];
     if (!itemNow?.food) return;
-    const next = Math.max(1, Number(input.value) || 1);
+    const next = Math.max(0, Number(input.value) || 0);
     itemNow.quantityG = Math.round(next * 10) / 10;
     input.value = String(itemNow.quantityG);
+    fitInput();
     updateManualItemQuantity(state, itemIndex, input.value, { force: true });
   });
+}
+
+function renderReadOnlyPortionCell(cell, item) {
+  const grams = Math.round((Number(item.quantityG) || 0) * 10) / 10;
+  cell.innerHTML = `
+    <span class="portion portion--readonly" aria-label="${escapeHtml(formatPortion(item))}">
+      <span class="portion-value">${escapeHtml(formatNumber(grams))}</span>
+      <span class="unit">g</span>
+    </span>
+  `;
 }
 
 function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } = {}) {
@@ -1590,7 +1648,7 @@ function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } 
   const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
   if (!item?.food || !row) return;
   const value = Number(rawValue);
-  if (!Number.isFinite(value) || value <= 0) {
+  if (!Number.isFinite(value) || value < 0) {
     if (force) return;
     return;
   }
@@ -1627,7 +1685,6 @@ function renderPendingFoodSearchRow(row, state, itemIndex) {
       <input class="pending-food-search__input" type="search" placeholder="${isSwap ? 'Search replacement food' : 'Search food'}" autocomplete="off" />
       <span class="guided-search-results pending-food-search__results" hidden></span>
     </span>
-    <button class="produce-cycle-btn" type="button" hidden aria-label="Next produce"><span aria-hidden="true">&rsaquo;</span></button>
   `;
   const iconEl = row.querySelector('.food-icon');
   iconEl.dataset.mediaKey = '';
@@ -1687,26 +1744,6 @@ function setRowActions(row, state, itemIndex) {
   slot.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, Number(row.dataset.itemIndex)));
 }
 
-function setProduceCycleControl(row, state, itemIndex) {
-  const item = state.items[itemIndex];
-  const btn = row.querySelector('.produce-cycle-btn');
-  if (!btn) return;
-
-  if (item?.pendingAdd) {
-    btn.hidden = true;
-    return;
-  }
-
-  const group = produceGroup(item?.food);
-  btn.hidden = !group;
-  if (!group) return;
-
-  const label = `Next ${group} for ${item.food.name}`;
-  btn.dataset.group = group;
-  btn.setAttribute('aria-label', label);
-  btn.title = label;
-}
-
 // ── Food item rendering ──────────────────────────────────────────────────────
 
 function renderFoodItem(state, itemIndex) {
@@ -1716,7 +1753,6 @@ function renderFoodItem(state, itemIndex) {
     <div class="food-title">
       <span class="food-icon" aria-hidden="true"></span>
       <span class="food-name"></span>
-      <button class="produce-cycle-btn" type="button" hidden aria-label="Next produce"><span aria-hidden="true">&rsaquo;</span></button>
     </div>
     <div class="food-cell food-cell--portion"></div>
     <div class="food-cell food-cell--cal"></div>
@@ -1725,10 +1761,6 @@ function renderFoodItem(state, itemIndex) {
     <div class="food-cell food-cell--fat"></div>
     <div class="food-actions" data-filled="0"></div>
   `;
-  row.querySelector('.produce-cycle-btn').addEventListener('click', (event) => {
-    event.stopPropagation();
-    handleCycleProduceSwap(state, Number(row.dataset.itemIndex));
-  });
   updateFoodRow(row, state, itemIndex);
   return row;
 }
@@ -1818,8 +1850,6 @@ function normalizeStateItem(item) {
     broaderAlternatives: item.broaderAlternatives || [],
     nearestAlternatives: item.nearestAlternatives || [],
     component: item.component || null,
-    produceSwapOptions: null,
-    produceSwapIndex: 0,
   };
 }
 
@@ -1911,9 +1941,6 @@ function applyReadyMealOption(state, option, optionIndex) {
   state.isOriginalTemplate = optionIndex === 0;
   state.numberOfSwaps = 0;
   state.pendingProposal = null;
-  state.produceSwapBlockedFoodIds?.clear();
-  resetProduceSwapCache(state);
-
   const panel = actionPanel(state);
   panel.hidden = true;
   panel.innerHTML = '';
@@ -2116,7 +2143,6 @@ function applyManualMealItems(state, items, { successRowIndex = null } = {}) {
   state.items = items.map(normalizeStateItem);
   state.isOriginalTemplate = false;
   state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
-  resetProduceSwapCache(state);
   persistCurrentMealOption(state);
   closeActionPanel(state);
   renderFoodList(state);
@@ -2212,7 +2238,6 @@ function restoreDeletedFood(context) {
     ];
   }
 
-  unblockProduceSwapFood(state, context.deletedItem?.food);
   applyMealItems(state, restoredItems, { source: 'undo_delete' });
   pulseFoodRow(state, restoredIndex);
   showActionFeedback(state, {
@@ -2394,382 +2419,6 @@ function attemptSwapFood(state, itemIndex, alt) {
   });
 }
 
-async function handleCycleProduceSwap(state, itemIndex) {
-  const item = state.items[itemIndex];
-  const group = produceGroup(item?.food);
-  if (!group) return;
-
-  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
-  const btn = row?.querySelector('.produce-cycle-btn');
-  if (btn?.disabled) return;
-  if (btn) btn.disabled = true;
-
-  try {
-    if (isManualModeActive()) {
-      const candidates = (await allowedProduceFoodsForGroup(state, group))
-        .filter((food) => food.id !== item.food.id)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      if (!candidates.length) {
-        showActionFeedback(state, {
-          tone: 'danger',
-          message: `No other ${group} is available right now.`,
-          cardClass: 'meal-card--flash-fail',
-        });
-        return;
-      }
-      const index = Math.max(0, Number(item.produceSwapIndex || 0)) % candidates.length;
-      const nextFood = candidates[index];
-      state.items[itemIndex].produceSwapIndex = (index + 1) % candidates.length;
-      applyManualFoodSwap(state, itemIndex, nextFood);
-      return;
-    }
-
-    let option = nextCachedProduceSwapOption(state, itemIndex, group);
-    if (!option) {
-      const entry = await ensureProduceSwapEntryForItem(state, itemIndex, group, { silent: true });
-      option = takeProduceOptionFromEntry(state, entry, itemIndex, group);
-    }
-    if (!option?.items?.length) {
-      showActionFeedback(state, {
-        tone: 'danger',
-        message: `No other ${group} fits this meal window right now.`,
-        cardClass: 'meal-card--flash-fail',
-      });
-      return;
-    }
-
-    applyProduceSwapOption(state, option, { preserveCycle: true });
-  } catch (error) {
-    showActionFeedback(state, {
-      tone: 'danger',
-      message: error.message || 'Unable to swap produce.',
-      cardClass: 'meal-card--flash-fail',
-    });
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-function createProduceSwapCache() {
-  return {
-    version: 0,
-    entries: new Map(),
-    pending: new Map(),
-    activeCycle: null,
-  };
-}
-
-function ensureProduceSwapCache(state) {
-  const cache = state.produceSwapCache;
-  if (
-    cache &&
-    cache.entries instanceof Map &&
-    cache.pending instanceof Map
-  ) {
-    return cache;
-  }
-
-  state.produceSwapCache = createProduceSwapCache();
-  return state.produceSwapCache;
-}
-
-function resetProduceSwapCache(state, { preserveCycle = false } = {}) {
-  const cache = ensureProduceSwapCache(state);
-  cache.version += 1;
-  cache.entries.clear();
-  cache.pending.clear();
-  if (!preserveCycle) cache.activeCycle = null;
-  return cache;
-}
-
-function produceSwapCacheKey(state, itemIndex, group) {
-  return produceSwapCacheKeyForItems(state, itemIndex, group, state.items);
-}
-
-function produceSwapCacheKeyForItems(state, itemIndex, group, items) {
-  const item = items[itemIndex];
-  if (!item?.food || !group) return '';
-  const target = state.target || {};
-  return [
-    itemIndex,
-    group,
-    item.food.id || item.food.name || '',
-    roundForCache(item.quantityG),
-    mealItemsCacheSignature(items),
-    roundForCache(target.calories),
-    roundForCache(target.proteinG),
-    roundForCache(target.fatG),
-    roundForCache(Number(currentPlanInput?.weightKg)),
-    userPreferenceCacheSignature(),
-    allowedProduceCacheSignature(group),
-    blockedProduceCacheSignature(state, group),
-  ].join('|');
-}
-
-async function ensureProduceSwapEntryForItem(state, itemIndex, group, { silent = false } = {}) {
-  const key = produceSwapCacheKey(state, itemIndex, group);
-  if (!key) return null;
-
-  const cache = ensureProduceSwapCache(state);
-  if (cache.entries.has(key)) return cache.entries.get(key);
-  if (cache.pending.has(key)) return cache.pending.get(key);
-
-  const pending = fetchProduceSwapEntryForItems(state, itemIndex, group, state.items, { silent })
-    .then((entry) => {
-      if (entry) {
-        cache.entries.set(entry.key, entry);
-      }
-      return entry;
-    })
-    .finally(() => {
-      cache.pending.delete(key);
-    });
-
-  cache.pending.set(key, pending);
-  return pending;
-}
-
-async function fetchProduceSwapEntryForItems(state, itemIndex, group, items, { silent = false } = {}) {
-  const key = produceSwapCacheKeyForItems(state, itemIndex, group, items);
-  if (!key) return null;
-
-  try {
-    const currentItem = items[itemIndex];
-    if (!currentItem?.food || produceGroup(currentItem.food) !== group) return null;
-
-    const groupFoods = await allowedProduceFoodsForGroup(state, group);
-    const sortedGroupFoods = groupFoods
-      .filter((food) => food.id && food.id !== currentItem.food.id)
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const currentIndex = groupFoods.findIndex((food) => food.id === currentItem.food.id);
-    const startIndex = Math.max(0, currentIndex);
-    const orderedCandidates = sortedGroupFoods.sort((a, b) => {
-      const aIndex = groupFoods.findIndex((food) => food.id === a.id);
-      const bIndex = groupFoods.findIndex((food) => food.id === b.id);
-      const aOffset = (aIndex - startIndex + groupFoods.length) % groupFoods.length;
-      const bOffset = (bIndex - startIndex + groupFoods.length) % groupFoods.length;
-      return aOffset - bOffset || a.name.localeCompare(b.name);
-    });
-
-    const options = [];
-    for (let index = 0; index < orderedCandidates.length; index += 1) {
-      if (index > 0 && index % 8 === 0) await yieldToBrowser();
-      const candidate = orderedCandidates[index];
-      const option = produceSwapOptionForFood(state, itemIndex, items, candidate);
-      if (option) options.push(option);
-    }
-
-    const entry = {
-      key,
-      itemIndex,
-      group,
-      options: usableProduceOptions(options),
-      nextIndex: 0,
-    };
-    return entry;
-  } catch (error) {
-    if (!silent) throw error;
-    return null;
-  }
-}
-
-function normalizeAllowedProduceFoods(foods) {
-  return uniqueFoods((foods || [])
-    .filter((food) => produceGroup(food))
-    .map((food) => ({
-      ...food,
-      categories: food.categories || [],
-      mealTags: food.mealTags || [],
-    })));
-}
-
-async function allowedProduceFoodsForGroup(state, group) {
-  const blocked = produceSwapBlockedFoodIdsForGroup(state, group);
-  return allowedProduceFoods
-    .filter((food) => produceGroup(food) === group)
-    .filter((food) => !blocked.has(food.id))
-    .filter(foodAllowedForCurrentPreferences);
-}
-
-function allowedProduceCacheSignature(group) {
-  return allowedProduceFoods
-    .filter((food) => produceGroup(food) === group)
-    .map((food) => food.id)
-    .sort()
-    .join(',');
-}
-
-function blockedProduceCacheSignature(state, group) {
-  return [...produceSwapBlockedFoodIdsForGroup(state, group)].sort().join(',');
-}
-
-function produceSwapBlockedFoodIdsForGroup(state, group) {
-  const blocked = state?.produceSwapBlockedFoodIds instanceof Set
-    ? state.produceSwapBlockedFoodIds
-    : new Set();
-  return new Set([...blocked].filter((foodId) => {
-    const food = allowedProduceFoods.find((candidate) => candidate.id === foodId);
-    return !food || produceGroup(food) === group;
-  }));
-}
-
-function blockProduceSwapFood(state, food) {
-  if (!state || !produceGroup(food)) return;
-  if (!(state.produceSwapBlockedFoodIds instanceof Set)) {
-    state.produceSwapBlockedFoodIds = new Set();
-  }
-  state.produceSwapBlockedFoodIds.add(food.id);
-  resetProduceSwapCache(state);
-}
-
-function unblockProduceSwapFood(state, food) {
-  if (!state?.produceSwapBlockedFoodIds || !food?.id) return;
-  state.produceSwapBlockedFoodIds.delete(food.id);
-  resetProduceSwapCache(state);
-}
-
-function yieldToBrowser() {
-  return new Promise((resolve) => window.setTimeout(resolve, 0));
-}
-
-function mealItemsCacheSignature(items) {
-  return mealActionItems(items)
-    .map((item) => [
-      item.foodId || item.name || '',
-      roundForCache(item.quantityG),
-      item.customFood ? JSON.stringify(item.customFood) : '',
-    ].join(':'))
-    .join(',');
-}
-
-function userPreferenceCacheSignature() {
-  const preferences = getUserPreferences();
-  return [
-    preferences.dietType,
-    ...(preferences.avoidFoods || []),
-    ...(preferences.dislikes || []),
-  ].join(',');
-}
-
-function roundForCache(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.round(number * 10) / 10 : '';
-}
-
-function usableProduceOptions(options) {
-  return (options || []).filter((option) => (
-    option?.food?.id &&
-    Array.isArray(option.items) &&
-    option.items.length > 0
-  ));
-}
-
-function nextCachedProduceSwapOption(state, itemIndex, group) {
-  const cache = ensureProduceSwapCache(state);
-  const active = cache.activeCycle;
-  const currentFoodId = state.items[itemIndex]?.food?.id || '';
-  if (active?.itemIndex === itemIndex && active.group === group) {
-    const option = takeProduceOptionFromActiveCycle(state, active, currentFoodId);
-    if (option) return option;
-    cache.activeCycle = null;
-  }
-
-  const key = produceSwapCacheKey(state, itemIndex, group);
-  const entry = cache.entries.get(key);
-  return takeProduceOptionFromEntry(state, entry, itemIndex, group);
-}
-
-function produceSwapOptionForFood(state, itemIndex, items, candidate) {
-  const currentItem = items[itemIndex];
-  if (!candidate?.id || !currentItem?.food || candidate.id === currentItem.food.id) return null;
-  if (!foodAllowedForCurrentPreferences(candidate)) return null;
-  const group = produceGroup(currentItem.food);
-  if (!group || produceGroup(candidate) !== group) return null;
-  if (produceSwapBlockedFoodIdsForGroup(state, group).has(candidate.id)) return null;
-
-  const replacementQuantityG = clampGrams(candidate, currentItem.quantityG, 5) ||
-    candidate.defaultServingG ||
-    currentItem.quantityG;
-  const attemptedItems = items.map((rawItem, candidateIndex) => (
-    candidateIndex === itemIndex
-      ? normalizeStateItem({ ...rawItem, food: candidate, quantityG: replacementQuantityG })
-      : normalizeStateItem(rawItem)
-  ));
-
-  const result = localRebalanceMeal({
-    mealTarget: state.target,
-    items: attemptedItems,
-    action: 'swap_food',
-    changedItemIndex: itemIndex,
-  });
-  if (!result.success) return null;
-
-  return {
-    food: candidate,
-    items: mergeSolvedQuantities(attemptedItems, result.items),
-    totals: result.totals,
-  };
-}
-
-function takeProduceOptionFromActiveCycle(state, active, currentFoodId) {
-  const foods = active.foods || [];
-  if (!foods.length) return null;
-
-  for (let offset = 0; offset < foods.length; offset += 1) {
-    const index = ((Number(active.nextIndex) || 0) + offset) % foods.length;
-    const candidate = foods[index];
-    active.nextIndex = (index + 1) % foods.length;
-    if (!candidate?.id || candidate.id === currentFoodId) continue;
-
-    const option = produceSwapOptionForFood(state, active.itemIndex, state.items, candidate);
-    if (option) return option;
-  }
-
-  return null;
-}
-
-function takeProduceOptionFromEntry(state, entry, itemIndex, group) {
-  if (!entry?.options?.length) return null;
-  const currentFoodId = state.items[itemIndex]?.food?.id || '';
-  const next = nextProduceOption(entry.options, entry.nextIndex, currentFoodId);
-  if (!next) return null;
-  entry.nextIndex = next.nextIndex;
-  ensureProduceSwapCache(state).activeCycle = {
-    itemIndex,
-    group,
-    foods: entry.options.map((option) => option.food).filter(Boolean),
-    nextIndex: entry.nextIndex,
-  };
-  return next.option;
-}
-
-function nextProduceOption(options, startIndex, currentFoodId) {
-  if (!options?.length) return null;
-  const count = options.length;
-  const start = Number.isInteger(startIndex) ? startIndex : 0;
-  for (let offset = 0; offset < count; offset += 1) {
-    const index = (start + offset) % count;
-    const option = options[index];
-    if (option?.food?.id && option.food.id !== currentFoodId) {
-      return { option, nextIndex: (index + 1) % count };
-    }
-  }
-  return null;
-}
-
-function applyProduceSwapOption(state, option, { preserveCycle = false } = {}) {
-  const cleanItems = option.items.map((item) => ({
-    ...item,
-    produceSwapOptions: null,
-    produceSwapIndex: 0,
-  }));
-  applyMealItems(state, cleanItems, {
-    source: 'produce_swap',
-    preserveProduceSwapCycle: preserveCycle,
-  });
-}
-
 async function handleDeterministicRebalance(state, { previewTitle = 'Rebalanced meal' } = {}) {
   await attemptGuidedRebalance(state, {
     action: 'rebalance',
@@ -2817,9 +2466,8 @@ async function attemptGuidedRebalance(state, {
     if (res.ok && payload.success) {
       const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
       if (shouldApplyImmediately) {
-        applyMealItems(state, proposedItems, { source: 'deterministic', refreshProduceSwaps: true });
+        applyMealItems(state, proposedItems, { source: 'deterministic' });
         if (action === 'remove_food' && deleteUndo) {
-          blockProduceSwapFood(state, deleteUndo.deletedItem?.food);
           showDeleteUndoToast({
             ...deleteUndo,
             afterSignature: mealItemsUndoSignature(proposedItems),
@@ -2932,9 +2580,6 @@ function applyProposal(state) {
 function applyMealItems(state, items, options = {}) {
   state.items = items.map(normalizeStateItem);
   state.isOriginalTemplate = false;
-  resetProduceSwapCache(state, {
-    preserveCycle: options.source === 'produce_swap' && options.preserveProduceSwapCycle === true,
-  });
   state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
   if (options.source === 'alternate_meal') {
     state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
@@ -3555,7 +3200,7 @@ function replacePlannerUrlWithSavedPlan(planId) {
 }
 
 async function createGeneratedPlanRecord(planData, timeline = null) {
-  const { name, customerPayload, isActive } = preGenerationSavePayload();
+  const { name, customerPayload } = preGenerationSavePayload();
   const planDataToSave = {
     ...planData,
     manualMode: Boolean(planData?.manualMode || isManualModeActive()),
@@ -3568,7 +3213,6 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
       name,
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
-      isActive,
     }),
   });
   if (timeline) {
@@ -3631,7 +3275,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
     return false;
   }
 
-  const { customerPayload, isActive } = preGenerationSavePayload();
+  const { customerPayload } = preGenerationSavePayload();
   const planDataToSave = {
     ...planData,
     manualMode: Boolean(planData?.manualMode || isManualModeActive()),
@@ -3644,7 +3288,6 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
       name,
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
-      isActive,
     }),
   });
   const data = await readJsonResponse(res, 'Unable to save plan changes.');
@@ -4072,7 +3715,6 @@ function buildPlanData() {
     input: readForm(),
     manualMode: isManualModeActive(),
     dailyTargets,
-    allowedProduceFoods,
     dailyActuals: actual,
     meals: mealStates.map((state) => ({
       name: state.name,
@@ -4098,7 +3740,7 @@ function buildPlanData() {
         component: item.component || null,
         totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
       })),
-      mealOptions: stripProduceSwapOptionsFromMealOptions(state.mealOptions || []),
+      mealOptions: state.mealOptions || [],
       totals: computeTotals(state.items),
       templateId: state.templateId,
       templateName: state.templateName,
@@ -4112,36 +3754,7 @@ function buildPlanData() {
 }
 
 function planDataForPersistence(planData) {
-  if (!planData?.meals) return planData;
-  return {
-    ...planData,
-    meals: planData.meals.map((meal) => ({
-      ...meal,
-      originalItems: stripProduceSwapOptionsFromItems(meal.originalItems || []),
-      items: stripProduceSwapOptionsFromItems(meal.items || []),
-      mealOptions: stripProduceSwapOptionsFromMealOptions(meal.mealOptions || []),
-    })),
-  };
-}
-
-function stripProduceSwapOptionsFromMealOptions(mealOptions) {
-  return mealOptions.map((option) => ({
-    ...option,
-    items: stripProduceSwapOptionsFromItems(option.items || []),
-  }));
-}
-
-function stripProduceSwapOptionsFromItems(items) {
-  return items.map((item) => {
-    const {
-      produceSwapOptions: _produceSwapOptions,
-      produceSwapIndex: _produceSwapIndex,
-      swapOptions: _swapOptions,
-      swapIndex: _swapIndex,
-      ...persistedItem
-    } = item;
-    return persistedItem;
-  });
+  return planData;
 }
 
 function resetChat(state) {

@@ -1,5 +1,4 @@
 const sequelize = require('../config/database');
-const { Op } = require('sequelize');
 const { Plan, Folder, Customer } = require('../models');
 const { resolveCustomerForPlan } = require('./customerRepository');
 
@@ -22,9 +21,6 @@ async function createPlan(userId, folderId, name, planData, options = {}) {
       { transaction },
     );
     const customerId = customer?.id || null;
-    const isActive = Boolean(options.isActive) && Boolean(customerId);
-
-    if (isActive) await unsetActivePlansForCustomer(userId, customerId, transaction);
 
     const plan = await Plan.create({
       user_id: userId,
@@ -32,7 +28,7 @@ async function createPlan(userId, folderId, name, planData, options = {}) {
       customer_id: customerId,
       name: name.trim(),
       plan_data: planData,
-      is_active: isActive,
+      is_active: false,
     }, { transaction });
     const { plan_data: _, ...rest } = plan.toJSON();
     return {
@@ -45,7 +41,7 @@ async function createPlan(userId, folderId, name, planData, options = {}) {
 async function getPlansByFolder(folderId) {
   return Plan.findAll({
     where: { folder_id: folderId },
-    attributes: ['id', 'folder_id', 'customer_id', 'name', 'is_active', 'last_opened_at', 'created_at', 'updated_at'],
+    attributes: ['id', 'folder_id', 'customer_id', 'name', 'last_opened_at', 'created_at', 'updated_at'],
     order: [['created_at', 'DESC']],
   });
 }
@@ -55,7 +51,7 @@ async function getPlanById(planId, userId, { markOpened = false } = {}) {
     where: { id: planId, user_id: userId },
     include: [{
       model: Customer,
-      attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'goal'],
+      attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level'],
       required: false,
     }],
   });
@@ -71,7 +67,7 @@ async function getPlanById(planId, userId, { markOpened = false } = {}) {
   return data;
 }
 
-async function updatePlan(planId, userId, { name, planData, folderId, customer, isActive }) {
+async function updatePlan(planId, userId, { name, planData, folderId, customer }) {
   return sequelize.transaction(async (transaction) => {
     const plan = await Plan.findOne({
       where: { id: planId, user_id: userId },
@@ -99,50 +95,12 @@ async function updatePlan(planId, userId, { name, planData, folderId, customer, 
         { transaction },
       );
       updates.customer_id = resolvedCustomer?.id || null;
-      if (!resolvedCustomer) updates.is_active = false;
-    }
-
-    const targetCustomerId = updates.customer_id !== undefined ? updates.customer_id : plan.customer_id;
-    if (isActive !== undefined) {
-      updates.is_active = Boolean(isActive) && Boolean(targetCustomerId);
-    }
-
-    if (updates.is_active && targetCustomerId) {
-      await unsetActivePlansForCustomer(userId, targetCustomerId, transaction, plan.id);
+      updates.is_active = false;
     }
 
     await plan.update(updates, { transaction });
     return stripMeta(plan);
   });
-}
-
-async function setPlanActive(planId, userId) {
-  return sequelize.transaction(async (transaction) => {
-    const plan = await Plan.findOne({
-      where: { id: planId, user_id: userId },
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-    if (!plan) return null;
-    if (!plan.customer_id) throw Object.assign(new Error('Only customer-linked plans can be active.'), { status: 400 });
-
-    await unsetActivePlansForCustomer(userId, plan.customer_id, transaction, plan.id);
-    await plan.update({ is_active: true, updated_at: new Date() }, { transaction });
-    return stripMeta(plan);
-  });
-}
-
-async function unsetActivePlansForCustomer(userId, customerId, transaction, exceptPlanId = null) {
-  const customer = await Customer.findOne({
-    where: { id: customerId, user_id: userId },
-    transaction,
-    lock: transaction.LOCK.UPDATE,
-  });
-  if (!customer) throw Object.assign(new Error('Customer not found.'), { status: 404 });
-
-  const where = { user_id: userId, customer_id: customerId, is_active: true };
-  if (exceptPlanId) where.id = { [Op.ne]: exceptPlanId };
-  await Plan.update({ is_active: false }, { where, transaction });
 }
 
 async function deletePlan(planId, userId) {
@@ -181,7 +139,6 @@ module.exports = {
   getPlansByFolder,
   getPlanById,
   updatePlan,
-  setPlanActive,
   deletePlan,
   duplicatePlan,
 };

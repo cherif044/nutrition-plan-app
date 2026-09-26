@@ -11,7 +11,6 @@ const PROFILE_FIELD_MAP = Object.freeze({
   heightCm: 'height',
   activityLevel: 'activity_level',
   activity_level: 'activity_level',
-  goal: 'goal',
 });
 
 function normalizeCustomerName(name) {
@@ -33,7 +32,6 @@ function customerProfileFromInput(input = {}) {
     weight: nullableNumber(input.weightKg ?? input.weight),
     height: nullableNumber(input.heightCm ?? input.height),
     activity_level: input.activityLevel || input.activity_level || null,
-    goal: input.goal || null,
   };
 }
 
@@ -134,7 +132,7 @@ async function listCustomers(userId, { query = '', limit = 25 } = {}) {
 
   return Customer.findAll({
     where: whereClause,
-    attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'goal', 'created_at', 'updated_at'],
+    attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'created_at', 'updated_at'],
     order: [['name', 'ASC']],
     limit: customerListLimit(limit),
   });
@@ -150,12 +148,12 @@ async function listCustomersWithPlanSummary(userId) {
   const [customers, plans] = await Promise.all([
     Customer.findAll({
       where: { user_id: userId },
-      attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'goal', 'created_at', 'updated_at'],
+      attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'created_at', 'updated_at'],
       order: [['name', 'ASC']],
     }),
     Plan.findAll({
       where: { user_id: userId },
-      attributes: ['id', 'customer_id', 'name', 'is_active', 'updated_at', 'created_at'],
+      attributes: ['id', 'customer_id', 'name', 'updated_at', 'created_at'],
       order: [['updated_at', 'DESC'], ['created_at', 'DESC']],
     }),
   ]);
@@ -171,11 +169,9 @@ async function listCustomersWithPlanSummary(userId) {
   return customers.map((customer) => {
     const data = customer.toJSON();
     const customerPlans = plansByCustomer.get(String(data.id)) || [];
-    const activePlan = customerPlans.find((plan) => plan.is_active) || null;
     return {
       ...data,
       planCount: customerPlans.length,
-      activePlan: activePlan ? { id: activePlan.id, name: activePlan.name } : null,
     };
   });
 }
@@ -226,13 +222,12 @@ async function getCustomerPlans(userId, customerId) {
       'folder_id',
       'customer_id',
       'name',
-      'is_active',
       'created_at',
       'updated_at',
       [sequelize.literal("plan_data #>> '{input,goal}'"), 'goal'],
       [sequelize.literal("plan_data #>> '{input,dietType}'"), 'dietType'],
     ],
-    order: [['is_active', 'DESC'], ['updated_at', 'DESC'], ['created_at', 'DESC']],
+    order: [['updated_at', 'DESC'], ['created_at', 'DESC']],
   });
 
   return {
@@ -244,7 +239,6 @@ async function getCustomerPlans(userId, customerId) {
         folder_id: data.folder_id,
         customer_id: data.customer_id,
         name: data.name,
-        is_active: data.is_active,
         created_at: data.created_at,
         updated_at: data.updated_at,
         goal: data.goal || null,

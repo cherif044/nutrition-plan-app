@@ -49,7 +49,6 @@ const generatedPlan = {
       fatG: { min: 45, max: 75 },
     },
   },
-  allowedProduceFoods: [],
   meals: [
     {
       name: 'Lunch',
@@ -231,6 +230,86 @@ test('mobile inline food search keeps food names visible', async ({ page }) => {
   expect((await resultName.boundingBox())?.width || 0).toBeGreaterThan(100);
 });
 
+test('manual mode uses switch confirmations and a stable grams editor', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { firstname: 'QA' } }),
+  }));
+  await page.route('**/api/preferences', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ allergyOptions: [] }),
+  }));
+  await page.route('**/api/customers?limit=100', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ customers: [] }),
+  }));
+  await page.route('**/api/generation-timeline', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true }),
+  }));
+  await page.route('**/api/generate-plan', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify(generatedPlan),
+  }));
+  await page.route('**/api/plans', (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({ plan: { id: 989, name: 'Manual Mode Test', customer_id: null } }),
+  }));
+
+  await page.goto('/planner');
+  await page.getByLabel('Plan name').fill('Manual Mode Test');
+  await page.locator('#plan-form button[type="submit"]').click();
+  await expect(page.locator('#plan-form')).toBeHidden();
+  await expect(page.locator('.portion--readonly').first()).toBeVisible();
+  await expect(page.locator('.manual-grams-input')).toHaveCount(0);
+  await expect(page.locator('.portion-step')).toHaveCount(0);
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('complete control over the foods and portions');
+    await dialog.accept();
+  });
+  await page.locator('.manual-mode-switch').click();
+  await expect(page.locator('#plan-output')).toHaveClass(/plan-output--manual/);
+  await expect(page.locator('.edit-mode-switch')).toHaveCount(0);
+
+  const gramsInput = page.locator('.manual-grams-input').first();
+  await expect(gramsInput).toBeVisible();
+  await expect(gramsInput).toHaveValue('100');
+  await gramsInput.fill('150');
+  await expect(gramsInput).toHaveValue('150');
+  await page.getByLabel('Increase').first().click();
+  await expect(gramsInput).toHaveValue('155');
+  await page.getByLabel('Decrease').first().click();
+  await expect(gramsInput).toHaveValue('150');
+
+  const portionBox = await page.locator('.portion').first().boundingBox();
+  const inputBox = await gramsInput.boundingBox();
+  expect(portionBox.width).toBeGreaterThan(inputBox.width);
+  expect(inputBox.x).toBeGreaterThanOrEqual(portionBox.x);
+  expect(inputBox.x + inputBox.width).toBeLessThanOrEqual(portionBox.x + portionBox.width);
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain("won't be saved");
+    await dialog.dismiss();
+  });
+  await page.locator('.manual-mode-switch').click();
+  await expect(page.locator('#plan-output')).toHaveClass(/plan-output--manual/);
+  await expect(page.locator('.manual-mode-toggle')).toBeChecked();
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain("won't be saved");
+    await dialog.accept();
+  });
+  await page.locator('.manual-mode-switch').click();
+  await expect(page.locator('#plan-output')).not.toHaveClass(/plan-output--manual/);
+  await expect(page.locator('.portion--readonly').first()).toBeVisible();
+  await expect(page.locator('.manual-grams-input')).toHaveCount(0);
+  await expect(page.locator('.portion-step')).toHaveCount(0);
+  await expect(page.locator('.food-item .portion--readonly .portion-value').first()).toHaveText('100');
+  await expect(page.locator('.food-item .portion--readonly .unit').first()).toHaveText('g');
+});
+
 test('customer-linked saved plan opens without being marked dirty', async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({
     contentType: 'application/json',
@@ -249,7 +328,6 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
       id: 123,
       name: 'Saved Customer Plan',
       customer_id: 45,
-      is_active: true,
       customer: {
         id: 45,
         name: 'QA Customer',

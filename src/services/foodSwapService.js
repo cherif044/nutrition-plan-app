@@ -130,7 +130,7 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
   try {
     allowedCandidateFoods = filterFoods(candidateFoods, safeInput);
   } catch {
-    // Mirrors getProduceSwapOptions's fallback: an unrecognized preference
+    // Mirrors the generator fallback: an unrecognized preference
     // term shouldn't break the swap panel, just fall back to an id-based
     // avoid list.
     const avoided = new Set(safeInput.avoidFoods.map(String));

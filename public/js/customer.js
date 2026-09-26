@@ -113,13 +113,12 @@ function renderPlans(plans) {
     const card = document.createElement('article');
     card.className = 'customer-plan-card';
     card.innerHTML = `
-      <span class="dashboard-icon-square" data-tone="${plan.is_active ? 'protein' : 'cal'}" aria-hidden="true">${iconSvg('file', 17)}</span>
+      <span class="dashboard-icon-square" data-tone="cal" aria-hidden="true">${iconSvg('file', 17)}</span>
       <span class="dashboard-plan-card__body">
         <span class="dashboard-plan-card__title">${escapeHtml(plan.name)}</span>
         <span class="dashboard-plan-card__path">${plan.folder_id ? 'Folder linked' : 'Home'}</span>
         <span class="dashboard-plan-card__footer">
           <span>${escapeHtml(formatRelativeTime(plan.updated_at || plan.created_at))}</span>
-          ${plan.is_active ? '<span class="dashboard-badge">Active</span>' : ''}
         </span>
       </span>
       <span class="customer-plan-actions">

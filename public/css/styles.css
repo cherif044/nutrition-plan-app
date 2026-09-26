@@ -2598,28 +2598,69 @@ select:focus,
   flex-wrap: wrap;
 }
 
-.manual-mode-button {
+.manual-mode-switch {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  border: 1px solid var(--ref-border);
-  border-radius: 8px;
-  background: var(--ref-card);
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 999px;
+  background: #f2f7f4;
   color: var(--ref-muted-fg);
-  padding: 0 10px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 0 10px 0 4px;
+  font-size: 0.75rem;
+  font-weight: 850;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.manual-mode-button.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+.manual-mode-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.manual-mode-button:disabled {
+.manual-mode-switch i {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.38);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.14);
+  transition: background 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
+}
+
+.manual-mode-switch i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.manual-mode-switch input:checked + i {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.22), inset 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.manual-mode-switch input:checked + i::after {
+  transform: translateX(18px);
+}
+
+.manual-mode-switch input:focus-visible + i {
+  outline: 3px solid rgba(13, 148, 136, 0.18);
+  outline-offset: 3px;
+}
+
+.manual-mode-switch.is-disabled {
   cursor: default;
   opacity: 0.72;
 }
@@ -5451,17 +5492,6 @@ body.dashboard-page .planner-nav {
   width: 100%;
 }
 
-.dashboard-badge {
-  display: inline-flex;
-  width: fit-content;
-  border-radius: 999px;
-  background: var(--ref-accent);
-  color: var(--ref-primary);
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 650;
-}
-
 .dashboard-empty {
   min-height: 180px;
 }
@@ -6236,37 +6266,6 @@ body.dashboard-page .planner-nav {
   padding: 6px;
 }
 
-.produce-cycle-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  border: 1px solid var(--ref-border);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--accent-strong);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0;
-  justify-self: end;
-}
-
-.produce-cycle-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-
-.produce-cycle-btn:disabled {
-  opacity: 0.45;
-  cursor: wait;
-}
-
-.produce-cycle-btn[hidden] {
-  display: none;
-}
-
 .food-cell {
   min-width: 0;
   color: var(--ref-muted-fg);
@@ -6363,6 +6362,14 @@ body.dashboard-page .planner-nav {
       "cal   prot  carb  fat     actions";
     min-width: 0;
     gap: 6px 8px;
+  }
+
+  /* A long portion value (5+ characters) would spill over the food name, so
+     that row hands the stepper a second column on the name line. */
+  .food-item--wide-portion {
+    grid-template-areas:
+      "title title portion portion actions"
+      "cal   prot  carb    fat     actions";
   }
 
   .food-item .food-cell--cal,
@@ -7004,7 +7011,7 @@ label,
 ══════════════════════════════════════════════════════════════════════════ */
 
 .food-table {
-  --col-portion: 118px;
+  --col-portion: 144px;
   --col-macro: 50px;
 }
 
@@ -7022,29 +7029,127 @@ label,
   color: var(--accent-strong);
   font-weight: 750;
   font-size: 14px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
-.manual-grams-input {
-  width: 58px;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
+/* The editable stepper carries its own frame, so drop the pill around it. */
+.food-item .food-cell--portion:has(.portion) {
   padding: 0;
-  font: inherit;
-  font-weight: inherit;
-  text-align: right;
-  outline: none;
+  background: none;
   box-shadow: none;
 }
 
-.manual-grams-input::-webkit-outer-spin-button,
-.manual-grams-input::-webkit-inner-spin-button {
+/* Portion stepper — one look in every mode and every state. The global
+   input:hover / input:focus rules would otherwise restyle the inner field. */
+.food-item .portion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 3px;
+  border: 1px solid #dfe7e3;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d3b30;
+  font: 600 14px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.food-item .portion--readonly {
+  gap: 1px;
+  padding: 0 10px;
+  min-width: 0;
+  cursor: default;
+}
+
+.food-item .portion--readonly .portion-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.food-item .portion--readonly .unit {
+  margin: 0 0 0 2px;
+}
+
+.food-item .portion:hover {
+  border-color: #b9cfc5;
+}
+
+.food-item .portion:focus-within {
+  border-color: #2f6f57;
+  box-shadow: 0 0 0 3px rgba(47, 111, 87, 0.13);
+}
+
+.food-item .portion .manual-grams-input,
+.food-item .portion .manual-grams-input:hover,
+.food-item .portion .manual-grams-input:focus {
+  width: 3.4ch;
+  max-width: 7ch;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  outline: none;
+  color: #1d3b30;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.food-item .portion .manual-grams-input::-webkit-outer-spin-button,
+.food-item .portion .manual-grams-input::-webkit-inner-spin-button {
   margin: 0;
   -webkit-appearance: none;
+}
+
+.food-item .portion .unit {
+  margin: 0 4px 0 1px;
+  color: #8a9a93;
+  font-weight: 500;
+}
+
+.food-item .portion button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: #6b7f76;
+  font: 500 16px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.food-item .portion button:hover {
+  background: #eef4f1;
+  color: #1d3b30;
+}
+
+.food-item .portion button:active {
+  background: #e2ece7;
+}
+
+#plan-output:not(.plan-output--manual) .food-item .portion button {
+  display: none !important;
+}
+
+#plan-output:not(.plan-output--manual) .food-item .portion .manual-grams-input {
+  pointer-events: none;
+  user-select: none;
 }
 
 .plan-output--manual .target-toggle {
@@ -7641,9 +7746,8 @@ body.is-pdf-export .planner-save-slot,
 body.is-pdf-export .meal-card__actions,
 body.is-pdf-export .meal-add-tray,
 body.is-pdf-export .meal-action-panel,
-body.is-pdf-export .produce-cycle-btn,
 body.is-pdf-export .food-actions,
-body.is-pdf-export .manual-mode-button {
+body.is-pdf-export .manual-mode-switch {
   display: none !important;
 }
 
@@ -7809,7 +7913,6 @@ body.is-pdf-export .summary {
   .meal-card__actions,
   .meal-add-tray,
   .meal-action-panel,
-  .produce-cycle-btn,
   .food-actions {
     display: none !important;
   }
@@ -8557,31 +8660,6 @@ body.dashboard-page .macro-dot {
   background: currentColor;
 }
 
-body.dashboard-page .dashboard-badge {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 5px;
-  border-radius: 6px;
-  background: var(--dash-jade);
-  color: var(--dash-white);
-  padding: 3px 8px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-body.dashboard-page .dashboard-badge::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.28);
-}
-
 body.dashboard-page .dashboard-plan-menu-btn,
 body.dashboard-page .customer-plan-action {
   display: inline-grid;
@@ -9174,14 +9252,6 @@ body.dashboard-page .dashboard-avatar-amber {
 body.dashboard-page .dashboard-avatar-violet {
   background: var(--dash-violet-light);
   color: #6432c9;
-}
-
-body.dashboard-page .dashboard-plan-card.is-active-plan {
-  border-left: 0;
-  border-radius: 8px;
-  background: linear-gradient(90deg, rgba(20, 118, 94, 0.07), transparent 60%);
-  box-shadow: inset 1px 0 0 var(--dash-jade);
-  padding-left: 13px;
 }
 
 body.dashboard-page .dashboard-profile-meta {
@@ -12885,16 +12955,6 @@ body.dashboard-page .pinch-customer .pd-tag--maintain {
 body.dashboard-page .pinch-customer .pd-tag--unknown {
   background: var(--pd-unknown-bg);
   color: var(--pd-unknown);
-}
-
-body.dashboard-page .pinch-customer .pd-tag--active {
-  background: #e6f3ec;
-  color: #147052;
-}
-
-body.dashboard-page .pinch-customer .pd-tag--idle {
-  background: #eef1ef;
-  color: #52615a;
 }
 
 body.dashboard-page .pinch-customer .pd-dot {

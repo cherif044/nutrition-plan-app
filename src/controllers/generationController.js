@@ -3,7 +3,6 @@ const {
   generatePlan,
   getFoods,
   rebalanceMeal,
-  getProduceSwapOptions,
 } = require('../services/planGenerator');
 const { getSwapSuggestions } = require('../services/foodSwapService');
 const { logger } = require('../utils/logger');
@@ -161,30 +160,6 @@ function rebalanceMealHandler(req, res, next) {
   }
 }
 
-function produceSwapOptionsHandler(req, res, next) {
-  try {
-    const {
-      itemIndex,
-      currentItems,
-      mealTarget,
-      dailyContext,
-      userPreferences,
-      limit,
-    } = req.body;
-
-    return res.json(getProduceSwapOptions({
-      itemIndex,
-      currentItems,
-      mealTarget,
-      dailyContext,
-      userPreferences,
-      limit,
-    }));
-  } catch (error) {
-    return next(error);
-  }
-}
-
 function swapSuggestionsHandler(req, res, next) {
   try {
     const {
@@ -210,6 +185,5 @@ module.exports = {
   generatePlanHandler,
   timelineEventHandler,
   rebalanceMealHandler,
-  produceSwapOptionsHandler,
   swapSuggestionsHandler,
 };

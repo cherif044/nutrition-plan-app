@@ -203,18 +203,9 @@ function _generatePlanInternal(rawInput, trace = null) {
     mealOptionCount: meals.reduce((sum, meal) => sum + meal.mealOptions.length, 0),
   });
 
-  phaseStartedAt = process.hrtime.bigint();
-  const allowedProduceFoods = allowedFoods
-    .filter((food) => produceGroup(food))
-    .map(serializeAllowedProduceFood);
-  tracePhase(trace, 'serialize_allowed_produce', phaseStartedAt, {
-    allowedProduceFoodCount: allowedProduceFoods.length,
-  });
-
   const plan = {
     input,
     dailyTargets,
-    allowedProduceFoods,
     nutritionCalculation: {
       bmr: nutritionCalculation.bmr,
       maintenanceCalories: nutritionCalculation.maintenanceCalories,
@@ -243,27 +234,6 @@ function _generatePlanInternal(rawInput, trace = null) {
     status: plan.status || 'ok',
   });
   return plan;
-}
-
-function serializeAllowedProduceFood(food) {
-  return {
-    id: food.id,
-    name: food.name,
-    nameAr: food.nameAr || '',
-    macroRole: food.macroRole || null,
-    caloriesPer100g: food.caloriesPer100g,
-    proteinGPer100g: food.proteinGPer100g,
-    carbGPer100g: food.carbGPer100g,
-    fatGPer100g: food.fatGPer100g,
-    isVegan: Boolean(food.isVegan),
-    isVegetarian: Boolean(food.isVegetarian),
-    categories: food.categories || [],
-    mealTags: food.mealTags || [],
-    defaultServingG: food.defaultServingG,
-    minServingG: food.minServingG,
-    maxServingG: food.maxServingG,
-    iconUrl: food.iconUrl || null,
-  };
 }
 
 function debugOptimizer(message, payload = undefined) {
@@ -1117,13 +1087,6 @@ function mealScore(items, target) {
   return calorieScore + proteinScore + fatScore;
 }
 
-function produceGroup(food) {
-  const categories = new Set(food?.categories || []);
-  if (categories.has('fruits') || categories.has('fruit')) return 'fruit';
-  if (categories.has('vegetables') || categories.has('vegetable')) return 'vegetable';
-  return null;
-}
-
 // ── Interactive meal rebalancing ─────────────────────────────────────────────
 
 function resolveMealActionItems(rawItems) {
@@ -1552,140 +1515,6 @@ function findWholeMealDistributionFit(items, target, bounds) {
   return result?.items ?? null;
 }
 
-function getProduceSwapOptions({
-  itemIndex,
-  currentItems,
-  mealTarget,
-  dailyContext,
-  userPreferences = {},
-  limit = 20,
-}) {
-  if (!Number.isInteger(itemIndex) || !Array.isArray(currentItems) || !mealTarget || !dailyContext) {
-    throw new Error('itemIndex, currentItems, mealTarget, and dailyContext are required.');
-  }
-
-  const foods = loadFoods();
-  const safeInput = {
-    dietType: userPreferences?.dietType || 'standard',
-    avoidFoods: Array.isArray(userPreferences?.avoidFoods) ? userPreferences.avoidFoods : [],
-    allergies: [],
-    dislikes: Array.isArray(userPreferences?.dislikes) ? userPreferences.dislikes : [],
-  };
-
-  let allowedFoods;
-  try {
-    allowedFoods = filterFoods(foods, safeInput);
-  } catch {
-    const avoided = new Set(safeInput.avoidFoods.map(String));
-    allowedFoods = foods.filter((food) => !avoided.has(food.id));
-  }
-
-  return getProduceSwapOptionsForItems({
-    itemIndex,
-    currentItems,
-    mealTarget,
-    dailyContext,
-    allowedFoods,
-    limit,
-  });
-}
-
-function attachProduceSwapOptionsToItems(items, context) {
-  return items.map((item, itemIndex) => {
-    const group = produceGroup(item?.food);
-    if (!group) return item;
-
-    const entry = getProduceSwapOptionsForItems({
-      ...context,
-      itemIndex,
-      currentItems: items,
-    });
-
-    return {
-      ...item,
-      produceSwapOptions: {
-        group: entry.group || group,
-        options: entry.options,
-      },
-    };
-  });
-}
-
-function getProduceSwapOptionsForItems({
-  itemIndex,
-  currentItems,
-  mealTarget,
-  dailyContext,
-  allowedFoods,
-  limit = 20,
-}) {
-  const resolvedItems = resolveMealActionItems(currentItems);
-  const currentItem = resolvedItems[itemIndex];
-  const group = produceGroup(currentItem?.food);
-  if (!currentItem || !group) {
-    return { group: null, options: [] };
-  }
-
-  const sortedGroupFoods = allowedFoods
-    .filter((food) => produceGroup(food) === group)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  if (sortedGroupFoods.length <= 1) {
-    return { group, options: [] };
-  }
-
-  const startIndex = Math.max(0, sortedGroupFoods.findIndex((food) => food.id === currentItem.food.id));
-  const orderedCandidates = [];
-  for (let offset = 1; offset <= sortedGroupFoods.length; offset += 1) {
-    const candidate = sortedGroupFoods[(startIndex + offset) % sortedGroupFoods.length];
-    if (candidate.id !== currentItem.food.id) orderedCandidates.push(candidate);
-  }
-
-  const options = [];
-  const maxOptions = normalizeProduceSwapLimit(limit);
-  for (const candidate of orderedCandidates) {
-    if (Number.isFinite(maxOptions) && options.length >= maxOptions) break;
-
-    const replacementQuantityG = clampServing(candidate, currentItem.quantityG);
-    const attemptedItems = currentItems.map((rawItem, index) => {
-      if (index === itemIndex) {
-        return { foodId: candidate.id, quantityG: replacementQuantityG };
-      }
-      const resolvedItem = resolvedItems[index];
-      return {
-        foodId: rawItem.foodId ?? rawItem.food?.id ?? resolvedItem?.food?.id,
-        quantityG: rawItem.quantityG,
-        customFood: rawItem.customFood || null,
-      };
-    });
-
-    let result;
-    try {
-      result = rebalanceMeal({ mealTarget, items: attemptedItems, dailyContext });
-    } catch {
-      continue;
-    }
-    if (!result.success) continue;
-
-    options.push({
-      food: candidate,
-      items: hydrateProduceSwapItems(attemptedItems, result.items),
-      totals: result.totals,
-    });
-  }
-
-  return { group, options };
-}
-
-function normalizeProduceSwapLimit(limit) {
-  if (limit === 'all') return Number.POSITIVE_INFINITY;
-  if (limit === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
-  if (limit === undefined) return 20;
-  const parsed = Number(limit);
-  if (!Number.isFinite(parsed)) return 20;
-  return Math.max(0, Math.floor(parsed));
-}
-
 function serializeGeneratedMealItem(item) {
   return {
     food: item.food,
@@ -1695,37 +1524,17 @@ function serializeGeneratedMealItem(item) {
     nearestAlternatives: item.nearestAlternatives ?? [],
     component: item.component ?? null,
     totals: item.totals,
-    produceSwapOptions: item.produceSwapOptions ?? null,
   };
-}
-
-function hydrateProduceSwapItems(requestItems, solvedItems) {
-  const foods = loadFoods();
-  const foodById = new Map(foods.map((food) => [food.id, food]));
-  const requestById = new Map(requestItems.map((item) => [String(item.foodId), item]));
-
-  return (solvedItems || []).map((item) => {
-    const foodId = String(item.foodId);
-    const request = requestById.get(foodId);
-    const food = foodById.get(foodId) || resolveFoodForMealAction(request || item, foodById);
-    if (!food) return null;
-    return {
-      food,
-      quantityG: item.quantityG,
-      customFood: request?.customFood || null,
-    };
-  }).filter(Boolean);
 }
 
 module.exports = {
   generatePlan,
   getFoods,
   rebalanceMeal,
-  getProduceSwapOptions,
   // Exported so foodSwapService.js can apply the exact same dietType /
   // avoidFoods / allergen filtering used by plan generation and the
-  // existing produce-swap flow, instead of a second filter implementation
-  // that could silently drift from this one.
+  // generated plan flow, instead of a second filter implementation that could
+  // silently drift from this one.
   filterFoods,
   // Exported so foodSwapService.js can clamp a candidate's serving size to
   // its own min/max/step the same way every other swap path does.

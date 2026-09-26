@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/styles.css?v=mobile-ui-20260921" />
+    <link rel="stylesheet" href="/css/styles.css?v=portion-stepper-20260926" />
   </head>
   <body class="dashboard-page dashboard-mobile-drawer-page dashboard-loading">
     <main class="app-shell dashboard-frame">
@@ -68,7 +68,7 @@
             <div class="ph-hero">
               <div class="ph-hero__intro">
                 <h1 id="dashboard-title">Good afternoon</h1>
-                <p class="ph-hero__sub" id="dashboard-hero-sub">Your customers, general plans, and active assignments are gathered here.</p>
+                <p class="ph-hero__sub" id="dashboard-hero-sub">Your customers, general plans, and saved work are gathered here.</p>
 
                 <div class="ph-actions">
                   <a href="/planner" class="ph-btn ph-btn--primary">
@@ -89,9 +89,9 @@
                   <span class="ph-snapshot__note" id="home-week-customers">— new customers</span>
                 </li>
                 <li>
-                  <span class="ph-snapshot__label"><span class="ph-dot ph-dot--amber"></span>Active work</span>
-                  <span class="ph-snapshot__value" id="home-active-work">— active assignments</span>
-                  <span class="ph-snapshot__note" id="home-active-percent">—% of saved plans</span>
+                  <span class="ph-snapshot__label"><span class="ph-dot ph-dot--amber"></span>Saved plans</span>
+                  <span class="ph-snapshot__value" id="home-active-work">— plans</span>
+                  <span class="ph-snapshot__note" id="home-active-percent">— updated this week</span>
                 </li>
                 <li>
                   <span class="ph-snapshot__label"><span class="ph-dot ph-dot--blue"></span>Roster</span>
@@ -130,14 +130,14 @@
 
               <div class="ph-stat">
                 <div class="ph-stat__top">
-                  <span class="ph-stat__label">Current active plans</span>
+                  <span class="ph-stat__label">Plans this week</span>
                   <span class="ph-stat__icon ph-stat__icon--amber" aria-hidden="true">
                     <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z" /></svg>
                   </span>
                 </div>
                 <div class="ph-stat__bottom">
                   <p class="ph-stat__value" id="stat-active-plans">—</p>
-                  <span class="ph-pill ph-pill--amber" id="stat-active-trend">—</span>
+                  <span class="ph-pill ph-pill--amber" id="stat-active-trend">new activity</span>
                 </div>
               </div>
             </div>
@@ -196,7 +196,7 @@
               </div>
               <div class="pc-stat">
                 <div class="pc-stat__top">
-                  <span class="pc-stat__label">With an active plan</span>
+                  <span class="pc-stat__label">Assigned plans</span>
                   <span class="pc-stat__icon pc-stat__icon--green" aria-hidden="true">
                     <svg viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z" /></svg>
                   </span>
@@ -474,6 +474,6 @@
       </div>
     </main>
 
-    <script src="/js/dashboard.js?v=mobile-ui-20260921" defer></script>
+    <script src="/js/dashboard.js?v=portion-stepper-20260926" defer></script>
   </body>
 </html>

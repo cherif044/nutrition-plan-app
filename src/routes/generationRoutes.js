@@ -7,7 +7,6 @@ const {
   generatePlanHandler,
   timelineEventHandler,
   rebalanceMealHandler,
-  produceSwapOptionsHandler,
   swapSuggestionsHandler,
 } = require('../controllers/generationController');
 
@@ -19,7 +18,6 @@ router.get('/preferences', getPreferences);
 router.post('/generate-plan', requireAuth, generatePlanHandler);
 router.post('/generation-timeline', requireAuth, timelineEventHandler);
 router.post('/rebalance-meal', requireAuth, rebalanceMealHandler);
-router.post('/produce-swap-options', requireAuth, produceSwapOptionsHandler);
 router.post('/swap-suggestions', requireAuth, swapSuggestionsHandler);
 
 module.exports = router;

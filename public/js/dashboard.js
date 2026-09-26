@@ -27,13 +27,11 @@ const relativeUnits = [
   ['minute', 60000],
 ];
 
-const GOAL_ORDER = ['lose_weight', 'gain_weight', 'maintain', 'inactive'];
+const GOAL_ORDER = ['lose_weight', 'gain_weight', 'maintain', 'unknown'];
 const GOAL_COLORS = {
   lose_weight: '#e85d4e',
   gain_weight: '#2f86d6',
   maintain: '#1f9d77',
-  active: '#8b5cf6',
-  inactive: '#9aa6a0',
   unknown: '#9aa6a0',
 };
 const PLAN_CALORIE_RANGE_SIZE = 200;
@@ -77,8 +75,6 @@ function goalLabel(goal) {
     maintain: 'Maintain',
     lose_weight: 'Lose weight',
     gain_weight: 'Gain weight',
-    inactive: 'Inactive',
-    active: 'Active',
     unknown: 'Unknown',
   };
   return labels[goal] || titleCase(goal);
@@ -124,11 +120,6 @@ function pdfDownloadName(planName) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'nutrition-plan';
   return `${base}.pdf`;
-}
-
-function customerGoalKey(customer) {
-  if (!customer.activePlan) return 'inactive';
-  return customer.goal || 'active';
 }
 
 function planGoalKey(plan) {
@@ -199,8 +190,6 @@ function goalTone(goal) {
     lose_weight: 'coral',
     gain_weight: 'sky',
     maintain: 'jade',
-    active: 'violet',
-    inactive: 'gray',
     unknown: 'gray',
   }[goal] || 'gray';
 }
@@ -210,14 +199,6 @@ function goalTag(goal) {
   return `<span class="dashboard-tag dashboard-tag-${goalTone(key)}">${escapeHtml(goalLabel(key))}</span>`;
 }
 
-function statusPill(active) {
-  return active ? '<span class="dashboard-badge">Active</span>' : '';
-}
-
-function currentPlanChip(active) {
-  return active ? '<span class="dashboard-current-chip">Current plan</span>' : '';
-}
-
 function customerDetailStats(customer) {
   const planCount = Number(customer.planCount || 0);
   const bodyValue = customer.weight ? `${Number(customer.weight).toLocaleString()} kg` : '-';
@@ -225,12 +206,11 @@ function customerDetailStats(customer) {
   const ageValue = customer.age ? String(customer.age) : '-';
   const sexValue = customer.sex ? titleCase(customer.sex) : 'Sex not set';
   const activityValue = customer.activity_level ? titleCase(customer.activity_level) : '-';
-  const activeValue = customer.activePlan ? 'Active plan' : 'No active plan';
   const cards = [
-    { tone: 'cal', label: 'Plans', value: planCount.toLocaleString(), trend: activeValue, icon: iconSvg('file', 15) },
+    { tone: 'cal', label: 'Plans', value: planCount.toLocaleString(), trend: planCount === 1 ? 'saved plan' : 'saved plans', icon: iconSvg('file', 15) },
     { tone: 'protein', label: 'Age', value: ageValue, trend: sexValue, icon: iconSvg('users', 15) },
     { tone: 'fat', label: 'Body', value: bodyValue, trend: heightValue, icon: iconSvg('chart', 15) },
-    { tone: 'carb', label: 'Activity', value: activityValue, trend: customer.goal ? goalLabel(customer.goal) : 'Goal not set', icon: iconSvg('zap', 15) },
+    { tone: 'carb', label: 'Activity', value: activityValue, trend: 'Profile detail', icon: iconSvg('zap', 15) },
   ];
   return cards.map((card) => `
     <div class="dashboard-stat-card customer-detail-stat" data-tone="${card.tone}">
@@ -248,9 +228,7 @@ function planRow(
   plan,
   {
     menu = true,
-    activeStyle = false,
     showGoal = true,
-    showActiveChip = activeStyle,
     tableStyle = false,
   } = {},
 ) {
@@ -258,10 +236,9 @@ function planRow(
   const goal = planGoalKey(plan);
   const footer = [
     showGoal ? goalTag(goal) : '',
-    showActiveChip ? currentPlanChip(plan.is_active) : '',
   ].filter(Boolean).join('');
   return `
-    <article class="dashboard-plan-card${activeStyle && plan.is_active ? ' is-active-plan' : ''}${tableStyle ? ' dashboard-plan-card--table' : ''}">
+    <article class="dashboard-plan-card${tableStyle ? ' dashboard-plan-card--table' : ''}">
       <a class="dashboard-plan-card__link" href="${escapeHtml(planHref(plan))}">
         <span class="dashboard-plan-card__body">
           <span class="dashboard-plan-card__title">
@@ -367,7 +344,6 @@ function customerPageRow(customer) {
           <span class="pc-row__name">${escapeHtml(name)}</span>
           <span class="pc-row__meta">
             ${count} plan${count === 1 ? '' : 's'}
-            ${customer.activePlan ? '<span class="pc-tag">Active</span>' : ''}
           </span>
         </span>
       </a>
@@ -434,10 +410,6 @@ function homePlanRow(plan) {
   `;
 }
 
-function customerDetailGoalKey(customer) {
-  return customer.goal || customer.activePlan?.goal || 'unknown';
-}
-
 function detailTextValue(value, fallback = '-') {
   const text = String(value ?? '').trim();
   return text || fallback;
@@ -450,26 +422,18 @@ function detailNumberValue(value, fallback = '-') {
 }
 
 function customerDetailMeta(customer, planCount) {
-  const goal = customerDetailGoalKey(customer);
-  const visualKey = planGoalVisualKey(goal);
   return `
-    <span class="pd-tag pd-tag--${escapeHtml(visualKey)}">
-      <span class="pd-dot"></span>${escapeHtml(goalLabel(goal))}
-    </span>
-    ${customer.activePlan ? '<span class="pd-tag pd-tag--active">Active plan</span>' : '<span class="pd-tag pd-tag--idle">No active plan</span>'}
     <span>${Number(planCount || 0).toLocaleString()} assigned ${Number(planCount || 0) === 1 ? 'plan' : 'plans'}</span>
   `;
 }
 
 function customerDetailGrid(customer) {
-  const goal = customerDetailGoalKey(customer);
   const details = [
     { label: 'Age', value: detailNumberValue(customer.age), text: false },
     { label: 'Sex', value: customer.sex ? titleCase(customer.sex) : '-', text: true },
     { label: 'Weight', value: detailNumberValue(customer.weight), unit: customer.weight ? 'kg' : '', text: false },
     { label: 'Height', value: detailNumberValue(customer.height), unit: customer.height ? 'cm' : '', text: false },
     { label: 'Activity level', value: customer.activity_level ? titleCase(customer.activity_level) : '-', text: true },
-    { label: 'Goal', value: goalLabel(goal), text: true },
   ];
 
   return details.map((item) => `
@@ -531,14 +495,13 @@ function renderGoalBar(barId, legendId, counts) {
     : '<span class="dashboard-soft-copy">No goal data yet</span>';
 }
 
-function renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek }) {
-  const activeLabel = activePlans === 1 ? 'active assignment' : 'active assignments';
+function renderHomeSummary({ totalPlans, customers, plansThisWeek, customersThisWeek }) {
   const planLabel = plansThisWeek === 1 ? 'plan' : 'plans';
   const customerLabel = customersThisWeek === 1 ? 'customer' : 'customers';
   document.getElementById('home-week-plans').textContent = `${plansThisWeek.toLocaleString()} ${planLabel}`;
   document.getElementById('home-week-customers').textContent = `${customersThisWeek.toLocaleString()} new ${customerLabel}`;
-  document.getElementById('home-active-work').textContent = `${activePlans.toLocaleString()} ${activeLabel}`;
-  document.getElementById('home-active-percent').textContent = totalPlans ? `${Math.round((activePlans / totalPlans) * 100)}% of saved plans` : 'No active plans yet';
+  document.getElementById('home-active-work').textContent = `${totalPlans.toLocaleString()} saved ${totalPlans === 1 ? 'plan' : 'plans'}`;
+  document.getElementById('home-active-percent').textContent = plansThisWeek ? `${plansThisWeek.toLocaleString()} updated this week` : 'No new plans this week';
   document.getElementById('home-roster-count').textContent = `${customers.toLocaleString()} customer${customers === 1 ? '' : 's'}`;
   document.getElementById('home-roster-plans').textContent = totalPlans ? `${totalPlans.toLocaleString()} saved plans total` : 'No saved plans yet';
 }
@@ -634,21 +597,20 @@ function renderPlanGoalBreakdown(counts) {
 function renderStats() {
   const totalPlans = Number(state.stats.totalPlans || 0);
   const customers = Number(state.stats.customers || 0);
-  const activePlans = Number(state.stats.activePlans || 0);
   const plansThisWeek = Number(state.stats.plansThisWeek || 0);
   const customersThisWeek = Number(state.stats.customersThisWeek || 0);
   document.getElementById('stat-total-plans').textContent = totalPlans.toLocaleString();
   document.getElementById('stat-customers').textContent = customers.toLocaleString();
-  document.getElementById('stat-active-plans').textContent = activePlans.toLocaleString();
+  document.getElementById('stat-active-plans').textContent = plansThisWeek.toLocaleString();
   document.getElementById('stat-plans-trend').textContent = plansThisWeek ? `+${plansThisWeek.toLocaleString()} this week` : 'no new plans';
   document.getElementById('stat-plans-trend').hidden = !plansThisWeek;
   document.getElementById('stat-customers-trend').textContent = customersThisWeek ? `+${customersThisWeek.toLocaleString()} this week` : 'no new clients';
   document.getElementById('stat-customers-trend').hidden = !customersThisWeek;
-  document.getElementById('stat-active-trend').textContent = activePlans ? 'in progress' : 'none active';
-  document.getElementById('stat-active-trend').hidden = !activePlans;
+  document.getElementById('stat-active-trend').textContent = plansThisWeek ? 'new activity' : 'no new plans';
+  document.getElementById('stat-active-trend').hidden = !plansThisWeek;
   document.getElementById('dashboard-hero-sub').textContent =
-    `You have ${totalPlans.toLocaleString()} plans across ${customers.toLocaleString()} customers, with ${activePlans.toLocaleString()} currently active.`;
-  renderHomeSummary({ totalPlans, customers, activePlans, plansThisWeek, customersThisWeek });
+    `You have ${totalPlans.toLocaleString()} plans across ${customers.toLocaleString()} customers.`;
+  renderHomeSummary({ totalPlans, customers, plansThisWeek, customersThisWeek });
 }
 
 function sortByNewestCreated(plans) {
@@ -684,12 +646,12 @@ function renderHome() {
 function renderCustomersPage() {
   const totalPlans = state.customers.reduce((sum, customer) => sum + Number(customer.planCount || 0), 0);
   const filtered = state.customers.filter((customer) => (
-    matchesSearch([customer.name, customer.activePlan?.name], state.customerSearch)
+    matchesSearch([customer.name], state.customerSearch)
   ));
 
   document.getElementById('customers-subtitle').textContent = `${state.customers.length} customers total`;
   document.getElementById('customer-stat-total').textContent = state.customers.length.toLocaleString();
-  document.getElementById('customer-stat-active').textContent = state.customers.filter((customer) => customer.activePlan).length.toLocaleString();
+  document.getElementById('customer-stat-active').textContent = totalPlans.toLocaleString();
   document.getElementById('customer-stat-average').textContent = state.customers.length ? (totalPlans / state.customers.length).toFixed(1) : '0';
   document.getElementById('customer-list-count').textContent =
     state.customerSearch ? `(${filtered.length} of ${state.customers.length})` : '';

@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/styles.css?v=mobile-ui-20260921" />
+    <link rel="stylesheet" href="/css/styles.css?v=portion-stepper-20260926" />
   </head>
   <body>
     <main class="app-shell">
@@ -84,10 +84,6 @@
                 <label class="save-customer-picker__field save-customer-picker__new-name" for="new-customer-name" hidden>
                   <span>Customer name</span>
                   <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Enter customer name" autocomplete="off" />
-                </label>
-                <label class="save-active-toggle">
-                  <input class="save-action-bar__active" type="checkbox" name="makeActive" />
-                  <span>Make active</span>
                 </label>
               </div>
             </section>
@@ -222,7 +218,11 @@
         <header class="summary__header">
           <h2>Daily totals</h2>
           <div class="summary__controls">
-            <button class="manual-mode-button" type="button">Manual mode</button>
+            <label class="manual-mode-switch">
+              <input class="manual-mode-toggle" type="checkbox" />
+              <i aria-hidden="true"></i>
+              <span>Manual mode</span>
+            </label>
           </div>
         </header>
         <div class="summary__ranges" aria-label="Allowed daily macro ranges"></div>
@@ -282,6 +282,6 @@
       </article>
     </template>
 
-    <script src="/js/app.js?v=mobile-ui-20260921" defer></script>
+    <script src="/js/app.js?v=portion-stepper-20260926" defer></script>
   </body>
 </html>

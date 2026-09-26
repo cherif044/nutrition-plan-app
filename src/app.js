@@ -243,7 +243,6 @@ app.use('/api/plans/:id/export.pdf', pdfExportLimiter);
 app.use('/api/plans', planRoutes);
 app.use('/api/generate-plan', generationLimiter);
 app.use('/api/rebalance-meal', generationLimiter);
-app.use('/api/produce-swap-options', generationLimiter);
 app.use('/api', generationRoutes);
 
 app.use('/food-icons', express.static(foodIconsDir, {
