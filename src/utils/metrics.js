@@ -417,6 +417,7 @@ function httpMetricsMiddleware(req, res, next) {
   const originalWrite = res.write.bind(res);
   const originalEnd = res.end.bind(res);
 
+  otel.registerRequestFlush(res);
   httpInFlight.inc();
   const recordFirstByte = () => {
     if (firstByteRecorded) return;

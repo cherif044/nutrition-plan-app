@@ -106,19 +106,36 @@ function reportExportError(error) {
 }
 
 function scheduleFlush() {
-  if (!provider) return;
+  if (!provider) return Promise.resolve();
   const now = Date.now();
-  if (pendingFlush || now - lastFlushStartedAt < flushIntervalMs) return;
+  if (pendingFlush) return pendingFlush;
+  if (now - lastFlushStartedAt < flushIntervalMs) return Promise.resolve();
 
   lastFlushStartedAt = now;
   pendingFlush = forceFlush()
     .catch(reportExportError)
     .finally(() => { pendingFlush = null; });
 
+  return pendingFlush;
+}
+
+function registerRequestFlush(res) {
+  if (!provider || !process.env.VERCEL) return;
   if (process.env.VERCEL) {
     try {
       const { waitUntil } = require('@vercel/functions');
-      waitUntil(pendingFlush);
+      const responseFinished = new Promise((resolve) => {
+        if (res.writableFinished) {
+          resolve();
+          return;
+        }
+        const finish = () => resolve();
+        res.once('finish', finish);
+        res.once('close', finish);
+      });
+      // Register while Vercel's request context is active, then export after
+      // Express has recorded the completed request metrics.
+      waitUntil(responseFinished.then(() => scheduleFlush()));
     } catch (error) {
       reportExportError(error);
     }
@@ -137,6 +154,7 @@ module.exports = {
   createGauge,
   createHistogram,
   forceFlush,
+  registerRequestFlush,
   scheduleFlush,
   shutdown,
 };
