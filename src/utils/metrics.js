@@ -6,6 +6,7 @@ const {
   Registry,
   collectDefaultMetrics,
 } = require('@prometheus-io/client');
+const otel = require('./otelMetrics');
 
 const registry = new Registry();
 const serviceName = 'nutrition-plan-app';
@@ -19,15 +20,79 @@ collectDefaultMetrics({
 });
 
 function counter(config) {
-  return new Counter({ ...config, registers: [registry] });
+  const metric = new Counter({ ...config, registers: [registry] });
+  const otelMetric = otel.createCounter(config);
+  if (!otelMetric) return metric;
+  const increment = metric.inc.bind(metric);
+  metric.inc = (labelsOrValue, maybeValue) => {
+    increment(labelsOrValue, maybeValue);
+    const hasLabels = labelsOrValue && typeof labelsOrValue === 'object';
+    const value = Number(hasLabels ? maybeValue ?? 1 : labelsOrValue ?? 1);
+    if (Number.isFinite(value)) otelMetric.add(value, hasLabels ? labelsOrValue : {});
+  };
+  return metric;
 }
 
 function gauge(config) {
-  return new Gauge({ ...config, registers: [registry] });
+  const metric = new Gauge({ ...config, registers: [registry] });
+  const otelMetric = otel.createGauge(config);
+  if (!otelMetric) return metric;
+  const values = new Map();
+  const labelsAndValue = (labelsOrValue, maybeValue, fallback) => {
+    const hasLabels = labelsOrValue && typeof labelsOrValue === 'object';
+    const labels = hasLabels ? labelsOrValue : {};
+    const key = JSON.stringify(labels);
+    const supplied = hasLabels ? maybeValue : labelsOrValue;
+    return { labels, key, value: Number(supplied ?? fallback(values.get(key))) };
+  };
+  const set = metric.set.bind(metric);
+  const increment = metric.inc.bind(metric);
+  const decrement = metric.dec.bind(metric);
+  metric.set = (labelsOrValue, maybeValue) => {
+    set(labelsOrValue, maybeValue);
+    const entry = labelsAndValue(labelsOrValue, maybeValue, () => 0);
+    if (Number.isFinite(entry.value)) {
+      values.set(entry.key, entry.value);
+      otelMetric.record(entry.value, entry.labels);
+    }
+  };
+  metric.inc = (labelsOrValue, maybeValue) => {
+    increment(labelsOrValue, maybeValue);
+    const entry = labelsAndValue(labelsOrValue, maybeValue, (current) => (current || 0) + 1);
+    const current = values.get(entry.key) || 0;
+    const delta = Number((labelsOrValue && typeof labelsOrValue === 'object') ? maybeValue ?? 1 : labelsOrValue ?? 1);
+    entry.value = current + delta;
+    if (Number.isFinite(entry.value)) {
+      values.set(entry.key, entry.value);
+      otelMetric.record(entry.value, entry.labels);
+    }
+  };
+  metric.dec = (labelsOrValue, maybeValue) => {
+    decrement(labelsOrValue, maybeValue);
+    const entry = labelsAndValue(labelsOrValue, maybeValue, (current) => (current || 0) - 1);
+    const current = values.get(entry.key) || 0;
+    const delta = Number((labelsOrValue && typeof labelsOrValue === 'object') ? maybeValue ?? 1 : labelsOrValue ?? 1);
+    entry.value = current - delta;
+    if (Number.isFinite(entry.value)) {
+      values.set(entry.key, entry.value);
+      otelMetric.record(entry.value, entry.labels);
+    }
+  };
+  return metric;
 }
 
 function histogram(config) {
-  return new Histogram({ ...config, registers: [registry] });
+  const metric = new Histogram({ ...config, registers: [registry] });
+  const otelMetric = otel.createHistogram(config);
+  if (!otelMetric) return metric;
+  const observe = metric.observe.bind(metric);
+  metric.observe = (labelsOrValue, maybeValue) => {
+    observe(labelsOrValue, maybeValue);
+    const hasLabels = labelsOrValue && typeof labelsOrValue === 'object';
+    const value = Number(hasLabels ? maybeValue : labelsOrValue);
+    if (Number.isFinite(value)) otelMetric.record(value, hasLabels ? labelsOrValue : {});
+  };
+  return metric;
 }
 
 const httpRequests = counter({
@@ -388,6 +453,7 @@ function httpMetricsMiddleware(req, res, next) {
     }
     httpResponseSize.observe(labels, responseBytes);
     recordRequestPhases(req.metrics);
+    otel.scheduleFlush();
   };
 
   res.once('finish', () => finish(false));
@@ -633,4 +699,5 @@ module.exports = {
   recordRateLimit,
   registry,
   setGenerationPoolMetrics,
+  shutdownMetrics: otel.shutdown,
 };

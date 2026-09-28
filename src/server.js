@@ -3,7 +3,7 @@ const app = require('./app');
 const sequelize = require('./config/database');
 const { closeGenerationPool } = require('./services/planGenerationPool');
 const { logger } = require('./utils/logger');
-const { attachHttpServerMetrics, recordError } = require('./utils/metrics');
+const { attachHttpServerMetrics, recordError, shutdownMetrics } = require('./utils/metrics');
 
 const port = process.env.PORT || 3000;
 const shutdownTimeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000;
@@ -54,6 +54,8 @@ function shutdown(signal) {
     try {
       await closeGenerationPool();
       logger.info('Plan generation workers closed');
+      await shutdownMetrics();
+      logger.info('Metrics exporter closed');
       await sequelize.close();
       logger.info('Database connection closed');
       clearTimeout(forceExit);
