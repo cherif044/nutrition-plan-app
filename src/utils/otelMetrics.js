@@ -1,4 +1,5 @@
 const { metrics } = require('@opentelemetry/api');
+const { randomUUID } = require('crypto');
 const { performance } = require('perf_hooks');
 const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-proto');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
@@ -28,6 +29,9 @@ if (configured) {
   provider = new MeterProvider({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: serviceName,
+      // Each serverless instance exports its own cumulative series; a unique
+      // instance id keeps concurrent instances from overwriting each other.
+      'service.instance.id': randomUUID(),
       [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: String(process.env.NODE_ENV || 'development'),
       'cloud.platform': process.env.VERCEL ? 'vercel' : 'unknown',
       'cloud.region': process.env.VERCEL_REGION || 'unknown',
@@ -72,7 +76,14 @@ function createCounter(config) {
 }
 
 function createHistogram(config) {
-  return meter?.createHistogram(config.name, instrumentOptions(config)) || null;
+  if (!meter) return null;
+  // Without explicit boundaries the SDK falls back to [0, 5, 10, 25, ...],
+  // which puts nearly every seconds-scale observation in the first bucket.
+  const options = instrumentOptions(config);
+  if (Array.isArray(config.buckets)) {
+    options.advice = { explicitBucketBoundaries: config.buckets };
+  }
+  return meter.createHistogram(config.name, options);
 }
 
 function createGauge(config) {
