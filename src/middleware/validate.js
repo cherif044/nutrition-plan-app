@@ -1,6 +1,7 @@
 // Rejects a request before any handler runs when its body or query string
-// does not match the schema. A validated body replaces req.body, so handlers
-// only ever see trimmed, bounded values.
+// does not match the schema. A validated body replaces req.body and a
+// validated query is stored on req.validatedQuery, so handlers only ever see
+// trimmed, bounded values.
 
 function firstIssueMessage(error) {
   const issue = error.issues[0];
@@ -29,10 +30,14 @@ function validateBody(schema) {
   };
 }
 
+// Express 5 makes req.query read-only, so the parsed (trimmed, stripped,
+// transformed) values are stored on req.validatedQuery. Handlers must read
+// from there; req.query still holds the raw strings.
 function validateQuery(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.query ?? {});
     if (!result.success) return reject(req, res, result.error);
+    req.validatedQuery = result.data;
     return next();
   };
 }

@@ -1,6 +1,6 @@
 const { z } = require('zod');
 const { INPUT_LIMITS: L } = require('../config/inputLimits');
-const { NUTRITION } = require('../config/nutritionConstants');
+const { MEAL_DISTRIBUTIONS, NUTRITION } = require('../config/nutritionConstants');
 
 // Request schemas. The server assumes every request may be hand-written, so
 // each field is bounded here even when the UI could never send it.
@@ -156,26 +156,191 @@ const timelineBody = z.object({
   generationRequestId: z.string().max(128).optional(),
   event: z.enum(TIMELINE_EVENTS),
   elapsedMs: finite(0, 3600000).optional(),
-  timings: z.record(z.string().max(40), z.unknown()).optional(),
+  // The handler keeps only allowlisted fields; this bounds what is parsed.
+  timings: z.record(z.string().max(40), z.union([z.number(), z.string().max(2000), z.boolean(), z.null()]))
+    .refine((value) => Object.keys(value).length <= 20, 'Too many timing fields.')
+    .optional(),
 });
 
-// Saved plans are the planner's own document; only the parts that feed the
-// solver, PDF, and dashboard are bounded, the rest is kept as-is.
+// Saved plans are the planner's own document. Every part that is shown,
+// exported, summarised or fed back to the solver has a typed, bounded shape;
+// the remaining bookkeeping fields (diagnostics, template metadata) are
+// accepted only up to a fixed serialized size, so no key can carry an
+// unbounded payload.
+const GOAL_VALUES = ['maintain', 'lose_weight', 'gain_weight'];
+const DIET_VALUES = ['standard', 'vegetarian', 'vegan'];
+const DISTRIBUTION_VALUES = Object.keys(MEAL_DISTRIBUTIONS);
+const MEAL_TAG_VALUES = ['breakfast', 'snack', 'lunch', 'dinner', 'iftar', 'suhoor', 'main', 'main_meal'];
+
+function jsonSize(value) {
+  try {
+    return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8');
+  } catch {
+    return Infinity;
+  }
+}
+
+// Any JSON value, as long as its serialized form stays under maxBytes.
+function boundedJson(label, maxBytes) {
+  return z.unknown().refine(
+    (value) => jsonSize(value) <= maxBytes,
+    `${label} is too large.`,
+  );
+}
+
+const optionalFinite = (min, max) => z.number().min(min).max(max).nullable().optional();
+const macroTotals = z.looseObject({
+  calories: optionalFinite(0, 20000),
+  proteinG: optionalFinite(0, 2000),
+  carbG: optionalFinite(0, 4000),
+  fatG: optionalFinite(0, 2000),
+}).catchall(boundedJson('Totals field', 4 * 1024));
+
+// Foods from the catalog are replaced on save with the server's own entry,
+// so names and nutrition values in a saved plan can never be forged. Foods
+// outside the catalog (custom foods) keep only known fields, each bounded.
+let catalogById;
+function catalogFood(id) {
+  if (!catalogById) {
+    // Lazy: the PDF function loads this module without the food catalog.
+    const { loadFoods } = require('../repositories/foodRepository');
+    catalogById = new Map(loadFoods().map((food) => [String(food.id), food]));
+  }
+  return catalogById.get(String(id));
+}
+
+// Mirrors resolveFoodForMealAction: the only foods outside the catalog are
+// custom foods, whose ids start with "custom_".
+const CUSTOM_FOOD_ID = /^custom_[A-Za-z0-9_.:-]{1,57}$/;
+
+const nonCatalogFood = z.object({
+  id: z.string().regex(CUSTOM_FOOD_ID, 'Unknown food.'),
+  name: text('Food name', L.foodNameLength),
+  nameAr: optionalText('Food name', L.foodNameLength),
+  macroRole: z.string().max(20).optional(),
+  caloriesPer100g: finite(0, L.customFood.kcalPer100gMax),
+  proteinGPer100g: finite(0, L.customFood.macroPer100gMax),
+  carbGPer100g: finite(0, L.customFood.macroPer100gMax),
+  fatGPer100g: finite(0, L.customFood.macroPer100gMax),
+  isVegan: z.boolean().optional(),
+  isVegetarian: z.boolean().optional(),
+  categories: z.array(z.string().max(40)).max(10).optional(),
+  mealTags: z.array(z.string().max(20)).max(10).optional(),
+  defaultServingG: finite(0, L.customFood.servingGMax).optional(),
+  minServingG: finite(0, L.customFood.servingGMax).optional(),
+  maxServingG: finite(0, L.customFood.servingGMax).optional(),
+  custom: z.boolean().optional(),
+});
+
+const savedFood = z.looseObject({ id: z.union([z.string().max(L.foodIdLength), z.number().int()]) })
+  .transform((food, ctx) => {
+    const known = catalogFood(food.id);
+    if (known) return known;
+    const parsed = nonCatalogFood.safeParse(food);
+    if (parsed.success) return parsed.data;
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({ ...issue, path: ['food', ...issue.path] });
+    }
+    return z.NEVER;
+  });
+
+const alternativeList = z.array(boundedJson('Alternative', 8 * 1024)).max(100).optional();
+
 const savedItem = z.looseObject({
+  food: savedFood.nullable().optional(),
   quantityG: finite(0, L.gramsPerFood).optional(),
   customFood: customFood.nullable().optional(),
-});
+  totals: macroTotals.nullable().optional(),
+  alternatives: alternativeList,
+  broaderAlternatives: alternativeList,
+  nearestAlternatives: alternativeList,
+}).catchall(boundedJson('Food item field', 4 * 1024));
 const savedItems = z.array(savedItem)
   .max(L.foodsPerMeal, `A meal can have at most ${L.foodsPerMeal} foods.`)
   .optional();
-const planData = z.looseObject({
-  meals: z.array(z.looseObject({
-    name: optionalText('Meal name', 80),
-    items: savedItems,
-    originalItems: savedItems,
-    mealOptions: z.array(z.looseObject({ items: savedItems })).max(L.mealOptionsPerMeal).optional(),
-  })).max(L.mealsPerPlan).optional(),
-}, { error: 'planData must be an object.' });
+
+const mealOption = z.looseObject({
+  items: savedItems,
+  totals: macroTotals.nullable().optional(),
+  templateName: optionalText('Meal option name', 120),
+}).catchall(boundedJson('Meal option field', 4 * 1024));
+
+const savedMeal = z.looseObject({
+  name: optionalText('Meal name', 80),
+  tag: z.enum(MEAL_TAG_VALUES).nullable().optional(),
+  items: savedItems,
+  originalItems: savedItems,
+  mealOptions: z.array(mealOption)
+    .max(L.mealOptionsPerMeal, `A meal can have at most ${L.mealOptionsPerMeal} options.`)
+    .optional(),
+  totals: macroTotals.nullable().optional(),
+  originalTotals: macroTotals.nullable().optional(),
+  target: macroTarget.nullable().optional(),
+  seedTarget: boundedJson('Meal target', 16 * 1024).optional(),
+}).catchall(boundedJson('Meal field', 16 * 1024));
+
+const blankToNull = (value) => (value === '' || value === undefined ? null : value);
+const formNumberField = (label, min, max, options) => optionalFormNumber(label, min, max, options);
+const enumField = (values, message) => z.preprocess(
+  blankToNull,
+  z.enum(values, { error: message }).nullable(),
+).optional();
+const flagField = z.union([z.boolean(), z.enum(['true', 'false', 'on', ''])]).nullable().optional();
+
+// The planner form as saved with the plan. Form posts send numbers as
+// strings; the generator's own echo sends numbers. Both are accepted, within
+// the same bounds the customer routes use.
+const planInput = z.object({
+  weightKg: formNumberField('Weight', L.weightKg.min, L.weightKg.max),
+  heightCm: formNumberField('Height', L.heightCm.min, L.heightCm.max),
+  age: formNumberField('Age', L.age.min, L.age.max, { integer: true }),
+  sex: enumField(SEX_VALUES, 'Choose male or female.'),
+  bodyFatPercentage: formNumberField('Body fat', L.bodyFatPercentage.min, L.bodyFatPercentage.max),
+  activityLevel: enumField(ACTIVITY_VALUES, 'Choose a valid activity level.'),
+  goal: enumField(GOAL_VALUES, 'Choose a valid goal.'),
+  dietType: enumField(DIET_VALUES, 'Choose a valid diet type.'),
+  mealDistribution: enumField(DISTRIBUTION_VALUES, 'Choose a valid meal distribution.'),
+  numberOfMeals: formNumberField('Number of meals', 2, 5, { integer: true }),
+  numberOfSnacks: formNumberField('Number of snacks', 0, 3, { integer: true }),
+  proteinPerKg: formNumberField('Protein per kg', 0, 5),
+  fatPerKg: formNumberField('Fat per kg', 0, 5),
+  avoidFoods: preferenceList.optional(),
+  allergies: preferenceList.optional(),
+  dislikes: preferenceList.optional(),
+  ramadanMode: flagField,
+});
+
+const dailyNumbers = z.looseObject({
+  calories: optionalFinite(0, 20000),
+  proteinG: optionalFinite(0, 2000),
+  carbG: optionalFinite(0, 4000),
+  fatG: optionalFinite(0, 2000),
+}).catchall(boundedJson('Daily target field', 8 * 1024));
+
+const nutritionCalculation = z.record(
+  z.string().max(60),
+  z.union([z.number().min(-100000).max(100000), z.boolean(), z.null()]),
+).refine((value) => Object.keys(value).length <= 40, 'Nutrition calculation has too many fields.');
+
+const PLAN_TOP_LEVEL_EXTRA_BYTES = 64 * 1024;
+const planData = z.object({
+  input: planInput.optional(),
+  manualMode: z.boolean().optional(),
+  dailyTargets: dailyNumbers.nullable().optional(),
+  dailyActuals: dailyNumbers.nullable().optional(),
+  nutritionCalculation: nutritionCalculation.nullable().optional(),
+  meals: z.array(savedMeal).max(L.mealsPerPlan, `A plan can have at most ${L.mealsPerPlan} meals.`).optional(),
+  diagnostics: boundedJson('Plan diagnostics', PLAN_TOP_LEVEL_EXTRA_BYTES).optional(),
+}, { error: 'planData must be an object.' })
+  .catchall(boundedJson('Plan field', PLAN_TOP_LEVEL_EXTRA_BYTES))
+  .refine((value) => Object.keys(value).length <= 40, 'planData has too many fields.');
+
+// Checked at the route so a malformed request never takes a worker slot;
+// the generator still applies its own rules (required fields, combinations).
+const generatePlanBody = planInput.extend({
+  timelineId: z.string().max(128).optional(),
+  generationRequestId: z.string().max(128).optional(),
+});
 
 const customerSelection = z.looseObject({
   id: nullableId,
@@ -225,13 +390,28 @@ const customerBody = z.looseObject({
   activity_level: z.union([z.literal(''), z.null(), z.enum(ACTIVITY_VALUES, { error: 'Choose a valid activity level.' })]).optional(),
 });
 
-const sessionBody = z.looseObject({
-  idToken: z.string().min(1).max(8192),
-  profile: z.looseObject({
+const firebaseIdToken = z.string({ error: 'Firebase ID token is required.' })
+  .min(1, 'Firebase ID token is required.')
+  .max(8192);
+
+const sessionBody = z.object({
+  idToken: firebaseIdToken,
+  profile: z.object({
     displayName: optionalText('Name', 100),
     firstname: optionalText('First name', L.personNameLength),
     lastname: optionalText('Last name', L.personNameLength),
-  }).nullable().optional(),
+  }).optional(),
+});
+
+const AUTH_CLIENT_EVENTS = [
+  'password_reset_requested', 'password_reset_throttled', 'password_reset_failed',
+  'verification_resent', 'verification_throttled',
+];
+const authClientEventBody = z.object({ event: z.enum(AUTH_CLIENT_EVENTS) });
+
+const deleteAccountBody = z.object({
+  idToken: firebaseIdToken,
+  confirm: z.literal('DELETE', { error: 'Type DELETE to confirm.' }),
 });
 
 // Query strings are always strings; numbers are validated as digit strings.
@@ -252,17 +432,22 @@ const customersListQuery = z.looseObject({
   limit: z.string().regex(/^\d{1,3}$/, 'Invalid limit.').optional(),
 });
 const customerMatchQuery = z.looseObject({
-  name: z.string().max(L.customerNameLength).optional(),
+  name: text('Customer name', L.customerNameLength, { min: 0 }).optional(),
 });
 const pdfExportQuery = z.looseObject({
-  clientName: z.string().max(L.clientNameLength, `Client name must be at most ${L.clientNameLength} characters.`).optional(),
+  clientName: text('Client name', L.clientNameLength, { min: 0 }).optional(),
   id: z.string().regex(/^\d{1,18}$/, 'Invalid plan id.').optional(),
 });
 
 module.exports = {
+  generatePlanBody,
+  planData,
+  planInput,
+  authClientEventBody,
   CONTROL_CHARS,
   TIMELINE_EVENTS,
   createPlanBody,
+  deleteAccountBody,
   customerBody,
   customerMatchQuery,
   customersListQuery,

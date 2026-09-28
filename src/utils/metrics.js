@@ -150,6 +150,16 @@ const rateLimitExceeded = counter({
   help: 'Requests rejected by rate limiting.',
   labelNames: ['scope'],
 });
+const rateLimitStoreErrors = counter({
+  name: 'nutrition_rate_limit_store_errors_total',
+  help: 'Rate-limit store failures (the limiter then fails open or closed per scope).',
+  labelNames: ['scope'],
+});
+const sessionRejections = counter({
+  name: 'nutrition_session_rejections_total',
+  help: 'Requests whose session was rejected, by reason.',
+  labelNames: ['reason'],
+});
 
 const appErrors = counter({
   name: 'nutrition_errors_total',
@@ -353,13 +363,13 @@ const VALID_MEAL_TAGS = new Set(['breakfast', 'snack', 'lunch', 'dinner', 'iftar
 const VALID_DB_OPERATIONS = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'UPSERT', 'BULKUPDATE', 'BULKDELETE', 'RAW']);
 const VALID_DB_MODELS = new Set(['User', 'Customer', 'Folder', 'Plan']);
 const KNOWN_HTTP_ROUTES = new Set([
-  '/', '/login', '/register', '/dashboard', '/planner', '/explorer',
+  '/', '/login', '/register', '/dashboard', '/planner', '/explorer', '/account',
   '/livez', '/readyz', '/metrics',
   '/api/health', '/api/foods', '/api/preferences', '/api/generate-plan',
   '/api/generation-timeline', '/api/rebalance-meal', '/api/swap-suggestions',
   '/api/dashboard/customers', '/api/dashboard/plans',
-  '/api/auth/firebase-config', '/api/auth/session', '/api/auth/register',
-  '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/dashboard',
+  '/api/auth/firebase-config', '/api/auth/session',
+  '/api/auth/logout', '/api/auth/logout-all', '/api/auth/client-event', '/api/auth/me', '/api/dashboard',
   '/api/customers', '/api/customers/match', '/api/folders', '/api/folders/tree',
   '/api/plans', '/api/vitals',
 ]);
@@ -605,7 +615,7 @@ function recordPdfExport({ outcome, durationMs, bytes }) {
 
 function recordDependencyCall({ dependency, operation, outcome, durationMs }) {
   const safeDependency = dependency === 'firebase' ? 'firebase' : 'other';
-  const safeOperation = ['verify_token', 'delete_user'].includes(operation) ? operation : 'other';
+  const safeOperation = ['verify_token', 'delete_user', 'get_user', 'revoke_refresh_tokens'].includes(operation) ? operation : 'other';
   const safeOutcome = outcome === 'success' ? 'success' : 'error';
   const labels = { dependency: safeDependency, operation: safeOperation, outcome: safeOutcome };
   dependencyCalls.inc(labels);
@@ -656,9 +666,21 @@ function recordWebVitals(body = {}) {
   return recorded;
 }
 
+const RATE_LIMIT_SCOPES = new Set(['api', 'auth', 'generation', 'pdf', 'planner', 'plan_write', 'vitals', 'probe', 'metrics', 'csp']);
+const SESSION_REJECTION_REASONS = new Set([
+  'missing', 'user_mismatch', 'revoked', 'expired', 'idle', 'token_version', 'firebase_revoked', 'invalid_token', 'user_missing',
+]);
+
 function recordRateLimit(scope) {
-  const safeScope = ['api', 'auth', 'generation', 'pdf'].includes(scope) ? scope : 'other';
-  rateLimitExceeded.inc({ scope: safeScope });
+  rateLimitExceeded.inc({ scope: RATE_LIMIT_SCOPES.has(scope) ? scope : 'other' });
+}
+
+function recordRateLimitStoreError(scope) {
+  rateLimitStoreErrors.inc({ scope: RATE_LIMIT_SCOPES.has(scope) ? scope : 'other' });
+}
+
+function recordSessionRejection(reason) {
+  sessionRejections.inc({ reason: SESSION_REJECTION_REASONS.has(reason) ? reason : 'other' });
 }
 
 function normalizeDbOperation(options = {}) {
@@ -700,10 +722,12 @@ function attachDatabaseMetrics(sequelize) {
   });
 }
 
+// Only the standard Authorization header is accepted, so the token has a
+// single, well-known place that proxies and log redaction already treat as
+// secret.
 function presentedMetricsToken(req) {
   const authorization = String(req.get('authorization') || '');
-  if (authorization.startsWith('Bearer ')) return authorization.slice(7);
-  return String(req.get('x-metrics-token') || '');
+  return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
 }
 
 function tokensMatch(expected, actual) {
@@ -714,7 +738,11 @@ function tokensMatch(expected, actual) {
 
 async function metricsHandler(req, res, next) {
   try {
-    if (process.env.METRICS_ENABLED === 'false') return res.status(404).end();
+    // Vercel deployments push metrics over OTLP, so the pull endpoint is off
+    // there unless explicitly enabled.
+    const enabled = process.env.METRICS_ENABLED === 'true'
+      || (process.env.METRICS_ENABLED !== 'false' && !process.env.VERCEL);
+    if (!enabled) return res.status(404).end();
     const expectedToken = process.env.METRICS_TOKEN;
     if (process.env.NODE_ENV === 'production' && !expectedToken) return res.status(404).end();
     if (expectedToken && !tokensMatch(expectedToken, presentedMetricsToken(req))) {
@@ -743,6 +771,8 @@ module.exports = {
   recordPdfExport,
   recordPlannerOperation,
   recordRateLimit,
+  recordRateLimitStoreError,
+  recordSessionRejection,
   recordWebVitals,
   registry,
   setGenerationPoolMetrics,

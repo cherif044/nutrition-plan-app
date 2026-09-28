@@ -3,7 +3,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const helmet = require('helmet');
-const { randomUUID } = require('crypto');
+const { timingSafeEqual } = require('crypto');
 
 const generationRoutes = require('./routes/generationRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -13,21 +13,39 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const sequelize = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
+const { requireAuth } = require('./middleware/auth');
 const {
   apiLimiter,
   authLimiter,
+  cspReportLimiter,
   generationLimiter,
   pdfExportLimiter,
+  planWriteLimiter,
+  plannerLimiter,
+  probeLimiter,
   trustProxyHops,
+  vitalsLimiter,
 } = require('./middleware/rateLimits');
 const { sameOriginOnly } = require('./middleware/sameOrigin');
+const {
+  CSP_REPORT_PATH,
+  pageSecurityHeaders,
+  privateApiCache,
+  requestId,
+} = require('./middleware/security');
+const { assertJwtSecretConfigured } = require('./config/session');
 const { INPUT_LIMITS } = require('./config/inputLimits');
 const { logger } = require('./utils/logger');
+const { hashIp } = require('./utils/ipHash');
+const { finishPendingDeletions } = require('./services/accountDeletionService');
 const {
   httpMetricsMiddleware,
   metricsHandler,
   recordWebVitals,
 } = require('./utils/metrics');
+
+// Refuse to start in production with a missing, short or placeholder secret.
+assertJwtSecretConfigured();
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
@@ -38,15 +56,6 @@ let nextRequestIsColdStart = true;
 function envNumber(name, fallback) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function requestId(req, res, next) {
-  // A client-supplied id is echoed in a header and written to logs, so only a
-  // plain token is accepted.
-  const incomingId = req.get('x-request-id');
-  req.id = incomingId && /^[A-Za-z0-9-]{1,64}$/.test(incomingId) ? incomingId : randomUUID();
-  res.setHeader('X-Request-Id', req.id);
-  next();
 }
 
 function shouldLogRequest(req, statusCode) {
@@ -74,7 +83,9 @@ function requestLogger(req, res, next) {
       path: requestLogPath(req),
       statusCode: res.statusCode,
       durationMs: Number(durationMs.toFixed(1)),
-      ip: req.ip,
+      // A keyed, daily-rotating hash: groups one client's requests without
+      // storing the address itself.
+      ipHash: hashIp(req.ip),
       metrics: req.metrics,
     });
   });
@@ -127,38 +138,11 @@ app.set('trust proxy', trustProxyHops());
 app.use(requestId);
 app.use(httpMetricsMiddleware);
 app.use(requestLogger);
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  hsts: isProduction
-    ? { maxAge: 15552000, includeSubDomains: true }
-    : false,
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      // Firebase popup/redirect auth loads Google's iframe helper from this origin.
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.gstatic.com', 'https://apis.google.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-      imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: [
-        "'self'",
-        'https://identitytoolkit.googleapis.com',
-        'https://securetoken.googleapis.com',
-        'https://www.googleapis.com',
-        'https://firebaseinstallations.googleapis.com',
-      ],
-      frameSrc: ["'self'", 'https://*.firebaseapp.com', 'https://accounts.google.com'],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      upgradeInsecureRequests: isProduction ? [] : null,
-    },
-  },
-}));
+app.use(pageSecurityHeaders());
+
 // OAuth popups must retain their connection to the page that opened them.
 // Keep Helmet's stricter default on all other pages.
-app.use(['/login', '/register', '/login.html', '/register.html'],
+app.use(['/login', '/register', '/account', '/login.html', '/register.html', '/account.html'],
   helmet.crossOriginOpenerPolicy({ policy: 'same-origin-allow-popups' }));
 app.use(compression({
   threshold: envNumber('COMPRESSION_THRESHOLD_BYTES', 1024),
@@ -176,9 +160,9 @@ app.use(cookieParser());
 
 app.locals.isShuttingDown = false;
 
-app.get('/metrics', metricsHandler);
+app.get('/metrics', probeLimiter, metricsHandler);
 
-app.get('/livez', (_req, res) => {
+app.get('/livez', probeLimiter, (_req, res) => {
   res.status(200).json({
     status: 'live',
     uptimeSeconds: Math.round(process.uptime()),
@@ -186,7 +170,23 @@ app.get('/livez', (_req, res) => {
   });
 });
 
-app.get('/readyz', async (_req, res) => {
+// Readiness is cached briefly so a flood of probes cannot turn into a flood
+// of database round trips.
+const READINESS_CACHE_MS = 10 * 1000;
+let readinessCache = { checkedAt: 0, ok: false, error: null };
+
+async function databaseReady() {
+  if (Date.now() - readinessCache.checkedAt < READINESS_CACHE_MS) return readinessCache;
+  try {
+    await sequelize.authenticate();
+    readinessCache = { checkedAt: Date.now(), ok: true, error: null };
+  } catch (error) {
+    readinessCache = { checkedAt: Date.now(), ok: false, error };
+  }
+  return readinessCache;
+}
+
+app.get('/readyz', probeLimiter, async (_req, res) => {
   if (app.locals.isShuttingDown) {
     return res.status(503).json({
       status: 'not_ready',
@@ -195,37 +195,80 @@ app.get('/readyz', async (_req, res) => {
     });
   }
 
-  try {
-    await sequelize.authenticate();
+  const readiness = await databaseReady();
+  if (readiness.ok) {
     return res.status(200).json({
       status: 'ready',
       database: 'connected',
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    return res.status(503).json({
-      status: 'not_ready',
-      database: 'unavailable',
-      error: isProduction ? undefined : error.message,
-      timestamp: new Date().toISOString(),
-    });
   }
+  return res.status(503).json({
+    status: 'not_ready',
+    database: 'unavailable',
+    error: isProduction ? undefined : readiness.error?.message,
+    timestamp: new Date().toISOString(),
+  });
 });
 
+// Browsers send CSP violation reports without an Origin the app can check,
+// so this route sits before the CSRF check. Only a few fields are logged.
+const cspReportParser = express.json({
+  type: ['application/csp-report', 'application/reports+json', 'application/json'],
+  limit: '16kb',
+});
+app.post(CSP_REPORT_PATH, cspReportLimiter, cspReportParser, (req, res) => {
+  const report = req.body?.['csp-report'] || (Array.isArray(req.body) ? req.body[0]?.body : null) || {};
+  logger.warn('CSP violation', {
+    directive: String(report['effective-directive'] || report.effectiveDirective || report['violated-directive'] || '').slice(0, 80),
+    blocked: String(report['blocked-uri'] || report.blockedURL || '').slice(0, 200),
+    page: String(report['document-uri'] || report.documentURL || '').split('?')[0].slice(0, 200),
+  });
+  res.status(204).end();
+});
+
+app.use('/api', privateApiCache);
 app.use('/api', sameOriginOnly);
 app.use('/api', apiLimiter);
-app.post('/api/vitals', (req, res) => {
+app.post('/api/vitals', vitalsLimiter, (req, res) => {
   recordWebVitals(req.body);
   res.status(204).end();
 });
+
+// Finishes account deletions that stopped part-way. Called by Vercel Cron,
+// which sends "Authorization: Bearer $CRON_SECRET".
+app.get('/api/internal/finish-deletions', async (req, res, next) => {
+  const secret = process.env.CRON_SECRET;
+  const presented = String(req.get('authorization') || '');
+  const expected = `Bearer ${secret}`;
+  const matches = secret && presented.length === expected.length
+    && timingSafeEqual(Buffer.from(presented), Buffer.from(expected));
+  if (!matches) return res.status(404).json({ error: 'Not found.' });
+  try {
+    return res.json(await finishPendingDeletions());
+  } catch (err) {
+    return next(err);
+  }
+});
+
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/folders', folderRoutes);
-app.use('/api/plans/:id/export.pdf', pdfExportLimiter);
+
+// Expensive and state-changing routes authenticate first, so their limits
+// are counted per account (see rateLimits.js), then fail closed.
+const PLAN_WRITE_METHODS = new Set(['POST', 'PUT']);
+app.use((req, res, next) => (
+  PLAN_WRITE_METHODS.has(req.method) && PLAN_SAVE_PATH.test(req.path)
+    ? requireAuth(req, res, (err) => (err ? next(err) : planWriteLimiter(req, res, next)))
+    : next()
+));
+app.use('/api/plans/:id/export.pdf', requireAuth, pdfExportLimiter);
 app.use('/api/plans', planRoutes);
-app.use('/api/generate-plan', generationLimiter);
-app.use('/api/rebalance-meal', generationLimiter);
+app.use('/api/generate-plan', requireAuth, generationLimiter);
+app.use('/api/rebalance-meal', requireAuth, generationLimiter);
+app.use('/api/swap-suggestions', requireAuth, plannerLimiter);
 app.use('/api', generationRoutes);
 
 app.use('/food-icons', express.static(foodIconsDir, {
@@ -252,6 +295,7 @@ app.get('/dashboard', (_req, res) => sendPage(res, 'dashboard.html'));
 app.get('/customers/:id', (_req, res) => sendPage(res, 'customer.html'));
 app.get('/planner', (_req, res) => sendPage(res, 'planner.html'));
 app.get('/explorer', (_req, res) => sendPage(res, 'explorer.html'));
+app.get('/account', (_req, res) => sendPage(res, 'account.html'));
 
 app.use(errorHandler);
 

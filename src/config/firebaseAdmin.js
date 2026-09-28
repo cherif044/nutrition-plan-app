@@ -1,4 +1,5 @@
-const admin = require('firebase-admin');
+const { cert, getApps, initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 
 function cleanPrivateKey(value) {
   if (!value) return value;
@@ -9,8 +10,9 @@ function cleanPrivateKey(value) {
   return unquoted.replace(/\\n/g, '\n');
 }
 
-function getFirebaseAdmin() {
-  if (admin.apps.length) return admin;
+function firebaseApp() {
+  const [existing] = getApps();
+  if (existing) return existing;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -22,15 +24,14 @@ function getFirebaseAdmin() {
     );
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
-  });
+  return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+}
 
-  return admin;
+// firebase-admin 13+ only has the modular API. This keeps the
+// getFirebaseAdmin().auth() shape the rest of the app uses.
+function getFirebaseAdmin() {
+  const app = firebaseApp();
+  return { auth: () => getAuth(app) };
 }
 
 module.exports = { getFirebaseAdmin, cleanPrivateKey };

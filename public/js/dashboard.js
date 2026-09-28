@@ -1043,6 +1043,7 @@ async function initNav() {
   const firstName = String(user.firstname || '');
   document.getElementById('planner-nav-user').innerHTML = `
     <span class="planner-nav__greeting">Hi, ${escapeHtml(firstName)}</span>
+    <a class="planner-nav__link" href="/account" aria-label="Account">${iconSvg('user')}<span>Account</span></a>
     <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
     <span class="dashboard-nav-avatar" aria-hidden="true">${escapeHtml(firstName[0] || 'P')}</span>
   `;

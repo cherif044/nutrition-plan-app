@@ -8,8 +8,11 @@ function isUserFacingServerError(error) {
 }
 
 function errorHandler(error, req, res, _next) {
-  const isDatabaseError = String(error.name || '').startsWith('Sequelize');
-  const status = error.status || error.statusCode || (isDatabaseError ? 500 : 400);
+  // Only errors that carry an HTTP status are the client's fault. Anything
+  // else (a bug, a database or dependency failure) is a 500. Body-parser
+  // errors carry their own 4xx status.
+  const rawStatus = Number(error.status || error.statusCode);
+  const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
   recordError(error, status);
 
   if (status >= 500) {

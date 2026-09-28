@@ -1,0 +1,4 @@
+# Test files spin up throwaway Express apps without CSRF or rate limiting on
+# purpose; the production app (src/app.js, api/) is scanned in full.
+paths-ignore:
+  - tests

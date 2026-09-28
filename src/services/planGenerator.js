@@ -1,4 +1,5 @@
 const { loadFoods } = require('../repositories/foodRepository');
+const { inputError } = require('../utils/httpErrors');
 const { INPUT_LIMITS } = require('../config/inputLimits');
 const { loadReadyMealBundles } = require('../repositories/readyMealRepository');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
@@ -125,7 +126,7 @@ function _generatePlanInternal(rawInput, trace = null) {
   });
 
   if (allowedFoods.length === 0) {
-    throw new Error('No foods match the selected restrictions. Try removing one filter.');
+    throw inputError('No foods match the selected restrictions. Try removing one filter.');
   }
 
   phaseStartedAt = process.hrtime.bigint();
@@ -438,52 +439,52 @@ function normalizeInput(input = {}) {
 
   const limits = INPUT_LIMITS;
   if (!Number.isFinite(weightKg) || weightKg < limits.weightKg.min || weightKg > limits.weightKg.max) {
-    throw new Error(`Weight must be between ${limits.weightKg.min} and ${limits.weightKg.max} kg.`);
+    throw inputError(`Weight must be between ${limits.weightKg.min} and ${limits.weightKg.max} kg.`);
   }
   if (!Number.isFinite(heightCm) || heightCm < limits.heightCm.min || heightCm > limits.heightCm.max) {
-    throw new Error(`Height must be between ${limits.heightCm.min} and ${limits.heightCm.max} cm.`);
+    throw inputError(`Height must be between ${limits.heightCm.min} and ${limits.heightCm.max} cm.`);
   }
   if (!Number.isFinite(age) || age < limits.age.min || age > limits.age.max) {
-    throw new Error(`Age must be between ${limits.age.min} and ${limits.age.max} years.`);
+    throw inputError(`Age must be between ${limits.age.min} and ${limits.age.max} years.`);
   }
   if (!SEXES.has(sex)) {
-    throw new Error('Choose male or female for the Mifflin-St Jeor calculation.');
+    throw inputError('Choose male or female for the Mifflin-St Jeor calculation.');
   }
   if (bodyFatValue !== null && (
     !Number.isFinite(bodyFatValue)
     || bodyFatValue < limits.bodyFatPercentage.min
     || bodyFatValue > limits.bodyFatPercentage.max
   )) {
-    throw new Error(`Body fat should be between ${limits.bodyFatPercentage.min} and ${limits.bodyFatPercentage.max}%.`);
+    throw inputError(`Body fat should be between ${limits.bodyFatPercentage.min} and ${limits.bodyFatPercentage.max}%.`);
   }
   if (!ACTIVITY_LEVELS.has(activityLevel)) {
-    throw new Error('Choose a valid activity level.');
+    throw inputError('Choose a valid activity level.');
   }
   if (!GOALS.has(goal)) {
-    throw new Error('Choose a valid goal.');
+    throw inputError('Choose a valid goal.');
   }
   if (!DIETS.has(dietType)) {
-    throw new Error('Choose a valid diet type.');
+    throw inputError('Choose a valid diet type.');
   }
   if (![2, 3, 4, 5].includes(numberOfMeals)) {
-    throw new Error('Meals must be between 2 and 5.');
+    throw inputError('Meals must be between 2 and 5.');
   }
   if (!MEAL_DISTRIBUTIONS.has(mealDistribution)) {
-    throw new Error('Choose a valid meal distribution.');
+    throw inputError('Choose a valid meal distribution.');
   }
   if (
     !Number.isFinite(proteinPerKg) ||
     proteinPerKg < NUTRITION.proteinPerKg.minimum ||
     proteinPerKg > NUTRITION.proteinPerKg.maximum
   ) {
-    throw new Error('Protein must be between 1.8 and 2.2 g/kg.');
+    throw inputError('Protein must be between 1.8 and 2.2 g/kg.');
   }
   if (
     !Number.isFinite(fatPerKg) ||
     fatPerKg < NUTRITION.fatPerKg.minimum ||
     fatPerKg > NUTRITION.fatPerKg.maximum
   ) {
-    throw new Error('Fat must be between 0.66 and 1.0 g/kg.');
+    throw inputError('Fat must be between 0.66 and 1.0 g/kg.');
   }
 
   return {
@@ -514,10 +515,10 @@ function normalizeList(value) {
     : String(value || '').split(',').map((item) => item.trim().toLowerCase());
   const list = items.filter(Boolean);
   if (list.length > INPUT_LIMITS.preferenceItems) {
-    throw new Error(`Choose at most ${INPUT_LIMITS.preferenceItems} foods to avoid.`);
+    throw inputError(`Choose at most ${INPUT_LIMITS.preferenceItems} foods to avoid.`);
   }
   if (list.some((item) => item.length > INPUT_LIMITS.preferenceTermLength)) {
-    throw new Error(`Each food to avoid must be at most ${INPUT_LIMITS.preferenceTermLength} characters.`);
+    throw inputError(`Each food to avoid must be at most ${INPUT_LIMITS.preferenceTermLength} characters.`);
   }
   return list;
 }
@@ -539,17 +540,17 @@ function filterFoods(foods, input) {
     .filter((id) => !categoryIds.has(id));
 
   if (unknownTerms.length > 0) {
-    throw new Error(
+    throw inputError(
       `Choose allergies and dislikes from the suggestion list only: ${unknownTerms.join(', ')}.`,
     );
   }
   if (unknownFoodIds.length > 0) {
-    throw new Error(
+    throw inputError(
       `Choose allergies and dislikes from the suggestion list only: ${unknownFoodIds.join(', ')}.`,
     );
   }
   if (unknownCategoryIds.length > 0) {
-    throw new Error(
+    throw inputError(
       `Choose allergies and dislikes from the suggestion list only: ${unknownCategoryIds.join(', ')}.`,
     );
   }
@@ -1021,7 +1022,7 @@ function computeMealBounds(target) {
   if (target?.macroWindows) {
     return cloneMacroBounds(target.macroWindows);
   }
-  throw new Error('Meal macroWindows are required.');
+  throw inputError('Meal macroWindows are required.');
 }
 
 function cloneMacroBounds(bounds) {
@@ -1105,7 +1106,7 @@ function resolveMealActionItems(rawItems) {
   const foodMap = new Map(foods.map((f) => [f.id, f]));
   return rawItems.map((item) => {
     const food = resolveFoodForMealAction(item, foodMap);
-    if (!food) throw new Error(`Unknown food id: ${item.foodId}`);
+    if (!food) throw inputError(`Unknown food id: ${String(item.foodId).slice(0, 64)}`);
     return {
       food,
       quantityG: clampServing(food, Number(item.quantityG) || food.defaultServingG),

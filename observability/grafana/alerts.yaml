@@ -32,3 +32,56 @@ groups:
         annotations:
           summary: API p95 latency has been above 3 seconds for 10 minutes.
           description: Check the "p95 latency by route" and "Database" panels to find the slow part.
+
+  # Security alerts (remediation P4.2). Per-client breakdowns (401/403 by IP
+  # hash, auth email abuse) live in Loki; see the log-based rules in README.md.
+  - name: nutrition-plan-app-security
+    interval: 1m
+    rules:
+      - alert: AuthFailureSpike
+        # Many 401/403 responses: credential stuffing, a stolen-cookie replay,
+        # or a broken login deploy.
+        expr: sum(increase(nutrition_session_rejections_total[10m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 50 rejected sessions in 10 minutes.
+          description: Break down nutrition_session_rejections_total by reason, then search logs for "Session rejected".
+
+      - alert: SessionsRevokedByFirebase
+        # Password resets, disabled or deleted accounts ending live sessions.
+        # A burst can mean an account takeover being cleaned up.
+        expr: sum(increase(nutrition_session_rejections_total{reason="firebase_revoked"}[1h])) > 10
+        labels:
+          severity: info
+        annotations:
+          summary: More than 10 sessions ended by Firebase account changes in an hour.
+
+      - alert: RateLimitSpike
+        expr: sum by (scope) (increase(nutrition_rate_limit_exceeded_total[10m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'More than 100 requests rate-limited in scope {{ $labels.scope }} in 10 minutes.'
+          description: Search logs for "Rate limit exceeded" and group by ipHash / userId.
+
+      - alert: RateLimitStoreFailing
+        # The limiter's database store is failing: cheap scopes are running
+        # without limits and expensive scopes are refusing requests.
+        expr: sum(increase(nutrition_rate_limit_store_errors_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: The rate-limit store is failing.
+          description: Check database health; search logs for "Rate limit store error".
+
+      - alert: TelemetryMissing
+        # No requests recorded at all: the exporter or the app is down.
+        expr: absent_over_time(nutrition_http_requests_total[30m])
+        labels:
+          severity: critical
+        annotations:
+          summary: No metrics received from the app for 30 minutes.

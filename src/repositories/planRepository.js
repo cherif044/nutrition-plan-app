@@ -1,6 +1,7 @@
 const sequelize = require('../config/database');
 const { Plan, Folder, Customer } = require('../models');
 const { resolveCustomerForPlan } = require('./customerRepository');
+const { assertCanAddPlan } = require('./accountQuotas');
 
 function stripMeta(plan) {
   const { Folder: _f, plan_data, client_request_id: _key, ...rest } = plan.toJSON();
@@ -9,15 +10,21 @@ function stripMeta(plan) {
 
 // Copied into their own columns on every write so list pages never have to
 // read (and decompress) the large plan_data document.
+const SUMMARY_GOALS = new Set(['maintain', 'lose_weight', 'gain_weight']);
+const SUMMARY_DIETS = new Set(['standard', 'vegetarian', 'vegan']);
+
 function planSummaryColumns(planData) {
   const calories = Number(
     planData?.dailyActuals?.calories
     ?? planData?.dailyTargets?.calories
     ?? planData?.nutritionCalculation?.targetCalories,
   );
+  const goal = planData?.input?.goal;
+  const dietType = planData?.input?.dietType;
   return {
-    goal: planData?.input?.goal || null,
-    diet_type: planData?.input?.dietType || null,
+    // Only known values reach the dashboard filter columns.
+    goal: SUMMARY_GOALS.has(goal) ? goal : null,
+    diet_type: SUMMARY_DIETS.has(dietType) ? dietType : null,
     calories: Number.isFinite(calories) && calories > 0 ? calories : null,
   };
 }
@@ -59,6 +66,7 @@ async function createPlan(userId, folderId, name, planData, options = {}) {
 
 async function insertPlan(userId, folderId, name, planData, options) {
   return sequelize.transaction(async (transaction) => {
+    await assertCanAddPlan(userId, planData, transaction);
     if (folderId !== null && folderId !== undefined) {
       const folder = await Folder.findOne({ where: { id: folderId, user_id: userId }, transaction });
       if (!folder) throw Object.assign(new Error('Folder not found.'), { status: 404 });
@@ -89,32 +97,28 @@ async function insertPlan(userId, folderId, name, planData, options) {
   });
 }
 
-async function getPlansByFolder(folderId) {
-  return Plan.findAll({
-    where: { folder_id: folderId },
-    attributes: ['id', 'folder_id', 'customer_id', 'name', 'last_opened_at', 'created_at', 'updated_at'],
-    order: [['created_at', 'DESC']],
-  });
+async function markPlanOpened(planId, userId) {
+  const [count] = await Plan.update(
+    { last_opened_at: new Date() },
+    { where: { id: planId, user_id: userId } },
+  );
+  return count > 0;
 }
 
-async function getPlanById(planId, userId, { markOpened = false } = {}) {
+async function getPlanById(planId, userId) {
   const plan = await Plan.findOne({
     where: { id: planId, user_id: userId },
+    // The customer must belong to the same user, so even a plan that somehow
+    // pointed at another account's customer could never expose it.
     include: [{
       model: Customer,
+      where: { user_id: userId },
       attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level'],
       required: false,
     }],
   });
   if (!plan) return null;
   const { client_request_id: _key, ...data } = plan.toJSON();
-  if (markOpened) {
-    data.last_opened_at = new Date();
-    Plan.update(
-      { last_opened_at: data.last_opened_at },
-      { where: { id: planId, user_id: userId } },
-    ).catch(() => {});
-  }
   return data;
 }
 
@@ -193,23 +197,26 @@ async function duplicatePlan(planId, userId, targetFolderId, newName) {
     if (!targetFolder) throw Object.assign(new Error('Target folder not found.'), { status: 404 });
   }
 
-  const plan = await Plan.create({
-    user_id: userId,
-    folder_id: targetFolderId || null,
-    customer_id: source.customer_id || null,
-    name: (newName || source.name).trim(),
-    plan_data: source.plan_data,
-    ...planSummaryColumns(source.plan_data),
-    is_active: false,
-    last_opened_at: null,
+  return sequelize.transaction(async (transaction) => {
+    await assertCanAddPlan(userId, source.plan_data, transaction);
+    const plan = await Plan.create({
+      user_id: userId,
+      folder_id: targetFolderId || null,
+      customer_id: source.customer_id || null,
+      name: (newName || source.name).trim(),
+      plan_data: source.plan_data,
+      ...planSummaryColumns(source.plan_data),
+      is_active: false,
+      last_opened_at: null,
+    }, { transaction });
+    return stripMeta(plan);
   });
-  return stripMeta(plan);
 }
 
 module.exports = {
   createPlan,
-  getPlansByFolder,
   getPlanById,
+  markPlanOpened,
   updatePlan,
   deletePlan,
   duplicatePlan,

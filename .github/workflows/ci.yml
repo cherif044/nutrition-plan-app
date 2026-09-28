@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # Unit/API specs mock the database; nothing here connects to Neon.
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:1/ci
+      JWT_SECRET: ci-only-secret-that-is-longer-than-32-bytes
+      RATE_LIMIT_STORE: memory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Security and unit specs
+        run: >-
+          npx playwright test
+          tests/auth-sessions.spec.js
+          tests/security-hardening.spec.js
+          tests/plan-generation-pool.spec.js
+          tests/food-swap-service.spec.js
+          tests/metrics.spec.js
+          tests/otel-metrics.spec.js
+      - name: Dependency audit (production dependencies)
+        # Accepted advisories are listed in docs/security-exceptions.md.
+        run: npm audit --omit=dev --audit-level=high
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          config-file: ./.github/codeql/codeql-config.yml
+      - uses: github/codeql-action/analyze@v3

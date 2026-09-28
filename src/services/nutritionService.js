@@ -4,6 +4,7 @@ const {
   NUTRITION,
   STANDARD_MEAL_SLOT_POLICY,
 } = require('../config/nutritionConstants');
+const { inputError } = require('../utils/httpErrors');
 
 function calculateBmr(input) {
   const sexConstant = input.sex === 'male'
@@ -20,7 +21,7 @@ function calculateBmr(input) {
 function maintenanceCalories(input) {
   const multiplier = NUTRITION.activityMultipliers[input.activityLevel];
   if (!Number.isFinite(multiplier)) {
-    throw new Error('Choose a valid activity level.');
+    throw inputError('Choose a valid activity level.');
   }
   return calculateBmr(input) * multiplier;
 }
@@ -154,7 +155,7 @@ function getMealSlotProfile(
 ) {
   const factors = MEAL_DISTRIBUTIONS[distribution]?.[numberOfMeals];
   if (!factors) {
-    throw new Error('Choose a valid meal count and distribution.');
+    throw inputError('Choose a valid meal count and distribution.');
   }
   const slots = numberOfMeals === 2
     ? AMBIGUOUS_MEAL_SLOT_POLICY[distribution]

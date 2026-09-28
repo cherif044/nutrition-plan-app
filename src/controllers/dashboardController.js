@@ -15,9 +15,9 @@ async function getDashboard(req, res, next) {
 async function getDashboardCustomers(req, res, next) {
   try {
     res.json(await listCustomersPage(req.user.id, {
-      query: req.query.query,
-      page: req.query.page,
-      pageSize: req.query.pageSize,
+      query: req.validatedQuery.query,
+      page: req.validatedQuery.page,
+      pageSize: req.validatedQuery.pageSize,
     }));
   } catch (err) {
     next(err);
@@ -27,10 +27,10 @@ async function getDashboardCustomers(req, res, next) {
 async function getDashboardPlans(req, res, next) {
   try {
     res.json(await listGeneralPlansPage(req.user.id, {
-      query: req.query.query,
-      calorieRange: req.query.calorieRange,
-      page: req.query.page,
-      pageSize: req.query.pageSize,
+      query: req.validatedQuery.query,
+      calorieRange: req.validatedQuery.calorieRange,
+      page: req.validatedQuery.page,
+      pageSize: req.validatedQuery.pageSize,
     }));
   } catch (err) {
     next(err);

@@ -10,6 +10,7 @@
 const { loadFoods } = require('../repositories/foodRepository');
 const { filterFoods, clampServing, rebalanceMeal } = require('./planGenerator');
 const { INPUT_LIMITS } = require('../config/inputLimits');
+const { inputError } = require('../utils/httpErrors');
 
 const DEFAULT_LIMIT = Number.POSITIVE_INFINITY;
 
@@ -111,7 +112,7 @@ function getSwapSuggestions({
 }) {
   const id = String(foodId ?? '');
   if (!id) {
-    throw new Error('foodId is required.');
+    throw inputError('foodId is required.');
   }
 
   const foods = loadFoods();

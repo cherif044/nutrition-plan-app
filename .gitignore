@@ -29,3 +29,15 @@ ios/Runner.xcodeproj/xcuserdata/
 .vercel
 .env*
 testing_data/
+
+# Security: local exports, assessment material and test output (N18, N19)
+Explore-*
+docs/security-assessment-*/
+docs/security-review-*.md
+test-results/
+
+# Agent hooks and prebuilt binaries are per-developer, never shared (N22)
+.claude/settings.local.json
+.codex/hooks.json
+.agents/skills/*/scripts/bin/
+.claude/skills/*/scripts/bin/

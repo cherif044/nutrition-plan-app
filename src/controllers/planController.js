@@ -1,4 +1,6 @@
-const { createPlan, getPlanById, updatePlan, deletePlan, duplicatePlan } = require('../repositories/planRepository');
+const {
+  createPlan, getPlanById, markPlanOpened, updatePlan, deletePlan, duplicatePlan,
+} = require('../repositories/planRepository');
 const { logger } = require('../utils/logger');
 
 function elapsedMs(startedAt) {
@@ -43,16 +45,24 @@ async function createPlanHandler(req, res, next) {
     });
     res.status(plan.idempotentReplay ? 200 : 201).json({ plan });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 }
 
 async function getPlan(req, res, next) {
   try {
-    const plan = await getPlanById(req.params.id, req.user.id, { markOpened: true });
+    const plan = await getPlanById(req.params.id, req.user.id);
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
     res.json({ plan });
+  } catch (err) { next(err); }
+}
+
+async function markPlanOpenedHandler(req, res, next) {
+  try {
+    const ok = await markPlanOpened(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: 'Plan not found.' });
+    res.status(204).end();
   } catch (err) { next(err); }
 }
 
@@ -62,7 +72,7 @@ async function exportPlanPdfHandler(req, res, next) {
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
 
     const { generatePlanPdf, pdfFilename } = require('../services/planPdfService');
-    const pdf = await generatePlanPdf(plan, { clientName: req.query.clientName });
+    const pdf = await generatePlanPdf(plan, { clientName: req.validatedQuery?.clientName });
     const filename = pdfFilename(plan);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -113,7 +123,7 @@ async function duplicatePlanHandler(req, res, next) {
     const plan = await duplicatePlan(req.params.id, req.user.id, targetFolderId, newName);
     res.status(201).json({ plan });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 }
@@ -121,6 +131,7 @@ async function duplicatePlanHandler(req, res, next) {
 module.exports = {
   createPlanHandler,
   getPlan,
+  markPlanOpenedHandler,
   exportPlanPdfHandler,
   updatePlanHandler,
   deletePlanHandler,
