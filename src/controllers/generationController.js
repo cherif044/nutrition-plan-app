@@ -65,7 +65,17 @@ function getCachedPreferenceOptions() {
   return preferenceOptionsCache;
 }
 
-function health(_req, res) {
+async function health(req, res, next) {
+  if (req.query.flushMetrics === '1') {
+    try {
+      const otel = require('../utils/otelMetrics');
+      await otel.forceFlush();
+      res.json({ status: 'ok', metricsConfigured: otel.configured, metricsFlushed: true });
+    } catch (error) {
+      next(error);
+    }
+    return;
+  }
   res.json({ status: 'ok' });
 }
 
