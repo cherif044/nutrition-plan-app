@@ -74,7 +74,10 @@ async function initNav() {
   return true;
 }
 
-async function loadCustomer() {
+let currentPage = 1;
+
+// Loads one page of the customer's plans; the server returns 10 at a time.
+async function loadCustomer(page = currentPage) {
   const id = customerIdFromPath();
   const message = document.getElementById('customer-message');
   if (!id) {
@@ -82,17 +85,28 @@ async function loadCustomer() {
     return;
   }
 
-  const res = await fetch(`/api/customers/${encodeURIComponent(id)}/plans`);
+  const res = await fetch(`/api/customers/${encodeURIComponent(id)}/plans?page=${page}`);
   if (!res.ok) {
     message.textContent = 'Customer not found.';
     return;
   }
-  const { customer, plans } = await res.json();
+  const { customer, plans, pagination } = await res.json();
+  if (pagination.total > 0 && page > pagination.totalPages) {
+    await loadCustomer(pagination.totalPages);
+    return;
+  }
+  currentPage = pagination.page;
+  const total = pagination.total;
   document.title = `${customer.name} — Pinch`;
   document.getElementById('customer-title').textContent = customer.name;
-  document.getElementById('customer-subtitle').textContent = `${plans.length} plan${plans.length === 1 ? '' : 's'}`;
+  document.getElementById('customer-subtitle').textContent = `${total} plan${total === 1 ? '' : 's'}`;
   document.querySelector('.customer-header-card .dashboard-icon-square').innerHTML = iconSvg('user', 17);
   renderPlans(plans);
+  renderPagination(document.getElementById('customer-plans-pager'), pagination, (nextPage) => {
+    loadCustomer(nextPage).then(() => {
+      document.getElementById('customer-plans')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
 }
 
 function renderPlans(plans) {

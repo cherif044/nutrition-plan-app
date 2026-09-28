@@ -145,6 +145,14 @@ async function syncFirebaseUser(profile) {
         err.status = 409;
         throw err;
       }
+      // Attaching a sign-in to an existing account by email is only safe when
+      // the provider has proven the person owns that email address.
+      if (!emailUser.firebase_uid && profile.emailVerified !== true) {
+        const err = new Error('Please verify your email address before continuing.');
+        err.status = 403;
+        err.code = 'email-not-verified';
+        throw err;
+      }
 
       await emailUser.update({
         firebase_uid: firebaseUid,

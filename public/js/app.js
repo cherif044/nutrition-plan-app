@@ -235,6 +235,18 @@ let deleteUndoSequence = 0;
   }
 })();
 
+// Mirrors src/config/inputLimits.js; the server rejects anything beyond these.
+const INPUT_LIMITS = Object.freeze({
+  foodsPerMeal: 12,
+  gramsPerFood: 1000,
+  preferenceItems: 60,
+});
+
+function clampManualGrams(value) {
+  const grams = Math.max(0, Number(value) || 0);
+  return Math.round(Math.min(grams, INPUT_LIMITS.gramsPerFood) * 10) / 10;
+}
+
 const form = document.querySelector('#plan-form');
 const message = document.querySelector('#form-message');
 const output = document.querySelector('#plan-output');
@@ -294,6 +306,12 @@ let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
 let suppressProfileTouchTracking = false;
 let currentPlanId = plannerCtx?.planId || null;
+// Server-side version of the loaded plan; sent with every update so a save
+// started from a stale copy is rejected instead of overwriting newer work.
+let currentPlanVersion = null;
+// One key per generated plan: retries and double-clicks of its first save
+// reuse it, so the server returns the same plan instead of a duplicate.
+let pendingPlanCreateKey = null;
 let currentPlanName = '';
 let currentPlanHasCustomer = false;
 let firstCreationPending = false;
@@ -445,6 +463,8 @@ async function generateAndRender(apiUrl) {
       }
     } else {
       currentPlanId = null;
+      currentPlanVersion = null;
+      pendingPlanCreateKey = makeGenerationTimelineId();
       currentPlanName = readPreGenerationPlanName();
       currentPlanHasCustomer = planWillHaveCustomer();
       firstCreationPending = true;
@@ -828,6 +848,7 @@ async function loadPlanForEdit(planId) {
     if (form.elements.planName) form.elements.planName.value = plan.name || '';
     initializeCustomerPickerFromPlan(plan);
     currentPlanId = plan.id;
+    currentPlanVersion = Number.isInteger(plan.version) ? plan.version : null;
     currentPlanName = plan.name || '';
     currentPlanHasCustomer = Boolean(plan.customer_id);
     firstCreationPending = false;
@@ -1590,6 +1611,7 @@ function renderPortionCell(row, state, itemIndex, item) {
         class="manual-grams-input"
         type="number"
         min="0"
+        max="${INPUT_LIMITS.gramsPerFood}"
         step="5"
         inputmode="decimal"
         value="${escapeHtml(Math.round((Number(item.quantityG) || 0) * 10) / 10)}"
@@ -1613,8 +1635,7 @@ function renderPortionCell(row, state, itemIndex, item) {
       if (!itemNow?.food) return;
       const step = Number(button.dataset.step) || 0;
       const current = Number(input.value || itemNow.quantityG || 0);
-      const next = Math.max(0, current + step);
-      itemNow.quantityG = Math.round(next * 10) / 10;
+      itemNow.quantityG = clampManualGrams(current + step);
       input.value = String(itemNow.quantityG);
       fitInput();
       updateManualItemQuantity(state, itemIndex, input.value, { force: true });
@@ -1624,8 +1645,7 @@ function renderPortionCell(row, state, itemIndex, item) {
   input.addEventListener('change', () => {
     const itemNow = state.items[itemIndex];
     if (!itemNow?.food) return;
-    const next = Math.max(0, Number(input.value) || 0);
-    itemNow.quantityG = Math.round(next * 10) / 10;
+    itemNow.quantityG = clampManualGrams(input.value);
     input.value = String(itemNow.quantityG);
     fitInput();
     updateManualItemQuantity(state, itemIndex, input.value, { force: true });
@@ -1652,7 +1672,7 @@ function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } 
     if (force) return;
     return;
   }
-  item.quantityG = Math.round(value * 10) / 10;
+  item.quantityG = clampManualGrams(value);
   row.dataset.signature = foodRowSignature(item);
   updateFoodMacroCells(row, item);
   persistCurrentMealOption(state);
@@ -1969,6 +1989,10 @@ function showAddFoodAction(state) {
   const existingIndex = state.items.findIndex((item) => item.pendingAdd);
   if (existingIndex >= 0) {
     focusPendingAddRow(state, existingIndex);
+    return;
+  }
+  if (state.items.filter((item) => item.food).length >= INPUT_LIMITS.foodsPerMeal) {
+    showActionMessage(state, `A meal can have at most ${INPUT_LIMITS.foodsPerMeal} foods.`);
     return;
   }
 
@@ -2301,6 +2325,76 @@ function renderSwapSuggestionEmpty(list, message) {
   list.append(empty);
 }
 
+const SWAP_SUGGESTION_BATCH_SIZE = 5;
+
+function fetchSwapSuggestionBatch(foodId, mealContext, cursor = 0) {
+  return fetch('/api/swap-suggestions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      foodId,
+      userPreferences: getUserPreferences(),
+      mealContext,
+      limit: SWAP_SUGGESTION_BATCH_SIZE,
+      cursor,
+    }),
+  }).then((res) => readJsonResponse(res, 'Unable to load swap suggestions.').then((data) => {
+    if (!res.ok) throw new Error(data.error || 'Unable to load swap suggestions.');
+    return data;
+  }));
+}
+
+function appendSwapSuggestionButtons(state, itemIndex, list, suggestions, beforeNode = null) {
+  const shownIds = new Set([...list.querySelectorAll('[data-swap-food-id]')].map((el) => el.dataset.swapFoodId));
+  suggestions.forEach((suggestion) => {
+    const alt = foodsById.get(suggestion.foodId);
+    if (!alt || shownIds.has(String(alt.id))) return;
+    shownIds.add(String(alt.id));
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-action-btn swap-suggestion-btn';
+    btn.dataset.swapFoodId = String(alt.id);
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('swap-suggestion-media')}
+      <strong>${escapeHtml(alt.name)}</strong>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
+    btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
+    list.insertBefore(btn, beforeNode);
+  });
+}
+
+// "Show more" asks the server for the next batch starting at its cursor and
+// appends it to the list already on screen.
+function appendSwapShowMoreButton(state, itemIndex, list, { foodId, mealContext, nextCursor }) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'suggestion-action-btn swap-show-more-btn';
+  btn.textContent = 'Show more';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    let payload = null;
+    try {
+      payload = await fetchSwapSuggestionBatch(foodId, mealContext, nextCursor);
+    } catch { /* restored below */ }
+    if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
+    if (!payload) {
+      btn.disabled = false;
+      btn.textContent = 'Show more';
+      return;
+    }
+    appendSwapSuggestionButtons(state, itemIndex, list, payload.options || [], btn);
+    btn.remove();
+    if (payload.hasMore) {
+      appendSwapShowMoreButton(state, itemIndex, list, {
+        foodId, mealContext, nextCursor: payload.nextCursor,
+      });
+    }
+  });
+  list.append(btn);
+}
+
 async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
   list.innerHTML = '';
   appendSwapSearchButton(state, itemIndex, list);
@@ -2323,49 +2417,32 @@ async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
     ...(dailyTargets ? { dailyContext: { dailyTargets, weightKg: Number(currentPlanInput?.weightKg) } } : {}),
   };
 
-  let suggestions = [];
+  let payload = null;
   try {
-    const [, payload] = await Promise.all([
+    [, payload] = await Promise.all([
       ensureFoodsLoaded(), // foodsById must be populated to resolve suggestion ids below
-      fetch('/api/swap-suggestions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ foodId, userPreferences: getUserPreferences(), mealContext }),
-      }).then((res) => readJsonResponse(res, 'Unable to load swap suggestions.').then((data) => {
-        if (!res.ok) throw new Error(data.error || 'Unable to load swap suggestions.');
-        return data;
-      })),
+      fetchSwapSuggestionBatch(foodId, mealContext),
     ]);
-    suggestions = payload.options || [];
   } catch { /* fall through to the empty state below */ }
+  const suggestions = payload?.options || [];
 
   // The panel may have been closed, or switched to a different food, while
   // this request was in flight. Bail rather than render stale suggestions.
   if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
 
+  list.innerHTML = '';
+  appendSwapSearchButton(state, itemIndex, list);
   if (!suggestions.length) {
-    list.innerHTML = '';
-    appendSwapSearchButton(state, itemIndex, list);
     renderSwapSuggestionEmpty(list, 'No suggested swaps for this food.');
     return;
   }
 
-  list.innerHTML = '';
-  appendSwapSearchButton(state, itemIndex, list);
-  suggestions.forEach((suggestion) => {
-    const alt = foodsById.get(suggestion.foodId);
-    if (!alt) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'suggestion-action-btn swap-suggestion-btn';
-    btn.innerHTML = `
-      ${foodMediaPlaceholder('swap-suggestion-media')}
-      <strong>${escapeHtml(alt.name)}</strong>
-    `;
-    setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
-    btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
-    list.append(btn);
-  });
+  appendSwapSuggestionButtons(state, itemIndex, list, suggestions);
+  if (payload.hasMore) {
+    appendSwapShowMoreButton(state, itemIndex, list, {
+      foodId, mealContext, nextCursor: payload.nextCursor,
+    });
+  }
 }
 
 function beginInlineSwapSearch(state, itemIndex) {
@@ -3169,7 +3246,7 @@ function requestPdfClientName({ hasCustomer = currentPlanHasCustomer } = {}) {
   if (hasCustomer) return '';
   if (!confirm('Do you want to add a client name in the PDF?')) return '';
   const clientName = prompt('Client name for the PDF') || '';
-  return clientName.trim();
+  return clientName.trim().slice(0, 80);
 }
 
 function planWillHaveCustomer() {
@@ -3206,6 +3283,7 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
     manualMode: Boolean(planData?.manualMode || isManualModeActive()),
   };
   const saveStartedAt = performance.now();
+  if (!pendingPlanCreateKey) pendingPlanCreateKey = makeGenerationTimelineId();
   const res = await fetch(planCreateUrl(), {
     method: 'POST',
     headers: timeline ? timelineHeaders(timeline) : { 'Content-Type': 'application/json' },
@@ -3213,6 +3291,7 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
       name,
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
+      clientRequestId: pendingPlanCreateKey,
     }),
   });
   if (timeline) {
@@ -3245,6 +3324,7 @@ function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
     .then((createdPlan) => {
       if (token !== initialPlanCreateToken) return null;
       currentPlanId = createdPlan.id;
+      currentPlanVersion = Number.isInteger(createdPlan.version) ? createdPlan.version : null;
       currentPlanName = createdPlan.name || currentPlanName || readPreGenerationPlanName();
       currentPlanHasCustomer = Boolean(createdPlan.customer_id);
       firstCreationPending = true;
@@ -3288,14 +3368,22 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
       name,
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
+      ...(Number.isInteger(currentPlanVersion) ? { expectedVersion: currentPlanVersion } : {}),
     }),
   });
   const data = await readJsonResponse(res, 'Unable to save plan changes.');
+  if (res.status === 409 && data.code === 'plan-version-conflict') {
+    // Shown even for silent autosaves: continuing to edit would only pile up
+    // changes that cannot be saved over the newer version.
+    message.textContent = data.error;
+    return false;
+  }
   if (!res.ok) {
     if (status) setSaveStatus(data.error || 'Save failed.');
     return false;
   }
 
+  if (Number.isInteger(data.plan?.version)) currentPlanVersion = data.plan.version;
   currentPlanName = data.plan?.name || name;
   currentPlanHasCustomer = Boolean(data.plan?.customer_id);
   setLatestSavedPlanData(planDataToSave);
@@ -3484,6 +3572,7 @@ function showInitialCreationBar(planId, initialName, { statusText = null, allowR
       try {
         const createdPlan = await createGeneratedPlanRecord(planData);
         currentPlanId = createdPlan.id;
+        currentPlanVersion = Number.isInteger(createdPlan.version) ? createdPlan.version : null;
         currentPlanName = createdPlan.name || initialName || currentPlanName;
         currentPlanHasCustomer = Boolean(createdPlan.customer_id);
         ok = true;
@@ -3899,6 +3988,10 @@ function setupPreferencePicker(field) {
 
   function addPreference(option) {
     if (!option || preferenceState[key].some((item) => item.id === option.id)) return;
+    if (preferenceState[key].length >= INPUT_LIMITS.preferenceItems) {
+      message.textContent = `You can avoid at most ${INPUT_LIMITS.preferenceItems} foods.`;
+      return;
+    }
     preferenceState[key].push(option);
     renderTokens();
   }

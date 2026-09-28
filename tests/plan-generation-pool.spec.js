@@ -64,6 +64,6 @@ test('keeps the main event loop available during generation', async () => {
 test('preserves validation errors and failed-generation traces', async () => {
   const traceEvents = [];
   await expect(generatePlanInWorker({ ...validInput, weightKg: 0 }, { traceEvents }))
-    .rejects.toThrow('Enter a valid weight.');
+    .rejects.toThrow('Weight must be between 30 and 250 kg.');
   expect(traceEvents.some((event) => event.message.includes('failed'))).toBe(true);
 });

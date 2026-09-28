@@ -24,7 +24,13 @@ const sequelize = new Sequelize(databaseUrl, {
   },
   logging: false,
   dialectOptions: {
-    ssl: {
+    // Fail fast instead of hanging when the database cannot be reached.
+    // Query, lock, and idle-transaction limits are set on the database role
+    // (migrations/007) so they also apply through Neon's pooler.
+    connectionTimeoutMillis: envNumber('DB_CONNECT_TIMEOUT_MS', 10000),
+    // DB_SSL=false is only for a local Postgres; every hosted database
+    // (Neon included) keeps SSL on, which is the default.
+    ssl: process.env.DB_SSL === 'false' ? false : {
       require: true,
       rejectUnauthorized: false,
     },

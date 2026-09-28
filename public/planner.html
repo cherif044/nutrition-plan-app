@@ -72,7 +72,7 @@
               <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg></span>Save details</h2>
               <label>
                 <span>Plan name</span>
-                <input type="text" name="planName" placeholder="Cutting plan - week 1" autocomplete="off" required />
+                <input type="text" name="planName" placeholder="Cutting plan - week 1" autocomplete="off" maxlength="100" required />
               </label>
               <div class="save-customer-picker" id="pre-generation-customer-picker">
                 <label class="save-customer-picker__field" for="customer-choice">
@@ -84,7 +84,7 @@
                 </label>
                 <label class="save-customer-picker__field save-customer-picker__new-name" for="new-customer-name" hidden>
                   <span>Customer name</span>
-                  <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Enter customer name" autocomplete="off" />
+                  <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Enter customer name" autocomplete="off" maxlength="80" />
                 </label>
               </div>
             </section>
@@ -94,17 +94,17 @@
               <div class="field-grid">
                 <label>
                   <span>Weight (kg)</span>
-                  <input type="number" name="weightKg" min="1" step="0.1" value="78" required />
+                  <input type="number" name="weightKg" min="30" max="250" step="0.1" value="78" required />
                 </label>
                 <label>
                   <span>Height (cm)</span>
-                  <input type="number" name="heightCm" min="1" step="0.1" value="178" required />
+                  <input type="number" name="heightCm" min="120" max="230" step="0.1" value="178" required />
                 </label>
               </div>
               <div class="field-grid">
                 <label>
                   <span>Age</span>
-                  <input type="number" name="age" min="1" max="120" step="1" value="29" required />
+                  <input type="number" name="age" min="12" max="100" step="1" value="29" required />
                 </label>
                 <label>
                   <span>Sex</span>
@@ -117,7 +117,7 @@
               <div class="field-grid">
                 <label>
                   <span>Body fat %</span>
-                  <input type="number" name="bodyFatPercentage" min="1" max="69" step="0.1" placeholder="—" />
+                  <input type="number" name="bodyFatPercentage" min="3" max="60" step="0.1" placeholder="—" />
                   <small>Optional</small>
                 </label>
                 <label>
@@ -283,6 +283,6 @@
       </article>
     </template>
 
-    <script src="/js/app.js?v=portion-stepper-20260926" defer></script>
+    <script src="/js/app.js?v=scalability-20260928" defer></script>
   </body>
 </html>

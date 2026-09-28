@@ -6,6 +6,7 @@ const {
 const { generatePlanInWorker } = require('../services/planGenerationPool');
 const { getSwapSuggestions } = require('../services/foodSwapService');
 const { logger } = require('../utils/logger');
+const { INPUT_LIMITS } = require('../config/inputLimits');
 const {
   recordGenerationTraceEvents,
   recordPlannerOperation,
@@ -33,12 +34,12 @@ function recordMetric(req, key, value) {
 
 function timelineIdFromRequest(req) {
   const value = req.get('x-plan-timeline-id') || req.body?.timelineId || '';
-  return String(value).slice(0, 128);
+  return String(value).replace(/[^A-Za-z0-9-]/g, '').slice(0, 128);
 }
 
 function generationRequestIdFromRequest(req) {
   const value = req.get('x-plan-generation-request-id') || req.body?.generationRequestId || '';
-  return String(value).slice(0, 128);
+  return String(value).replace(/[^A-Za-z0-9-]/g, '').slice(0, 128);
 }
 
 function serverTimingValue(metrics = {}) {
@@ -65,44 +66,7 @@ function getCachedPreferenceOptions() {
   return preferenceOptionsCache;
 }
 
-async function health(req, res, next) {
-  if (req.query.flushMetrics === '1') {
-    try {
-      const otel = require('../utils/otelMetrics');
-      await otel.forceFlush();
-      const endpoint = String(process.env.OTEL_EXPORTER_OTLP_ENDPOINT || '').replace(/\/$/, '');
-      const headerText = String(process.env.OTEL_EXPORTER_OTLP_HEADERS || '');
-      const headers = Object.fromEntries(headerText.split(',').map((entry) => {
-        const separator = entry.indexOf('=');
-        return separator < 0 ? ['', ''] : [
-          entry.slice(0, separator).trim(),
-          decodeURIComponent(entry.slice(separator + 1).trim()),
-        ];
-      }).filter(([name]) => name));
-      const probe = await fetch(`${endpoint}/v1/metrics`, {
-        method: 'POST',
-        headers: { ...headers, 'content-type': 'application/x-protobuf' },
-        body: Buffer.from([0x0a, 0x00]),
-      });
-      res.json({
-        status: 'ok',
-        metricsConfigured: otel.configured,
-        metricsFlushed: true,
-        endpointValid: endpoint.startsWith('https://'),
-        authorizationPresent: Object.keys(headers).some((name) => name.toLowerCase() === 'authorization'),
-        headerHasVariableName: headerText.includes('OTEL_EXPORTER_OTLP_HEADERS'),
-        headerStartsWithQuote: /^["']/.test(headerText),
-        headerStartsWithExport: /^export\s/.test(headerText),
-        headerStartsWithBasic: /^Basic(?:%20|\s)/i.test(headerText),
-        headerStartsWithBase64: /^base64\(/i.test(headerText),
-        headerLength: headerText.length,
-        probeStatus: probe.status,
-      });
-    } catch (error) {
-      next(error);
-    }
-    return;
-  }
+function health(_req, res) {
   res.json({ status: 'ok' });
 }
 
@@ -164,15 +128,34 @@ async function generatePlanHandler(req, res, next) {
   }
 }
 
+// Browser-reported timings are logged, so only known fields of the expected
+// type are kept; anything else a client adds never reaches the logs.
+const TIMELINE_NUMBER_FIELDS = [
+  'validationMs', 'generateRoundTripMs', 'responseParseMs', 'renderMs', 'saveRoundTripMs', 'saveStatus', 'status',
+];
+const TIMELINE_TEXT_FIELDS = ['serverTiming', 'saveRequestId', 'planId', 'error'];
+
+function sanitizedTimings(timings = {}) {
+  const result = {};
+  for (const key of TIMELINE_NUMBER_FIELDS) {
+    const value = Number(timings[key]);
+    if (timings[key] !== undefined && Number.isFinite(value)) result[key] = value;
+  }
+  for (const key of TIMELINE_TEXT_FIELDS) {
+    if (timings[key] !== undefined && timings[key] !== null) result[key] = String(timings[key]).slice(0, 200);
+  }
+  return result;
+}
+
 function timelineEventHandler(req, res, next) {
   try {
     logger.info('Plan timeline: browser event', {
       requestId: req.id,
       timelineId: timelineIdFromRequest(req),
       generationRequestId: generationRequestIdFromRequest(req),
-      event: String(req.body?.event || 'unknown').slice(0, 80),
-      elapsedMs: Number(req.body?.elapsedMs),
-      timings: req.body?.timings || {},
+      event: req.body.event,
+      elapsedMs: Number(req.body.elapsedMs),
+      timings: sanitizedTimings(req.body.timings),
       metrics: req.metrics,
     });
     res.status(204).end();
@@ -213,7 +196,15 @@ function rebalanceMealHandler(req, res, next) {
       dailyContext,
       action,
       changedItemIndex,
+      deadlineAt: performance.now() + INPUT_LIMITS.rebalanceSearchMs,
     });
+    if (result.searchLimited) {
+      logger.warn('Rebalance search limit reached', {
+        requestId: req.id,
+        itemCount: items.length,
+        action: action || null,
+      });
+    }
     recordPlannerOperation({
       operation: 'rebalance',
       outcome: result.success ? 'success' : 'no_result',
@@ -237,7 +228,7 @@ function swapSuggestionsHandler(req, res, next) {
   const startedAt = process.hrtime.bigint();
   try {
     const {
-      foodId, userPreferences, limit, mealContext,
+      foodId, userPreferences, limit, mealContext, cursor,
     } = req.body;
 
     if (!foodId) {
@@ -250,7 +241,7 @@ function swapSuggestionsHandler(req, res, next) {
     }
 
     const result = getSwapSuggestions({
-      foodId, userPreferences, limit, mealContext,
+      foodId, userPreferences, limit, mealContext, cursor,
     });
     recordPlannerOperation({
       operation: 'swap_suggestions',

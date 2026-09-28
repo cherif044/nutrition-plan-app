@@ -211,41 +211,40 @@ async function updateCustomer(userId, customerId, input = {}) {
   return customer;
 }
 
-async function getCustomerPlans(userId, customerId) {
+async function getCustomerPlans(userId, customerId, options = {}) {
   const customer = await findCustomerById(userId, customerId);
   if (!customer) return null;
 
-  const plans = await Plan.findAll({
-    where: { user_id: userId, customer_id: customerId },
-    attributes: [
-      'id',
-      'folder_id',
-      'customer_id',
-      'name',
-      'created_at',
-      'updated_at',
-      [sequelize.literal("plan_data #>> '{input,goal}'"), 'goal'],
-      [sequelize.literal("plan_data #>> '{input,dietType}'"), 'dietType'],
-    ],
-    order: [['updated_at', 'DESC'], ['created_at', 'DESC']],
-  });
-
-  return {
-    customer,
-    plans: plans.map((plan) => {
-      const data = plan.toJSON();
-      return {
-        id: data.id,
-        folder_id: data.folder_id,
-        customer_id: data.customer_id,
-        name: data.name,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        goal: data.goal || null,
-        dietType: data.dietType || null,
-      };
+  // Lazy require: dashboardRepository is not needed by the rest of this module.
+  const { normalizePaging, pageResult } = require('./dashboardRepository');
+  const paging = normalizePaging(options);
+  const where = { user_id: userId, customer_id: customerId };
+  const [plans, total] = await Promise.all([
+    Plan.findAll({
+      where,
+      attributes: ['id', 'folder_id', 'customer_id', 'name', 'created_at', 'updated_at', 'goal', 'diet_type'],
+      order: [['updated_at', 'DESC'], ['id', 'DESC']],
+      limit: paging.pageSize,
+      offset: paging.offset,
     }),
-  };
+    Plan.count({ where }),
+  ]);
+
+  const page = pageResult(plans.map((plan) => {
+    const data = plan.toJSON();
+    return {
+      id: data.id,
+      folder_id: data.folder_id,
+      customer_id: data.customer_id,
+      name: data.name,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      goal: data.goal || null,
+      dietType: data.diet_type || null,
+    };
+  }), total, paging);
+
+  return { customer, plans: page.items, pagination: { ...page, items: undefined } };
 }
 
 async function deleteCustomer(userId, customerId) {

@@ -218,12 +218,13 @@
             <label class="pc-search">
               <span class="sr-only">Search customers</span>
               <svg class="pc-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="m13.5 13.5 3.5 3.5" /></svg>
-              <input class="pc-search__input" id="customer-search" type="search" placeholder="Search customers" autocomplete="off" />
+              <input class="pc-search__input" id="customer-search" type="search" placeholder="Search customers" autocomplete="off" maxlength="100" />
             </label>
 
             <section class="pc-list">
               <h2 class="pc-list__title">All customers <span id="customer-list-count"></span></h2>
               <ul class="pc-rows" id="customers-list"></ul>
+              <nav class="list-pager" id="customers-pager" aria-label="Customer pages" hidden></nav>
             </section>
           </section>
 
@@ -243,12 +244,12 @@
             <form class="dashboard-panel-card dashboard-customer-form" id="new-customer-form">
               <label>
                 <span>Name</span>
-                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" required />
+                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" maxlength="80" required />
               </label>
               <div class="dashboard-form-grid">
                 <label>
                   <span>Age</span>
-                  <input type="number" name="age" min="1" max="120" step="1" placeholder="29" />
+                  <input type="number" name="age" min="12" max="100" step="1" placeholder="29" />
                 </label>
                 <label>
                   <span>Sex</span>
@@ -262,11 +263,11 @@
               <div class="dashboard-form-grid">
                 <label>
                   <span>Weight (kg)</span>
-                  <input type="number" name="weightKg" min="1" step="0.1" placeholder="78" />
+                  <input type="number" name="weightKg" min="30" max="250" step="0.1" placeholder="78" />
                 </label>
                 <label>
                   <span>Height (cm)</span>
-                  <input type="number" name="heightCm" min="1" step="0.1" placeholder="178" />
+                  <input type="number" name="heightCm" min="120" max="230" step="0.1" placeholder="178" />
                 </label>
               </div>
               <label>
@@ -306,12 +307,12 @@
               <input type="hidden" name="id" />
               <label>
                 <span>Name</span>
-                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" required />
+                <input type="text" name="name" placeholder="Sarah Malik" autocomplete="name" maxlength="80" required />
               </label>
               <div class="dashboard-form-grid">
                 <label>
                   <span>Age</span>
-                  <input type="number" name="age" min="1" max="120" step="1" placeholder="29" />
+                  <input type="number" name="age" min="12" max="100" step="1" placeholder="29" />
                 </label>
                 <label>
                   <span>Sex</span>
@@ -325,11 +326,11 @@
               <div class="dashboard-form-grid">
                 <label>
                   <span>Weight (kg)</span>
-                  <input type="number" name="weightKg" min="1" step="0.1" placeholder="78" />
+                  <input type="number" name="weightKg" min="30" max="250" step="0.1" placeholder="78" />
                 </label>
                 <label>
                   <span>Height (cm)</span>
-                  <input type="number" name="heightCm" min="1" step="0.1" placeholder="178" />
+                  <input type="number" name="heightCm" min="120" max="230" step="0.1" placeholder="178" />
                 </label>
               </div>
               <label>
@@ -394,6 +395,7 @@
                   </div>
                 </li>
               </ul>
+              <nav class="list-pager" id="detail-plans-pager" aria-label="Plan pages" hidden></nav>
             </div>
           </section>
 
@@ -459,7 +461,7 @@
             <label class="pp-search">
               <span class="sr-only">Search plans</span>
               <svg class="pp-search__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="m13.5 13.5 3.5 3.5" /></svg>
-              <input class="pp-search__input" id="general-plan-search" type="search" placeholder="Search plans" autocomplete="off" />
+              <input class="pp-search__input" id="general-plan-search" type="search" placeholder="Search plans" autocomplete="off" maxlength="100" />
             </label>
 
             <div class="pp-filters" id="plan-filter-chips" role="group" aria-label="Filter plans by goal"></div>
@@ -467,6 +469,7 @@
             <section class="pp-list">
               <h2 class="pp-list__title">All general plans <span id="plan-list-count"></span></h2>
               <ul class="pp-rows" id="recent-plans"></ul>
+              <nav class="list-pager" id="plans-pager" aria-label="Plan pages" hidden></nav>
             </section>
           </section>
 
@@ -475,6 +478,7 @@
       </div>
     </main>
 
-    <script src="/js/dashboard.js?v=portion-stepper-20260926" defer></script>
+    <script src="/js/pagination.js?v=scalability-20260928" defer></script>
+    <script src="/js/dashboard.js?v=scalability-20260928" defer></script>
   </body>
 </html>

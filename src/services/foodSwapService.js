@@ -9,6 +9,7 @@
 
 const { loadFoods } = require('../repositories/foodRepository');
 const { filterFoods, clampServing, rebalanceMeal } = require('./planGenerator');
+const { INPUT_LIMITS } = require('../config/inputLimits');
 
 const DEFAULT_LIMIT = Number.POSITIVE_INFINITY;
 
@@ -18,6 +19,11 @@ const MEAL_TAG_ALIASES = {
   main: ['lunch', 'dinner'],
   main_meal: ['lunch', 'dinner'],
 };
+
+function normalizeCursor(cursor) {
+  const parsed = Number(cursor);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
 
 function normalizeLimit(limit) {
   if (limit === undefined || limit === null || limit === 'all') return DEFAULT_LIMIT;
@@ -35,7 +41,9 @@ function normalizeLimit(limit) {
  * rebalanceMeal, unmodified — so "shown in the list" always means "will
  * succeed if clicked." No fit logic is duplicated here.
  */
-function fitsMeal(candidateFood, mealContext) {
+// Returns true, false, or 'limited' when the search ran out of time before it
+// could decide, so the caller can stop and retry that candidate later.
+function fitsMeal(candidateFood, mealContext, deadlineAt) {
   const { itemIndex, currentItems, mealTarget, dailyContext } = mealContext;
   const currentItem = currentItems[itemIndex];
   if (!currentItem) return false;
@@ -47,13 +55,16 @@ function fitsMeal(candidateFood, mealContext) {
   ));
 
   try {
-    return rebalanceMeal({
+    const result = rebalanceMeal({
       mealTarget,
       items: attemptedItems,
       dailyContext,
       action: 'swap_food',
       changedItemIndex: itemIndex,
-    }).success === true;
+      deadlineAt,
+    });
+    if (result.searchLimited) return 'limited';
+    return result.success === true;
   } catch {
     // An unresolvable item elsewhere in the meal, or a malformed
     // mealContext, shouldn't take down suggestion loading — treat as "we
@@ -89,10 +100,15 @@ function mealTagsForSuggestions(mealContext, sourceFood) {
  * @param {object} [params.userPreferences] - { dietType, avoidFoods, dislikes },
  *   the same shape produced by the frontend's getUserPreferences()
  * @param {number|string} [params.limit] - max results, or "all" for every result
+ * @param {number} [params.cursor] - resume position from a previous response's
+ *   nextCursor, for "show more" batches
  * @param {object} [params.mealContext] - { mealTag, itemIndex, currentItems,
  *   mealTarget, dailyContext }, where mealTag is the current meal's tag.
  */
-function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMIT, mealContext = null }) {
+function getSwapSuggestions({
+  foodId, userPreferences = {}, limit = DEFAULT_LIMIT, mealContext = null, cursor = 0,
+  deadlineAt = performance.now() + INPUT_LIMITS.swapSearchMs,
+}) {
   const id = String(foodId ?? '');
   if (!id) {
     throw new Error('foodId is required.');
@@ -102,10 +118,11 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
   const foodById = new Map(foods.map((food) => [food.id, food]));
   const sourceFood = foodById.get(id);
   if (!sourceFood) {
-    return { foodId: id, options: [] };
+    return { foodId: id, options: [], nextCursor: null, hasMore: false };
   }
 
   const safeLimit = normalizeLimit(limit);
+  const start = normalizeCursor(cursor);
   const allowedMealTags = new Set(mealTagsForSuggestions(mealContext, sourceFood));
   const candidateFoods = foods.filter((food) => (
     food.id !== sourceFood.id
@@ -149,21 +166,47 @@ function getSwapSuggestions({ foodId, userPreferences = {}, limit = DEFAULT_LIMI
   };
 
   if (!isUsableMealContext(mealContext)) {
-    return { foodId: id, options: allowedCandidateFoods.slice(0, safeLimit).map(toOption) };
+    const end = start + safeLimit;
+    const hasMore = end < allowedCandidateFoods.length;
+    return {
+      foodId: id,
+      options: allowedCandidateFoods.slice(start, end).map(toOption),
+      nextCursor: hasMore ? end : null,
+      hasMore,
+    };
   }
 
-  // Meal-fit filtering. The precomputed list is stored in full (not sliced
-  // to 10) so the UI can show every candidate that actually works in this
-  // meal, while still preserving the precomputed tier-then-score order.
+  // Meal-fit filtering runs the full rebalance check per candidate, so it
+  // stops as soon as one batch is filled. Finding one extra fitting
+  // candidate tells the UI whether "show more" has anything to show; the
+  // cursor points at that candidate so the next batch starts with it.
   const options = [];
-  for (const food of allowedCandidateFoods) {
-    if (options.length >= safeLimit) break;
-    if (fitsMeal(food, mealContext)) {
-      options.push(toOption(food));
+  let nextCursor = null;
+  for (let index = start; index < allowedCandidateFoods.length; index += 1) {
+    // Out of time for this request: end the batch here and let "show more"
+    // resume from this candidate, rather than dropping it as unusable.
+    if (performance.now() > deadlineAt && options.length > 0) {
+      nextCursor = index;
+      break;
     }
+    const food = allowedCandidateFoods[index];
+    const fits = fitsMeal(food, mealContext, deadlineAt);
+    if (fits === 'limited') {
+      if (options.length > 0) {
+        nextCursor = index;
+        break;
+      }
+      continue;
+    }
+    if (!fits) continue;
+    if (options.length >= safeLimit) {
+      nextCursor = index;
+      break;
+    }
+    options.push(toOption(food));
   }
 
-  return { foodId: id, options };
+  return { foodId: id, options, nextCursor, hasMore: nextCursor !== null };
 }
 
 module.exports = { getSwapSuggestions };

@@ -63,7 +63,9 @@ async function requireAuth(req, res, next) {
   } catch (err) {
     const status = err.status || (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' ? 401 : 500);
     return res.status(status).json({
-      error: status >= 500 ? err.message : 'Invalid or expired session. Please log in again.',
+      error: status >= 500
+        ? 'Authentication is temporarily unavailable. Please try again.'
+        : 'Invalid or expired session. Please log in again.',
       code: err.code,
     });
   }

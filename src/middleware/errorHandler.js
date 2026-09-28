@@ -1,6 +1,12 @@
 const { logger, serializeError } = require('../utils/logger');
 const { recordError } = require('../utils/metrics');
 
+// 5xx messages written for users (queue full, generation timeout) are safe to
+// show; any other server error may leak internals such as SQL or file paths.
+function isUserFacingServerError(error) {
+  return error.expose === true || String(error.code || '').startsWith('generation-');
+}
+
 function errorHandler(error, req, res, _next) {
   const isDatabaseError = String(error.name || '').startsWith('Sequelize');
   const status = error.status || error.statusCode || (isDatabaseError ? 500 : 400);
@@ -18,11 +24,14 @@ function errorHandler(error, req, res, _next) {
     });
   }
 
-  res.status(status).json({
-    error: status >= 500
-      ? (error.message || 'Internal server error.')
-      : (error.message || 'Request failed.'),
-  });
+  const hideDetails = status >= 500
+    && process.env.NODE_ENV === 'production'
+    && !isUserFacingServerError(error);
+  const message = hideDetails
+    ? 'Something went wrong on our side. Please try again.'
+    : (error.message || (status >= 500 ? 'Internal server error.' : 'Request failed.'));
+
+  res.status(status).json({ error: message, requestId: req.id });
 }
 
 module.exports = {

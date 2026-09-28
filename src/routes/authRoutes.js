@@ -1,5 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
+const { validateBody } = require('../middleware/validate');
+const { sessionBody } = require('../validation/schemas');
 const {
   createSession,
   deleteUserHandler,
@@ -12,7 +14,7 @@ const {
 const router = express.Router();
 
 router.get('/firebase-config', getFirebaseConfig);
-router.post('/session', createSession);
+router.post('/session', validateBody(sessionBody), createSession);
 router.post('/register', legacyPasswordAuthDisabled);
 router.post('/login', legacyPasswordAuthDisabled);
 router.post('/logout', logout);

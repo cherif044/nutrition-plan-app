@@ -21,11 +21,11 @@ function recordMetric(req, key, value) {
 }
 
 function timelineIdFromRequest(req) {
-  return String(req.get('x-plan-timeline-id') || req.body?.timelineId || '').slice(0, 128);
+  return String(req.get('x-plan-timeline-id') || req.body?.timelineId || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 128);
 }
 
 function generationRequestIdFromRequest(req) {
-  return String(req.get('x-plan-generation-request-id') || req.body?.generationRequestId || '').slice(0, 128);
+  return String(req.get('x-plan-generation-request-id') || req.body?.generationRequestId || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 128);
 }
 
 async function getTree(req, res, next) {
@@ -93,12 +93,17 @@ async function savePlanInFolder(req, res, next) {
     const folder = await getFolderById(req.params.id, req.user.id);
     if (!folder) return res.status(404).json({ error: 'Folder not found.' });
 
-    const { name, planData, customer = null } = req.body;
+    const {
+      name, planData, customer = null, clientRequestId = null,
+    } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
 
     const saveStartedAt = process.hrtime.bigint();
-    const plan = await createPlan(req.user.id, folder.id, name, planData, { customer });
+    const plan = await createPlan(req.user.id, folder.id, name, planData, {
+      customer,
+      clientRequestId,
+    });
     recordMetric(req, 'planSaveDbMs', elapsedMs(saveStartedAt));
     logger.info('Plan timeline: server saved plan', {
       requestId: req.id,
@@ -107,9 +112,10 @@ async function savePlanInFolder(req, res, next) {
       planId: plan.id,
       folderId: folder.id,
       hasCustomer: Boolean(plan.customer_id),
+      idempotentReplay: Boolean(plan.idempotentReplay),
       metrics: req.metrics,
     });
-    res.status(201).json({ plan });
+    res.status(plan.idempotentReplay ? 200 : 201).json({ plan });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);

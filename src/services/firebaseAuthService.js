@@ -31,8 +31,14 @@ function splitDisplayName(displayName, email) {
   };
 }
 
+// Names are shown across the app and in PDFs; drop control and bidi-override
+// characters that could garble or disguise how they render.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_NAME_CHARS = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
+
 function limitName(value) {
-  return String(value || '').trim().slice(0, 50);
+  if (typeof value !== 'string') return '';
+  return value.replace(UNSAFE_NAME_CHARS, '').trim().slice(0, 50);
 }
 
 function capitalize(value) {
@@ -76,6 +82,7 @@ function profileFromFirebaseToken(decodedToken, clientProfile = {}) {
     firstname: limitName(clientProfile.firstname) || names.firstname || 'User',
     lastname: limitName(clientProfile.lastname) || names.lastname || '',
     provider: providerId(decodedToken),
+    emailVerified: decodedToken.email_verified === true,
   };
 }
 

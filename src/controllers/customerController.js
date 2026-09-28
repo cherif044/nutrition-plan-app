@@ -56,9 +56,12 @@ async function updateCustomerHandler(req, res, next) {
 
 async function getCustomerPlansHandler(req, res, next) {
   try {
-    const data = await getCustomerPlans(req.user.id, req.params.id);
+    const data = await getCustomerPlans(req.user.id, req.params.id, {
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+    });
     if (!data) return res.status(404).json({ error: 'Customer not found.' });
-    res.json({ customer: data.customer, plans: data.plans });
+    res.json({ customer: data.customer, plans: data.plans, pagination: data.pagination });
   } catch (err) { next(err); }
 }
 

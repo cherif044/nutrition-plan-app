@@ -357,6 +357,7 @@ const KNOWN_HTTP_ROUTES = new Set([
   '/livez', '/readyz', '/metrics',
   '/api/health', '/api/foods', '/api/preferences', '/api/generate-plan',
   '/api/generation-timeline', '/api/rebalance-meal', '/api/swap-suggestions',
+  '/api/dashboard/customers', '/api/dashboard/plans',
   '/api/auth/firebase-config', '/api/auth/session', '/api/auth/register',
   '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/dashboard',
   '/api/customers', '/api/customers/match', '/api/folders', '/api/folders/tree',

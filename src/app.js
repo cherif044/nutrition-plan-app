@@ -3,7 +3,6 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const helmet = require('helmet');
-const { rateLimit } = require('express-rate-limit');
 const { randomUUID } = require('crypto');
 
 const generationRoutes = require('./routes/generationRoutes');
@@ -14,11 +13,19 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const sequelize = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
+const {
+  apiLimiter,
+  authLimiter,
+  generationLimiter,
+  pdfExportLimiter,
+  trustProxyHops,
+} = require('./middleware/rateLimits');
+const { sameOriginOnly } = require('./middleware/sameOrigin');
+const { INPUT_LIMITS } = require('./config/inputLimits');
 const { logger } = require('./utils/logger');
 const {
   httpMetricsMiddleware,
   metricsHandler,
-  recordRateLimit,
   recordWebVitals,
 } = require('./utils/metrics');
 
@@ -34,8 +41,10 @@ function envNumber(name, fallback) {
 }
 
 function requestId(req, res, next) {
+  // A client-supplied id is echoed in a header and written to logs, so only a
+  // plain token is accepted.
   const incomingId = req.get('x-request-id');
-  req.id = incomingId && incomingId.length <= 128 ? incomingId : randomUUID();
+  req.id = incomingId && /^[A-Za-z0-9-]{1,64}$/.test(incomingId) ? incomingId : randomUUID();
   res.setHeader('X-Request-Id', req.id);
   next();
 }
@@ -70,34 +79,6 @@ function requestLogger(req, res, next) {
     });
   });
   next();
-}
-
-function rateLimitHandler(scope, req, res, _next, options) {
-  recordRateLimit(scope);
-  logger.warn('Rate limit exceeded', {
-    requestId: req.id,
-    method: req.method,
-    path: requestLogPath(req),
-    ip: req.ip,
-  });
-  const body = typeof options.message === 'object'
-    ? options.message
-    : { error: options.message };
-  res.status(options.statusCode).json({
-    ...body,
-    requestId: req.id,
-  });
-}
-
-function createLimiter({ scope, windowMs, limit, message }) {
-  return rateLimit({
-    windowMs,
-    limit,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    message: { error: message },
-    handler: (req, res, next, options) => rateLimitHandler(scope, req, res, next, options),
-  });
 }
 
 function isHashedAsset(filePath) {
@@ -141,33 +122,8 @@ function sendPage(res, fileName) {
   res.sendFile(path.join(publicDir, fileName));
 }
 
-const apiLimiter = createLimiter({
-  scope: 'api',
-  windowMs: envNumber('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
-  limit: envNumber('RATE_LIMIT_MAX', 600),
-  message: 'Too many API requests. Please try again later.',
-});
-const authLimiter = createLimiter({
-  scope: 'auth',
-  windowMs: envNumber('AUTH_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
-  limit: envNumber('AUTH_RATE_LIMIT_MAX', 60),
-  message: 'Too many authentication requests. Please try again later.',
-});
-const generationLimiter = createLimiter({
-  scope: 'generation',
-  windowMs: envNumber('GENERATION_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
-  limit: envNumber('GENERATION_RATE_LIMIT_MAX', 60),
-  message: 'Too many plan generation requests. Please try again later.',
-});
-const pdfExportLimiter = createLimiter({
-  scope: 'pdf',
-  windowMs: envNumber('PDF_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
-  limit: envNumber('PDF_RATE_LIMIT_MAX', 30),
-  message: 'Too many PDF export requests. Please try again later.',
-});
-
 app.disable('x-powered-by');
-app.set('trust proxy', envNumber('TRUST_PROXY_HOPS', 1));
+app.set('trust proxy', trustProxyHops());
 app.use(requestId);
 app.use(httpMetricsMiddleware);
 app.use(requestLogger);
@@ -208,7 +164,14 @@ app.use(compression({
   threshold: envNumber('COMPRESSION_THRESHOLD_BYTES', 1024),
 }));
 
-app.use(express.json({ limit: '2mb' }));
+// Only saving a plan carries a large document; every other endpoint needs a
+// few kilobytes, so the parser refuses anything bigger before it is read.
+const PLAN_SAVE_PATH = /^\/api\/(?:plans(?:\/\d+)?|folders\/\d+\/plans)\/?$/;
+const planBodyParser = express.json({ limit: INPUT_LIMITS.planBodyBytes });
+const defaultBodyParser = express.json({ limit: INPUT_LIMITS.defaultBodyBytes });
+app.use((req, res, next) => (
+  PLAN_SAVE_PATH.test(req.path) ? planBodyParser : defaultBodyParser
+)(req, res, next));
 app.use(cookieParser());
 
 app.locals.isShuttingDown = false;
@@ -243,12 +206,13 @@ app.get('/readyz', async (_req, res) => {
     return res.status(503).json({
       status: 'not_ready',
       database: 'unavailable',
-      error: error.message,
+      error: isProduction ? undefined : error.message,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
+app.use('/api', sameOriginOnly);
 app.use('/api', apiLimiter);
 app.post('/api/vitals', (req, res) => {
   recordWebVitals(req.body);

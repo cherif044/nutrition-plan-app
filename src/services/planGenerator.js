@@ -1,4 +1,5 @@
 const { loadFoods } = require('../repositories/foodRepository');
+const { INPUT_LIMITS } = require('../config/inputLimits');
 const { loadReadyMealBundles } = require('../repositories/readyMealRepository');
 const { normalizeToken, resolvePreferenceTerms } = require('../config/preferenceTaxonomy');
 const { MEAL_DISTRIBUTIONS: MEAL_DISTRIBUTION_FACTORS } = require('../config/nutritionConstants');
@@ -423,7 +424,8 @@ function normalizeInput(input = {}) {
   const activityLevel = String(input.activityLevel || 'moderate');
   const goal = String(input.goal || 'maintain');
   const dietType = String(input.dietType || 'standard');
-  const numberOfMeals = Number.parseInt(input.numberOfMeals ?? 3, 10);
+  const rawMeals = input.numberOfMeals ?? 3;
+  const numberOfMeals = /^\d+$/.test(String(rawMeals).trim()) ? Number(rawMeals) : NaN;
   const mealDistribution = String(input.mealDistribution || 'balanced');
   const proteinPerKg = input.proteinPerKg === '' || input.proteinPerKg === undefined ||
     input.proteinPerKg === null
@@ -434,20 +436,25 @@ function normalizeInput(input = {}) {
     ? NUTRITION.fatPerKg.default
     : Number(input.fatPerKg);
 
-  if (!Number.isFinite(weightKg) || weightKg <= 0) {
-    throw new Error('Enter a valid weight.');
+  const limits = INPUT_LIMITS;
+  if (!Number.isFinite(weightKg) || weightKg < limits.weightKg.min || weightKg > limits.weightKg.max) {
+    throw new Error(`Weight must be between ${limits.weightKg.min} and ${limits.weightKg.max} kg.`);
   }
-  if (!Number.isFinite(heightCm) || heightCm <= 0) {
-    throw new Error('Enter a valid height.');
+  if (!Number.isFinite(heightCm) || heightCm < limits.heightCm.min || heightCm > limits.heightCm.max) {
+    throw new Error(`Height must be between ${limits.heightCm.min} and ${limits.heightCm.max} cm.`);
   }
-  if (!Number.isFinite(age) || age <= 0 || age > 120) {
-    throw new Error('Age must be between 1 and 120 years.');
+  if (!Number.isFinite(age) || age < limits.age.min || age > limits.age.max) {
+    throw new Error(`Age must be between ${limits.age.min} and ${limits.age.max} years.`);
   }
   if (!SEXES.has(sex)) {
     throw new Error('Choose male or female for the Mifflin-St Jeor calculation.');
   }
-  if (bodyFatValue !== null && (!Number.isFinite(bodyFatValue) || bodyFatValue <= 0 || bodyFatValue >= 70)) {
-    throw new Error('Body fat should be between 1 and 69%.');
+  if (bodyFatValue !== null && (
+    !Number.isFinite(bodyFatValue)
+    || bodyFatValue < limits.bodyFatPercentage.min
+    || bodyFatValue > limits.bodyFatPercentage.max
+  )) {
+    throw new Error(`Body fat should be between ${limits.bodyFatPercentage.min} and ${limits.bodyFatPercentage.max}%.`);
   }
   if (!ACTIVITY_LEVELS.has(activityLevel)) {
     throw new Error('Choose a valid activity level.');
@@ -496,19 +503,23 @@ function normalizeInput(input = {}) {
     allergies: normalizeList(input.allergies),
     dislikes: normalizeList(input.dislikes),
     avoidFoods: normalizeList(input.avoidFoods ?? []),
-    ramadanMode: Boolean(input.ramadanMode),
+    // The string "false" must not switch Ramadan mode on.
+    ramadanMode: input.ramadanMode === true || input.ramadanMode === 'true',
   };
 }
 
 function normalizeList(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim().toLowerCase()).filter(Boolean);
+  const items = Array.isArray(value)
+    ? value.map((item) => String(item).trim().toLowerCase())
+    : String(value || '').split(',').map((item) => item.trim().toLowerCase());
+  const list = items.filter(Boolean);
+  if (list.length > INPUT_LIMITS.preferenceItems) {
+    throw new Error(`Choose at most ${INPUT_LIMITS.preferenceItems} foods to avoid.`);
   }
-
-  return String(value || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  if (list.some((item) => item.length > INPUT_LIMITS.preferenceTermLength)) {
+    throw new Error(`Each food to avoid must be at most ${INPUT_LIMITS.preferenceTermLength} characters.`);
+  }
+  return list;
 }
 
 function filterFoods(foods, input) {
@@ -1154,6 +1165,11 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
   const keys = macroBoundKeys(bounds);
   const step = Number.isFinite(options.step) && options.step > 0 ? options.step : EXACT_PORTION_SEARCH_STEP_G;
   const findBest = options.findBest === true;
+  // Optional wall-clock deadline (performance.now() units) for searches that
+  // run on a request thread. When it passes, the search stops and reports it
+  // through options.stats instead of running on indefinitely.
+  const deadlineAt = Number.isFinite(options.deadlineAt) ? options.deadlineAt : null;
+  let stopped = false;
   const seedByFoodId = new Map(seedItems.map((item) => [item.food.id, item.quantityG]));
 
   const variables = items
@@ -1216,7 +1232,12 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
   }
 
   function visit(pos, totals) {
+    if (stopped) return;
     visited += 1;
+    if (deadlineAt !== null && (visited & 1023) === 0 && performance.now() > deadlineAt) {
+      stopped = true;
+      return;
+    }
     if (!canStillFit(totals, pos)) return;
     if (findBest && lowerBoundScore(totals, pos) >= foundScore) return;
 
@@ -1236,11 +1257,15 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
       chosen.set(variable.index, quantityG);
       visit(pos + 1, addMacros(totals, macrosForRates(variable.rates, quantityG)));
       chosen.delete(variable.index);
-      if (found && !findBest) break;
+      if (stopped || (found && !findBest)) break;
     }
   }
 
   visit(0, { calories: 0, proteinG: 0, carbG: 0, fatG: 0 });
+  if (options.stats) {
+    options.stats.visited = visited;
+    options.stats.stopped = stopped;
+  }
   if (!found) return null;
 
   return {
@@ -1418,6 +1443,7 @@ function rebalanceMeal({
   dailyContext,
   action,
   changedItemIndex,
+  deadlineAt = null,
 }) {
   const items = resolveMealActionItems(rawItems);
   const bounds = mealBounds ?? computeMealBounds(mealTarget);
@@ -1440,7 +1466,15 @@ function rebalanceMeal({
     }
   }
 
-  const fullMealItems = findWholeMealDistributionFit(items, mealTarget, bounds);
+  const searchStats = {};
+  const fullMealItems = findWholeMealDistributionFit(items, mealTarget, bounds, { deadlineAt, stats: searchStats });
+  if (!fullMealItems && searchStats.stopped) {
+    return {
+      success: false,
+      violatedMacro: findBoundsViolation(initialTotals, bounds),
+      searchLimited: true,
+    };
+  }
   if (fullMealItems) {
     return rebalanceSuccess(
       fullMealItems,
@@ -1508,9 +1542,11 @@ function findChangedItemOnlyFit(items, changedItemIndex, target, bounds) {
   ));
 }
 
-function findWholeMealDistributionFit(items, target, bounds) {
+function findWholeMealDistributionFit(items, target, bounds, { deadlineAt = null, stats = null } = {}) {
   const result = findBestPortionGridFit(items, target, bounds, items, {
     step: 1,
+    deadlineAt,
+    stats,
   });
   return result?.items ?? null;
 }

@@ -54,7 +54,7 @@ function drawPlan(doc, record, options) {
   const plan = record?.plan_data || {};
   const meals = Array.isArray(plan.meals) ? plan.meals : [];
   const customer = record?.Customer || record?.customer || null;
-  const customName = String(options.clientName || '').trim();
+  const customName = String(options.clientName || '').trim().slice(0, 80);
   const clientName = (record?.customer_id && customer?.name) || (!record?.customer_id && customName) || '';
   doc.rect(0, 0, page.width, page.height).fill(C.page);
   let y = margin;

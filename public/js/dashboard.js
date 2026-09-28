@@ -39,14 +39,19 @@ const PLAN_CALORIE_RANGE_SIZE = 200;
 const state = {
   user: null,
   stats: {},
-  customers: [],
-  generalPlans: [],
   recentPlans: [],
-  customerPlans: new Map(),
-  customerFilter: null,
+  recentCustomers: [],
+  // One server page at a time; search and filters are applied server-side.
+  customersPage: null,
+  plansPage: null,
+  customerPage: 1,
+  planPage: 1,
+  detailPage: 1,
+  detailCustomerId: null,
   planFilter: null,
   customerSearch: '',
   planSearch: '',
+  loadTokens: { customers: 0, plans: 0, detail: 0 },
   menu: null,
   menuTrigger: null,
   menuOpenedAt: 0,
@@ -107,11 +112,6 @@ function planExportHref(plan) {
   return `/api/plans/${encodeURIComponent(plan.id)}/export.pdf`;
 }
 
-function folderBreadcrumb(plan) {
-  const path = Array.isArray(plan.folderPath) ? plan.folderPath : [];
-  return ['General', ...path.map((item) => item.name)].join(' / ');
-}
-
 function pdfDownloadName(planName) {
   const base = String(planName || 'nutrition-plan')
     .trim()
@@ -158,21 +158,6 @@ function planCalorieRangeKey(plan) {
 
 function planCalorieRangeLabel(plan) {
   return planCalorieRange(plan)?.label || '';
-}
-
-function matchesSearch(values, term) {
-  if (!term) return true;
-  const haystack = values.filter(Boolean).join(' ').toLowerCase();
-  return haystack.includes(term.toLowerCase());
-}
-
-function countBy(items, keyFn) {
-  return items.reduce((counts, item) => {
-    const key = keyFn(item);
-    if (!key) return counts;
-    counts[key] = (counts[key] || 0) + 1;
-    return counts;
-  }, {});
 }
 
 function emptyState(label, detail = 'Try a different search or filter') {
@@ -305,31 +290,6 @@ function planPageRow(plan) {
         data-export-href="${escapeHtml(planExportHref(plan))}"
       >${iconSvg('more', 18)}</button>
     </li>
-  `;
-}
-
-function customerRow(customer) {
-  const index = state.customers.findIndex((item) => String(item.id) === String(customer.id));
-  const tone = AVATAR_TONES[(index >= 0 ? index : 0) % AVATAR_TONES.length];
-  const count = Number(customer.planCount || 0);
-  return `
-    <article class="dashboard-customer-card dashboard-list-row" data-customer-id="${escapeHtml(customer.id)}">
-      <button class="dashboard-customer-card__link" type="button" data-customer-open="${escapeHtml(customer.id)}">
-        <span class="dashboard-cust-avatar dashboard-avatar-${tone}" aria-hidden="true">${escapeHtml(initials(customer.name))}</span>
-        <span class="dashboard-customer-card__body">
-          <strong>${escapeHtml(customer.name)}</strong>
-          <small>${count} plan${count === 1 ? '' : 's'}</small>
-        </span>
-      </button>
-      <button
-        class="dashboard-customer-menu-btn"
-        type="button"
-        title="Customer options"
-        aria-label="Customer options for ${escapeHtml(customer.name)}"
-        data-customer-id="${escapeHtml(customer.id)}"
-        data-customer-name="${escapeHtml(customer.name)}"
-      >${iconSvg('more', 18)}</button>
-    </article>
   `;
 }
 
@@ -613,28 +573,10 @@ function renderStats() {
   renderHomeSummary({ totalPlans, customers, plansThisWeek, customersThisWeek });
 }
 
-function sortByNewestCreated(plans) {
-  return [...plans].sort((a, b) => {
-    const bCreated = new Date(b.created_at).getTime() || 0;
-    const aCreated = new Date(a.created_at).getTime() || 0;
-    if (bCreated !== aCreated) return bCreated - aCreated;
-    return String(b.id).localeCompare(String(a.id));
-  });
-}
-
-function sortCustomersForHome(customers) {
-  return [...customers].sort((a, b) => {
-    const bUpdated = new Date(b.updated_at || b.created_at).getTime() || 0;
-    const aUpdated = new Date(a.updated_at || a.created_at).getTime() || 0;
-    if (bUpdated !== aUpdated) return bUpdated - aUpdated;
-    return String(a.name || '').localeCompare(String(b.name || ''));
-  });
-}
-
 function renderHome() {
   renderStats();
-  const customers = sortCustomersForHome(state.customers).slice(0, 4);
-  const plans = (state.recentPlans.length ? state.recentPlans : sortByNewestCreated(state.generalPlans)).slice(0, 4);
+  const customers = state.recentCustomers.slice(0, 4);
+  const plans = state.recentPlans.slice(0, 4);
   document.getElementById('home-customers-list').innerHTML = customers.length
     ? customers.map(homeCustomerRow).join('')
     : '<li><p class="ph-empty">No customers yet.</p></li>';
@@ -643,97 +585,155 @@ function renderHome() {
     : '<li><p class="ph-empty">No plans yet.</p></li>';
 }
 
-function renderCustomersPage() {
-  const totalPlans = state.customers.reduce((sum, customer) => sum + Number(customer.planCount || 0), 0);
-  const filtered = state.customers.filter((customer) => (
-    matchesSearch([customer.name], state.customerSearch)
-  ));
+function listQuery(params) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') search.set(key, String(value));
+  });
+  return search.toString();
+}
 
-  document.getElementById('customers-subtitle').textContent = `${state.customers.length} customers total`;
-  document.getElementById('customer-stat-total').textContent = state.customers.length.toLocaleString();
-  document.getElementById('customer-stat-active').textContent = totalPlans.toLocaleString();
-  document.getElementById('customer-stat-average').textContent = state.customers.length ? (totalPlans / state.customers.length).toFixed(1) : '0';
+function scrollListIntoView(elementId) {
+  document.getElementById(elementId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Each loader ignores responses that arrive after a newer request started,
+// so fast typing or clicking never renders an out-of-date page.
+async function loadCustomersPage(page = state.customerPage) {
+  const token = ++state.loadTokens.customers;
+  const res = await fetch(`/api/dashboard/customers?${listQuery({ page, query: state.customerSearch })}`);
+  if (token !== state.loadTokens.customers) return;
+  if (!res.ok) {
+    document.getElementById('customers-list').innerHTML = '<li class="pc-empty-state">Failed to load customers.</li>';
+    return;
+  }
+  const data = await res.json();
+  if (token !== state.loadTokens.customers) return;
+  if (data.total > 0 && page > data.totalPages) {
+    loadCustomersPage(data.totalPages);
+    return;
+  }
+  state.customerPage = data.page;
+  state.customersPage = data;
+  renderCustomersPage();
+}
+
+async function loadPlansPage(page = state.planPage) {
+  const token = ++state.loadTokens.plans;
+  const query = listQuery({ page, query: state.planSearch, calorieRange: state.planFilter });
+  const res = await fetch(`/api/dashboard/plans?${query}`);
+  if (token !== state.loadTokens.plans) return;
+  if (!res.ok) {
+    document.getElementById('recent-plans').innerHTML = '<li class="pp-empty">Failed to load plans.</li>';
+    return;
+  }
+  const data = await res.json();
+  if (token !== state.loadTokens.plans) return;
+  if (data.total > 0 && page > data.totalPages) {
+    loadPlansPage(data.totalPages);
+    return;
+  }
+  state.planPage = data.page;
+  state.plansPage = data;
+  renderPlansPage();
+}
+
+function renderCustomersPage() {
+  const data = state.customersPage;
+  if (!data) return;
+  const totalCustomers = data.summary.totalCustomers;
+  const assignedPlans = data.summary.assignedPlans;
+
+  document.getElementById('customers-subtitle').textContent = `${totalCustomers} customers total`;
+  document.getElementById('customer-stat-total').textContent = totalCustomers.toLocaleString();
+  document.getElementById('customer-stat-active').textContent = assignedPlans.toLocaleString();
+  document.getElementById('customer-stat-average').textContent = totalCustomers ? (assignedPlans / totalCustomers).toFixed(1) : '0';
   document.getElementById('customer-list-count').textContent =
-    state.customerSearch ? `(${filtered.length} of ${state.customers.length})` : '';
-  document.getElementById('customers-list').innerHTML = filtered.length
-    ? filtered.map(customerPageRow).join('')
-    : '<li class="pc-empty-state">No customers match that search.</li>';
+    state.customerSearch ? `(${data.total} of ${totalCustomers})` : '';
+  document.getElementById('customers-list').innerHTML = data.items.length
+    ? data.items.map(customerPageRow).join('')
+    : `<li class="pc-empty-state">${totalCustomers ? 'No customers match that search.' : 'No customers yet.'}</li>`;
+  renderPagination(document.getElementById('customers-pager'), data, (page) => {
+    loadCustomersPage(page).then(() => scrollListIntoView('customers-list'));
+  });
 }
 
 function renderPlansPage() {
-  const assignedCount = Math.max(0, Number(state.stats.totalPlans || 0) - state.generalPlans.length);
-  const goalCounts = countBy(state.generalPlans, planGoalKey);
-  const rangeCounts = countBy(state.generalPlans, planCalorieRangeKey);
-  const filtered = state.generalPlans.filter((plan) => (
-    (state.planFilter === null || planCalorieRangeKey(plan) === state.planFilter)
-    && matchesSearch([
-      plan.name,
-      folderBreadcrumb(plan),
-      goalLabel(planGoalKey(plan)),
-      planCalorieRange(plan)?.searchLabel,
-    ], state.planSearch)
-  ));
-  const newest = state.generalPlans[0]?.updated_at || state.generalPlans[0]?.created_at;
+  const data = state.plansPage;
+  if (!data) return;
+  const { totalGeneralPlans, assignedPlans, newestAt, goalCounts, calorieRangeCounts } = data.summary;
+  const filtering = Boolean(state.planFilter || state.planSearch);
 
-  document.getElementById('plans-subtitle').textContent = `${state.generalPlans.length} general plans`;
-  document.getElementById('plan-stat-total').textContent = state.generalPlans.length.toLocaleString();
-  document.getElementById('plan-stat-assigned').textContent = assignedCount.toLocaleString();
-  document.getElementById('plan-stat-newest').textContent = newest ? formatRelativeTime(newest) : '-';
+  document.getElementById('plans-subtitle').textContent = `${totalGeneralPlans} general plans`;
+  document.getElementById('plan-stat-total').textContent = totalGeneralPlans.toLocaleString();
+  document.getElementById('plan-stat-assigned').textContent = assignedPlans.toLocaleString();
+  document.getElementById('plan-stat-newest').textContent = newestAt ? formatRelativeTime(newestAt) : '-';
   document.getElementById('plan-list-count').textContent =
-    (state.planFilter || state.planSearch) ? `(${filtered.length} of ${state.generalPlans.length})` : '';
-  document.getElementById('recent-plans').innerHTML = filtered.length
-    ? filtered.map(planPageRow).join('')
-    : state.generalPlans.length
+    filtering ? `(${data.total} of ${totalGeneralPlans})` : '';
+  document.getElementById('recent-plans').innerHTML = data.items.length
+    ? data.items.map(planPageRow).join('')
+    : totalGeneralPlans
       ? '<li class="pp-empty">No plans match those filters.</li>'
       : '<li class="pp-empty-state"><p>No plans yet.</p><a href="/planner" class="pp-btn">Create your first plan</a></li>';
-  renderPlanFilterChips(rangeCounts, state.generalPlans.length, state.planFilter);
+  renderPlanFilterChips(calorieRangeCounts, totalGeneralPlans, state.planFilter);
   renderPlanGoalBreakdown(goalCounts);
+  renderPagination(document.getElementById('plans-pager'), data, (page) => {
+    loadPlansPage(page).then(() => scrollListIntoView('recent-plans'));
+  });
 }
 
-async function loadCustomerPlans(customerId) {
-  if (state.customerPlans.has(String(customerId))) return state.customerPlans.get(String(customerId));
-  const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}/plans`);
-  if (!res.ok) throw new Error('Failed to load customer plans.');
-  const data = await res.json();
-  state.customerPlans.set(String(customerId), data);
-  return data;
-}
-
-async function renderCustomerDetail(customerId) {
-  const page = document.getElementById('page-customer-detail');
-  const customer = state.customers.find((item) => String(item.id) === String(customerId));
-  if (!customer) {
-    location.hash = '#/customers';
-    return;
+async function renderCustomerDetail(customerId, page = 1) {
+  const pageEl = document.getElementById('page-customer-detail');
+  const token = ++state.loadTokens.detail;
+  state.detailCustomerId = String(customerId);
+  state.detailPage = page;
+  if (page === 1) {
+    document.getElementById('detail-plan-count').textContent = 'Loading...';
+    document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Loading assigned plans.</p></div></li>';
   }
 
-  document.getElementById('detail-customer-avatar').textContent = initials(customer.name).toLowerCase();
-  document.getElementById('detail-customer-title').textContent = customer.name;
-  document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, customer.planCount || 0);
-  document.getElementById('detail-customer-details').innerHTML = customerDetailGrid(customer);
-  document.getElementById('detail-edit-link').href = `#/customers/${encodeURIComponent(customer.id)}/edit`;
-  document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
-  document.getElementById('detail-plan-count').textContent = 'Loading...';
-  document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Loading assigned plans.</p></div></li>';
-
+  let data;
   try {
-    const { plans } = await loadCustomerPlans(customerId);
-    document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, plans.length);
-    document.getElementById('detail-plan-count').textContent = `${plans.length} total`;
-    document.getElementById('detail-customer-plans').innerHTML = plans.length
-      ? plans.map(customerDetailPlanRow).join('')
-      : `<li>
-          <div class="pd-empty">
-            <p>No plans assigned yet.</p>
-            <a href="/planner?customerId=${encodeURIComponent(customer.id)}" class="pd-btn">Assign a plan</a>
-          </div>
-        </li>`;
+    const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}/plans?${listQuery({ page })}`);
+    if (res.status === 404) {
+      location.hash = '#/customers';
+      return;
+    }
+    if (!res.ok) throw new Error('Failed to load customer plans.');
+    data = await res.json();
   } catch {
-    if (page.classList.contains('is-active')) {
+    if (token === state.loadTokens.detail && pageEl.classList.contains('is-active')) {
       document.getElementById('detail-plan-count').textContent = '';
       document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Failed to load customer plans.</p></div></li>';
     }
+    return;
   }
+  if (token !== state.loadTokens.detail) return;
+
+  const { customer, plans, pagination } = data;
+  if (pagination.total > 0 && page > pagination.totalPages) {
+    renderCustomerDetail(customerId, pagination.totalPages);
+    return;
+  }
+  const total = pagination.total;
+  document.getElementById('detail-customer-avatar').textContent = initials(customer.name).toLowerCase();
+  document.getElementById('detail-customer-title').textContent = customer.name;
+  document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, total);
+  document.getElementById('detail-customer-details').innerHTML = customerDetailGrid(customer);
+  document.getElementById('detail-edit-link').href = `#/customers/${encodeURIComponent(customer.id)}/edit`;
+  document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
+  document.getElementById('detail-plan-count').textContent = `${total} total`;
+  document.getElementById('detail-customer-plans').innerHTML = plans.length
+    ? plans.map(customerDetailPlanRow).join('')
+    : `<li>
+        <div class="pd-empty">
+          <p>No plans assigned yet.</p>
+          <a href="/planner?customerId=${encodeURIComponent(customer.id)}" class="pd-btn">Assign a plan</a>
+        </div>
+      </li>`;
+  renderPagination(document.getElementById('detail-plans-pager'), pagination, (nextPage) => {
+    renderCustomerDetail(customerId, nextPage).then(() => scrollListIntoView('detail-customer-plans'));
+  });
 }
 
 function customerFormPayload(form) {
@@ -758,18 +758,17 @@ function setCustomerFormValues(form, customer) {
   form.elements.namedItem('activityLevel').value = customer.activity_level || '';
 }
 
-function renderCustomerEdit(customerId) {
-  const customer = state.customers.find((item) => String(item.id) === String(customerId));
-  if (!customer) {
-    location.hash = '#/customers';
-    return false;
-  }
-
+async function renderCustomerEdit(customerId) {
   const form = document.getElementById('edit-customer-form');
+  const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`);
+  if (!res.ok) {
+    location.hash = '#/customers';
+    return;
+  }
+  const { customer } = await res.json();
   document.getElementById('edit-customer-title').textContent = `Edit ${customer.name}`;
   document.getElementById('edit-customer-back').href = `#/customers/${encodeURIComponent(customer.id)}`;
   setCustomerFormValues(form, customer);
-  return true;
 }
 
 function setActiveNav(route) {
@@ -814,17 +813,20 @@ function renderRoute() {
     if (parts[1] === 'new') {
       showPage('page-customer-new', 'customers');
     } else if (parts[1] && parts[2] === 'edit') {
-      if (renderCustomerEdit(parts[1])) showPage('page-customer-edit', 'customers');
+      showPage('page-customer-edit', 'customers');
+      renderCustomerEdit(parts[1]);
     } else if (parts[1]) {
       showPage('page-customer-detail', 'customers');
-      renderCustomerDetail(parts[1]);
+      // Stay on the same page of plans when refreshing the same customer.
+      const samePage = state.detailCustomerId === String(parts[1]) ? state.detailPage : 1;
+      renderCustomerDetail(parts[1], samePage);
     } else {
-      renderCustomersPage();
       showPage('page-customers', 'customers');
+      loadCustomersPage();
     }
   } else if (section === 'plans') {
-    renderPlansPage();
     showPage('page-plans', 'plans');
+    loadPlansPage();
   } else {
     renderHome();
     showPage('page-home', 'home');
@@ -872,7 +874,7 @@ function positionDashboardMenu(button) {
 function exportHrefWithClientName(exportHref, hasCustomer) {
   if (hasCustomer) return exportHref;
   if (!confirm('Do you want to add a client name in the PDF?')) return exportHref;
-  const clientName = (prompt('Client name for the PDF') || '').trim();
+  const clientName = (prompt('Client name for the PDF') || '').trim().slice(0, 80);
   if (!clientName) return exportHref;
   const url = new URL(exportHref, window.location.origin);
   url.searchParams.set('clientName', clientName);
@@ -890,14 +892,12 @@ function downloadPlanPdf(exportHref, planName, { hasCustomer = false } = {}) {
 }
 
 async function refreshDashboard() {
-  const res = await fetch('/api/dashboard?limit=100');
+  const res = await fetch('/api/dashboard');
   if (!res.ok) throw new Error('Failed to load dashboard.');
   const data = await res.json();
   state.stats = data.stats || {};
-  state.customers = data.customers || [];
-  state.generalPlans = data.generalPlans || [];
   state.recentPlans = data.recentPlans || [];
-  state.customerPlans.clear();
+  state.recentCustomers = data.recentCustomers || [];
   renderRoute();
   document.body.classList.remove('dashboard-loading');
 }
@@ -1067,19 +1067,28 @@ function bindEvents() {
   document.getElementById('dashboard-sidebar')?.addEventListener('click', (event) => {
     if (event.target.closest('a')) setMobileNavOpen(false);
   });
+  // Searches run on the server, so wait for a pause in typing.
+  let customerSearchTimer = null;
   document.getElementById('customer-search')?.addEventListener('input', (event) => {
-    state.customerSearch = event.target.value.trim();
-    renderCustomersPage();
+    clearTimeout(customerSearchTimer);
+    customerSearchTimer = setTimeout(() => {
+      state.customerSearch = event.target.value.trim();
+      loadCustomersPage(1);
+    }, 250);
   });
+  let planSearchTimer = null;
   document.getElementById('general-plan-search')?.addEventListener('input', (event) => {
-    state.planSearch = event.target.value.trim();
-    renderPlansPage();
+    clearTimeout(planSearchTimer);
+    planSearchTimer = setTimeout(() => {
+      state.planSearch = event.target.value.trim();
+      loadPlansPage(1);
+    }, 250);
   });
   document.getElementById('plan-filter-chips')?.addEventListener('click', (event) => {
     const chip = event.target.closest('.dashboard-filter-chip, .pp-chip');
     if (!chip) return;
     state.planFilter = chip.dataset.key || null;
-    renderPlansPage();
+    loadPlansPage(1);
   });
   document.querySelectorAll('.dashboard-insights-toggle').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1155,9 +1164,9 @@ window.addEventListener('scroll', () => {
   if (!authed) return;
 
   try {
+    // refreshDashboard already rendered the current route.
     await refreshDashboard();
     if (!location.hash) location.hash = '#/home';
-    else renderRoute();
   } catch {
     document.body.classList.remove('dashboard-loading');
     document.getElementById('dashboard-message').textContent = 'Failed to load dashboard.';
