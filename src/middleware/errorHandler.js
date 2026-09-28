@@ -1,6 +1,9 @@
+const { recordError } = require('../utils/metrics');
+
 function errorHandler(error, _req, res, _next) {
   const isDatabaseError = String(error.name || '').startsWith('Sequelize');
   const status = error.status || error.statusCode || (isDatabaseError ? 500 : 400);
+  recordError(error, status);
 
   res.status(status).json({
     error: status >= 500

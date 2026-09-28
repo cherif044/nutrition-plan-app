@@ -1,5 +1,6 @@
 const { Sequelize } = require('sequelize');
 const pg = require('pg');
+const { attachDatabaseMetrics } = require('../utils/metrics');
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -29,5 +30,7 @@ const sequelize = new Sequelize(databaseUrl, {
     },
   },
 });
+
+attachDatabaseMetrics(sequelize);
 
 module.exports = sequelize;

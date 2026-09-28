@@ -6,6 +6,10 @@ const {
 const { generatePlanInWorker } = require('../services/planGenerationPool');
 const { getSwapSuggestions } = require('../services/foodSwapService');
 const { logger } = require('../utils/logger');
+const {
+  recordGenerationTraceEvents,
+  recordPlannerOperation,
+} = require('../utils/metrics');
 
 // The food catalog and preference taxonomy are fixed at deploy time, so both
 // responses are built once per instance and cached at the edge.
@@ -95,6 +99,7 @@ async function generatePlanHandler(req, res, next) {
     });
     recordMetric(req, 'planGenerationMs', elapsedMs(generationStartedAt));
     logGeneratorTraceEvents(generatorTraceEvents);
+    recordGenerationTraceEvents(generatorTraceEvents);
 
     const timing = serverTimingValue(req.metrics);
     if (timing) res.setHeader('Server-Timing', timing);
@@ -114,6 +119,7 @@ async function generatePlanHandler(req, res, next) {
     res.json(plan);
   } catch (error) {
     logGeneratorTraceEvents(generatorTraceEvents);
+    recordGenerationTraceEvents(generatorTraceEvents);
     if (error.code === 'generation-overloaded' || error.code === 'generation-queue-timeout') {
       res.setHeader('Retry-After', '1');
     }
@@ -139,44 +145,93 @@ function timelineEventHandler(req, res, next) {
 }
 
 function rebalanceMealHandler(req, res, next) {
+  const startedAt = process.hrtime.bigint();
   try {
     const { mealTarget, items, mealBounds, dailyContext, action, changedItemIndex } = req.body;
     if (!mealTarget || !Array.isArray(items)) {
+      recordPlannerOperation({
+        operation: 'rebalance',
+        outcome: 'validation_error',
+        durationMs: elapsedMs(startedAt),
+        inputItems: Array.isArray(items) ? items.length : 0,
+      });
       return res.status(400).json({ error: 'mealTarget and items are required.' });
     }
     if (!dailyContext) {
+      recordPlannerOperation({
+        operation: 'rebalance',
+        outcome: 'validation_error',
+        durationMs: elapsedMs(startedAt),
+        inputItems: items.length,
+      });
       return res.status(400).json({
         error: 'dailyContext is required to enforce the per-meal calorie, protein, and fat ranges.',
       });
     }
 
-    return res.json(rebalanceMeal({
+    const result = rebalanceMeal({
       mealTarget,
       items,
       mealBounds,
       dailyContext,
       action,
       changedItemIndex,
-    }));
+    });
+    recordPlannerOperation({
+      operation: 'rebalance',
+      outcome: result.success ? 'success' : 'no_result',
+      durationMs: elapsedMs(startedAt),
+      inputItems: items.length,
+      resultItems: result.items?.length || 0,
+    });
+    return res.json(result);
   } catch (error) {
+    recordPlannerOperation({
+      operation: 'rebalance',
+      outcome: 'error',
+      durationMs: elapsedMs(startedAt),
+      inputItems: Array.isArray(req.body?.items) ? req.body.items.length : 0,
+    });
     return next(error);
   }
 }
 
 function swapSuggestionsHandler(req, res, next) {
+  const startedAt = process.hrtime.bigint();
   try {
     const {
       foodId, userPreferences, limit, mealContext,
     } = req.body;
 
     if (!foodId) {
+      recordPlannerOperation({
+        operation: 'swap_suggestions',
+        outcome: 'validation_error',
+        durationMs: elapsedMs(startedAt),
+      });
       return res.status(400).json({ error: 'foodId is required.' });
     }
 
-    return res.json(getSwapSuggestions({
+    const result = getSwapSuggestions({
       foodId, userPreferences, limit, mealContext,
-    }));
+    });
+    recordPlannerOperation({
+      operation: 'swap_suggestions',
+      outcome: result.options.length ? 'success' : 'no_result',
+      durationMs: elapsedMs(startedAt),
+      inputItems: Array.isArray(mealContext?.currentItems) ? mealContext.currentItems.length : 0,
+      resultItems: result.options.length,
+    });
+    return res.json(result);
   } catch (error) {
+    recordPlannerOperation({
+      operation: 'swap_suggestions',
+      outcome: 'error',
+      durationMs: elapsedMs(startedAt),
+      inputItems: Array.isArray(req.body?.mealContext?.currentItems)
+        ? req.body.mealContext.currentItems.length
+        : 0,
+    });
     return next(error);
   }
 }

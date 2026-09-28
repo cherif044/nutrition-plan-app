@@ -8,6 +8,29 @@ const {
 } = require('../services/firebaseAuthService');
 const { clearSessionCookie, sessionCookieOptions, SESSION_COOKIE_NAME } = require('../middleware/auth');
 const { deleteUser, syncFirebaseUser } = require('../repositories/userRepository');
+const { recordDependencyCall } = require('../utils/metrics');
+
+async function firebaseCall(operation, callback) {
+  const startedAt = process.hrtime.bigint();
+  try {
+    const result = await callback();
+    recordDependencyCall({
+      dependency: 'firebase',
+      operation,
+      outcome: 'success',
+      durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+    });
+    return result;
+  } catch (error) {
+    recordDependencyCall({
+      dependency: 'firebase',
+      operation,
+      outcome: 'error',
+      durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+    });
+    throw error;
+  }
+}
 
 function serializeUser(user) {
   return {
@@ -91,7 +114,10 @@ async function createSession(req, res, next) {
     }
 
     const firebase = getFirebaseAdmin();
-    const decodedToken = await firebase.auth().verifyIdToken(idToken, true);
+    const decodedToken = await firebaseCall(
+      'verify_token',
+      () => firebase.auth().verifyIdToken(idToken, true),
+    );
     assertFirebaseTokenCanAccessApp(decodedToken);
 
     const authTimeMs = decodedToken.auth_time ? decodedToken.auth_time * 1000 : 0;
@@ -137,9 +163,11 @@ async function deleteUserHandler(req, res, next) {
     if (!ok) return res.status(404).json({ error: 'User not found.' });
 
     if (firebaseUid) {
-      await getFirebaseAdmin().auth().deleteUser(firebaseUid).catch((err) => {
-        if (err.code !== 'auth/user-not-found') throw err;
-      });
+      await firebaseCall('delete_user', () => (
+        getFirebaseAdmin().auth().deleteUser(firebaseUid).catch((err) => {
+          if (err.code !== 'auth/user-not-found') throw err;
+        })
+      ));
     }
 
     clearSessionCookie(res);

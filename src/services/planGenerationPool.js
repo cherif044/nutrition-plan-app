@@ -1,6 +1,17 @@
 const path = require('path');
 const os = require('os');
 const { Worker } = require('worker_threads');
+const {
+  recordGenerationFinished,
+  recordGenerationQueueWait,
+  recordGenerationWorkerRestart,
+  setGenerationPoolMetrics,
+} = require('../utils/metrics');
+
+function elapsedMs(startedAt) {
+  if (!startedAt) return undefined;
+  return Number(process.hrtime.bigint() - startedAt) / 1e6;
+}
 
 function positiveInteger(value, fallback) {
   const parsed = Number(value);
@@ -42,6 +53,7 @@ class PlanGenerationPool {
     for (let index = 0; index < this.workerCount; index += 1) {
       this.spawnWorker(index);
     }
+    this.refreshMetrics();
   }
 
   spawnWorker(index) {
@@ -70,6 +82,7 @@ class PlanGenerationPool {
       slot.ready = true;
       this.dispatch();
       if (!slot.busy) slot.worker.unref();
+      this.refreshMetrics();
       return;
     }
 
@@ -81,15 +94,32 @@ class PlanGenerationPool {
     clearTimeout(job.timer);
 
     if (message.type === 'result') {
+      const planOutcome = message.plan?.status === 'error'
+        ? 'impossible'
+        : (message.plan?.diagnostics?.status === 'warning' ? 'warning' : 'success');
+      recordGenerationFinished({
+        input: job.input,
+        outcome: planOutcome,
+        totalMs: elapsedMs(job.enqueuedAt),
+        workerMs: elapsedMs(job.startedAt),
+        plan: message.plan,
+      });
       job.resolve({ plan: message.plan, traceEvents: message.traceEvents || [] });
     } else {
       const error = errorFromWorker(message.error);
       error.traceEvents = message.traceEvents || [];
+      recordGenerationFinished({
+        input: job.input,
+        outcome: Number(error.status) < 500 ? 'validation_error' : 'worker_error',
+        totalMs: elapsedMs(job.enqueuedAt),
+        workerMs: elapsedMs(job.startedAt),
+      });
       job.reject(error);
     }
 
     slot.worker.unref();
     this.dispatch();
+    this.refreshMetrics();
   }
 
   handleExit(index, slot, code) {
@@ -98,6 +128,12 @@ class PlanGenerationPool {
     const job = slot.currentJob;
     if (job) {
       clearTimeout(job.timer);
+      recordGenerationFinished({
+        input: job.input,
+        outcome: 'worker_exit',
+        totalMs: elapsedMs(job.enqueuedAt),
+        workerMs: elapsedMs(job.startedAt),
+      });
       job.reject(slot.lastError || generationError(
         `Plan generation worker exited unexpectedly (${code}).`,
         { status: 503, code: 'generation-worker-exited' },
@@ -106,18 +142,26 @@ class PlanGenerationPool {
 
     this.workers[index] = null;
     if (!this.closed) {
+      if (!slot.retiring) recordGenerationWorkerRestart(slot.lastError ? 'error' : 'exit');
       this.spawnWorker(index);
     }
+    this.refreshMetrics();
   }
 
   handleTimeout(job) {
     const queuedIndex = this.queue.indexOf(job);
     if (queuedIndex >= 0) {
       this.queue.splice(queuedIndex, 1);
+      recordGenerationFinished({
+        input: job.input,
+        outcome: 'queue_timeout',
+        totalMs: elapsedMs(job.enqueuedAt),
+      });
       job.reject(generationError('Plan generation queue timed out.', {
         status: 503,
         code: 'generation-queue-timeout',
       }));
+      this.refreshMetrics();
       return;
     }
 
@@ -127,15 +171,24 @@ class PlanGenerationPool {
     slot.currentJob = null;
     slot.busy = false;
     slot.retiring = true;
+    recordGenerationFinished({
+      input: job.input,
+      outcome: 'timeout',
+      totalMs: elapsedMs(job.enqueuedAt),
+      workerMs: elapsedMs(job.startedAt),
+    });
+    recordGenerationWorkerRestart('timeout');
     job.reject(generationError('Plan generation timed out.', {
       status: 504,
       code: 'generation-timeout',
     }));
     slot.worker.terminate().catch(() => {});
+    this.refreshMetrics();
   }
 
   run(input, options = {}) {
     if (this.closed) {
+      recordGenerationFinished({ input, outcome: 'shutdown', totalMs: 0 });
       return Promise.reject(generationError('Plan generation is shutting down.', {
         status: 503,
         code: 'generation-shutting-down',
@@ -143,6 +196,7 @@ class PlanGenerationPool {
     }
 
     if (this.queue.length >= this.maxQueue) {
+      recordGenerationFinished({ input, outcome: 'overloaded', totalMs: 0 });
       return Promise.reject(generationError('Plan generation is busy. Please try again shortly.', {
         status: 503,
         code: 'generation-overloaded',
@@ -157,12 +211,15 @@ class PlanGenerationPool {
         resolve,
         reject,
         timer: null,
+        enqueuedAt: process.hrtime.bigint(),
+        startedAt: null,
       };
       this.nextJobId += 1;
       job.timer = setTimeout(() => this.handleTimeout(job), this.jobTimeoutMs);
       job.timer.unref();
       this.queue.push(job);
       this.dispatch();
+      this.refreshMetrics();
     });
   }
 
@@ -176,6 +233,8 @@ class PlanGenerationPool {
       const job = this.queue.shift();
       slot.busy = true;
       slot.currentJob = job;
+      job.startedAt = process.hrtime.bigint();
+      recordGenerationQueueWait(elapsedMs(job.enqueuedAt));
       slot.worker.ref();
       slot.worker.postMessage({
         id: job.id,
@@ -183,6 +242,7 @@ class PlanGenerationPool {
         options: job.options,
       });
     }
+    this.refreshMetrics();
   }
 
   async close() {
@@ -195,6 +255,11 @@ class PlanGenerationPool {
     });
     for (const job of this.queue.splice(0)) {
       clearTimeout(job.timer);
+      recordGenerationFinished({
+        input: job.input,
+        outcome: 'shutdown',
+        totalMs: elapsedMs(job.enqueuedAt),
+      });
       job.reject(shutdownError);
     }
 
@@ -202,6 +267,7 @@ class PlanGenerationPool {
       .filter(Boolean)
       .map((slot) => slot.worker.terminate()));
     this.workers = [];
+    this.refreshMetrics();
   }
 
   stats() {
@@ -212,6 +278,10 @@ class PlanGenerationPool {
       queued: this.queue.length,
       maxQueue: this.maxQueue,
     };
+  }
+
+  refreshMetrics() {
+    setGenerationPoolMetrics(this.stats());
   }
 }
 

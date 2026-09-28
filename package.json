@@ -18,6 +18,7 @@
     "compare:step": "node testing_data/scripts/compare_step.js"
   },
   "dependencies": {
+    "@prometheus-io/client": "^0.16.1",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
@@ -32,7 +33,7 @@
     "zxcvbn": "^4.4.2"
   },
   "engines": {
-    "node": ">=22.17 <25"
+    "node": "^22.17 || ^24.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"

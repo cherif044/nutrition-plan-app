@@ -4,9 +4,11 @@ const { requireAuth } = require('../src/middleware/auth');
 const { errorHandler } = require('../src/middleware/errorHandler');
 const { getPlanById } = require('../src/repositories/planRepository');
 const { generatePlanPdf, pdfFilename } = require('../src/services/planPdfService');
+const { httpMetricsMiddleware } = require('../src/utils/metrics');
 
 const app = express();
 
+app.use(httpMetricsMiddleware);
 app.use(cookieParser());
 
 app.use(requireAuth, async (req, res, next) => {

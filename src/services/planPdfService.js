@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const { recordPdfExport } = require('../utils/metrics');
 
 const iconsDir = path.join(__dirname, '..', '..', 'public', 'food-icons');
 const imageCache = new Map();
@@ -13,7 +14,26 @@ const C = {
 // Direct PDF generation avoids Puppeteer/Chromium cold starts and keeps the
 // export independent of the user's device and browser.
 async function generatePlanPdf(plan, options = {}) {
-  return withTimeout(renderPlanPdf(plan, options), process.env.VERCEL ? 55000 : 30000, 'PDF export timed out.');
+  const startedAt = process.hrtime.bigint();
+  try {
+    const pdf = await withTimeout(
+      renderPlanPdf(plan, options),
+      process.env.VERCEL ? 55000 : 30000,
+      'PDF export timed out.',
+    );
+    recordPdfExport({
+      outcome: 'success',
+      durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+      bytes: pdf.length,
+    });
+    return pdf;
+  } catch (error) {
+    recordPdfExport({
+      outcome: 'error',
+      durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+    });
+    throw error;
+  }
 }
 
 function renderPlanPdf(record, options = {}) {

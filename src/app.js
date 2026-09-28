@@ -15,6 +15,11 @@ const customerRoutes = require('./routes/customerRoutes');
 const sequelize = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
 const { logger } = require('./utils/logger');
+const {
+  httpMetricsMiddleware,
+  metricsHandler,
+  recordRateLimit,
+} = require('./utils/metrics');
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
@@ -36,6 +41,7 @@ function requestId(req, res, next) {
 
 function shouldLogRequest(req, statusCode) {
   if (statusCode >= 400) return true;
+  if (req.path === '/metrics') return false;
   if (req.path.startsWith('/food-icons/')) return false;
   return !/\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/i.test(req.path);
 }
@@ -65,7 +71,8 @@ function requestLogger(req, res, next) {
   next();
 }
 
-function rateLimitHandler(req, res, _next, options) {
+function rateLimitHandler(scope, req, res, _next, options) {
+  recordRateLimit(scope);
   logger.warn('Rate limit exceeded', {
     requestId: req.id,
     method: req.method,
@@ -81,14 +88,14 @@ function rateLimitHandler(req, res, _next, options) {
   });
 }
 
-function createLimiter({ windowMs, limit, message }) {
+function createLimiter({ scope, windowMs, limit, message }) {
   return rateLimit({
     windowMs,
     limit,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: message },
-    handler: rateLimitHandler,
+    handler: (req, res, next, options) => rateLimitHandler(scope, req, res, next, options),
   });
 }
 
@@ -134,21 +141,25 @@ function sendPage(res, fileName) {
 }
 
 const apiLimiter = createLimiter({
+  scope: 'api',
   windowMs: envNumber('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
   limit: envNumber('RATE_LIMIT_MAX', 600),
   message: 'Too many API requests. Please try again later.',
 });
 const authLimiter = createLimiter({
+  scope: 'auth',
   windowMs: envNumber('AUTH_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
   limit: envNumber('AUTH_RATE_LIMIT_MAX', 60),
   message: 'Too many authentication requests. Please try again later.',
 });
 const generationLimiter = createLimiter({
+  scope: 'generation',
   windowMs: envNumber('GENERATION_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
   limit: envNumber('GENERATION_RATE_LIMIT_MAX', 60),
   message: 'Too many plan generation requests. Please try again later.',
 });
 const pdfExportLimiter = createLimiter({
+  scope: 'pdf',
   windowMs: envNumber('PDF_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
   limit: envNumber('PDF_RATE_LIMIT_MAX', 30),
   message: 'Too many PDF export requests. Please try again later.',
@@ -157,6 +168,7 @@ const pdfExportLimiter = createLimiter({
 app.disable('x-powered-by');
 app.set('trust proxy', envNumber('TRUST_PROXY_HOPS', 1));
 app.use(requestId);
+app.use(httpMetricsMiddleware);
 app.use(requestLogger);
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
@@ -199,6 +211,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
 app.locals.isShuttingDown = false;
+
+app.get('/metrics', metricsHandler);
 
 app.get('/livez', (_req, res) => {
   res.status(200).json({

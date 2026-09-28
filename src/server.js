@@ -3,6 +3,7 @@ const app = require('./app');
 const sequelize = require('./config/database');
 const { closeGenerationPool } = require('./services/planGenerationPool');
 const { logger } = require('./utils/logger');
+const { attachHttpServerMetrics, recordError } = require('./utils/metrics');
 
 const port = process.env.PORT || 3000;
 const shutdownTimeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000;
@@ -21,11 +22,13 @@ async function startServer() {
         pid: process.pid,
       });
     });
+    attachHttpServerMetrics(server);
 
     server.on('error', (error) => {
       logger.error('HTTP server error', { error });
     });
   } catch (error) {
+    recordError(error, 500);
     logger.error('Unable to start server', { error });
     process.exit(1);
   }
@@ -84,12 +87,14 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason) => {
+  recordError(reason instanceof Error ? reason : new Error(String(reason)), 500);
   logger.error('Unhandled promise rejection', {
     error: reason instanceof Error ? reason : new Error(String(reason)),
   });
 });
 
 process.on('uncaughtException', (error) => {
+  recordError(error, 500);
   logger.error('Uncaught exception', { error });
   shutdown('uncaughtException');
 });
