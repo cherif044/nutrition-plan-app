@@ -11,8 +11,8 @@ const {
 async function listCustomersHandler(req, res, next) {
   try {
     const customers = await listCustomers(req.user.id, {
-      query: req.query.query || '',
-      limit: req.query.limit,
+      query: req.validatedQuery.query || '',
+      limit: req.validatedQuery.limit,
     });
     res.json({ customers });
   } catch (err) { next(err); }
@@ -20,7 +20,7 @@ async function listCustomersHandler(req, res, next) {
 
 async function matchCustomerHandler(req, res, next) {
   try {
-    const customer = await findCustomerByNormalizedName(req.user.id, req.query.name || '');
+    const customer = await findCustomerByNormalizedName(req.user.id, req.validatedQuery.name || '');
     res.json({ customer });
   } catch (err) { next(err); }
 }
@@ -30,7 +30,7 @@ async function createCustomerHandler(req, res, next) {
     const customer = await createCustomer(req.user.id, req.body || {});
     res.status(201).json({ customer });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     return next(err);
   }
 }
@@ -49,7 +49,7 @@ async function updateCustomerHandler(req, res, next) {
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
     return res.json({ customer });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     return next(err);
   }
 }
@@ -57,8 +57,8 @@ async function updateCustomerHandler(req, res, next) {
 async function getCustomerPlansHandler(req, res, next) {
   try {
     const data = await getCustomerPlans(req.user.id, req.params.id, {
-      page: req.query.page,
-      pageSize: req.query.pageSize,
+      page: req.validatedQuery.page,
+      pageSize: req.validatedQuery.pageSize,
     });
     if (!data) return res.status(404).json({ error: 'Customer not found.' });
     res.json({ customer: data.customer, plans: data.plans, pagination: data.pagination });

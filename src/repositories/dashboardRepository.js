@@ -1,4 +1,5 @@
 const { QueryTypes } = require('sequelize');
+const { likePattern } = require('./likePattern');
 const sequelize = require('../config/database');
 
 // Every list here is paginated and reads only plans' summary columns
@@ -14,9 +15,6 @@ function normalizeSearch(value) {
   return String(value || '').trim().toLowerCase().slice(0, 100);
 }
 
-function likePattern(term) {
-  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-}
 
 function normalizePaging({ page, pageSize } = {}) {
   const size = Number(pageSize);

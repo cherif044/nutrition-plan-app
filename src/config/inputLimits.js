@@ -11,7 +11,9 @@ const INPUT_LIMITS = Object.freeze({
   foodsPerMeal: 12,
   gramsPerFood: 1000,
   mealsPerPlan: 6,
-  mealOptionsPerMeal: 400,
+  // Generated plans carry at most ~34 options per meal (measured across all
+  // meal counts, distributions and diets); 60 leaves headroom.
+  mealOptionsPerMeal: 60,
 
   preferenceItems: 60,
   preferenceTermLength: 60,
@@ -40,6 +42,16 @@ const INPUT_LIMITS = Object.freeze({
   // pathological inputs from freezing the instance.
   rebalanceSearchMs: 2000,
   swapSearchMs: 3000,
+
+  // Per-account totals, checked on every insert. Far above real use; they
+  // exist so one account cannot fill the database.
+  account: {
+    plans: 2000,
+    customers: 1000,
+    folders: 200,
+    folderDepth: 8,
+    planDataBytes: 500 * 1024 * 1024,
+  },
 
   defaultBodyBytes: '100kb',
   planBodyBytes: '2mb',

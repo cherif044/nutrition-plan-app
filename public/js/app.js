@@ -1,8 +1,14 @@
+// Ids from the URL end up in fetch paths (including saves), so only plain
+// numeric ids are accepted; anything like "1/../../customers/5" is dropped.
 const plannerCtx = (() => {
   const p = new URLSearchParams(location.search);
-  const planId = p.get('planId');
-  const folderId = p.get('folderId');
-  const customerId = p.get('customerId');
+  const numericId = (name) => {
+    const value = p.get(name);
+    return /^\d{1,18}$/.test(value || '') ? value : null;
+  };
+  const planId = numericId('planId');
+  const folderId = numericId('folderId');
+  const customerId = numericId('customerId');
   const exportPdf = p.get('export') === 'pdf';
   if (!planId && !folderId && !customerId) return null;
   return { planId, folderId, customerId, folderName: null, exportPdf };
@@ -87,11 +93,18 @@ function foodIcon(food) {
   return { icon: 'salad', tone: 'neutral' };
 }
 
+// Icons only exist for catalog ids, so anything else (saved plans can carry
+// arbitrary strings) never turns into a request.
+const FOOD_ICON_ID_PATTERN = /^[a-z0-9_]{1,64}$/;
+const FOOD_ICON_URL_PATTERN = /^\/food-icons\/[a-z0-9_]{1,64}\.png$/;
+
 function foodIconUrl(food) {
-  if (food?.iconUrl && !failedFoodImageUrls.has(food.iconUrl)) return food.iconUrl;
+  if (food?.iconUrl && FOOD_ICON_URL_PATTERN.test(food.iconUrl) && !failedFoodImageUrls.has(food.iconUrl)) {
+    return food.iconUrl;
+  }
   if (food && Object.prototype.hasOwnProperty.call(food, 'iconUrl')) return '';
-  if (!food?.id || food.custom) return '';
-  const src = `/food-icons/${encodeURIComponent(`${food.id}.png`)}`;
+  if (!food?.id || food.custom || !FOOD_ICON_ID_PATTERN.test(String(food.id))) return '';
+  const src = `/food-icons/${food.id}.png`;
   return failedFoodImageUrls.has(src) ? '' : src;
 }
 
@@ -200,6 +213,7 @@ let deleteUndoSequence = 0;
       navUser.innerHTML = `
         <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
         <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
+        <a class="planner-nav__link" href="/account" aria-label="Account">${iconSvg('user')}<span>Account</span></a>
         <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
       `;
       document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -216,7 +230,7 @@ let deleteUndoSequence = 0;
       loadPlanForEdit(plannerCtx.planId);
     } else {
       if (plannerCtx?.folderId) {
-        fetch(`/api/folders/${plannerCtx.folderId}`)
+        fetch(`/api/folders/${encodeURIComponent(plannerCtx.folderId)}`)
         .then((r) => r.json())
         .then(({ folder }) => {
           if (!folder) return;
@@ -833,7 +847,7 @@ function persistCurrentMealOption(state) {
 
 async function loadPlanForEdit(planId) {
   try {
-    const res = await fetch(`/api/plans/${planId}`);
+    const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`);
     const payload = await readJsonResponse(res, 'Failed to load plan.');
     if (!res.ok) {
       throw new Error(payload.error || (res.status === 404 ? 'Plan not found.' : 'Failed to load plan.'));
@@ -857,6 +871,8 @@ async function loadPlanForEdit(planId) {
 
     renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
     switchPlannerView('plan', { push: false });
+    // Recently-opened ordering on the dashboard; failure is harmless.
+    fetch(`/api/plans/${encodeURIComponent(plan.id)}/opened`, { method: 'POST' }).catch(() => {});
     setInputsExpanded(false);
     message.textContent = '';
     output?.scrollIntoView({ block: 'start' });

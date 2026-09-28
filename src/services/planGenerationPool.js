@@ -25,17 +25,34 @@ function defaultWorkerCount() {
   return Math.max(1, Math.min(2, available - 1));
 }
 
+// A generation uses ~15 MB of heap. The limits stop one runaway job from
+// growing until the whole instance is killed (pm2 max_memory_restart, the
+// Vercel function limit); only its own worker dies and is replaced.
+function workerResourceLimits() {
+  return {
+    maxOldGenerationSizeMb: positiveInteger(process.env.GENERATION_WORKER_MAX_OLD_MB, 128),
+    maxYoungGenerationSizeMb: positiveInteger(process.env.GENERATION_WORKER_MAX_YOUNG_MB, 32),
+    stackSizeMb: 4,
+  };
+}
+
 function generationError(message, { status = 500, code } = {}) {
   return Object.assign(new Error(message), { status, code });
 }
 
+// Only errors the generator marks as input errors (status 4xx) reach the
+// client as such; anything else is a server fault whose message is masked in
+// production. The worker's stack is kept only for the server-side error log.
 function errorFromWorker(payload = {}) {
+  const status = Number(payload.status);
+  const isClientError = Number.isInteger(status) && status >= 400 && status < 500;
   const error = generationError(payload.message || 'Plan generation failed.', {
-    status: payload.status || 400,
+    status: isClientError ? status : 500,
     code: payload.code,
   });
   error.name = payload.name || 'Error';
-  if (payload.stack) error.stack = payload.stack;
+  if (isClientError) error.expose = true;
+  else if (payload.stack) error.stack = payload.stack;
   return error;
 }
 
@@ -45,6 +62,7 @@ class PlanGenerationPool {
     this.maxQueue = positiveInteger(options.maxQueue, this.workerCount * 4);
     this.jobTimeoutMs = positiveInteger(options.jobTimeoutMs, 15000);
     this.workerPath = options.workerPath || path.join(__dirname, 'planGenerationWorker.js');
+    this.resourceLimits = options.resourceLimits || workerResourceLimits();
     this.workers = [];
     this.queue = [];
     this.nextJobId = 1;
@@ -59,7 +77,7 @@ class PlanGenerationPool {
   spawnWorker(index) {
     if (this.closed) return;
 
-    const worker = new Worker(this.workerPath);
+    const worker = new Worker(this.workerPath, { resourceLimits: this.resourceLimits });
     const slot = {
       worker,
       ready: false,
@@ -134,10 +152,18 @@ class PlanGenerationPool {
         totalMs: elapsedMs(job.enqueuedAt),
         workerMs: elapsedMs(job.startedAt),
       });
-      job.reject(slot.lastError || generationError(
-        `Plan generation worker exited unexpectedly (${code}).`,
-        { status: 503, code: 'generation-worker-exited' },
-      ));
+      const outOfMemory = slot.lastError?.code === 'ERR_WORKER_OUT_OF_MEMORY';
+      const exitError = outOfMemory
+        ? generationError('This plan was too large to generate. Please try again with fewer restrictions.', {
+          status: 503,
+          code: 'generation-worker-out-of-memory',
+        })
+        : generationError(`Plan generation worker exited unexpectedly (${code}).`, {
+          status: 503,
+          code: 'generation-worker-exited',
+        });
+      if (slot.lastError) exitError.cause = slot.lastError;
+      job.reject(exitError);
     }
 
     this.workers[index] = null;

@@ -9,6 +9,12 @@ const forgotEmail = document.getElementById('forgot-email');
 const backToLoginBtn = document.getElementById('back-to-login-btn');
 const GOOGLE_REDIRECT_PENDING_KEY = 'pinchGoogleRedirectPending';
 const GOOGLE_TRANSITION_MIN_MS = 750;
+// Reset and verification emails are rate limited per browser so the buttons
+// cannot be used to flood someone's inbox or burn the project's email quota.
+const EMAIL_COOLDOWN_MS = 60 * 1000;
+const MIN_PASSWORD_LENGTH = 12;
+const RESET_COOLDOWN_KEY = 'pinchResetEmailSentAt';
+const VERIFY_COOLDOWN_KEY = 'pinchVerifyEmailSentAt';
 
 let auth = null;
 let firebaseSdk = null;
@@ -75,6 +81,47 @@ function bindEvents() {
   forgotForm?.addEventListener('submit', handleForgotPassword);
 
   if (isRegisterPage) bindPasswordStrength();
+  showResetNotice();
+}
+
+function showResetNotice() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('reset') !== '1') return;
+  setMessage('Password changed. Log in with your new password. Other devices are signed out within a few minutes.', 'success');
+  window.history.replaceState(null, '', window.location.pathname);
+}
+
+function cooldownRemainingMs(key) {
+  try {
+    const sentAt = Number(sessionStorage.getItem(key));
+    return Number.isFinite(sentAt) ? Math.max(0, sentAt + EMAIL_COOLDOWN_MS - Date.now()) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function startCooldown(key, button) {
+  try { sessionStorage.setItem(key, String(Date.now())); } catch { /* storage unavailable */ }
+  holdButtonForCooldown(key, button);
+}
+
+// Keeps the button disabled until the cooldown ends, including after a reload.
+function holdButtonForCooldown(key, button) {
+  const remaining = cooldownRemainingMs(key);
+  if (!button || remaining <= 0) return false;
+  button.disabled = true;
+  window.setTimeout(() => { button.disabled = false; }, remaining);
+  return true;
+}
+
+// Anonymous, email-free signal so abuse of the email buttons shows up in logs.
+function reportAuthEvent(event) {
+  fetch('/api/auth/client-event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event }),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 async function handleEmailSubmit(event) {
@@ -268,14 +315,20 @@ async function createServerSession(user) {
 
 async function resendVerification() {
   if (!pendingVerificationUser) return;
+  if (holdButtonForCooldown(VERIFY_COOLDOWN_KEY, resendBtn)) {
+    setMessage('A verification email was just sent. Please wait a minute before asking for another.');
+    return;
+  }
   resendBtn.disabled = true;
   try {
     await firebaseSdk.sendEmailVerification(pendingVerificationUser);
+    startCooldown(VERIFY_COOLDOWN_KEY, resendBtn);
+    reportAuthEvent('verification_resent');
     setMessage('Verification email sent. Check your inbox.', 'success');
   } catch (err) {
-    setMessage(authErrorMessage(err));
-  } finally {
     resendBtn.disabled = false;
+    if (err.code === 'auth/too-many-requests') reportAuthEvent('verification_throttled');
+    setMessage(authErrorMessage(err));
   }
 }
 
@@ -306,19 +359,43 @@ async function handleForgotPassword(event) {
   }
 
   const submitBtn = forgotForm.querySelector('button[type="submit"]');
+  if (holdButtonForCooldown(RESET_COOLDOWN_KEY, submitBtn)) {
+    setMessage('A reset link was just requested. Please wait a minute before asking again.');
+    return;
+  }
   submitBtn.disabled = true;
   try {
-    await firebaseSdk.sendPasswordResetEmail(auth, email);
+    await firebaseSdk.sendPasswordResetEmail(auth, email, {
+      url: `${window.location.origin}/login?reset=1`,
+      handleCodeInApp: false,
+    });
   } catch (err) {
+    // "No such user" stays indistinguishable from success so the form cannot
+    // be used to find out who has an account. Everything else is shown.
     if (err.code === 'auth/invalid-email') {
       setMessage('Enter a valid email address.');
       submitBtn.disabled = false;
       return;
     }
+    if (err.code === 'auth/too-many-requests') {
+      reportAuthEvent('password_reset_throttled');
+      setMessage('Too many attempts. Please try again later.');
+      submitBtn.disabled = false;
+      return;
+    }
+    if (err.code !== 'auth/user-not-found') {
+      reportAuthEvent('password_reset_failed');
+      setMessage(err.code === 'auth/network-request-failed'
+        ? 'Could not reach the sign-in service. Check your connection and try again.'
+        : 'Could not send a reset link right now. Please try again later.');
+      submitBtn.disabled = false;
+      return;
+    }
   }
 
+  reportAuthEvent('password_reset_requested');
+  startCooldown(RESET_COOLDOWN_KEY, submitBtn);
   setMessage('If an account exists for that email, Firebase will send a reset link.', 'success');
-  submitBtn.disabled = false;
 }
 
 async function loadFirebaseSdk() {
@@ -349,7 +426,11 @@ function getRegisterData() {
 function validateSignup(data) {
   if (!data.firstname || !data.lastname) throw new Error('Enter your first and last name.');
   if (!data.email) throw new Error('Enter your email address.');
-  if (data.password.length < 8) throw new Error('Password must be at least 8 characters.');
+  // Matches the Firebase password policy (minimum 12, enforced), which also
+  // covers password resets and sign-ups that skip this form.
+  if (data.password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
   if (data.password !== data.confirmPassword) throw new Error('Passwords do not match.');
 }
 

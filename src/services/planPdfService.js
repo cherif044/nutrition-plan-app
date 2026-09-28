@@ -1,10 +1,14 @@
-const fs = require('fs');
-const path = require('path');
 const PDFDocument = require('pdfkit');
 const { recordPdfExport } = require('../utils/metrics');
+const { foodIconImage } = require('./foodIcons');
+const { CONTROL_CHARS } = require('../validation/schemas');
+const { INPUT_LIMITS } = require('../config/inputLimits');
 
-const iconsDir = path.join(__dirname, '..', '..', 'public', 'food-icons');
-const imageCache = new Map();
+// Text drawn into the PDF or its metadata: no control or bidi-override
+// characters, which could make a name render differently from what was typed.
+function pdfText(value, max = 200) {
+  return String(value ?? '').replace(CONTROL_CHARS, '').trim().slice(0, max);
+}
 const C = {
   page: '#f4faf7', card: '#ffffff', soft: '#f7faf9', border: '#dce8df',
   ink: '#123832', muted: '#6f7d77', accent: '#1e8c70', protein: '#d97757',
@@ -38,7 +42,7 @@ async function generatePlanPdf(plan, options = {}) {
 
 function renderPlanPdf(record, options = {}) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, compress: true, info: { Title: String(record?.name || 'Nutrition Plan') } });
+    const doc = new PDFDocument({ size: 'A4', margin: 0, compress: true, info: { Title: pdfText(record?.name, INPUT_LIMITS.planNameLength) || 'Nutrition Plan' } });
     const chunks = [];
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -52,9 +56,11 @@ function drawPlan(doc, record, options) {
   const margin = 23;
   const width = page.width - margin * 2;
   const plan = record?.plan_data || {};
-  const meals = Array.isArray(plan.meals) ? plan.meals : [];
+  // Saved plans are bounded by the schema, but older rows may not be; the
+  // caps keep rendering time bounded either way.
+  const meals = (Array.isArray(plan.meals) ? plan.meals : []).slice(0, INPUT_LIMITS.mealsPerPlan);
   const customer = record?.Customer || record?.customer || null;
-  const customName = String(options.clientName || '').trim().slice(0, 80);
+  const customName = pdfText(options.clientName, INPUT_LIMITS.clientNameLength);
   const clientName = (record?.customer_id && customer?.name) || (!record?.customer_id && customName) || '';
   doc.rect(0, 0, page.width, page.height).fill(C.page);
   let y = margin;
@@ -72,16 +78,17 @@ function drawPlan(doc, record, options) {
   drawSummary(doc, plan.dailyTargets || {}, totalsForMeals(meals), margin, y, width);
 }
 
-function mealHeight(meal) { return 42 + 25 + (Array.isArray(meal?.items) ? meal.items.length : 0) * 25 + 29; }
+function mealItems(meal) { return (Array.isArray(meal?.items) ? meal.items : []).slice(0, INPUT_LIMITS.foodsPerMeal); }
+function mealHeight(meal) { return 42 + 25 + mealItems(meal).length * 25 + 29; }
 
 function drawMeal(doc, meal, x, y, width) {
-  const items = Array.isArray(meal?.items) ? meal.items : [];
+  const items = mealItems(meal);
   const totals = normalizeTotals(meal?.totals || totalsForItems(items));
   const height = mealHeight(meal);
   doc.roundedRect(x, y, width, height, 7).fillAndStroke(C.card, C.border);
   doc.rect(x, y, width, 42).fill(C.card);
   drawMealIcon(doc, meal?.tag, x + 12, y + 12);
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(C.ink).text(String(meal?.name || 'Meal'), x + 39, y + 13, { width: width - 140, lineBreak: false });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(C.ink).text(pdfText(meal?.name, 80) || 'Meal', x + 39, y + 13, { width: width - 140, lineBreak: false });
   doc.font('Helvetica-Bold').fontSize(10).fillColor(C.ink).text(`${fmt(totals.calories)} kcal`, x + width - 92, y + 14, { width: 80, align: 'right' });
 
   const tableY = y + 42;
@@ -101,7 +108,7 @@ function drawMeal(doc, meal, x, y, width) {
   for (const item of items) {
     const totalsForRow = normalizeTotals(item?.totals || totalsForItem(item));
     drawFoodIcon(doc, item?.food, x + 10, rowY + 4, 17);
-    doc.font('Helvetica').fontSize(7.8).fillColor(C.ink).text(item?.food?.name || item?.customFood?.name || 'Food', x + 32, rowY + 8, { width: titleWidth - 25, height: 12, ellipsis: true, lineBreak: false });
+    doc.font('Helvetica').fontSize(7.8).fillColor(C.ink).text(pdfText(item?.food?.name || item?.customFood?.name, INPUT_LIMITS.foodNameLength) || 'Food', x + 32, rowY + 8, { width: titleWidth - 25, height: 12, ellipsis: true, lineBreak: false });
     [ `${fmt(item?.quantityG)}g`, fmt(totalsForRow.calories), `${fmt(totalsForRow.proteinG)}g`, `${fmt(totalsForRow.carbG)}g`, `${fmt(totalsForRow.fatG)}g` ].forEach((value, i) => {
       const col = columns[i + 1];
       doc.font('Helvetica').fontSize(7.5).fillColor(C.ink).text(value, col.x, rowY + 8, { width: col.w - 2, align: 'right', lineBreak: false });
@@ -158,10 +165,8 @@ function drawMealIcon(doc, tag, x, y) {
 }
 
 function drawFoodIcon(doc, food, x, y, size) {
-  const iconPath = food?.id ? path.join(iconsDir, `${food.id}.png`) : '';
-  if (iconPath && fs.existsSync(iconPath)) {
-    let image = imageCache.get(iconPath);
-    if (!image) { image = fs.readFileSync(iconPath); imageCache.set(iconPath, image); }
+  const image = foodIconImage(food?.id);
+  if (image) {
     doc.image(image, x, y, { fit: [size, size] });
     return;
   }
@@ -181,7 +186,7 @@ function foodTone(food) {
 
 function line(doc, x1, y1, x2, y2, width) { doc.moveTo(x1, y1).lineTo(x2, y2).strokeColor(C.border).lineWidth(width).stroke(); }
 function withTimeout(promise, ms, message) { let id; const timer = new Promise((_, reject) => { id = setTimeout(() => reject(Object.assign(new Error(message), { status: 504 })), ms); }); return Promise.race([promise, timer]).finally(() => clearTimeout(id)); }
-function totalsForMeals(meals) { return (meals || []).reduce((a, m) => add(a, normalizeTotals(m.totals || totalsForItems(m.items || []))), zero()); }
+function totalsForMeals(meals) { return (meals || []).reduce((a, m) => add(a, normalizeTotals(m?.totals || totalsForItems(mealItems(m)))), zero()); }
 function totalsForItems(items) { return (items || []).reduce((a, i) => add(a, normalizeTotals(i?.totals || totalsForItem(i))), zero()); }
 function totalsForItem(item) { const food = item?.food || {}; const factor = (Number(item?.quantityG) || 0) / 100; return { calories: (Number(food.caloriesPer100g) || 0) * factor, proteinG: (Number(food.proteinGPer100g) || 0) * factor, carbG: (Number(food.carbGPer100g) || 0) * factor, fatG: (Number(food.fatGPer100g) || 0) * factor }; }
 function zero() { return { calories: 0, proteinG: 0, carbG: 0, fatG: 0 }; }

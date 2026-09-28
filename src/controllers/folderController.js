@@ -49,7 +49,7 @@ async function createFolderHandler(req, res, next) {
     const folder = await createFolder(req.user.id, { name, parentId: parentId || null });
     res.status(201).json({ folder });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 }
@@ -117,7 +117,7 @@ async function savePlanInFolder(req, res, next) {
     });
     res.status(plan.idempotentReplay ? 200 : 201).json({ plan });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 }

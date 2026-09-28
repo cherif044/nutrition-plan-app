@@ -1,4 +1,3 @@
-const MAX_SESSION_MS = 5 * 24 * 60 * 60 * 1000;
 const REQUIRED_PUBLIC_CONFIG = ['apiKey', 'authDomain', 'projectId', 'appId'];
 
 function normalizeEmail(email) {
@@ -55,6 +54,12 @@ function isEmailPasswordProvider(decodedToken) {
   return providerId(decodedToken) === 'password';
 }
 
+// Only these sign-in methods may open an app session. Enabling another
+// provider in Firebase must be a deliberate code change, because the app
+// links accounts by email and an unverified email from some other provider
+// could otherwise claim (squat) a real person's address.
+const ALLOWED_SIGN_IN_PROVIDERS = new Set(['password', 'google.com']);
+
 function assertFirebaseTokenCanAccessApp(decodedToken) {
   if (!decodedToken?.uid) {
     const err = new Error('Invalid Firebase authentication token.');
@@ -62,7 +67,14 @@ function assertFirebaseTokenCanAccessApp(decodedToken) {
     throw err;
   }
 
-  if (isEmailPasswordProvider(decodedToken) && decodedToken.email_verified !== true) {
+  if (!ALLOWED_SIGN_IN_PROVIDERS.has(providerId(decodedToken))) {
+    const err = new Error('This sign-in method is not supported.');
+    err.status = 403;
+    err.code = 'provider-not-allowed';
+    throw err;
+  }
+
+  if (decodedToken.email_verified !== true) {
     const err = new Error('Please verify your email address before continuing.');
     err.status = 403;
     err.code = 'email-not-verified';
@@ -109,7 +121,7 @@ function publicFirebaseConfigFromEnv(env = process.env) {
 }
 
 module.exports = {
-  MAX_SESSION_MS,
+  ALLOWED_SIGN_IN_PROVIDERS,
   assertFirebaseTokenCanAccessApp,
   cleanPrivateKey: require('../config/firebaseAdmin').cleanPrivateKey,
   isEmailPasswordProvider,

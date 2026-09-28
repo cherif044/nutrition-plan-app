@@ -9,6 +9,7 @@ const User = sequelize.define('User', {
   firstname:    { type: DataTypes.STRING(50), allowNull: false },
   lastname:     { type: DataTypes.STRING(50), allowNull: false },
   token_version:{ type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  deletion_pending_at: { type: DataTypes.DATE, allowNull: true },
   created_at:   { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   last_login:   { type: DataTypes.DATE, allowNull: true },
 }, {

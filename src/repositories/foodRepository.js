@@ -1,18 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../utils/logger');
+const { foodIconUrl } = require('../services/foodIcons');
 
 let cache;
 let swapCache;
-const FOOD_ICON_DIR = path.join(__dirname, '..', '..', 'public', 'food-icons');
 const FOOD_SWAPS_PATH = path.join(__dirname, '..', '..', 'used_food_repository', 'food_swaps.json');
-
-function foodIconUrlForId(id) {
-  const fileName = `${id}.png`;
-  return fs.existsSync(path.join(FOOD_ICON_DIR, fileName))
-    ? `/food-icons/${encodeURIComponent(fileName)}`
-    : null;
-}
 
 function loadFoods() {
   if (cache) return cache;
@@ -51,7 +44,7 @@ function normalizeFood(food) {
   return {
     id,
     name: String(food.name),
-    iconUrl: foodIconUrlForId(id),
+    iconUrl: foodIconUrl(id),
     nameAr: food.name_ar ? String(food.name_ar) : '',
     macroRole: String(food.macro_role),
     caloriesPer100g: Number(food.calories_per_100g),

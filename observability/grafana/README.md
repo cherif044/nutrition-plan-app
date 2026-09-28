@@ -36,3 +36,22 @@ each rule in `alerts.yaml`:
 
 - Logs for one request: `{service_name="nutrition-plan-app"} | json | requestId="<id from X-Request-Id>"`
 - All 5xx with stack traces: `{service_name="nutrition-plan-app"} | json | message="Request failed"`
+
+## Security alerts (log-based)
+
+Create these as Loki alert rules in the Grafana UI. Metric-based security
+rules are in `alerts.yaml` (group `nutrition-plan-app-security`).
+
+| Alert | Query | Condition |
+|---|---|---|
+| Auth failures from one client | `sum by (ipHash) (count_over_time({service_name="nutrition-plan-app"} \| json \| message="Rate limit exceeded" or message="Session rejected" [10m]))` | > 30 |
+| Password-reset email abuse | `sum(count_over_time({service_name="nutrition-plan-app"} \| json \| message="Auth client event" and event=~"password_reset_.*" [15m]))` | > 50 |
+| CSP violations (before enforcing the strict CSP) | `sum(count_over_time({service_name="nutrition-plan-app"} \| json \| message="CSP violation" [1h]))` | > 0 |
+| Pending account deletions stuck | `count_over_time({service_name="nutrition-plan-app"} \| json \| message="Pending account deletion failed" [1d])` | > 0 |
+| Backup job failed | GitHub Actions failure notification for the backup workflow (see `docs/runbooks/restore.md`) | any |
+
+Log retention: set the Loki retention for this stack to 30 days (Grafana
+Cloud → Stack → Logs → Retention). Logs contain hashed IPs only.
+
+After creating the rules, send one labelled test alert to yourself
+(Alerting → Contact points → Test) and confirm it arrives.

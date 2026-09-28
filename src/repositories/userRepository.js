@@ -11,6 +11,7 @@ const PUBLIC_USER_ATTRIBUTES = [
   'firstname',
   'lastname',
   'token_version',
+  'deletion_pending_at',
   'created_at',
   'last_login',
 ];
@@ -51,11 +52,6 @@ async function incrementTokenVersion(id) {
     { token_version: sequelize.literal('token_version + 1') },
     { where: { id } },
   );
-  return count > 0;
-}
-
-async function deleteUser(id) {
-  const count = await User.destroy({ where: { id } });
   return count > 0;
 }
 
@@ -111,9 +107,12 @@ async function syncFirebaseUser(profile) {
     });
 
     if (uidUser) {
-      if (email && uidUser.email && uidUser.email !== email) {
+      // The stored email only ever changes to an address the provider has
+      // verified, so an unverified token cannot rewrite it.
+      const nextEmail = profile.emailVerified === true ? email : uidUser.email;
+      if (nextEmail && uidUser.email && uidUser.email !== nextEmail) {
         const existingEmailUser = await User.findOne({
-          where: { email, id: { [Op.ne]: uidUser.id } },
+          where: { email: nextEmail, id: { [Op.ne]: uidUser.id } },
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
@@ -125,7 +124,7 @@ async function syncFirebaseUser(profile) {
       }
 
       await uidUser.update({
-        email,
+        email: nextEmail,
         firstname: profile.firstname || uidUser.firstname || 'User',
         lastname: profile.lastname ?? uidUser.lastname ?? '',
         last_login: new Date(),
@@ -163,6 +162,13 @@ async function syncFirebaseUser(profile) {
       return reloadPublicUser(emailUser, transaction);
     }
 
+    if (profile.emailVerified !== true) {
+      const err = new Error('Please verify your email address before continuing.');
+      err.status = 403;
+      err.code = 'email-not-verified';
+      throw err;
+    }
+
     const username = await buildUniqueUsername(profile.usernameSeed || email || firebaseUid, transaction);
     const user = await User.create({
       firebase_uid: firebaseUid,
@@ -183,7 +189,6 @@ module.exports = {
   findUserByEmail,
   updateLastLogin,
   incrementTokenVersion,
-  deleteUser,
   syncFirebaseUser,
   usernameBaseFromSeed,
 };

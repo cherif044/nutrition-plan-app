@@ -1,0 +1,5 @@
+# Changes to agent configuration can run code on developer machines (N22).
+/.claude/  @cherif044
+/.codex/   @cherif044
+/.agents/  @cherif044
+/.github/  @cherif044

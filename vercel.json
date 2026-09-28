@@ -52,5 +52,11 @@
       "includeFiles": "{public/food-icons/**,node_modules/pdfkit/js/standard-fonts/**,node_modules/pdfkit/js/data/**}",
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/finish-deletions",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

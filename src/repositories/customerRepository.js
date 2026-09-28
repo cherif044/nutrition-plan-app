@@ -1,6 +1,9 @@
 const sequelize = require('../config/database');
 const { Op, fn, col, where } = require('sequelize');
 const { Customer, Plan } = require('../models');
+const { customerBody } = require('../validation/schemas');
+const { likePattern } = require('./likePattern');
+const { assertCanAddCustomer } = require('./accountQuotas');
 
 const PROFILE_FIELD_MAP = Object.freeze({
   age: 'age',
@@ -25,21 +28,23 @@ function normalizedNameWhere(name) {
   return where(fn('lower', fn('btrim', col('name'))), normalizeCustomerName(name));
 }
 
-function customerProfileFromInput(input = {}) {
-  return {
-    age: nullableNumber(input.age, { integer: true }),
-    sex: input.sex || null,
-    weight: nullableNumber(input.weightKg ?? input.weight),
-    height: nullableNumber(input.heightCm ?? input.height),
-    activity_level: input.activityLevel || input.activity_level || null,
-  };
+// Every write path (the customer routes and plan saves) goes through the same
+// bounds as customerBody. A value outside them is stored as unknown (null)
+// rather than as-is, so a plan save can never write age 999 or weight -1.
+function boundedField(schema, value) {
+  const result = schema.safeParse(value);
+  return result.success && result.data !== '' && result.data !== undefined ? result.data : null;
 }
 
-function nullableNumber(value, { integer = false } = {}) {
-  if (value === undefined || value === null || value === '') return null;
-  const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  return integer ? Math.round(number) : number;
+function customerProfileFromInput(input = {}) {
+  const { shape } = customerBody;
+  return {
+    age: boundedField(shape.age, input.age),
+    sex: boundedField(shape.sex, input.sex),
+    weight: boundedField(shape.weightKg, input.weightKg ?? input.weight),
+    height: boundedField(shape.heightCm, input.heightCm ?? input.height),
+    activity_level: boundedField(shape.activityLevel, input.activityLevel ?? input.activity_level),
+  };
 }
 
 function profileUpdatesFromTouched(input = {}, touchedFields = []) {
@@ -100,6 +105,7 @@ async function resolveCustomerForPlan(userId, selection = null, planInput = {}, 
     return { customer: existing, matchedExisting: true };
   }
 
+  await assertCanAddCustomer(userId, transaction);
   const customer = await Customer.create({
     user_id: userId,
     name,
@@ -124,8 +130,9 @@ async function listCustomers(userId, { query = '', limit = 25 } = {}) {
   const normalized = normalizeCustomerName(query);
   if (normalized) {
     whereClause[Op.and] = [
+      // %, _ and \\ in the search are matched literally, not as wildcards.
       where(fn('lower', fn('btrim', col('name'))), {
-        [Op.like]: `%${normalized}%`,
+        [Op.like]: likePattern(normalized),
       }),
     ];
   }
@@ -144,46 +151,17 @@ function customerListLimit(value) {
   return Math.min(Math.round(limit), 100);
 }
 
-async function listCustomersWithPlanSummary(userId) {
-  const [customers, plans] = await Promise.all([
-    Customer.findAll({
-      where: { user_id: userId },
-      attributes: ['id', 'name', 'age', 'sex', 'weight', 'height', 'activity_level', 'created_at', 'updated_at'],
-      order: [['name', 'ASC']],
-    }),
-    Plan.findAll({
-      where: { user_id: userId },
-      attributes: ['id', 'customer_id', 'name', 'updated_at', 'created_at'],
-      order: [['updated_at', 'DESC'], ['created_at', 'DESC']],
-    }),
-  ]);
-
-  const plansByCustomer = new Map();
-  for (const plan of plans.map((p) => p.toJSON())) {
-    if (!plan.customer_id) continue;
-    const key = String(plan.customer_id);
-    if (!plansByCustomer.has(key)) plansByCustomer.set(key, []);
-    plansByCustomer.get(key).push(plan);
-  }
-
-  return customers.map((customer) => {
-    const data = customer.toJSON();
-    const customerPlans = plansByCustomer.get(String(data.id)) || [];
-    return {
-      ...data,
-      planCount: customerPlans.length,
-    };
-  });
-}
-
 async function createCustomer(userId, input = {}) {
   const name = cleanCustomerName(input.name);
   if (!name) throw Object.assign(new Error('Customer name is required.'), { status: 400 });
 
-  return Customer.create({
-    user_id: userId,
-    name,
-    ...customerProfileFromInput(input),
+  return sequelize.transaction(async (transaction) => {
+    await assertCanAddCustomer(userId, transaction);
+    return Customer.create({
+      user_id: userId,
+      name,
+      ...customerProfileFromInput(input),
+    }, { transaction });
   });
 }
 
@@ -277,7 +255,6 @@ module.exports = {
   getCustomer,
   updateCustomer,
   listCustomers,
-  listCustomersWithPlanSummary,
   getCustomerPlans,
   deleteCustomer,
 };
