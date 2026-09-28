@@ -328,6 +328,19 @@ const dependencyDuration = histogram({
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
 });
 
+const webVitalDuration = histogram({
+  name: 'nutrition_web_vital_seconds',
+  help: 'Real-user page timing from the browser (LCP, FCP, TTFB, INP, page load).',
+  labelNames: ['metric', 'page'],
+  buckets: [0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10, 20],
+});
+const webVitalLayoutShift = histogram({
+  name: 'nutrition_web_vital_cls',
+  help: 'Real-user cumulative layout shift score.',
+  labelNames: ['page'],
+  buckets: [0, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 1],
+});
+
 const METRIC_PHASES = Object.freeze({
   authJwtMs: 'auth_jwt',
   authUserLookupMs: 'auth_user_lookup',
@@ -347,8 +360,12 @@ const KNOWN_HTTP_ROUTES = new Set([
   '/api/auth/firebase-config', '/api/auth/session', '/api/auth/register',
   '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/dashboard',
   '/api/customers', '/api/customers/match', '/api/folders', '/api/folders/tree',
-  '/api/plans',
+  '/api/plans', '/api/vitals',
 ]);
+const WEB_VITAL_TIMINGS = Object.freeze({
+  lcp: 'lcp', fcp: 'fcp', ttfb: 'ttfb', inp: 'inp', load: 'load',
+});
+const WEB_VITAL_PAGES = new Set(['/', '/login', '/register', '/dashboard', '/planner', '/explorer']);
 const DB_QUERY_STARTED_AT = Symbol('metricsDbQueryStartedAt');
 const DB_POOL_STARTED_AT = Symbol('metricsDbPoolStartedAt');
 
@@ -611,6 +628,33 @@ function recordError(error, statusCode = 500) {
   });
 }
 
+function webVitalPage(value) {
+  const page = String(value || '').split('?')[0];
+  if (WEB_VITAL_PAGES.has(page)) return page;
+  if (/^\/customers\/[^/]+$/.test(page)) return '/customers/:id';
+  return 'other';
+}
+
+// Browser beacons are unauthenticated, so only known metric names and
+// plausible values are accepted; anything else is silently dropped.
+function recordWebVitals(body = {}) {
+  const page = webVitalPage(body.page);
+  const values = body.metrics && typeof body.metrics === 'object' ? body.metrics : {};
+  let recorded = 0;
+  for (const [key, metric] of Object.entries(WEB_VITAL_TIMINGS)) {
+    const milliseconds = Number(values[key]);
+    if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 120000) continue;
+    webVitalDuration.observe({ metric, page }, milliseconds / 1000);
+    recorded += 1;
+  }
+  const cls = Number(values.cls);
+  if (Number.isFinite(cls) && cls >= 0 && cls <= 10) {
+    webVitalLayoutShift.observe({ page }, cls);
+    recorded += 1;
+  }
+  return recorded;
+}
+
 function recordRateLimit(scope) {
   const safeScope = ['api', 'auth', 'generation', 'pdf'].includes(scope) ? scope : 'other';
   rateLimitExceeded.inc({ scope: safeScope });
@@ -698,6 +742,7 @@ module.exports = {
   recordPdfExport,
   recordPlannerOperation,
   recordRateLimit,
+  recordWebVitals,
   registry,
   setGenerationPoolMetrics,
   shutdownMetrics: otel.shutdown,

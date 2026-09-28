@@ -1,8 +1,11 @@
 const { metrics } = require('@opentelemetry/api');
 const { randomUUID } = require('crypto');
 const { performance } = require('perf_hooks');
+const { SeverityNumber } = require('@opentelemetry/api-logs');
+const { OTLPLogExporter } = require('@opentelemetry/exporter-logs-otlp-proto');
 const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-proto');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
+const { BatchLogRecordProcessor, LoggerProvider } = require('@opentelemetry/sdk-logs');
 const { MeterProvider, PeriodicExportingMetricReader } = require('@opentelemetry/sdk-metrics');
 const { ATTR_SERVICE_NAME, ATTR_DEPLOYMENT_ENVIRONMENT_NAME } = require('@opentelemetry/semantic-conventions');
 
@@ -15,6 +18,8 @@ const exportTimeoutMs = Math.max(Number(process.env.OTEL_METRIC_EXPORT_TIMEOUT_M
 
 let provider = null;
 let meter = null;
+let loggerProvider = null;
+let otelLogger = null;
 let pendingFlush = null;
 let lastFlushStartedAt = 0;
 
@@ -26,20 +31,30 @@ if (configured) {
     exportTimeoutMillis: exportTimeoutMs,
     cardinalityLimits: { default: 500 },
   });
-  provider = new MeterProvider({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: serviceName,
-      // Each serverless instance exports its own cumulative series; a unique
-      // instance id keeps concurrent instances from overwriting each other.
-      'service.instance.id': randomUUID(),
-      [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: String(process.env.NODE_ENV || 'development'),
-      'cloud.platform': process.env.VERCEL ? 'vercel' : 'unknown',
-      'cloud.region': process.env.VERCEL_REGION || 'unknown',
-    }),
-    readers: [reader],
+  const resource = resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: serviceName,
+    // Each serverless instance exports its own cumulative series; a unique
+    // instance id keeps concurrent instances from overwriting each other.
+    'service.instance.id': randomUUID(),
+    [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: String(process.env.NODE_ENV || 'development'),
+    'cloud.platform': process.env.VERCEL ? 'vercel' : 'unknown',
+    'cloud.region': process.env.VERCEL_REGION || 'unknown',
   });
+  provider = new MeterProvider({ resource, readers: [reader] });
   metrics.setGlobalMeterProvider(provider);
   meter = provider.getMeter(serviceName, '1.0.0');
+
+  if (process.env.OTEL_LOGS_ENABLED !== 'false') {
+    loggerProvider = new LoggerProvider({
+      resource,
+      processors: [new BatchLogRecordProcessor({
+        exporter: new OTLPLogExporter(),
+        maxQueueSize: 2048,
+        exportTimeoutMillis: exportTimeoutMs,
+      })],
+    });
+    otelLogger = loggerProvider.getLogger(serviceName, '1.0.0');
+  }
 
   const runtimeLabels = { runtime: 'nodejs' };
   const observeGauge = (name, description, read) => {
@@ -108,26 +123,57 @@ function createGauge(config) {
 
 async function forceFlush() {
   if (!provider) return;
-  await provider.forceFlush({ timeoutMillis: exportTimeoutMs });
+  await Promise.all([
+    provider.forceFlush({ timeoutMillis: exportTimeoutMs }),
+    loggerProvider?.forceFlush(),
+  ]);
 }
 
 function reportExportError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  console.error('OTLP metric export failed', { message: message.slice(0, 300) });
+  console.error('OTLP export failed', { message: message.slice(0, 300) });
 }
 
-function scheduleFlush() {
+function flushLogs() {
+  if (!loggerProvider) return Promise.resolve();
+  return loggerProvider.forceFlush().catch(reportExportError);
+}
+
+function flushMetrics() {
   if (!provider) return Promise.resolve();
   const now = Date.now();
   if (pendingFlush) return pendingFlush;
   if (now - lastFlushStartedAt < flushIntervalMs) return Promise.resolve();
 
   lastFlushStartedAt = now;
-  pendingFlush = forceFlush()
+  pendingFlush = provider.forceFlush({ timeoutMillis: exportTimeoutMs })
     .catch(reportExportError)
     .finally(() => { pendingFlush = null; });
 
   return pendingFlush;
+}
+
+// Metrics are cumulative, so throttling their export loses nothing. Logs are
+// flushed after every request because a frozen serverless instance would
+// otherwise hold them until its next invocation, or drop them entirely.
+function scheduleFlush() {
+  return Promise.all([flushMetrics(), flushLogs()]);
+}
+
+const SEVERITY = Object.freeze({
+  info: SeverityNumber.INFO,
+  warn: SeverityNumber.WARN,
+  error: SeverityNumber.ERROR,
+});
+
+function emitLog(level, body, attributes = {}) {
+  if (!otelLogger) return;
+  otelLogger.emit({
+    severityNumber: SEVERITY[level] || SeverityNumber.INFO,
+    severityText: level.toUpperCase(),
+    body,
+    attributes,
+  });
 }
 
 function registerRequestFlush(res) {
@@ -144,7 +190,7 @@ function registerRequestFlush(res) {
       res.once('close', finish);
     });
     // Register while Vercel's request context is active, then export after
-    // Express has recorded the completed request metrics.
+    // Express has recorded the completed request metrics and logs.
     waitUntil(responseFinished.then(() => scheduleFlush()));
   } catch (error) {
     // Local and long-running servers have no Vercel request context. Their
@@ -156,7 +202,10 @@ function registerRequestFlush(res) {
 async function shutdown() {
   if (!provider) return;
   if (pendingFlush) await pendingFlush;
-  await provider.shutdown({ timeoutMillis: exportTimeoutMs });
+  await Promise.all([
+    provider.shutdown({ timeoutMillis: exportTimeoutMs }),
+    loggerProvider?.shutdown(),
+  ]);
 }
 
 module.exports = {
@@ -164,6 +213,7 @@ module.exports = {
   createCounter,
   createGauge,
   createHistogram,
+  emitLog,
   forceFlush,
   registerRequestFlush,
   scheduleFlush,

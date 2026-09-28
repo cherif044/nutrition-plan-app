@@ -19,6 +19,7 @@ const {
   httpMetricsMiddleware,
   metricsHandler,
   recordRateLimit,
+  recordWebVitals,
 } = require('./utils/metrics');
 
 const app = express();
@@ -41,7 +42,7 @@ function requestId(req, res, next) {
 
 function shouldLogRequest(req, statusCode) {
   if (statusCode >= 400) return true;
-  if (req.path === '/metrics') return false;
+  if (req.path === '/metrics' || req.path === '/api/vitals') return false;
   if (req.path.startsWith('/food-icons/')) return false;
   return !/\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/i.test(req.path);
 }
@@ -249,6 +250,10 @@ app.get('/readyz', async (_req, res) => {
 });
 
 app.use('/api', apiLimiter);
+app.post('/api/vitals', (req, res) => {
+  recordWebVitals(req.body);
+  res.status(204).end();
+});
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/customers', customerRoutes);
