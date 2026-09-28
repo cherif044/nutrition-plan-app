@@ -16,6 +16,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE
   ON users, folders, plans, customers, sessions, rate_limits
   TO app_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_runtime;
+-- Tables and sequences created by later migrations (run as the owner).
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO app_runtime;
 
 -- Safety limits live on the runtime role (moved from migration 007, which
 -- set them on whichever role ran it).
