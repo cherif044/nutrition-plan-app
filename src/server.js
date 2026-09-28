@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const sequelize = require('./config/database');
+const { closeGenerationPool } = require('./services/planGenerationPool');
 const { logger } = require('./utils/logger');
 
 const port = process.env.PORT || 3000;
@@ -48,6 +49,8 @@ function shutdown(signal) {
 
   const closeDatabase = async () => {
     try {
+      await closeGenerationPool();
+      logger.info('Plan generation workers closed');
       await sequelize.close();
       logger.info('Database connection closed');
       clearTimeout(forceExit);

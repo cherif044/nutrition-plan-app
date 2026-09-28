@@ -1,9 +1,9 @@
 const { getPreferenceOptions } = require('../config/preferenceTaxonomy');
 const {
-  generatePlan,
   getFoods,
   rebalanceMeal,
 } = require('../services/planGenerator');
+const { generatePlanInWorker } = require('../services/planGenerationPool');
 const { getSwapSuggestions } = require('../services/foodSwapService');
 const { logger } = require('../utils/logger');
 
@@ -83,12 +83,12 @@ function getPreferences(_req, res, next) {
   }
 }
 
-function generatePlanHandler(req, res, next) {
+async function generatePlanHandler(req, res, next) {
   const generatorTraceEvents = [];
   try {
     const timelineId = timelineIdFromRequest(req);
     const generationStartedAt = process.hrtime.bigint();
-    const plan = generatePlan(req.body, {
+    const plan = await generatePlanInWorker(req.body, {
       requestId: req.id,
       timelineId,
       traceEvents: generatorTraceEvents,
@@ -114,6 +114,9 @@ function generatePlanHandler(req, res, next) {
     res.json(plan);
   } catch (error) {
     logGeneratorTraceEvents(generatorTraceEvents);
+    if (error.code === 'generation-overloaded' || error.code === 'generation-queue-timeout') {
+      res.setHeader('Retry-After', '1');
+    }
     next(error);
   }
 }
