@@ -70,7 +70,28 @@ async function health(req, res, next) {
     try {
       const otel = require('../utils/otelMetrics');
       await otel.forceFlush();
-      res.json({ status: 'ok', metricsConfigured: otel.configured, metricsFlushed: true });
+      const endpoint = String(process.env.OTEL_EXPORTER_OTLP_ENDPOINT || '').replace(/\/$/, '');
+      const headerText = String(process.env.OTEL_EXPORTER_OTLP_HEADERS || '');
+      const headers = Object.fromEntries(headerText.split(',').map((entry) => {
+        const separator = entry.indexOf('=');
+        return separator < 0 ? ['', ''] : [
+          entry.slice(0, separator).trim(),
+          decodeURIComponent(entry.slice(separator + 1).trim()),
+        ];
+      }).filter(([name]) => name));
+      const probe = await fetch(`${endpoint}/v1/metrics`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/x-protobuf' },
+        body: Buffer.from([0x0a, 0x00]),
+      });
+      res.json({
+        status: 'ok',
+        metricsConfigured: otel.configured,
+        metricsFlushed: true,
+        endpointValid: endpoint.startsWith('https://'),
+        authorizationPresent: Object.keys(headers).some((name) => name.toLowerCase() === 'authorization'),
+        probeStatus: probe.status,
+      });
     } catch (error) {
       next(error);
     }
