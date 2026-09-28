@@ -316,16 +316,28 @@ const configuredWorkerCount = positiveInteger(
   defaultWorkerCount(),
 );
 
-const generationPool = new PlanGenerationPool({
-  workerCount: configuredWorkerCount,
-  maxQueue: positiveInteger(process.env.GENERATION_MAX_QUEUE, configuredWorkerCount * 4),
-  jobTimeoutMs: positiveInteger(process.env.GENERATION_TIMEOUT_MS, 15000),
-});
+function createGenerationPool() {
+  return new PlanGenerationPool({
+    workerCount: configuredWorkerCount,
+    maxQueue: positiveInteger(process.env.GENERATION_MAX_QUEUE, configuredWorkerCount * 4),
+    jobTimeoutMs: positiveInteger(process.env.GENERATION_TIMEOUT_MS, 15000),
+  });
+}
+
+// Started at load so workers are warm before the first request. After
+// closeGenerationPool() a later call starts a fresh pool instead of failing,
+// so one caller's shutdown (e.g. a test file) cannot break the next one.
+let generationPool = createGenerationPool();
+
+function currentPool() {
+  if (!generationPool) generationPool = createGenerationPool();
+  return generationPool;
+}
 
 async function generatePlanInWorker(input, options = {}) {
   const { traceEvents, ...workerOptions } = options;
   try {
-    const result = await generationPool.run(input, workerOptions);
+    const result = await currentPool().run(input, workerOptions);
     if (Array.isArray(traceEvents)) traceEvents.push(...result.traceEvents);
     return result.plan;
   } catch (error) {
@@ -337,11 +349,13 @@ async function generatePlanInWorker(input, options = {}) {
 }
 
 function closeGenerationPool() {
-  return generationPool.close();
+  const pool = generationPool;
+  generationPool = null;
+  return pool ? pool.close() : Promise.resolve();
 }
 
 function generationPoolStats() {
-  return generationPool.stats();
+  return currentPool().stats();
 }
 
 module.exports = {
