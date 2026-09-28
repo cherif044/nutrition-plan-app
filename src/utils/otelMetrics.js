@@ -120,25 +120,25 @@ function scheduleFlush() {
 }
 
 function registerRequestFlush(res) {
-  if (!provider || !process.env.VERCEL) return;
-  if (process.env.VERCEL) {
-    try {
-      const { waitUntil } = require('@vercel/functions');
-      const responseFinished = new Promise((resolve) => {
-        if (res.writableFinished) {
-          resolve();
-          return;
-        }
-        const finish = () => resolve();
-        res.once('finish', finish);
-        res.once('close', finish);
-      });
-      // Register while Vercel's request context is active, then export after
-      // Express has recorded the completed request metrics.
-      waitUntil(responseFinished.then(() => scheduleFlush()));
-    } catch (error) {
-      reportExportError(error);
-    }
+  if (!provider) return;
+  try {
+    const { waitUntil } = require('@vercel/functions');
+    const responseFinished = new Promise((resolve) => {
+      if (res.writableFinished) {
+        resolve();
+        return;
+      }
+      const finish = () => resolve();
+      res.once('finish', finish);
+      res.once('close', finish);
+    });
+    // Register while Vercel's request context is active, then export after
+    // Express has recorded the completed request metrics.
+    waitUntil(responseFinished.then(() => scheduleFlush()));
+  } catch (error) {
+    // Local and long-running servers have no Vercel request context. Their
+    // periodic reader remains active, so this is only actionable in production.
+    if (process.env.NODE_ENV === 'production') reportExportError(error);
   }
 }
 
