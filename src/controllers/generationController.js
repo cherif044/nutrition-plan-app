@@ -90,6 +90,12 @@ async function health(req, res, next) {
         metricsFlushed: true,
         endpointValid: endpoint.startsWith('https://'),
         authorizationPresent: Object.keys(headers).some((name) => name.toLowerCase() === 'authorization'),
+        headerHasVariableName: headerText.includes('OTEL_EXPORTER_OTLP_HEADERS'),
+        headerStartsWithQuote: /^["']/.test(headerText),
+        headerStartsWithExport: /^export\s/.test(headerText),
+        headerStartsWithBasic: /^Basic(?:%20|\s)/i.test(headerText),
+        headerStartsWithBase64: /^base64\(/i.test(headerText),
+        headerLength: headerText.length,
         probeStatus: probe.status,
       });
     } catch (error) {
