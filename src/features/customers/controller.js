@@ -1,0 +1,75 @@
+const {
+  createCustomer,
+  getCustomer,
+  listCustomers,
+  updateCustomer,
+  getCustomerPlans,
+  deleteCustomer,
+} = require('./repository');
+
+async function listCustomersHandler(req, res, next) {
+  try {
+    const customers = await listCustomers(req.user.id, {
+      query: req.validatedQuery.query || '',
+      limit: req.validatedQuery.limit,
+    });
+    res.json({ customers });
+  } catch (err) { next(err); }
+}
+
+async function createCustomerHandler(req, res, next) {
+  try {
+    const customer = await createCustomer(req.user.id, req.body || {});
+    res.status(201).json({ customer });
+  } catch (err) {
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+}
+
+async function getCustomerHandler(req, res, next) {
+  try {
+    const customer = await getCustomer(req.user.id, req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    return res.json({ customer });
+  } catch (err) { return next(err); }
+}
+
+async function updateCustomerHandler(req, res, next) {
+  try {
+    const customer = await updateCustomer(req.user.id, req.params.id, req.body || {});
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    return res.json({ customer });
+  } catch (err) {
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+}
+
+async function getCustomerPlansHandler(req, res, next) {
+  try {
+    const data = await getCustomerPlans(req.user.id, req.params.id, {
+      page: req.validatedQuery.page,
+      pageSize: req.validatedQuery.pageSize,
+    });
+    if (!data) return res.status(404).json({ error: 'Customer not found.' });
+    res.json({ customer: data.customer, plans: data.plans, pagination: data.pagination });
+  } catch (err) { next(err); }
+}
+
+async function deleteCustomerHandler(req, res, next) {
+  try {
+    const ok = await deleteCustomer(req.user.id, req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Customer not found.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+module.exports = {
+  listCustomersHandler,
+  createCustomerHandler,
+  getCustomerHandler,
+  updateCustomerHandler,
+  getCustomerPlansHandler,
+  deleteCustomerHandler,
+};

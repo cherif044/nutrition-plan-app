@@ -291,10 +291,7 @@ function getPreferenceOptions(foods) {
   }));
   const options = [...categoryOptions, ...foodOptions].sort(preferenceOptionSort);
 
-  return {
-    allergyOptions: options,
-    dislikeOptions: options,
-  };
+  return { avoidFoodOptions: options };
 }
 
 function buildCategoryOptions(foods) {

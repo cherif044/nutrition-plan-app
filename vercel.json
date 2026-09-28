@@ -34,7 +34,7 @@
       ]
     },
     {
-      "source": "/js/(app|dashboard|auth|customer).js",
+      "source": "/js/(.*).js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -45,7 +45,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{used_food_repository/**,public/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}",
+      "includeFiles": "{used_food_repository/foods.json,public/**,ready_meals/meals.json,node_modules/zxcvbn/dist/zxcvbn.js}",
       "maxDuration": 60
     },
     "api/plan-export.js": {

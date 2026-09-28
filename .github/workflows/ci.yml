@@ -23,16 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - name: Security and unit specs
-        run: >-
-          npx playwright test
-          tests/auth-sessions.spec.js
-          tests/security-hardening.spec.js
-          tests/plan-generation-pool.spec.js
-          tests/food-swap-service.spec.js
-          tests/metrics.spec.js
-          tests/otel-metrics.spec.js
+      - name: Lint, security, unit, route-contract, and browser tests
+        run: npm test
       - name: Dependency audit (production dependencies)
         # Accepted advisories are listed in docs/security-exceptions.md.
         run: npm audit --omit=dev --audit-level=high

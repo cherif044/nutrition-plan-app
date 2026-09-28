@@ -5,12 +5,11 @@ const compression = require('compression');
 const helmet = require('helmet');
 const { timingSafeEqual } = require('crypto');
 
-const generationRoutes = require('./routes/generationRoutes');
-const authRoutes = require('./routes/authRoutes');
-const folderRoutes = require('./routes/folderRoutes');
-const planRoutes = require('./routes/planRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const customerRoutes = require('./routes/customerRoutes');
+const generationRoutes = require('./features/planner/routes');
+const authRoutes = require('./features/auth/routes');
+const planRoutes = require('./features/plans/routes');
+const dashboardRoutes = require('./features/dashboard/routes');
+const customerRoutes = require('./features/customers/routes');
 const sequelize = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requireAuth } = require('./middleware/auth');
@@ -150,7 +149,7 @@ app.use(compression({
 
 // Only saving a plan carries a large document; every other endpoint needs a
 // few kilobytes, so the parser refuses anything bigger before it is read.
-const PLAN_SAVE_PATH = /^\/api\/(?:plans(?:\/\d+)?|folders\/\d+\/plans)\/?$/;
+const PLAN_SAVE_PATH = /^\/api\/plans(?:\/\d+)?\/?$/;
 const planBodyParser = express.json({ limit: INPUT_LIMITS.planBodyBytes });
 const defaultBodyParser = express.json({ limit: INPUT_LIMITS.defaultBodyBytes });
 app.use((req, res, next) => (
@@ -254,7 +253,6 @@ app.get('/api/internal/finish-deletions', async (req, res, next) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/folders', folderRoutes);
 
 // Expensive and state-changing routes authenticate first, so their limits
 // are counted per account (see rateLimits.js), then fail closed.
@@ -292,9 +290,7 @@ app.get('/', (_req, res) => sendPage(res, 'index.html'));
 app.get('/login', (_req, res) => sendPage(res, 'login.html'));
 app.get('/register', (_req, res) => sendPage(res, 'register.html'));
 app.get('/dashboard', (_req, res) => sendPage(res, 'dashboard.html'));
-app.get('/customers/:id', (_req, res) => sendPage(res, 'customer.html'));
 app.get('/planner', (_req, res) => sendPage(res, 'planner.html'));
-app.get('/explorer', (_req, res) => sendPage(res, 'explorer.html'));
 app.get('/account', (_req, res) => sendPage(res, 'account.html'));
 
 app.use(errorHandler);

@@ -224,7 +224,7 @@ gauge({
 const generationJobs = counter({
   name: 'nutrition_generation_jobs_total',
   help: 'Plan generation jobs by outcome and bounded input dimensions.',
-  labelNames: ['outcome', 'diet', 'meal_count', 'ramadan'],
+  labelNames: ['outcome', 'meal_count'],
 });
 const generationDuration = histogram({
   name: 'nutrition_generation_duration_seconds',
@@ -358,25 +358,24 @@ const METRIC_PHASES = Object.freeze({
   planGenerationMs: 'plan_generation_total',
   planSaveDbMs: 'plan_save_database',
 });
-const VALID_DIETS = new Set(['standard', 'vegetarian', 'vegan']);
-const VALID_MEAL_TAGS = new Set(['breakfast', 'snack', 'lunch', 'dinner', 'iftar', 'suhoor', 'main', 'main_meal']);
+const VALID_MEAL_TAGS = new Set(['breakfast', 'snack', 'lunch', 'dinner', 'main', 'main_meal']);
 const VALID_DB_OPERATIONS = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'UPSERT', 'BULKUPDATE', 'BULKDELETE', 'RAW']);
-const VALID_DB_MODELS = new Set(['User', 'Customer', 'Folder', 'Plan']);
+const VALID_DB_MODELS = new Set(['User', 'Customer', 'Plan']);
 const KNOWN_HTTP_ROUTES = new Set([
-  '/', '/login', '/register', '/dashboard', '/planner', '/explorer', '/account',
+  '/', '/login', '/register', '/dashboard', '/planner', '/account',
   '/livez', '/readyz', '/metrics',
   '/api/health', '/api/foods', '/api/preferences', '/api/generate-plan',
   '/api/generation-timeline', '/api/rebalance-meal', '/api/swap-suggestions',
   '/api/dashboard/customers', '/api/dashboard/plans',
   '/api/auth/firebase-config', '/api/auth/session',
   '/api/auth/logout', '/api/auth/logout-all', '/api/auth/client-event', '/api/auth/me', '/api/dashboard',
-  '/api/customers', '/api/customers/match', '/api/folders', '/api/folders/tree',
+  '/api/customers',
   '/api/plans', '/api/vitals',
 ]);
 const WEB_VITAL_TIMINGS = Object.freeze({
   lcp: 'lcp', fcp: 'fcp', ttfb: 'ttfb', inp: 'inp', load: 'load',
 });
-const WEB_VITAL_PAGES = new Set(['/', '/login', '/register', '/dashboard', '/planner', '/explorer']);
+const WEB_VITAL_PAGES = new Set(['/', '/login', '/register', '/dashboard', '/planner', '/account']);
 const DB_QUERY_STARTED_AT = Symbol('metricsDbQueryStartedAt');
 const DB_POOL_STARTED_AT = Symbol('metricsDbPoolStartedAt');
 
@@ -410,14 +409,9 @@ function normalizeRoute(req) {
   if (KNOWN_HTTP_ROUTES.has(pathname)) return pathname;
   const patterns = [
     [/^\/api\/plans\/[^/]+\/export\.pdf$/, '/api/plans/:id/export.pdf'],
-    [/^\/api\/plans\/[^/]+\/duplicate$/, '/api/plans/:id/duplicate'],
     [/^\/api\/plans\/[^/]+$/, '/api/plans/:id'],
     [/^\/api\/customers\/[^/]+\/plans$/, '/api/customers/:id/plans'],
     [/^\/api\/customers\/[^/]+$/, '/api/customers/:id'],
-    [/^\/api\/folders\/[^/]+\/breadcrumb$/, '/api/folders/:id/breadcrumb'],
-    [/^\/api\/folders\/[^/]+\/plans$/, '/api/folders/:id/plans'],
-    [/^\/api\/folders\/[^/]+$/, '/api/folders/:id'],
-    [/^\/customers\/[^/]+$/, '/customers/:id'],
   ];
   for (const [pattern, normalized] of patterns) {
     if (pattern.test(pathname)) return normalized;
@@ -504,19 +498,14 @@ function attachHttpServerMetrics(server) {
 }
 
 function normalizeGenerationDimensions(input = {}) {
-  const diet = String(input.dietType || 'standard').toLowerCase();
   const mealCount = Number(input.numberOfMeals);
   return {
-    diet: VALID_DIETS.has(diet) ? diet : 'unknown',
     meal_count: [2, 3, 4, 5].includes(mealCount) ? String(mealCount) : 'other',
-    ramadan: input.ramadanMode ? 'true' : 'false',
   };
 }
 
 function restrictionCount(input = {}) {
-  return ['allergies', 'dislikes', 'avoidFoods'].reduce((total, key) => (
-    total + (Array.isArray(input[key]) ? input[key].length : 0)
-  ), 0);
+  return Array.isArray(input.avoidFoods) ? input.avoidFoods.length : 0;
 }
 
 function normalizeOutcome(value) {
@@ -642,7 +631,6 @@ function recordError(error, statusCode = 500) {
 function webVitalPage(value) {
   const page = String(value || '').split('?')[0];
   if (WEB_VITAL_PAGES.has(page)) return page;
-  if (/^\/customers\/[^/]+$/.test(page)) return '/customers/:id';
   return 'other';
 }
 

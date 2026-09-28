@@ -1,5 +1,5 @@
 // Every limit enforced on user input, in one place. The planner and dashboard
-// mirror the user-facing ones (see INPUT_LIMITS in public/js/app.js and the
+// mirror the user-facing ones (see INPUT_LIMITS in public/js/planner/app.js and the
 // min/max attributes in the HTML) so people see the limit before the server
 // has to reject anything.
 const INPUT_LIMITS = Object.freeze({
@@ -19,20 +19,12 @@ const INPUT_LIMITS = Object.freeze({
   preferenceTermLength: 60,
 
   planNameLength: 100,
-  folderNameLength: 60,
   customerNameLength: 80,
   clientNameLength: 80,
   personNameLength: 50,
   searchLength: 100,
   foodIdLength: 64,
   foodNameLength: 120,
-
-  customFood: {
-    nameLength: 80,
-    servingGMax: 1000,
-    kcalPer100gMax: 900,
-    macroPer100gMax: 100,
-  },
 
   maxPage: 10000,
   maxPageSize: 50,
@@ -48,8 +40,6 @@ const INPUT_LIMITS = Object.freeze({
   account: {
     plans: 2000,
     customers: 1000,
-    folders: 200,
-    folderDepth: 8,
     planDataBytes: 500 * 1024 * 1024,
   },
 

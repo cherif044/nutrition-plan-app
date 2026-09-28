@@ -6,7 +6,7 @@ process.env.METRICS_ENABLED = 'true';
 process.env.METRICS_TOKEN = 'test-metrics-token';
 
 const app = require('../src/app');
-const { closeGenerationPool } = require('../src/services/planGenerationPool');
+const { closeGenerationPool } = require('../src/features/planner/generationPool');
 const {
   attachDatabaseMetrics,
   normalizeRoute,

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/css/styles.css" />
-    <script src="/js/vitals.js" defer></script>
+    <script src="/js/shared/vitals.js" defer></script>
   </head>
   <body class="dashboard-page account-page">
     <main class="app-shell dashboard-frame">
@@ -82,7 +82,7 @@
             <header class="dashboard-section__header">
               <h2 id="delete-title">Delete account</h2>
             </header>
-            <p>Deletes your login, customers, folders and plans. This cannot be undone.</p>
+            <p>Deletes your login, customers, and plans. This cannot be undone.</p>
             <form class="auth-form" id="delete-form" novalidate>
               <label>
                 <span>Type DELETE to confirm</span>
@@ -101,6 +101,6 @@
       </div>
     </main>
 
-    <script src="/js/account.js?v=security-20260929" type="module"></script>
+    <script src="/js/account/app.js?v=cleanup-20260929" type="module"></script>
   </body>
 </html>

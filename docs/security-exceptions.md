@@ -14,6 +14,6 @@ advisories do not fail the build; anything high or critical does.
 ## Firebase Web SDK (not covered by npm audit)
 
 The browser loads the Firebase JS SDK 10.14.1 from `www.gstatic.com`
-(`public/js/auth.js`, `public/js/account.js`, pinned in the CSP). Check the
+(`public/js/auth/app.js`, `public/js/account/app.js`, pinned in the CSP). Check the
 Firebase JS SDK release notes for security fixes every quarter, and upgrade
 the pinned version in all three places together. Next check: 2026-12-31.

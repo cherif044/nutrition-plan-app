@@ -1,0 +1,3559 @@
+// Ids from the URL end up in fetch paths (including saves), so only plain
+// numeric ids are accepted; anything like "1/../../customers/5" is dropped.
+const plannerCtx = (() => {
+  const p = new URLSearchParams(location.search);
+  const numericId = (name) => {
+    const value = p.get(name);
+    return /^\d{1,18}$/.test(value || '') ? value : null;
+  };
+  const planId = numericId('planId');
+  const customerId = numericId('customerId');
+  const exportPdf = p.get('export') === 'pdf';
+  if (!planId && !customerId) return null;
+  return { planId, customerId, exportPdf };
+})();
+
+function iconSvg(name, size = 16) {
+  const attrs = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`;
+  const icons = {
+    home: '<path d="m3 10 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+    arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    rotate: '<path d="M3 12a9 9 0 0 1 15.5-6.2"/><path d="M18.5 2.5v3.8h-3.8"/>',
+    save: '<path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+    sunrise: '<path d="M12 2v6"/><path d="m5 10-1.5-1.5"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19 10 1.5-1.5"/><path d="M8 18a4 4 0 0 1 8 0"/><path d="M3 22h18"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.3 17.7-1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    apple: '<path d="M12 8c-1-2-3-3-5-2-2.5 1.2-3 5 0 10 1 1.7 2 3 3.5 3 .8 0 1-.4 1.5-.4s.7.4 1.5.4c1.5 0 2.5-1.3 3.5-3 3-5 2.5-8.8 0-10-2-1-4 0-5 2Z"/><path d="M12 8V5"/><path d="M12 5c1.5 0 2.5-1 2.5-2.5"/>',
+    fish: '<path d="M3 12c3-4 7-6 12-6 3 0 6 2 6 6s-3 6-6 6c-5 0-9-2-12-6Z"/><path d="M3 12c1.5 1.5 2 3 2 5"/><path d="M3 12c1.5-1.5 2-3 2-5"/><circle cx="16" cy="10.5" r="0.6" fill="currentColor"/>',
+    bread: '<path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4c0 1.2-1 2-2 2v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-6c-1 0-2-.8-2-2Z"/>',
+    salad: '<path d="M4 13h16a8 8 0 0 1-16 0Z"/><path d="M6 20h12"/><path d="M12 10c0-2 1.5-3.5 3.5-3.5"/><path d="M10 10c-.5-1.5-2-2.5-3.5-2"/>',
+    milk: '<path d="M9 2h6"/><path d="M9 2v3L7 8v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8l-2-3V2"/><path d="M7 13h10"/>',
+    egg: '<path d="M12 2c3.5 0 7 6 7 11a7 7 0 0 1-14 0c0-5 3.5-11 7-11Z"/>',
+    nut: '<path d="M12 3c4 0 7 3.5 7 8s-3 10-7 10-7-5.5-7-10 3-8 7-8Z"/><path d="M12 6v12"/>',
+    oil: '<path d="M10 3h4v3l4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l4-4V3Z"/><path d="M9 16h6"/>',
+    coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z"/><path d="M6 2v2"/><path d="M10 2v2"/><path d="M14 2v2"/>',
+    meat: '<path d="M13.5 3a5.5 5.5 0 0 1 5 8.2c-.6 1.1-1.7 1.8-3 1.9l-.6 2.4-2.6 1.3-1.2-1.2-5.4 5.4a2 2 0 0 1-2.8-2.8l5.4-5.4-1.2-1.2 1.3-2.6 2.4-.6c.1-1.3.8-2.4 1.9-3 .8-.4 1.7-.6 2.8-.4Z"/>',
+    powder: '<path d="M9 4h6a1 1 0 0 1 1 1v3H8V5a1 1 0 0 1 1-1Z"/><path d="M7 8h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M9 13h6"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>',
+    user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
+    sliders: '<path d="M4 6h10"/><path d="M18 6h2"/><path d="M4 12h4"/><path d="M12 12h8"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  };
+  return `<svg ${attrs}>${icons[name] || ''}</svg>`;
+}
+
+// ── Meal + food iconography ──────────────────────────────────────────────────
+// Colour and icon are meaning-bearing: meal type for the card header, food
+// group for each row. Anything unmatched falls back to the neutral plate icon.
+
+const MEAL_ICONS = {
+  breakfast: 'sunrise',
+  snack: 'apple',
+  lunch: 'sun',
+  dinner: 'moon',
+};
+
+function mealIconName(tag) {
+  return MEAL_ICONS[String(tag || '').toLowerCase()] || 'salad';
+}
+
+function mealTypeKey(tag) {
+  const key = String(tag || '').toLowerCase();
+  return MEAL_ICONS[key] ? key : 'other';
+}
+
+// Order matters — the first match wins, so the more specific patterns lead.
+const FOOD_ICON_RULES = [
+  [/whey|protein (powder|concentrate|isolate)|supplement/i, 'powder', 'protein'],
+  [/coffee|espresso|tea\b/i, 'coffee', 'carb'],
+  [/milk|yog(h)?urt|labneh|cheese|cream/i, 'milk', 'protein'],
+  [/egg/i, 'egg', 'protein'],
+  [/fish|tuna|salmon|shrimp|prawn|sardine|seafood/i, 'fish', 'protein'],
+  [/chicken|beef|lamb|turkey|meat|steak|liver|mince/i, 'meat', 'protein'],
+  [/oil|butter|ghee|tahini|mayonnaise/i, 'oil', 'fat'],
+  [/nut|almond|peanut|walnut|cashew|pistachio|seed|sesame|avocado/i, 'nut', 'fat'],
+  [/bread|rice|pasta|oat|cereal|potato|corn|flour|toast|bun|couscous|barley|wheat/i, 'bread', 'carb'],
+  [/apple|banana|orange|berry|berries|grape|melon|mango|date|fruit|peach|pear|kiwi/i, 'apple', 'carb'],
+  [/tomato|lettuce|salad|cucumber|pepper|onion|carrot|spinach|broccoli|vegetable|greens|bean|lentil|chickpea/i, 'salad', 'carb'],
+];
+
+function foodIcon(food) {
+  const name = `${food?.name || ''} ${food?.category || ''}`;
+  for (const [pattern, icon, tone] of FOOD_ICON_RULES) {
+    if (pattern.test(name)) return { icon, tone };
+  }
+  return { icon: 'salad', tone: 'neutral' };
+}
+
+// Icons only exist for catalog ids, so anything else (saved plans can carry
+// arbitrary strings) never turns into a request.
+const FOOD_ICON_ID_PATTERN = /^[a-z0-9_]{1,64}$/;
+const FOOD_ICON_URL_PATTERN = /^\/food-icons\/[a-z0-9_]{1,64}\.png$/;
+
+function foodIconUrl(food) {
+  if (food?.iconUrl && FOOD_ICON_URL_PATTERN.test(food.iconUrl) && !failedFoodImageUrls.has(food.iconUrl)) {
+    return food.iconUrl;
+  }
+  if (food && Object.prototype.hasOwnProperty.call(food, 'iconUrl')) return '';
+  if (!food?.id || food.custom || !FOOD_ICON_ID_PATTERN.test(String(food.id))) return '';
+  const src = `/food-icons/${food.id}.png`;
+  return failedFoodImageUrls.has(src) ? '' : src;
+}
+
+const preloadedFoodImageUrls = new Set();
+const decodedFoodImageUrls = new Set();
+const failedFoodImageUrls = new Set();
+
+function preloadFoodImage(food) {
+  const src = foodIconUrl(food);
+  if (!src || preloadedFoodImageUrls.has(src)) return;
+  preloadedFoodImageUrls.add(src);
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => decodedFoodImageUrls.add(src);
+  img.src = src;
+  img.decode?.()
+    .then(() => decodedFoodImageUrls.add(src))
+    .catch(() => failedFoodImageUrls.add(src));
+}
+
+function preloadFoodImagesFromItems(items) {
+  (items || []).forEach((item) => preloadFoodImage(item.food));
+}
+
+function foodFromPreferenceOption(option) {
+  if (!option || option.type !== 'food') return null;
+  const id = option.foodId || String(option.id || '').replace(/^food:/, '');
+  return foodsById.get(id) || {
+    id,
+    name: option.label,
+    iconUrl: option.iconUrl || null,
+    categories: option.aliases || [],
+  };
+}
+
+function setFoodMedia(el, food, fallbackSize = 15) {
+  if (!el) return;
+
+  const { icon, tone } = foodIcon(food);
+  const src = foodIconUrl(food);
+  const mediaKey = src ? `img:${src}:${tone}` : `icon:${icon}:${tone}:${fallbackSize}`;
+  if (el.dataset.mediaKey === mediaKey) return;
+  el.dataset.mediaKey = mediaKey;
+  el.dataset.tone = tone;
+
+  const renderFallback = () => {
+    if (el.dataset.mediaKey !== mediaKey) return;
+    el.classList.remove('food-icon--image');
+    el.innerHTML = iconSvg(icon, fallbackSize);
+  };
+
+  if (!src) {
+    renderFallback();
+    return;
+  }
+
+  const img = document.createElement('img');
+  img.alt = '';
+  img.loading = 'eager';
+  img.decoding = 'async';
+  img.addEventListener('error', () => {
+    failedFoodImageUrls.add(src);
+    renderFallback();
+  }, { once: true });
+  const showImage = () => {
+    if (el.dataset.mediaKey !== mediaKey) return;
+    el.classList.add('food-icon--image');
+    el.replaceChildren(img);
+  };
+
+  if (decodedFoodImageUrls.has(src)) {
+    img.src = src;
+    showImage();
+    return;
+  }
+
+  if (!el.firstChild) renderFallback();
+  img.addEventListener('load', () => {
+    decodedFoodImageUrls.add(src);
+    showImage();
+  }, { once: true });
+  img.src = src;
+  img.decode?.()
+    .then(() => {
+      decodedFoodImageUrls.add(src);
+      showImage();
+    })
+    .catch(() => {});
+}
+
+function foodMediaPlaceholder(extraClass = '') {
+  return `<span class="food-icon${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true"></span>`;
+}
+
+const DELETE_UNDO_MS = 6000;
+let deleteUndoSequence = 0;
+
+// Auth guard
+(async () => {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) { window.location.replace('/login'); return; }
+    const { user } = await res.json();
+      const navUser = document.getElementById('planner-nav-user');
+    if (navUser) {
+      navUser.innerHTML = `
+        <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
+        <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
+        <a class="planner-nav__link" href="/account" aria-label="Account">${iconSvg('user')}<span>Account</span></a>
+        <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
+      `;
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.replace('/');
+      });
+    }
+
+    if (plannerCtx?.planId) {
+      const eyebrow = document.getElementById('planner-eyebrow');
+      const title = document.getElementById('planner-title');
+      if (eyebrow) eyebrow.textContent = 'Edit Plan';
+      if (title) title.textContent = 'Your inputs';
+      loadPlanForEdit(plannerCtx.planId);
+    } else {
+      if (plannerCtx?.customerId) {
+        loadCustomerForPlanning(plannerCtx.customerId);
+      }
+    }
+  } catch {
+    window.location.replace('/login');
+  }
+})();
+
+// Mirrors src/config/inputLimits.js; the server rejects anything beyond these.
+const INPUT_LIMITS = Object.freeze({
+  foodsPerMeal: 12,
+  gramsPerFood: 1000,
+  preferenceItems: 60,
+});
+
+function clampManualGrams(value) {
+  const grams = Math.max(0, Number(value) || 0);
+  return Math.round(Math.min(grams, INPUT_LIMITS.gramsPerFood) * 10) / 10;
+}
+
+const form = document.querySelector('#plan-form');
+const message = document.querySelector('#form-message');
+const output = document.querySelector('#plan-output');
+const emptyState = document.querySelector('#empty-state');
+const summaryTemplate = document.querySelector('#summary-template');
+const mealTemplate = document.querySelector('#meal-template');
+const submitButton = form.querySelector('button[type="submit"]');
+const preGenerationCustomerPicker = document.querySelector('#pre-generation-customer-picker');
+const inputsToggle = document.querySelector('#inputs-toggle');
+const inputChipRow = document.querySelector('#input-chip-row');
+const saveBarSlot = document.querySelector('#save-bar-slot');
+const preferenceFields = document.querySelectorAll('.preference-field');
+const PROFILE_SYNC_FIELDS = new Map([
+  ['age', 'age'],
+  ['sex', 'sex'],
+  ['weightKg', 'weightKg'],
+  ['heightCm', 'heightCm'],
+  ['activityLevel', 'activityLevel'],
+]);
+
+const labels = {
+  calories: ['Calories', 'kcal'],
+  proteinG: ['Protein', 'g'],
+  carbG: ['Carbs', 'g'],
+  fatG: ['Fat', 'g'],
+};
+const preferenceState = { avoidFoods: [] };
+let preferenceOptions = { avoidFoods: [] };
+
+let foodsById = new Map();
+// Declared up here because reserveSpaceForSaveBar() runs during init, before
+// the function that uses it appears further down the file.
+let saveBarResizeObserver = null;
+let foodsLoadPromise = null;
+let preferenceOptionsLoadPromise = null;
+let customerOptionsLoadPromise = null;
+let customerOptions = [];
+
+const mealStates = [];
+let dailyTargets = null;
+let dailyBounds = null;
+let showTargets = false;
+let manualMode = false;
+let manualModeLocked = false;
+let latestSavedPlanData = null;
+let currentPlanInput = null;
+let pendingAvoidFoodIds = null;
+let pdfExportScheduled = false;
+let suppressProfileTouchTracking = false;
+let currentPlanId = plannerCtx?.planId || null;
+// Server-side version of the loaded plan; sent with every update so a save
+// started from a stale copy is rejected instead of overwriting newer work.
+let currentPlanVersion = null;
+// One key per generated plan: retries and double-clicks of its first save
+// reuse it, so the server returns the same plan instead of a duplicate.
+let pendingPlanCreateKey = null;
+let currentPlanName = '';
+let currentPlanHasCustomer = false;
+let firstCreationPending = false;
+let saveInFlight = null;
+let saveQueued = false;
+let hasUnsavedChanges = false;
+let initialPlanCreateToken = 0;
+let activeGenerationTimeline = null;
+const touchedProfileFields = new Set();
+const preGenerationCustomerState = preGenerationCustomerPicker
+  ? bindCustomerPicker(preGenerationCustomerPicker)
+  : { mode: 'general', selected: null, exactMatch: null, requestId: 0 };
+
+window.addEventListener('pageshow', () => {
+  setShowTargets(false);
+});
+
+function isManualModeActive() {
+  return manualMode || manualModeLocked;
+}
+
+function clonePlanData(planData) {
+  if (!planData) return null;
+  if (typeof structuredClone === 'function') return structuredClone(planData);
+  return JSON.parse(JSON.stringify(planData));
+}
+
+function setLatestSavedPlanData(planData) {
+  latestSavedPlanData = clonePlanData(planDataForPersistence(planData));
+}
+
+async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const message = response.ok
+      ? 'The server returned an invalid response.'
+      : `${fallbackMessage} ${response.status ? `(${response.status})` : ''}`.trim();
+    return { error: message };
+  }
+}
+
+function createGenerationTimeline() {
+  return {
+    id: makeGenerationTimelineId(),
+    startedAt: performance.now(),
+    generationRequestId: '',
+    serverTiming: '',
+    timings: {},
+  };
+}
+
+function makeGenerationTimelineId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function timelineElapsedMs(timeline) {
+  return Number((performance.now() - timeline.startedAt).toFixed(1));
+}
+
+function timelineHeaders(timeline) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Plan-Timeline-Id': timeline.id,
+  };
+  if (timeline.generationRequestId) {
+    headers['X-Plan-Generation-Request-Id'] = timeline.generationRequestId;
+  }
+  return headers;
+}
+
+function reportGenerationTimelineEvent(timeline, event, extra = {}) {
+  if (!timeline?.id) return;
+  const body = JSON.stringify({
+    timelineId: timeline.id,
+    generationRequestId: timeline.generationRequestId || '',
+    event,
+    elapsedMs: timelineElapsedMs(timeline),
+    timings: {
+      ...timeline.timings,
+      ...extra,
+    },
+  });
+
+  fetch('/api/generation-timeline', {
+    method: 'POST',
+    headers: timelineHeaders(timeline),
+    body,
+    keepalive: body.length < 60000,
+  }).catch(() => {});
+}
+
+// ── Form submit ──────────────────────────────────────────────────────────────
+
+async function generateAndRender(apiUrl) {
+  const timeline = createGenerationTimeline();
+  activeGenerationTimeline = timeline;
+  message.textContent = '';
+  const validationStartedAt = performance.now();
+  const saveDetailsOk = await validatePreGenerationSaveDetails();
+  timeline.timings.validationMs = Number((performance.now() - validationStartedAt).toFixed(1));
+  if (!saveDetailsOk) {
+    reportGenerationTimelineEvent(timeline, 'validation_failed');
+    return;
+  }
+  setLoading(true);
+  try {
+    const requestStartedAt = performance.now();
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: timelineHeaders(timeline),
+      body: JSON.stringify(readForm()),
+    });
+    timeline.timings.generateRoundTripMs = Number((performance.now() - requestStartedAt).toFixed(1));
+    timeline.generationRequestId = response.headers.get('x-request-id') || '';
+    timeline.serverTiming = response.headers.get('server-timing') || '';
+    if (timeline.serverTiming) timeline.timings.serverTiming = timeline.serverTiming;
+
+    const parseStartedAt = performance.now();
+    const payload = await readJsonResponse(response, 'Unable to generate a nutrition plan.');
+    timeline.timings.responseParseMs = Number((performance.now() - parseStartedAt).toFixed(1));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Unable to generate a nutrition plan.');
+    }
+    const renderStartedAt = performance.now();
+    if (isImpossiblePlan(payload)) {
+      renderPlan(payload);
+      switchPlannerView('plan', { push: true });
+      setInputsExpanded(false);
+      timeline.timings.renderMs = Number((performance.now() - renderStartedAt).toFixed(1));
+      reportGenerationTimelineEvent(timeline, 'plan_shown');
+      return;
+    }
+    if (currentPlanId) {
+      renderPlan(payload, {
+        editMode: !firstCreationPending,
+        firstCreation: firstCreationPending,
+        planId: currentPlanId,
+        planName: currentPlanName,
+      });
+      if (!firstCreationPending) {
+        hasUnsavedChanges = true;
+        setSaveStatus('Unsaved changes');
+      }
+    } else {
+      currentPlanId = null;
+      currentPlanVersion = null;
+      pendingPlanCreateKey = makeGenerationTimelineId();
+      currentPlanName = readPreGenerationPlanName();
+      currentPlanHasCustomer = planWillHaveCustomer();
+      firstCreationPending = true;
+      setLatestSavedPlanData(payload);
+      renderPlan(payload, { firstCreation: true, planId: null, planName: currentPlanName });
+      startInitialPlanSave(payload, timeline);
+    }
+    switchPlannerView('plan', { push: true });
+    setInputsExpanded(false);
+    timeline.timings.renderMs = Number((performance.now() - renderStartedAt).toFixed(1));
+    reportGenerationTimelineEvent(timeline, 'plan_shown');
+  } catch (error) {
+    message.textContent = error.message;
+    reportGenerationTimelineEvent(timeline, 'generation_failed', {
+      error: error.message,
+    });
+  } finally {
+    setLoading(false);
+  }
+}
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  generateAndRender('/api/generate-plan');
+});
+
+inputsToggle?.addEventListener('click', () => {
+  setInputsExpanded(!form.classList.contains('inputs-card--expanded'));
+});
+
+form.addEventListener('input', syncInputSummary);
+form.addEventListener('change', syncInputSummary);
+form.addEventListener('input', markProfileFieldTouched);
+form.addEventListener('change', markProfileFieldTouched);
+syncInputSummary();
+if (!plannerCtx?.planId) {
+  switchPlannerView('input', { push: false });
+  setInputsExpanded(true);
+} else {
+  switchPlannerView('plan', { push: false });
+  setInputsExpanded(false);
+  showSavedPlanSkeleton();
+}
+scheduleReferenceDataLoad();
+
+function readForm() {
+  const data = new FormData(form);
+  return {
+    weightKg: data.get('weightKg'),
+    heightCm: data.get('heightCm'),
+    age: data.get('age'),
+    sex: data.get('sex'),
+    bodyFatPercentage: data.get('bodyFatPercentage'),
+    activityLevel: data.get('activityLevel'),
+    goal: data.get('goal'),
+    numberOfMeals: data.get('numberOfMeals'),
+    mealDistribution: data.get('mealDistribution'),
+    avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
+  };
+}
+
+function readPreGenerationPlanName() {
+  return form.elements.planName?.value.trim() || '';
+}
+
+async function validatePreGenerationSaveDetails() {
+  const planName = readPreGenerationPlanName();
+  if (!planName) {
+    message.textContent = 'Enter a plan name before generating.';
+    form.elements.planName?.focus();
+    return false;
+  }
+
+  const customerInput = form.elements.customerName;
+  const customerName = customerInput?.value.trim() || '';
+
+  if (preGenerationCustomerState.mode === 'new' && !customerName) {
+    message.textContent = 'Enter a customer name before adding a new customer.';
+    customerInput?.focus();
+    return false;
+  }
+
+  return true;
+}
+
+function preGenerationSavePayload() {
+  return {
+    name: readPreGenerationPlanName(),
+    customerPayload: buildCustomerPayload(preGenerationCustomerPicker, preGenerationCustomerState),
+  };
+}
+
+function markProfileFieldTouched(event) {
+  if (suppressProfileTouchTracking) return;
+  const field = PROFILE_SYNC_FIELDS.get(event.target?.name);
+  if (field) touchedProfileFields.add(field);
+}
+
+function switchPlannerView(view, { push = false } = {}) {
+  const isPlan = view === 'plan';
+  document.body.classList.toggle('is-plan-view', isPlan);
+  document.body.classList.toggle('is-input-view', !isPlan);
+  if (emptyState) emptyState.hidden = isPlan;
+  if (saveBarSlot && !isPlan) { saveBarSlot.innerHTML = ''; reserveSpaceForSaveBar(); }
+  updateSubmitIdleLabel();
+
+  if (push) {
+    const url = new URL(window.location.href);
+    if (isPlan) url.searchParams.set('view', 'plan');
+    else url.searchParams.delete('view');
+    history.pushState({ plannerView: view }, '', url);
+  }
+}
+
+function setInputsExpanded(expanded) {
+  const shouldExpand = Boolean(expanded) || !document.body.classList.contains('is-plan-view');
+  form.classList.toggle('inputs-card--expanded', shouldExpand);
+  form.classList.toggle('inputs-card--collapsed', !shouldExpand);
+  inputsToggle?.setAttribute('aria-expanded', String(shouldExpand));
+  const label = inputsToggle?.querySelector('span');
+  if (label) label.textContent = shouldExpand ? 'Close' : 'Edit inputs';
+  updateSubmitIdleLabel();
+}
+
+function updateSubmitIdleLabel() {
+  if (submitButton?.disabled) return;
+  const label = submitButton?.querySelector('span:last-child');
+  if (label) {
+    label.textContent = document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan';
+  }
+}
+
+function syncInputSummary() {
+  if (!inputChipRow) return;
+  const input = readForm();
+  const chips = [
+    ['Goal', goalLabel(input.goal), 'brand'],
+    ['Meals', `${input.numberOfMeals} / day`],
+    ['Activity', titleCase(input.activityLevel)],
+    ['Weight', `${formatNumber(input.weightKg)} kg`],
+  ];
+  inputChipRow.innerHTML = chips
+    .map(([label, value, tone]) => `<span class="input-chip"${tone ? ` data-tone="${tone}"` : ''}><small>${label}</small>${escapeHtml(value)}</span>`)
+    .join('');
+}
+
+function goalLabel(value) {
+  if (value === 'lose_weight') return 'Lose weight';
+  if (value === 'gain_weight') return 'Gain weight';
+  return 'Maintain';
+}
+
+function titleCase(value) {
+  return String(value || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+// ── Foods catalog ────────────────────────────────────────────────────────────
+
+async function loadAllFoods() {
+  try {
+    const res = await fetch('/api/foods');
+    if (!res.ok) return;
+    const { foods } = await readJsonResponse(res, 'Unable to load foods.');
+    foodsById = new Map(foods.map((f) => [f.id, f]));
+    return foods;
+  } catch { /* non-critical */ }
+  return [];
+}
+
+function ensureFoodsLoaded() {
+  if (!foodsLoadPromise) {
+    foodsLoadPromise = loadAllFoods().catch(() => {
+      foodsLoadPromise = null;
+      return [];
+    });
+  }
+  return foodsLoadPromise;
+}
+
+function ensurePreferenceOptionsLoaded() {
+  if (!preferenceOptionsLoadPromise) {
+    preferenceOptionsLoadPromise = loadPreferenceOptions().catch((error) => {
+      preferenceOptionsLoadPromise = null;
+      throw error;
+    });
+  }
+  return preferenceOptionsLoadPromise;
+}
+
+async function loadCustomerOptions() {
+  const res = await fetch('/api/customers?limit=100');
+  const data = await readJsonResponse(res, 'Unable to load customers.');
+  if (!res.ok) throw new Error(data.error || 'Unable to load customers.');
+  customerOptions = Array.isArray(data.customers) ? data.customers : [];
+  return customerOptions;
+}
+
+function ensureCustomerOptionsLoaded() {
+  if (!customerOptionsLoadPromise) {
+    customerOptionsLoadPromise = loadCustomerOptions().catch((error) => {
+      customerOptionsLoadPromise = null;
+      throw error;
+    });
+  }
+  return customerOptionsLoadPromise;
+}
+
+function scheduleReferenceDataLoad() {
+  const load = () => {
+    ensurePreferenceOptionsLoaded().catch(() => {});
+    if (preGenerationCustomerPicker) ensureCustomerOptionsLoaded().catch(() => {});
+  };
+
+  if (!plannerCtx?.planId) {
+    load();
+    return;
+  }
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(load, { timeout: 2000 });
+  } else {
+    window.setTimeout(load, 800);
+  }
+}
+
+// ── Edit mode ────────────────────────────────────────────────────────────────
+
+function savedPlanLoadError(plan) {
+  if (!plan || typeof plan !== 'object') return 'Saved plan data is missing.';
+  if (!plan.dailyTargets || typeof plan.dailyTargets !== 'object') return 'Saved plan targets are missing.';
+  if (!Array.isArray(plan.meals)) return 'Saved plan meals are missing.';
+  if (plan.meals.some((meal) => !Array.isArray(meal.items))) return 'Saved plan meal items are missing.';
+  return '';
+}
+
+function showSavedPlanSkeleton() {
+  if (!output) return;
+  output.hidden = false;
+  output.setAttribute('aria-busy', 'true');
+  if (emptyState) emptyState.hidden = true;
+  output.innerHTML = `
+    <section class="summary panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__head">
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__metrics">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </section>
+    <article class="meal-card panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__meal-head">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__rows">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+    <article class="meal-card panel plan-skeleton" aria-hidden="true">
+      <div class="plan-skeleton__meal-head">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="plan-skeleton__rows">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+  `;
+}
+
+function mealOptionKey(option) {
+  return option.templateId || option.templateName || mealItemsSignature(option.items);
+}
+
+function mealItemsSignature(items = []) {
+  return (items || [])
+    .map((item) => `${item.food?.id || item.food?.name || ''}:${Math.round(Number(item.quantityG) || 0)}`)
+    .join('|');
+}
+
+function uniqueMealOptions(originalMealOption, mealOptions = []) {
+  const seen = new Set();
+  return [originalMealOption, ...mealOptions].filter((option) => {
+    const key = mealOptionKey(option);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Array.isArray(option.items) && option.items.length > 0;
+  });
+}
+
+function restoredMealOptionIndex(meal, originalMealOption, mealOptions) {
+  const options = uniqueMealOptions(originalMealOption, mealOptions);
+  const savedIndex = Number(meal.mealOptionIndex);
+  if (Number.isInteger(savedIndex) && savedIndex >= 0 && savedIndex < options.length) {
+    return savedIndex;
+  }
+
+  if (meal.templateId) {
+    const templateIndex = options.findIndex((option) => String(option.templateId || '') === String(meal.templateId));
+    if (templateIndex >= 0) return templateIndex;
+  }
+
+  const selectedSignature = mealItemsSignature(meal.items);
+  const itemIndex = options.findIndex((option) => mealItemsSignature(option.items) === selectedSignature);
+  return itemIndex >= 0 ? itemIndex : 0;
+}
+
+function currentMealOptionIndex(state) {
+  const options = readyMealOptions(state);
+  const index = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  if (options.length === 0) return 0;
+  return Math.min(Math.max(index, 0), options.length - 1);
+}
+
+function persistCurrentMealOption(state) {
+  const options = readyMealOptions(state);
+  if (!options.length) return;
+
+  const optionIndex = currentMealOptionIndex(state);
+  const option = options[optionIndex];
+  const updatedOption = normalizeMealOption({
+    ...option,
+    templateId: option.templateId || state.templateId || null,
+    templateName: option.templateName || state.templateName || state.name,
+    templateFamily: option.templateFamily || state.templateFamily || null,
+    items: state.items.filter((item) => item.food),
+    totals: computeTotals(state.items),
+    isApproximate: Boolean(state.isApproximate),
+  });
+
+  if (optionIndex === 0) {
+    state.originalMealOption = updatedOption;
+    state.originalItems = updatedOption.items.map((item) => ({
+      food: item.food,
+      quantityG: item.quantityG,
+    }));
+    return;
+  }
+
+  const optionKey = mealOptionKey(option);
+  const rawIndex = state.mealOptions.findIndex((candidate) => mealOptionKey(candidate) === optionKey);
+  if (rawIndex >= 0) {
+    state.mealOptions[rawIndex] = updatedOption;
+  } else {
+    state.mealOptions[optionIndex - 1] = updatedOption;
+  }
+}
+
+async function loadPlanForEdit(planId) {
+  try {
+    const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`);
+    const payload = await readJsonResponse(res, 'Failed to load plan.');
+    if (!res.ok) {
+      throw new Error(payload.error || (res.status === 404 ? 'Plan not found.' : 'Failed to load plan.'));
+    }
+    const { plan } = payload;
+    const shapeError = savedPlanLoadError(plan?.plan_data);
+    if (shapeError) throw new Error(shapeError);
+
+    if (plan.plan_data?.input) {
+      populateFormFromInput(plan.plan_data.input);
+    }
+    if (form.elements.planName) form.elements.planName.value = plan.name || '';
+    initializeCustomerPickerFromPlan(plan);
+    currentPlanId = plan.id;
+    currentPlanVersion = Number.isInteger(plan.version) ? plan.version : null;
+    currentPlanName = plan.name || '';
+    currentPlanHasCustomer = Boolean(plan.customer_id);
+    firstCreationPending = false;
+    hasUnsavedChanges = false;
+    setLatestSavedPlanData(plan.plan_data);
+
+    renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
+    switchPlannerView('plan', { push: false });
+    // Recently-opened ordering on the dashboard; failure is harmless.
+    fetch(`/api/plans/${encodeURIComponent(plan.id)}/opened`, { method: 'POST' }).catch(() => {});
+    setInputsExpanded(false);
+    message.textContent = '';
+    output?.scrollIntoView({ block: 'start' });
+  } catch (error) {
+    if (output) {
+      output.innerHTML = '';
+      output.removeAttribute('aria-busy');
+      output.hidden = true;
+    }
+    if (emptyState) emptyState.hidden = false;
+    message.textContent = error.message || 'Failed to load plan.';
+  }
+}
+
+function populateFormFromInput(input) {
+  suppressProfileTouchTracking = true;
+  const set = (name, val) => {
+    const el = form.elements[name];
+    if (!el || val === undefined || val === null) return;
+    if (el.type === 'checkbox') {
+      el.checked = Boolean(val);
+    } else {
+      el.value = val;
+    }
+  };
+  set('weightKg', input.weightKg);
+  set('heightCm', input.heightCm);
+  set('age', input.age);
+  set('sex', input.sex);
+  set('bodyFatPercentage', input.bodyFatPercentage);
+  set('activityLevel', input.activityLevel);
+  set('goal', input.goal);
+  set('numberOfMeals', input.numberOfMeals);
+  set('mealDistribution', input.mealDistribution);
+  if (Array.isArray(input.avoidFoods)) {
+    pendingAvoidFoodIds = input.avoidFoods;
+    hydrateAvoidFoodPreferences();
+  }
+  suppressProfileTouchTracking = false;
+  touchedProfileFields.clear();
+  syncInputSummary();
+}
+
+// ── Render plan ──────────────────────────────────────────────────────────────
+
+function renderPlan(plan, { editMode = false, firstCreation = false, planId = null, planName = '' } = {}) {
+  output.innerHTML = '';
+  output.removeAttribute('aria-busy');
+  manualModeLocked = Boolean(plan.manualMode);
+  manualMode = manualModeLocked;
+  showTargets = false;
+  output.classList.toggle('plan-output--hide-targets', !showTargets);
+  output.classList.toggle('plan-output--manual', isManualModeActive());
+  mealStates.length = 0;
+  currentPlanInput = plan.input || null;
+  output.hidden = false;
+  emptyState.hidden = true;
+  switchPlannerView('plan', { push: false });
+  setInputsExpanded(false);
+  syncInputSummary();
+
+  if (isImpossiblePlan(plan)) {
+    output.append(renderPlanNotice({
+      tone: 'error',
+      title: 'Plan cannot be generated with the current templates',
+      messages: plan.errors || plan.diagnostics?.errors || ['No feasible nutrition plan was found.'],
+      diagnostics: plan.diagnostics,
+    }));
+    return;
+  }
+
+  if (plan.warnings?.length || plan.diagnostics?.warnings?.length) {
+    output.append(renderPlanNotice({
+      tone: 'warning',
+      title: 'Plan is approximate',
+      messages: plan.warnings || plan.diagnostics?.warnings || [],
+      diagnostics: plan.diagnostics,
+    }));
+  }
+
+  const summaryEl = renderSummary(plan.dailyTargets, plan.diagnostics?.bounds);
+  if (!plannerCtx?.exportPdf) {
+    output.append(summaryEl);
+  }
+
+  if (plannerCtx?.exportPdf) {
+    document.body.classList.add('is-pdf-export');
+    if (saveBarSlot) {
+      saveBarSlot.innerHTML = '';
+      reserveSpaceForSaveBar();
+    }
+  } else if (firstCreation) {
+    showInitialCreationBar(planId, planName);
+  } else if (editMode) {
+    showEditBar(planId, planName);
+  } else {
+    showPlanSaveBar();
+  }
+
+  plan.meals.forEach((meal, mealIndex) => {
+    const mealOptions = (meal.mealOptions || []).map(normalizeMealOption);
+    const displayMealOptions = isManualModeActive()
+      ? mealOptions
+      : mealOptions.filter((option) => mealOptionFitsTarget(option, meal.target));
+    const originalMealOption = normalizeMealOption({
+      templateId: meal.originalTemplateId || null,
+      templateName: meal.originalTemplateName || meal.name,
+      templateFamily: meal.originalTemplateFamily || null,
+      items: meal.originalItems || meal.items,
+      totals: meal.originalTotals || null,
+      isApproximate: Boolean(meal.originalIsApproximate),
+    });
+    const state = {
+      mealIndex,
+      name: meal.name,
+      tag: meal.tag,
+      target: { ...meal.target },
+      templateId: meal.templateId || null,
+      templateName: meal.templateName || null,
+      templateFamily: meal.templateFamily || meal.readyMealTrack || null,
+      isOriginalTemplate: Boolean(meal.isOriginalTemplate),
+      numberOfSwaps: Number(meal.numberOfSwaps || 0),
+      candidateSource: meal.candidateSource || null,
+      isApproximate: Boolean(meal.isApproximate),
+      unavailableReason: meal.unavailableReason || null,
+      mealOptions: displayMealOptions,
+      mealOptionIndex: restoredMealOptionIndex(meal, originalMealOption, displayMealOptions),
+      editModeEnabled: isManualModeActive(),
+      originalItems: (meal.originalItems || meal.items).map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+      })),
+      items: meal.items.map(normalizeStateItem),
+      originalMealOption,
+      chatHistory: [],
+      chatTurnCount: 0,
+      chatWorkingItems: null,
+      chatPrevWorkingItems: null,
+      chatMessages: [],
+      cardEl: null,
+    };
+    mealStates.push(state);
+    preloadFoodImagesFromItems(state.items);
+
+    const card = renderMealCard(state);
+    state.cardEl = card;
+    output.append(card);
+  });
+
+  if (plannerCtx?.exportPdf) {
+    output.append(summaryEl);
+  }
+
+  refreshRedFlags();
+  refreshManualModeUi();
+  if (plannerCtx?.exportPdf) schedulePdfExport();
+}
+
+function schedulePdfExport() {
+  if (pdfExportScheduled) return;
+  pdfExportScheduled = true;
+  document.title = 'Pinch meal plan export';
+  window.setTimeout(async () => {
+    await waitForPdfExportAssets();
+    window.print();
+  }, 150);
+}
+
+async function waitForPdfExportAssets(timeoutMs = 2500) {
+  const pendingImages = [...document.images]
+    .filter((img) => !img.complete)
+    .map((img) => new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+    }));
+  const pendingFonts = document.fonts?.ready ? [document.fonts.ready.catch(() => {})] : [];
+  const ready = Promise.all([...pendingImages, ...pendingFonts]);
+  const timeout = new Promise((resolve) => window.setTimeout(resolve, timeoutMs));
+  await Promise.race([ready, timeout]);
+}
+
+function isImpossiblePlan(plan) {
+  return plan?.status === 'error' || plan?.isImpossible === true || plan?.diagnostics?.status === 'error';
+}
+
+function renderPlanNotice({ tone, title, messages, diagnostics }) {
+  const panel = document.createElement('section');
+  panel.className = `plan-notice plan-notice--${tone} panel`;
+  panel.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  panel.append(heading);
+
+  const uniqueMessages = [...new Set((messages || []).filter(Boolean))];
+  const list = document.createElement('ul');
+  const visibleMessages = uniqueMessages.length > 0
+    ? uniqueMessages
+    : ['The generated plan needs review before use.'];
+  visibleMessages.slice(0, 5).forEach((text) => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    list.append(item);
+  });
+  panel.append(list);
+
+  const missingSlots = diagnostics?.missingSlots || [];
+  if (missingSlots.length > 0) {
+    const detail = document.createElement('p');
+    detail.className = 'plan-notice__detail';
+    detail.textContent = `Missing slots: ${missingSlots.join(', ')}`;
+    panel.append(detail);
+  }
+
+  return panel;
+}
+
+// ── Summary ──────────────────────────────────────────────────────────────────
+
+const RING_RADIUS = 52;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const DAILY_CALORIE_TOLERANCE_PERCENT = 0.05;
+
+function renderSummary(targets, serverBounds = null) {
+  dailyTargets = targets;
+  dailyBounds = serverBounds;
+  const summary = summaryTemplate.content.firstElementChild.cloneNode(true);
+  const summaryHeader = summary.querySelector('.summary__header');
+  if (summaryHeader) {
+    const summaryControls = summaryHeader.querySelector('.summary__controls') || summaryHeader;
+    const targetToggle = document.createElement('label');
+    targetToggle.className = 'target-toggle';
+    targetToggle.innerHTML = `
+      <input type="checkbox" ${showTargets ? 'checked' : ''} ${isManualModeActive() ? 'disabled' : ''} />
+      <span>Show targets</span>
+    `;
+    targetToggle.querySelector('input').addEventListener('change', (event) => {
+      setShowTargets(event.target.checked);
+    });
+    summaryControls.prepend(targetToggle);
+    bindManualModeSwitch(summaryControls);
+  }
+  const metrics = summary.querySelector('.metrics');
+  const rangeNote = summary.querySelector('.summary__ranges');
+  if (rangeNote) {
+    rangeNote.innerHTML = dailyRangeNoteHtml(targets, serverBounds);
+  }
+
+  const calorieBounds = dailyMetricBounds('calories', targets, serverBounds);
+  const ring = document.createElement('div');
+  ring.className = 'metric metric--ring';
+  ring.dataset.metric = 'calories';
+  ring.innerHTML = `
+    <div class="cal-ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="cal-ring__track" cx="60" cy="60" r="${RING_RADIUS}"></circle>
+        <circle class="cal-ring__value" cx="60" cy="60" r="${RING_RADIUS}"
+          stroke-dasharray="${RING_CIRCUMFERENCE.toFixed(1)}"
+          stroke-dashoffset="${RING_CIRCUMFERENCE.toFixed(1)}"></circle>
+      </svg>
+      <div class="cal-ring__center">
+        <strong class="daily-actual daily-actual-calories">—</strong>
+        <span class="cal-ring__unit">kcal</span>
+      </div>
+    </div>
+    <div class="cal-ring__caption">
+      <span>Calories</span>
+      <b>of ${formatNumber(targets.calories)} target</b>
+      <em class="metric-range">${formatAllowedRange(calorieBounds, labels.calories[1])}</em>
+    </div>
+    <div class="flag-detail"></div>
+  `;
+  metrics.append(ring);
+
+  const macroList = document.createElement('div');
+  macroList.className = 'macro-bars';
+  for (const key of ['proteinG', 'carbG', 'fatG']) {
+    const bounds = dailyMetricBounds(key, targets, serverBounds);
+    const row = document.createElement('div');
+    row.className = 'metric metric--macro';
+    row.dataset.metric = key;
+    row.innerHTML = `
+      <div class="metric__top">
+        <span><i class="macro-dot" aria-hidden="true"></i>${labels[key][0]}</span>
+        <strong>
+          <span class="daily-actual daily-actual-${key}">—</span>
+          <small>/ ${formatNumber(targets[key])}${labels[key][1]}</small>
+        </strong>
+      </div>
+      <div class="metric-bar" aria-hidden="true"><i></i></div>
+      <em class="metric-range">${formatAllowedRange(bounds, labels[key][1])}</em>
+      <div class="flag-detail"></div>
+    `;
+    macroList.append(row);
+  }
+  metrics.append(macroList);
+
+  return summary;
+}
+
+function dailyRangeNoteHtml(targets, serverBounds = null) {
+  if (!targets) return '';
+  return [
+    ['Calories', dailyMetricBounds('calories', targets, serverBounds), labels.calories[1], 'calories'],
+    ['Protein', dailyMetricBounds('proteinG', targets, serverBounds), labels.proteinG[1], 'proteinG'],
+    ['Carbs', dailyMetricBounds('carbG', targets, serverBounds), labels.carbG[1], 'carbG'],
+    ['Fat', dailyMetricBounds('fatG', targets, serverBounds), labels.fatG[1], 'fatG'],
+  ].filter(([, range]) => range)
+    .map(([label, range, unit, metric]) => `
+    <span class="summary__range-chip" data-metric="${metric}">
+      <b>${label}</b>
+      <span>${formatRangeValue(range, unit)}</span>
+    </span>
+  `).join('');
+}
+
+function setShowTargets(nextValue) {
+  showTargets = isManualModeActive() ? false : Boolean(nextValue);
+  output?.classList.toggle('plan-output--hide-targets', !showTargets);
+  output?.querySelectorAll('.target-toggle input').forEach((input) => {
+    input.checked = showTargets;
+    input.disabled = isManualModeActive();
+  });
+  refreshRedFlags();
+}
+
+function bindManualModeSwitch(root) {
+  root.querySelector('.manual-mode-toggle')?.addEventListener('change', (event) => {
+    setManualMode(event.target.checked);
+  });
+}
+
+function refreshManualModeUi() {
+  output?.classList.toggle('plan-output--manual', isManualModeActive());
+  output?.classList.toggle('plan-output--hide-targets', !showTargets || isManualModeActive());
+  if (isManualModeActive()) {
+    mealStates.forEach((state) => removeManualModeMealControls(state.cardEl));
+  } else {
+    removeNonManualPortionEditors();
+    mealStates.forEach((state) => renderFoodList(state));
+    removeNonManualPortionEditors();
+  }
+  document.querySelectorAll('.manual-mode-switch').forEach((control) => {
+    control.classList.toggle('is-active', isManualModeActive());
+    control.classList.toggle('is-disabled', manualModeLocked);
+    const input = control.querySelector('.manual-mode-toggle');
+    if (input) {
+      input.checked = isManualModeActive();
+      input.disabled = manualModeLocked;
+    }
+  });
+  output?.querySelectorAll('.target-toggle input').forEach((input) => {
+    input.checked = showTargets && !isManualModeActive();
+    input.disabled = isManualModeActive();
+  });
+}
+
+function removeNonManualPortionEditors() {
+  if (isManualModeActive()) return;
+  output?.querySelectorAll('.food-item .food-cell--portion').forEach((cell) => {
+    const editor = cell.querySelector('.portion');
+    if (!editor) return;
+    const input = editor.querySelector('.manual-grams-input');
+    const value = input?.value || editor.textContent || '';
+    const number = Number(value);
+    const grams = Number.isFinite(number) ? formatNumber(number) : value.replace(/[−+\s]/g, '').replace(/g$/i, '');
+    cell.innerHTML = `
+      <span class="portion portion--readonly" aria-label="${escapeHtml(`${grams}g`)}">
+        <span class="portion-value">${escapeHtml(grams)}</span>
+        <span class="unit">g</span>
+      </span>
+    `;
+  });
+}
+
+function setManualMode(enabled) {
+  if (manualModeLocked) {
+    refreshManualModeUi();
+    return;
+  }
+
+  if (!enabled) {
+    const confirmed = confirm("Your manual changes won't be saved. The plan will return to the last saved state. Are you sure you want to proceed?");
+    if (!confirmed) {
+      refreshManualModeUi();
+      return;
+    }
+    manualMode = false;
+    showTargets = false;
+    hasUnsavedChanges = false;
+    const snapshot = clonePlanData(latestSavedPlanData || buildPlanData());
+    renderPlan(snapshot, {
+      editMode: Boolean(currentPlanId) && !firstCreationPending,
+      firstCreation: firstCreationPending,
+      planId: currentPlanId,
+      planName: currentPlanName,
+    });
+    message.textContent = 'Manual changes reverted to the latest saved plan.';
+    return;
+  }
+
+  const confirmed = confirm('Manual mode frees the plan from automatic food tracking and macro balancing. You will have complete control over the foods and portions. Continue?');
+  if (!confirmed) {
+    refreshManualModeUi();
+    return;
+  }
+
+  manualMode = true;
+  showTargets = false;
+  closeAllActionPanels();
+  mealStates.forEach((state) => {
+    state.editModeEnabled = true;
+    renderFoodList(state);
+    refreshMealCustomizationControls(state);
+    refreshMealCardHeader(state.cardEl, state);
+  });
+  refreshRedFlags();
+  refreshManualModeUi();
+}
+
+function closeAllActionPanels() {
+  mealStates.forEach((state) => {
+    if (state.cardEl?.isConnected) closeActionPanel(state);
+  });
+}
+
+function removeManualModeMealControls(card) {
+  if (!card) return;
+  card.querySelectorAll('.meal-cycle-btn, .edit-mode-switch').forEach((el) => el.remove());
+}
+
+// ── Red flags (daily level) ──────────────────────────────────────────────────
+
+function refreshRedFlags() {
+  if (!dailyTargets) return;
+  const summaryEl = output.querySelector('.summary');
+  if (!summaryEl) return;
+
+  const actual = { calories: 0, proteinG: 0, carbG: 0, fatG: 0 };
+
+  for (const state of mealStates) {
+    const t = computeTotals(state.items);
+    actual.calories += t.calories;
+    actual.proteinG += t.proteinG;
+    actual.carbG += t.carbG;
+    actual.fatG += t.fatG;
+  }
+
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    const tgt = dailyTargets[key];
+    const flagged = showTargets && !dailyMetricFitsTarget(key, actual[key], dailyTargets, dailyBounds);
+
+    const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
+    if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
+
+    const actualEl = summaryEl.querySelector(`.daily-actual-${key}`);
+    if (actualEl) actualEl.textContent = formatNumber(actual[key]);
+
+    const percent = showTargets && tgt > 0 ? (actual[key] / tgt) * 100 : 100;
+    const clamped = Math.min(Math.max(percent, 0), 100);
+    const barEl = metricEl?.querySelector('.metric-bar i');
+    if (barEl) barEl.style.width = `${clamped}%`;
+
+    const ringEl = metricEl?.querySelector('.cal-ring__value');
+    if (ringEl) {
+      ringEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - clamped / 100));
+    }
+
+    const flagDetail = metricEl?.querySelector('.flag-detail');
+    if (flagDetail) {
+      if (flagged) {
+        flagDetail.textContent = `${labels[key][0]} outside the accepted range`;
+        flagDetail.hidden = false;
+      } else {
+        flagDetail.hidden = true;
+      }
+    }
+  }
+}
+
+// ── Meal card rendering ──────────────────────────────────────────────────────
+
+function renderMealCard(state) {
+  const card = mealTemplate.content.firstElementChild.cloneNode(true);
+  card.querySelector('h2').textContent = state.name;
+  card.dataset.mealIndex = state.mealIndex;
+  card.dataset.mealType = mealTypeKey(state.tag);
+  card.querySelector('.meal-card__icon').innerHTML = iconSvg(mealIconName(state.tag), 20);
+  state.cardEl = card;
+
+  refreshMealCardHeader(card, state);
+
+  renderFoodList(state);
+
+  card.querySelector('.meal-cycle-btn--prev').addEventListener('click', () => handleCycleMealOption(state, -1));
+  card.querySelector('.meal-cycle-btn--next').addEventListener('click', () => handleCycleMealOption(state, 1));
+  card.querySelector('.meal-add-food-btn').addEventListener('click', () => showAddFoodAction(state));
+  const editToggle = card.querySelector('.edit-mode-toggle');
+  if (editToggle) {
+    editToggle.checked = state.editModeEnabled;
+    editToggle.disabled = isManualModeActive();
+  }
+  editToggle?.addEventListener('change', (event) => {
+    setMealAiMode(state, event.target.checked);
+  });
+  refreshMealCustomizationControls(state);
+  refreshMealCycleButtons(state);
+  if (isManualModeActive()) removeManualModeMealControls(card);
+
+  return card;
+}
+
+function setMealAiMode(state, enabled) {
+  state.editModeEnabled = Boolean(enabled);
+  if (!state.editModeEnabled) {
+    state.items = state.items
+      .map((item) => (item.pendingSwap && item.swapOriginal ? normalizeStateItem(item.swapOriginal) : item))
+      .filter((item) => !item.pendingAdd);
+    closeActionPanel(state);
+  }
+  renderFoodList(state);
+  refreshMealCustomizationControls(state);
+  refreshMealCardHeader(state.cardEl, state);
+}
+
+function refreshMealCustomizationControls(state) {
+  const tray = state.cardEl?.querySelector('.meal-add-tray');
+  if (tray) tray.hidden = !state.editModeEnabled;
+  const toggle = state.cardEl?.querySelector('.edit-mode-toggle');
+  if (toggle) {
+    toggle.checked = state.editModeEnabled;
+    toggle.disabled = isManualModeActive();
+  }
+}
+
+function refreshMealCardHeader(card, state) {
+  const totals = computeTotals(state.items);
+  card.querySelector('.meal-card__meta').textContent = mealCardMetaText(state);
+  const rangeNote = card.querySelector('.meal-card__ranges');
+  if (rangeNote) {
+    rangeNote.innerHTML = mealRangeNoteHtml(state.target);
+    rangeNote.hidden = !rangeNote.innerHTML;
+  }
+
+  // The calorie figure appears twice — header chip and meal-totals footer.
+  for (const key of ['calories', 'proteinG', 'carbG', 'fatG']) {
+    card.querySelectorAll(`.meal-actual-${key}`).forEach((el) => {
+      el.textContent = formatNumber(totals[key]);
+    });
+  }
+}
+
+function mealCardMetaText(state) {
+  const optionCount = readyMealOptions(state).length;
+  const total = Math.max(optionCount, 1);
+  const current = Math.min(Math.max((Number(state.mealOptionIndex) || 0) + 1, 1), total);
+  return `${current} of ${total}`;
+}
+
+function mealRangeNoteHtml(target) {
+  const ranges = mealDisplayRanges(target);
+  if (!ranges) return '';
+  return [
+    ['Calories', ranges.calories, 'kcal', 'calories'],
+    ['Protein', ranges.proteinG, 'g', 'proteinG'],
+    ['Carbs', ranges.carbG, 'g', 'carbG'],
+    ['Fat', ranges.fatG, 'g', 'fatG'],
+  ].filter(([, range]) => range)
+    .map(([label, range, unit, metric]) => `
+    <span class="meal-card__range-chip" data-metric="${metric}">
+      <b>${label}</b>
+      <span>${formatRangeValue(range, unit)}</span>
+    </span>
+  `).join('');
+}
+
+function mealDisplayRanges(target) {
+  if (!target?.macroWindows) {
+    return null;
+  }
+
+  const windows = target.macroWindows;
+  if (!windows.calories || !windows.proteinG || !windows.fatG) return null;
+  return {
+    calories: windows.calories,
+    proteinG: windows.proteinG,
+    carbG: windows.carbG,
+    fatG: windows.fatG,
+  };
+}
+
+function formatRangeValue(range, unit) {
+  const decimals = unit === 'kcal' ? 0 : 1;
+  return `${formatNumber(range.min, decimals)}-${formatNumber(range.max, decimals)} ${unit}`;
+}
+
+// Reconciles the rendered rows against state.items in place. Rows that did not
+// change keep their DOM nodes untouched, and changed rows update without forced
+// animation/reflow so swaps feel instant instead of like a refresh.
+function renderFoodList(state) {
+  const foodList = state.cardEl?.querySelector('.food-list');
+  if (!foodList) return;
+  syncPendingAddLayer(state);
+
+  const rows = [...foodList.querySelectorAll(':scope > .food-item')];
+  const rowsByKey = rows.reduce((map, row) => {
+    const key = row.dataset.foodKey;
+    if (!key) return map;
+    const matches = map.get(key) || [];
+    matches.push(row);
+    map.set(key, matches);
+    return map;
+  }, new Map());
+  const usedRows = new Set();
+  const takeRowByKey = (key) => {
+    const matches = rowsByKey.get(key) || [];
+    while (matches.length > 0) {
+      const row = matches.shift();
+      if (!usedRows.has(row)) return row;
+    }
+    return null;
+  };
+
+  state.items.forEach((item, itemIndex) => {
+    const key = foodRowKey(item);
+    const existing = rows[itemIndex]?.dataset.foodKey === key && !usedRows.has(rows[itemIndex])
+      ? rows[itemIndex]
+      : takeRowByKey(key);
+    if (!existing) {
+      const row = renderFoodItem(state, itemIndex);
+      usedRows.add(row);
+      foodList.insertBefore(row, rows[itemIndex] || null);
+      return;
+    }
+    usedRows.add(existing);
+    const currentRows = [...foodList.querySelectorAll(':scope > .food-item')];
+    if (currentRows[itemIndex] !== existing) {
+      foodList.insertBefore(existing, currentRows[itemIndex] || null);
+    }
+    updateFoodRow(existing, state, itemIndex);
+  });
+
+  rows.forEach((row) => {
+    if (!usedRows.has(row)) row.remove();
+  });
+  syncPendingAddLayer(state);
+}
+
+function foodRowKey(item) {
+  if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
+  if (item.pendingSwap) return `pending-swap:${item.pendingId || 'new'}`;
+  return String(item.food?.id ?? item.food?.name ?? '');
+}
+
+function syncPendingAddLayer(state) {
+  state.cardEl?.classList.toggle(
+    'meal-card--has-pending-add',
+    state.items.some((item) => item.pendingAdd || item.pendingSwap),
+  );
+}
+
+function foodRowSignature(item) {
+  if (item.pendingAdd) return `pending-add:${item.pendingId || 'new'}`;
+  if (item.pendingSwap) return `pending-swap:${item.pendingId || 'new'}`;
+  return [
+    item.food?.id ?? item.food?.name ?? '',
+    item.food?.name ?? '',
+    Number(item.quantityG) || 0,
+    isManualModeActive() ? 'manual' : 'standard',
+  ].join('|');
+}
+
+// Returns true when anything visible actually changed.
+function updateFoodRow(row, state, itemIndex) {
+  const item = state.items[itemIndex];
+  row.dataset.itemIndex = itemIndex;
+  row.dataset.foodKey = foodRowKey(item);
+  setRowActions(row, state, itemIndex);
+
+  const signature = foodRowSignature(item);
+  if (row.dataset.signature === signature) return false;
+  row.dataset.signature = signature;
+
+  if (item.pendingAdd || item.pendingSwap) {
+    renderPendingFoodSearchRow(row, state, itemIndex);
+    return true;
+  }
+
+  row.classList.remove('food-item--pending-add');
+  row.classList.remove('food-item--pending-swap');
+  const food = item.food;
+  const totals = itemTotals(food, item.quantityG);
+
+  const iconEl = row.querySelector('.food-icon');
+  setFoodMedia(iconEl, food, 15);
+  row.querySelector('.food-name').textContent = food.name;
+
+  renderPortionCell(row, state, itemIndex, item);
+
+  const cells = {
+    '.food-cell--cal': formatNumber(totals.calories),
+    '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
+    '.food-cell--carb': `${formatNumber(totals.carbG)}g`,
+    '.food-cell--fat': `${formatNumber(totals.fatG)}g`,
+  };
+  for (const [selector, value] of Object.entries(cells)) {
+    row.querySelector(selector).textContent = value;
+  }
+  return true;
+}
+
+function renderPortionCell(row, state, itemIndex, item) {
+  const cell = row.querySelector('.food-cell--portion');
+  if (!cell) return;
+  if (!isManualModeActive() || plannerCtx?.exportPdf) {
+    row.classList.remove('food-item--wide-portion');
+    if (plannerCtx?.exportPdf) {
+      cell.replaceChildren(document.createTextNode(formatPortion(item)));
+    } else {
+      renderReadOnlyPortionCell(cell, item);
+    }
+    return;
+  }
+
+  cell.innerHTML = `
+    <span class="portion">
+      <button type="button" class="portion-step" data-step="-5" aria-label="Decrease">−</button>
+      <input
+        class="manual-grams-input"
+        type="number"
+        min="0"
+        max="${INPUT_LIMITS.gramsPerFood}"
+        step="5"
+        inputmode="decimal"
+        value="${escapeHtml(Math.round((Number(item.quantityG) || 0) * 10) / 10)}"
+        aria-label="Grams of ${escapeHtml(item.food?.name || 'food')}"
+      />
+      <span class="unit">g</span>
+      <button type="button" class="portion-step" data-step="5" aria-label="Increase">+</button>
+    </span>
+  `;
+  const input = cell.querySelector('.manual-grams-input');
+  const fitInput = () => {
+    const length = String(input.value).length;
+    input.style.width = `${Math.max(2, length) + 0.4}ch`;
+    row.classList.toggle('food-item--wide-portion', length >= 5);
+  };
+  fitInput();
+  input.addEventListener('input', fitInput);
+  cell.querySelectorAll('.portion-step').forEach((button) => {
+    button.addEventListener('click', () => {
+      const itemNow = state.items[itemIndex];
+      if (!itemNow?.food) return;
+      const step = Number(button.dataset.step) || 0;
+      const current = Number(input.value || itemNow.quantityG || 0);
+      itemNow.quantityG = clampManualGrams(current + step);
+      input.value = String(itemNow.quantityG);
+      fitInput();
+      updateManualItemQuantity(state, itemIndex, input.value, { force: true });
+    });
+  });
+  input.addEventListener('input', () => updateManualItemQuantity(state, itemIndex, input.value));
+  input.addEventListener('change', () => {
+    const itemNow = state.items[itemIndex];
+    if (!itemNow?.food) return;
+    itemNow.quantityG = clampManualGrams(input.value);
+    input.value = String(itemNow.quantityG);
+    fitInput();
+    updateManualItemQuantity(state, itemIndex, input.value, { force: true });
+  });
+}
+
+function renderReadOnlyPortionCell(cell, item) {
+  const grams = Math.round((Number(item.quantityG) || 0) * 10) / 10;
+  cell.innerHTML = `
+    <span class="portion portion--readonly" aria-label="${escapeHtml(formatPortion(item))}">
+      <span class="portion-value">${escapeHtml(formatNumber(grams))}</span>
+      <span class="unit">g</span>
+    </span>
+  `;
+}
+
+function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } = {}) {
+  if (!isManualModeActive()) return;
+  const item = state.items[itemIndex];
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!item?.food || !row) return;
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value < 0) {
+    if (force) return;
+    return;
+  }
+  item.quantityG = clampManualGrams(value);
+  row.dataset.signature = foodRowSignature(item);
+  updateFoodMacroCells(row, item);
+  persistCurrentMealOption(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+  markPlanUnsaved();
+}
+
+function updateFoodMacroCells(row, item) {
+  const totals = itemTotals(item.food, item.quantityG);
+  const cells = {
+    '.food-cell--cal': formatNumber(totals.calories),
+    '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
+    '.food-cell--carb': `${formatNumber(totals.carbG)}g`,
+    '.food-cell--fat': `${formatNumber(totals.fatG)}g`,
+  };
+  for (const [selector, value] of Object.entries(cells)) {
+    row.querySelector(selector).textContent = value;
+  }
+}
+
+function renderPendingFoodSearchRow(row, state, itemIndex) {
+  const item = state.items[itemIndex];
+  const isSwap = Boolean(item?.pendingSwap);
+  row.classList.add('food-item--pending-add');
+  row.classList.toggle('food-item--pending-swap', isSwap);
+  row.querySelector('.food-title').innerHTML = `
+    <span class="food-icon" aria-hidden="true"></span>
+    <span class="pending-food-search">
+      <input class="pending-food-search__input" type="search" placeholder="${isSwap ? 'Search replacement food' : 'Search food'}" autocomplete="off" />
+      <span class="guided-search-results pending-food-search__results" hidden></span>
+    </span>
+  `;
+  const iconEl = row.querySelector('.food-icon');
+  iconEl.dataset.mediaKey = '';
+  iconEl.dataset.tone = 'neutral';
+  iconEl.classList.remove('food-icon--image');
+  iconEl.textContent = '';
+  row.querySelector('.food-cell--portion').textContent = '0g';
+  row.querySelector('.food-cell--cal').textContent = '0';
+  row.querySelector('.food-cell--protein').textContent = '0g';
+  row.querySelector('.food-cell--carb').textContent = '0g';
+  row.querySelector('.food-cell--fat').textContent = '0g';
+
+  const search = row.querySelector('.pending-food-search__input');
+  const results = row.querySelector('.pending-food-search__results');
+  search.addEventListener('input', () => {
+    renderFoodSearchResults(state, search.value, results, (food) => {
+      attemptInlineFoodSearchSelection(state, itemIndex, food);
+    });
+  });
+  window.requestAnimationFrame(() => search.focus());
+}
+
+function attemptInlineFoodSearchSelection(state, itemIndex, food) {
+  if (state.items[itemIndex]?.pendingSwap) {
+    attemptInlineSwapFood(state, itemIndex, food);
+    return;
+  }
+  attemptInlineAddFood(state, itemIndex, food);
+}
+
+// The actions column is always present in the grid, so toggling edit mode fills
+// or empties it without moving a single other column.
+function setRowActions(row, state, itemIndex) {
+  const slot = row.querySelector('.food-actions');
+  const item = state.items[itemIndex];
+  const mode = item?.pendingAdd || item?.pendingSwap ? 'pending-search' : (state.editModeEnabled ? 'edit' : 'none');
+  if (slot.dataset.mode === mode) return;
+
+  slot.dataset.mode = mode;
+  if (mode === 'pending-search') {
+    slot.innerHTML = `
+      <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove empty food row"><span aria-hidden="true">⌫</span></button>
+    `;
+    slot.querySelector('.food-delete-btn')?.addEventListener('click', () => removePendingFoodSearchRow(state, Number(row.dataset.itemIndex)));
+    return;
+  }
+
+  const name = escapeHtml(item?.food?.name || 'food');
+  slot.innerHTML = mode === 'edit' ? `
+    <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><span aria-hidden="true">⇄</span></button>
+    <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><span aria-hidden="true">⌫</span></button>
+  ` : '';
+  slot.querySelector('.food-swap-btn')?.addEventListener('click', () => {
+    const nextIndex = Number(row.dataset.itemIndex);
+    showSwapFoodAction(state, nextIndex);
+  });
+  slot.querySelector('.food-delete-btn')?.addEventListener('click', () => showRemoveFoodAction(state, Number(row.dataset.itemIndex)));
+}
+
+// ── Food item rendering ──────────────────────────────────────────────────────
+
+function renderFoodItem(state, itemIndex) {
+  const row = document.createElement('div');
+  row.className = 'food-item';
+  row.innerHTML = `
+    <div class="food-title">
+      <span class="food-icon" aria-hidden="true"></span>
+      <span class="food-name"></span>
+    </div>
+    <div class="food-cell food-cell--portion"></div>
+    <div class="food-cell food-cell--cal"></div>
+    <div class="food-cell food-cell--protein"></div>
+    <div class="food-cell food-cell--carb"></div>
+    <div class="food-cell food-cell--fat"></div>
+    <div class="food-actions" data-filled="0"></div>
+  `;
+  updateFoodRow(row, state, itemIndex);
+  return row;
+}
+
+// ── Guided meal actions ─────────────────────────────────────────────────────
+
+function normalizeMealOption(option) {
+  return {
+    templateId: option.templateId || null,
+    templateName: option.templateName || 'Alternate meal',
+    templateFamily: option.templateFamily || null,
+    items: (option.items || []).map(normalizeStateItem),
+    totals: option.totals || null,
+    isApproximate: Boolean(option.isApproximate),
+  };
+}
+
+function mealOptionFitsTarget(option, target) {
+  if (!target || !Array.isArray(option.items) || option.items.length === 0) return false;
+  const totals = option.totals || computeTotals(option.items);
+  if (target.macroWindows) {
+    return (
+      totals.calories >= target.macroWindows.calories.min &&
+      totals.calories <= target.macroWindows.calories.max &&
+      totals.proteinG >= target.macroWindows.proteinG.min &&
+      totals.proteinG <= target.macroWindows.proteinG.max &&
+      totals.fatG >= target.macroWindows.fatG.min &&
+      totals.fatG <= target.macroWindows.fatG.max
+    );
+  }
+  return false;
+}
+
+function dailyMetricFitsTarget(key, actual, targets, serverBounds = null) {
+  if (!Number.isFinite(actual) || !targets) return false;
+  const bounds = dailyMetricBounds(key, targets, serverBounds);
+  if (!bounds) return true;
+  return actual >= bounds.min && actual <= bounds.max;
+}
+
+function dailyMetricBounds(key, targets, serverBounds = null) {
+  const serverRange = serverBounds?.[key];
+  if (serverRange && Number.isFinite(Number(serverRange.min)) && Number.isFinite(Number(serverRange.max))) {
+    return { min: Number(serverRange.min), max: Number(serverRange.max) };
+  }
+
+  const range = targets?.macroRanges?.[key];
+  if (range && Number.isFinite(Number(range.min)) && Number.isFinite(Number(range.max))) {
+    return { min: Number(range.min), max: Number(range.max) };
+  }
+
+  const targetValue = Number(targets?.[key]);
+  if (key === 'calories' && Number.isFinite(targetValue)) {
+    return {
+      min: targetValue - targetValue * DAILY_CALORIE_TOLERANCE_PERCENT,
+      max: targetValue + targetValue * DAILY_CALORIE_TOLERANCE_PERCENT,
+    };
+  }
+
+  return null;
+}
+
+function formatAllowedRange(bounds, unit) {
+  if (!bounds) return '';
+  return `Allowed ${formatNumber(bounds.min)}-${formatNumber(bounds.max)} ${unit}`;
+}
+
+function normalizeStateItem(item) {
+  return {
+    food: item.food,
+    quantityG: Number(item.quantityG) || 0,
+    pendingAdd: Boolean(item.pendingAdd),
+    pendingSwap: Boolean(item.pendingSwap),
+    pendingId: item.pendingId || null,
+    swapOriginal: item.swapOriginal || null,
+    alternatives: item.alternatives || [],
+    broaderAlternatives: item.broaderAlternatives || [],
+    nearestAlternatives: item.nearestAlternatives || [],
+    component: item.component || null,
+  };
+}
+
+function mealActionItems(items) {
+  return items.filter((item) => item.food).map((item) => ({
+    foodId: item.food.id,
+    name: item.food.name,
+    quantityG: item.quantityG,
+  }));
+}
+
+function readyMealOptions(state) {
+  const original = state.originalMealOption || normalizeMealOption({
+    templateId: state.templateId || null,
+    templateName: state.templateName || state.name,
+    items: state.items,
+    isApproximate: Boolean(state.isApproximate),
+  });
+  return uniqueMealOptions(original, state.mealOptions || []);
+}
+
+async function handleCycleMealOption(state, direction) {
+  if (isManualModeActive()) return;
+  persistCurrentMealOption(state);
+  const options = readyMealOptions(state);
+  if (options.length <= 1) {
+    showActionMessage(state, 'No other ready meals fit this meal window yet.');
+    refreshMealCycleButtons(state);
+    return;
+  }
+
+  const nextIndex = isManualModeActive()
+    ? nextMealOptionIndex(state, direction, options)
+    : nextDaySafeMealOptionIndex(state, direction, options);
+  if (nextIndex === null) {
+    showActionMessage(state, 'No other ready meal fits this meal window.');
+    refreshMealCycleButtons(state);
+    return;
+  }
+
+  applyReadyMealOption(state, options[nextIndex], nextIndex);
+}
+
+function nextMealOptionIndex(state, direction, options) {
+  if (!options.length) return null;
+  const currentIndex = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  const step = direction >= 0 ? 1 : -1;
+  return (currentIndex + step + options.length) % options.length;
+}
+
+function nextDaySafeMealOptionIndex(state, direction, options) {
+  const step = direction >= 0 ? 1 : -1;
+  const currentIndex = Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0;
+  for (let offset = 1; offset <= options.length; offset += 1) {
+    const index = (currentIndex + step * offset + options.length) % options.length;
+    if (index === currentIndex) continue;
+    const option = options[index];
+    if (mealOptionFitsTarget(option, state.target)) return index;
+  }
+
+  return null;
+}
+
+function applyReadyMealOption(state, option, optionIndex) {
+  preloadFoodImagesFromItems(option.items);
+  state.items = option.items.map(normalizeStateItem);
+  state.mealOptionIndex = optionIndex;
+  state.templateId = option.templateId || state.templateId;
+  state.templateName = option.templateName || state.templateName;
+  state.templateFamily = option.templateFamily || option.readyMealTrack || null;
+  state.isApproximate = Boolean(option.isApproximate);
+  state.isOriginalTemplate = optionIndex === 0;
+  state.numberOfSwaps = 0;
+  const panel = actionPanel(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
+  refreshRedFlags();
+  resetChat(state);
+  markPlanUnsaved();
+}
+
+function refreshMealCycleButtons(state) {
+  const options = readyMealOptions(state);
+  const prev = state.cardEl?.querySelector('.meal-cycle-btn--prev');
+  const next = state.cardEl?.querySelector('.meal-cycle-btn--next');
+  if (!prev || !next) return;
+
+  const disabled = options.length <= 1;
+  prev.disabled = disabled;
+  next.disabled = disabled;
+  prev.setAttribute('aria-disabled', String(prev.disabled));
+  next.setAttribute('aria-disabled', String(next.disabled));
+}
+
+function showAddFoodAction(state) {
+  const existingIndex = state.items.findIndex((item) => item.pendingAdd);
+  if (existingIndex >= 0) {
+    focusPendingAddRow(state, existingIndex);
+    return;
+  }
+  if (state.items.filter((item) => item.food).length >= INPUT_LIMITS.foodsPerMeal) {
+    showActionMessage(state, `A meal can have at most ${INPUT_LIMITS.foodsPerMeal} foods.`);
+    return;
+  }
+
+  state.items = [
+    ...state.items,
+    normalizeStateItem({ pendingAdd: true, pendingId: `pending_${Date.now()}` }),
+  ];
+  const panel = actionPanel(state);
+  moveActionPanelToCardEnd(state, panel);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  resetActionPanel(panel);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  focusPendingAddRow(state, state.items.length - 1);
+}
+
+function focusPendingAddRow(state, itemIndex) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  row?.querySelector('.pending-food-search__input')?.focus();
+}
+
+function removePendingAddRow(state, itemIndex) {
+  if (!state.items[itemIndex]?.pendingAdd) return;
+  state.items = state.items.filter((_, index) => index !== itemIndex);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function restorePendingSwapRow(state, itemIndex) {
+  const item = state.items[itemIndex];
+  if (!item?.pendingSwap || !item.swapOriginal) return;
+  state.items = state.items.map((candidate, index) => (
+    index === itemIndex ? normalizeStateItem(item.swapOriginal) : candidate
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshRedFlags();
+}
+
+function removePendingFoodSearchRow(state, itemIndex) {
+  if (state.items[itemIndex]?.pendingSwap) {
+    restorePendingSwapRow(state, itemIndex);
+    return;
+  }
+  removePendingAddRow(state, itemIndex);
+}
+
+function attemptInlineAddFood(state, itemIndex, food) {
+  if (!state.items[itemIndex]?.pendingAdd || !food) return;
+  const attempted = state.items.map((item, index) => (
+    index === itemIndex
+      ? normalizeStateItem({ food, quantityG: food.defaultServingG })
+      : item
+  ));
+  if (isManualModeActive()) {
+    applyManualMealItems(state, attempted, { successRowIndex: itemIndex });
+    return;
+  }
+  attemptGuidedRebalance(state, {
+    action: 'add_food',
+    attemptedItems: attempted,
+    title: `Add ${food.name}`,
+    failureReason: 'Cannot add this food.',
+    failureMessage: 'Cannot add this food.',
+    successRowIndex: itemIndex,
+  });
+}
+
+function attemptInlineSwapFood(state, itemIndex, food) {
+  const item = state.items[itemIndex];
+  if (!item?.pendingSwap || !item.swapOriginal?.food || !food) return;
+  state.items = state.items.map((candidate, index) => (
+    index === itemIndex ? normalizeStateItem(item.swapOriginal) : candidate
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  if (isManualModeActive()) {
+    applyManualFoodSwap(state, itemIndex, food);
+    return;
+  }
+  attemptSwapFood(state, itemIndex, food);
+}
+
+function showRemoveFoodAction(state, itemIndex = null) {
+  const foods = state.items.filter((item) => item.food);
+  if (isManualModeActive() && Number.isInteger(itemIndex)) {
+    applyManualMealItems(state, state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex));
+    return;
+  }
+  if (foods.length <= 1) {
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: 'Cannot delete this food.',
+      compact: true,
+    });
+    return;
+  }
+
+  if (Number.isInteger(itemIndex)) {
+    const item = state.items[itemIndex];
+    if (!item?.food) return;
+    moveActionPanelToCardEnd(state, actionPanel(state));
+    const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
+    const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
+    attemptGuidedRebalance(state, {
+      action: 'remove_food',
+      attemptedItems: attempted,
+      title: `Remove ${item.food.name}`,
+      failureReason: 'Cannot delete this food.',
+      failureMessage: 'Cannot delete this food.',
+      deleteUndo,
+    });
+    return;
+  }
+
+  const panel = actionPanel(state);
+  moveActionPanelToCardEnd(state, panel);
+  resetActionPanel(panel);
+  panel.hidden = false;
+  panel.innerHTML = `
+    <p class="meal-action-title">Remove one food</p>
+    <div class="guided-choice-list"></div>
+  `;
+  const list = panel.querySelector('.guided-choice-list');
+  foods.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-action-btn';
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('suggestion-food-icon')}
+      <strong>${escapeHtml(item.food.name)}</strong>
+      <em>${formatNumber(item.quantityG)}g</em>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), item.food, 15);
+    btn.addEventListener('click', () => {
+      const itemIndex = state.items.findIndex((candidate) => candidate === item);
+      if (itemIndex < 0) return;
+      if (isManualModeActive()) {
+        applyManualMealItems(state, state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex));
+        return;
+      }
+      const deleteUndo = createDeleteUndoContext(state, itemIndex, item);
+      const attempted = state.items.filter((_, candidateIndex) => candidateIndex !== itemIndex);
+      attemptGuidedRebalance(state, {
+        action: 'remove_food',
+        attemptedItems: attempted,
+        title: `Remove ${item.food.name}`,
+        failureReason: 'Cannot delete this food.',
+        failureMessage: 'Cannot delete this food.',
+        deleteUndo,
+      });
+    });
+    list.append(btn);
+  });
+}
+
+function applyManualFoodSwap(state, itemIndex, food) {
+  const item = state.items[itemIndex];
+  if (!item?.food || !food) return;
+  const quantityG = clampGrams(food, item.quantityG, 1) || food.defaultServingG || item.quantityG || 100;
+  const attempted = state.items.map((candidate, candidateIndex) => (
+    candidateIndex === itemIndex
+      ? normalizeStateItem({ ...candidate, food, quantityG })
+      : candidate
+  ));
+  applyManualMealItems(state, attempted, { successRowIndex: itemIndex });
+}
+
+function applyManualMealItems(state, items, { successRowIndex = null } = {}) {
+  state.items = items.map(normalizeStateItem);
+  state.isOriginalTemplate = false;
+  state.numberOfSwaps = Math.max(1, Number(state.numberOfSwaps || 0));
+  persistCurrentMealOption(state);
+  closeActionPanel(state);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
+  refreshRedFlags();
+  resetChat(state);
+  if (Number.isInteger(successRowIndex)) pulseFoodRow(state, successRowIndex);
+  markPlanUnsaved();
+}
+
+function createDeleteUndoContext(state, itemIndex, item) {
+  return {
+    id: `delete_undo_${++deleteUndoSequence}`,
+    state,
+    itemIndex,
+    foodName: item.food.name,
+    deletedItem: normalizeStateItem(item),
+    beforeItems: state.items.map(normalizeStateItem),
+  };
+}
+
+function mealItemsUndoSignature(items) {
+  return mealActionItems(items)
+    .map((item) => JSON.stringify({
+      foodId: String(item.foodId || ''),
+      name: item.name || '',
+      quantityG: Math.round((Number(item.quantityG) || 0) * 10) / 10,
+    }))
+    .join('|');
+}
+
+function ensureDeleteUndoHost() {
+  let host = document.querySelector('.delete-undo-host');
+  if (host) return host;
+  host = document.createElement('div');
+  host.className = 'delete-undo-host';
+  host.setAttribute('aria-live', 'polite');
+  host.setAttribute('aria-atomic', 'false');
+  document.body.append(host);
+  return host;
+}
+
+function showDeleteUndoToast(context) {
+  const host = ensureDeleteUndoHost();
+  const toast = document.createElement('div');
+  toast.className = 'delete-undo-toast';
+  toast.dataset.undoId = context.id;
+  toast.style.setProperty('--delete-undo-duration', `${DELETE_UNDO_MS}ms`);
+  toast.innerHTML = `
+    <div class="delete-undo-toast__content">
+      <span class="delete-undo-toast__label">Deleted ${escapeHtml(context.foodName)}</span>
+      <button class="delete-undo-toast__button" type="button">${iconSvg('rotate', 14)}<span>Undo delete</span></button>
+    </div>
+    <span class="delete-undo-toast__bar" aria-hidden="true"></span>
+  `;
+
+  const dismissTimer = window.setTimeout(() => dismissDeleteUndoToast(toast), DELETE_UNDO_MS);
+  toast.querySelector('.delete-undo-toast__button')?.addEventListener('click', () => {
+    window.clearTimeout(dismissTimer);
+    restoreDeletedFood(context);
+    dismissDeleteUndoToast(toast);
+  }, { once: true });
+
+  host.prepend(toast);
+}
+
+function dismissDeleteUndoToast(toast) {
+  if (!toast || toast.classList.contains('is-dismissing')) return;
+  toast.classList.add('is-dismissing');
+  window.setTimeout(() => {
+    toast.remove();
+    const host = document.querySelector('.delete-undo-host');
+    if (host && !host.children.length) host.remove();
+  }, 220);
+}
+
+function restoreDeletedFood(context) {
+  const state = context.state;
+  if (!state?.items || !state.cardEl?.isConnected) return;
+
+  const currentSignature = mealItemsUndoSignature(state.items);
+  let restoredItems = context.beforeItems;
+  let restoredIndex = context.itemIndex;
+
+  if (currentSignature !== context.afterSignature) {
+    restoredIndex = Math.min(Math.max(context.itemIndex, 0), state.items.length);
+    restoredItems = [
+      ...state.items.slice(0, restoredIndex),
+      context.deletedItem,
+      ...state.items.slice(restoredIndex),
+    ];
+  }
+
+  applyMealItems(state, restoredItems, { source: 'undo_delete' });
+  pulseFoodRow(state, restoredIndex);
+  showActionFeedback(state, {
+    tone: 'success',
+    message: `Restored ${context.foodName}.`,
+    compact: true,
+    cardClass: 'meal-card--flash-success',
+  });
+}
+
+function showSwapFoodAction(state, itemIndex = null) {
+  const item = Number.isInteger(itemIndex) ? state.items[itemIndex] : null;
+  if (!item?.food) {
+    showActionMessage(state, 'Choose a food to swap first.');
+    return;
+  }
+
+  const panel = actionPanel(state);
+  if (
+    !panel.hidden
+    && panel.classList.contains('meal-action-panel--swap')
+    && panel.dataset.swapItemIndex === String(itemIndex)
+  ) {
+    closeActionPanel(state);
+    return;
+  }
+
+  clearFeedbackTimer(state);
+  resetActionPanel(panel);
+  panel.classList.add('meal-action-panel--swap');
+  panel.dataset.swapItemIndex = String(itemIndex);
+  moveActionPanelAfterFoodRow(state, itemIndex, panel);
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div class="swap-action-heading">
+      <p class="meal-action-title">Swap with</p>
+    </div>
+    <div class="guided-choice-list swap-choice-rail" aria-label="Suggested swaps"></div>
+  `;
+  const list = panel.querySelector('.guided-choice-list');
+
+  loadSwapSuggestionsIntoList(state, itemIndex, item, list);
+}
+
+function appendSwapSearchButton(state, itemIndex, list) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'suggestion-action-btn swap-suggestion-btn swap-suggestion-btn--search';
+  btn.innerHTML = `
+    <span class="food-icon swap-search-icon" aria-hidden="true">${iconSvg('plus', 14)}</span>
+    <strong>Search food</strong>
+  `;
+  btn.addEventListener('click', () => beginInlineSwapSearch(state, itemIndex));
+  list.append(btn);
+}
+
+function renderSwapSuggestionEmpty(list, message) {
+  const empty = document.createElement('div');
+  empty.className = 'suggestion-empty';
+  empty.textContent = message;
+  list.append(empty);
+}
+
+const SWAP_SUGGESTION_BATCH_SIZE = 5;
+
+function fetchSwapSuggestionBatch(foodId, mealContext, cursor = 0) {
+  return fetch('/api/swap-suggestions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      foodId,
+      userPreferences: getUserPreferences(),
+      mealContext,
+      limit: SWAP_SUGGESTION_BATCH_SIZE,
+      cursor,
+    }),
+  }).then((res) => readJsonResponse(res, 'Unable to load swap suggestions.').then((data) => {
+    if (!res.ok) throw new Error(data.error || 'Unable to load swap suggestions.');
+    return data;
+  }));
+}
+
+function appendSwapSuggestionButtons(state, itemIndex, list, suggestions, beforeNode = null) {
+  const shownIds = new Set([...list.querySelectorAll('[data-swap-food-id]')].map((el) => el.dataset.swapFoodId));
+  suggestions.forEach((suggestion) => {
+    const alt = foodsById.get(suggestion.foodId);
+    if (!alt || shownIds.has(String(alt.id))) return;
+    shownIds.add(String(alt.id));
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-action-btn swap-suggestion-btn';
+    btn.dataset.swapFoodId = String(alt.id);
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('swap-suggestion-media')}
+      <strong>${escapeHtml(alt.name)}</strong>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), alt, 15);
+    btn.addEventListener('click', () => attemptSwapFood(state, itemIndex, alt));
+    list.insertBefore(btn, beforeNode);
+  });
+}
+
+// "Show more" asks the server for the next batch starting at its cursor and
+// appends it to the list already on screen.
+function appendSwapShowMoreButton(state, itemIndex, list, { foodId, mealContext, nextCursor }) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'suggestion-action-btn swap-show-more-btn';
+  btn.textContent = 'Show more';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    let payload = null;
+    try {
+      payload = await fetchSwapSuggestionBatch(foodId, mealContext, nextCursor);
+    } catch { /* restored below */ }
+    if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
+    if (!payload) {
+      btn.disabled = false;
+      btn.textContent = 'Show more';
+      return;
+    }
+    appendSwapSuggestionButtons(state, itemIndex, list, payload.options || [], btn);
+    btn.remove();
+    if (payload.hasMore) {
+      appendSwapShowMoreButton(state, itemIndex, list, {
+        foodId, mealContext, nextCursor: payload.nextCursor,
+      });
+    }
+  });
+  list.append(btn);
+}
+
+async function loadSwapSuggestionsIntoList(state, itemIndex, item, list) {
+  list.innerHTML = '';
+  appendSwapSearchButton(state, itemIndex, list);
+  if (isManualModeActive()) {
+    renderSwapSuggestionEmpty(list, 'Search any food to swap manually.');
+    return;
+  }
+  renderSwapSuggestionEmpty(list, 'Finding good swaps...');
+
+  const foodId = item.food.id;
+  // Filters candidates down to ones that actually fit this meal at some
+  // valid serving size — the same rebalance check /api/rebalance-meal runs
+  // for a real swap — so nothing shown here can fail with "Cannot swap
+  // this food" after the user picks it.
+  const mealContext = {
+    mealTag: state.tag,
+    itemIndex,
+    currentItems: mealActionItems(state.items),
+    mealTarget: state.target,
+    ...(dailyTargets ? { dailyContext: { dailyTargets, weightKg: Number(currentPlanInput?.weightKg) } } : {}),
+  };
+
+  let payload = null;
+  try {
+    [, payload] = await Promise.all([
+      ensureFoodsLoaded(), // foodsById must be populated to resolve suggestion ids below
+      fetchSwapSuggestionBatch(foodId, mealContext),
+    ]);
+  } catch { /* fall through to the empty state below */ }
+  const suggestions = payload?.options || [];
+
+  // The panel may have been closed, or switched to a different food, while
+  // this request was in flight. Bail rather than render stale suggestions.
+  if (!list.isConnected || state.items[itemIndex]?.food?.id !== foodId) return;
+
+  list.innerHTML = '';
+  appendSwapSearchButton(state, itemIndex, list);
+  if (!suggestions.length) {
+    renderSwapSuggestionEmpty(list, 'No suggested swaps for this food.');
+    return;
+  }
+
+  appendSwapSuggestionButtons(state, itemIndex, list, suggestions);
+  if (payload.hasMore) {
+    appendSwapShowMoreButton(state, itemIndex, list, {
+      foodId, mealContext, nextCursor: payload.nextCursor,
+    });
+  }
+}
+
+function beginInlineSwapSearch(state, itemIndex) {
+  const original = state.items[itemIndex];
+  if (!original?.food) return;
+
+  closeActionPanel(state);
+  state.items = state.items.map((item, index) => (
+    index === itemIndex
+      ? normalizeStateItem({
+        pendingSwap: true,
+        pendingId: `pending_swap_${Date.now()}`,
+        swapOriginal: normalizeStateItem(original),
+      })
+      : item
+  ));
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  focusPendingAddRow(state, itemIndex);
+}
+
+function attemptSwapFood(state, itemIndex, alt) {
+  const item = state.items[itemIndex];
+  if (!item?.food || !alt) return;
+  if (isManualModeActive()) {
+    applyManualFoodSwap(state, itemIndex, alt);
+    return;
+  }
+  const replacementQuantityG = clampGrams(alt, item.quantityG, 5) || alt.defaultServingG || item.quantityG;
+  const attempted = state.items.map((candidate, candidateIndex) => (
+    candidateIndex === itemIndex
+      ? normalizeStateItem({ ...item, food: alt, quantityG: replacementQuantityG })
+      : candidate
+  ));
+  attemptGuidedRebalance(state, {
+    action: 'swap_food',
+    attemptedItems: attempted,
+    title: `Swap ${item.food.name}`,
+    failureReason: 'Cannot swap this food.',
+    failureMessage: 'Cannot swap this food.',
+    successRowIndex: itemIndex,
+  });
+}
+
+async function attemptGuidedRebalance(state, {
+  action,
+  attemptedItems,
+  failureReason,
+  failureMessage = '',
+  successRowIndex = null,
+  deleteUndo = null,
+} = {}) {
+  if (isManualModeActive()) {
+    applyManualMealItems(state, attemptedItems, { successRowIndex });
+    return;
+  }
+  const shouldApplyImmediately = true;
+  const payloadItems = mealActionItems(attemptedItems);
+  try {
+    const res = await fetch('/api/rebalance-meal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mealTarget: state.target,
+        items: payloadItems,
+        action,
+        changedItemIndex: Number.isInteger(successRowIndex) ? successRowIndex : null,
+        dailyContext: {
+          dailyTargets,
+          weightKg: Number(currentPlanInput?.weightKg),
+        },
+      }),
+    });
+    const payload = await readJsonResponse(res, 'Unable to rebalance this meal.');
+    if (!res.ok) throw new Error(payload.error || 'Unable to rebalance this meal.');
+    if (res.ok && payload.success) {
+      const proposedItems = mergeSolvedQuantities(attemptedItems, payload.items);
+      applyMealItems(state, proposedItems, { source: 'deterministic' });
+      if (action === 'remove_food' && deleteUndo) {
+        showDeleteUndoToast({
+          ...deleteUndo,
+          afterSignature: mealItemsUndoSignature(proposedItems),
+        });
+      }
+      if (Number.isInteger(successRowIndex)) pulseFoodRow(state, successRowIndex);
+      return;
+    }
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: failureMessage || failureReason || 'This change cannot be applied.',
+      compact: shouldApplyImmediately,
+      cardClass: shouldApplyImmediately ? editFailureClass(action) : 'meal-card--flash-fail',
+    });
+  } catch (error) {
+    showActionFeedback(state, {
+      tone: 'danger',
+      message: failureMessage || error.message || 'This change cannot be applied.',
+      compact: shouldApplyImmediately,
+      cardClass: shouldApplyImmediately ? editFailureClass(action) : 'meal-card--flash-fail',
+    });
+  }
+}
+
+function editFailureClass(action) {
+  return ['add_food', 'swap_food'].includes(action) ? 'meal-card--soft-fail' : '';
+}
+
+function applyMealItems(state, items, options = {}) {
+  state.items = items.map(normalizeStateItem);
+  state.isOriginalTemplate = false;
+  state.numberOfSwaps = options.source === 'alternate_meal' ? 0 : Math.max(1, Number(state.numberOfSwaps || 0));
+  if (options.source === 'alternate_meal') {
+    state.templateName = options.templateName || options.title?.replace(/^Try\s+/, '') || state.templateName;
+    state.isApproximate = Boolean(options.isApproximate);
+  }
+  persistCurrentMealOption(state);
+  renderFoodList(state);
+  refreshMealCardHeader(state.cardEl, state);
+  refreshMealCycleButtons(state);
+  refreshRedFlags();
+  resetChat(state);
+  const panel = actionPanel(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  markPlanUnsaved();
+}
+
+function pulseFoodRow(state, itemIndex) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!row) return;
+  row.classList.remove('food-item--soft-success');
+  window.requestAnimationFrame(() => {
+    row.classList.add('food-item--soft-success');
+    row.addEventListener('animationend', () => {
+      row.classList.remove('food-item--soft-success');
+    }, { once: true });
+  });
+}
+
+// The save bar is sticky at the bottom, so the page has to reserve exactly its
+// height or the bar sits on top of the last meal card. Its height varies with
+// viewport and validation messages, so measure it rather than guessing.
+function reserveSpaceForSaveBar() {
+  const bar = saveBarSlot?.querySelector('.save-action-bar');
+  if (!bar) {
+    document.body.style.removeProperty('--save-bar-height');
+    saveBarResizeObserver?.disconnect();
+    saveBarResizeObserver = null;
+    return;
+  }
+
+  const apply = () => {
+    document.body.style.setProperty('--save-bar-height', `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  };
+  apply();
+
+  saveBarResizeObserver?.disconnect();
+  if (typeof ResizeObserver === 'function') {
+    saveBarResizeObserver = new ResizeObserver(apply);
+    saveBarResizeObserver.observe(bar);
+  } else {
+    window.addEventListener('resize', apply);
+  }
+}
+
+function actionPanel(state) {
+  return state.cardEl.querySelector('.meal-action-panel');
+}
+
+function moveActionPanelToCardEnd(state, panel) {
+  if (!state?.cardEl || !panel || panel.parentElement === state.cardEl) return;
+  state.cardEl.append(panel);
+}
+
+function moveActionPanelAfterFoodRow(state, itemIndex, panel) {
+  const row = state.cardEl?.querySelector(`.food-item[data-item-index="${itemIndex}"]`);
+  if (!row?.parentElement || !panel) {
+    moveActionPanelToCardEnd(state, panel);
+    return;
+  }
+  row.insertAdjacentElement('afterend', panel);
+}
+
+function closeActionPanel(state) {
+  const panel = actionPanel(state);
+  clearFeedbackTimer(state);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  resetActionPanel(panel);
+  moveActionPanelToCardEnd(state, panel);
+}
+
+function showActionMessage(state, text) {
+  const panel = actionPanel(state);
+  clearFeedbackTimer(state);
+  moveActionPanelToCardEnd(state, panel);
+  panel.hidden = false;
+  resetActionPanel(panel);
+  panel.innerHTML = `<p class="meal-action-message">${escapeHtml(text)}</p>`;
+}
+
+function resetActionPanel(panel) {
+  panel.classList.remove('meal-action-panel--success', 'meal-action-panel--danger', 'meal-action-panel--compact', 'meal-action-panel--swap');
+  delete panel.dataset.swapItemIndex;
+  panel.removeAttribute('role');
+}
+
+const FEEDBACK_DISMISS_MS = 5000;
+
+function clearFeedbackTimer(state) {
+  if (state.feedbackTimer) {
+    window.clearTimeout(state.feedbackTimer);
+    state.feedbackTimer = null;
+  }
+}
+
+function showActionFeedback(state, { tone = 'success', message, cardClass = '', compact = false }) {
+  const panel = actionPanel(state);
+  clearFeedbackTimer(state);
+  panel.hidden = false;
+  resetActionPanel(panel);
+  panel.classList.add(tone === 'danger' ? 'meal-action-panel--danger' : 'meal-action-panel--success');
+  if (compact) panel.classList.add('meal-action-panel--compact');
+  panel.setAttribute('role', tone === 'danger' ? 'alert' : 'status');
+  panel.innerHTML = `<p class="meal-action-message">${escapeHtml(message)}</p>`;
+
+  if (cardClass && state.cardEl) {
+    state.cardEl.classList.remove('meal-card--flash-success', 'meal-card--flash-delete', 'meal-card--flash-fail', 'meal-card--soft-fail');
+    void state.cardEl.offsetWidth;
+    state.cardEl.classList.add(cardClass);
+    window.setTimeout(() => {
+      state.cardEl?.classList.remove(cardClass);
+    }, 700);
+  }
+
+  // Confirmations are transient — clear themselves so the panel never sticks.
+  state.feedbackTimer = window.setTimeout(() => {
+    state.feedbackTimer = null;
+    if (panel.classList.contains('meal-action-panel--success') || panel.classList.contains('meal-action-panel--danger')) {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      resetActionPanel(panel);
+    }
+  }, FEEDBACK_DISMISS_MS);
+}
+
+function renderFoodSearchResults(state, query, resultsEl, onSelect) {
+  const q = normalizeText(query);
+  if (q && foodsById.size === 0) {
+    resultsEl.innerHTML = '<div class="suggestion-empty">Loading foods...</div>';
+    resultsEl.hidden = false;
+    ensureFoodsLoaded().then(() => {
+      if (normalizeText(query) === q) renderFoodSearchResults(state, query, resultsEl, onSelect);
+    });
+    return;
+  }
+  const foods = [...foodsById.values()]
+    .filter(foodAllowedForCurrentPreferences)
+    .map((food) => ({ food, score: scoreFoodForMealSearch(food, q, state.tag) }))
+    .filter((entry) => entry.score > -1)
+    .sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name))
+    .slice(0, 8);
+
+  resultsEl.innerHTML = '';
+  if (!q) {
+    resultsEl.hidden = true;
+    return;
+  }
+  if (!foods.length) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.textContent = 'No allowed foods match that search.';
+    resultsEl.append(empty);
+    resultsEl.hidden = false;
+    return;
+  }
+
+  foods.forEach(({ food }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggestion-item';
+    btn.innerHTML = `
+      ${foodMediaPlaceholder('suggestion-food-icon')}
+      <span class="suggestion-item__body">
+        <strong>${escapeHtml(food.name)}</strong>
+        <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${escapeHtml(food.macroRole || 'mixed')}</small>
+      </span>
+      <em>Select</em>
+    `;
+    setFoodMedia(btn.querySelector('.food-icon'), food, 15);
+    btn.addEventListener('click', () => {
+      resultsEl.hidden = true;
+      onSelect(food);
+    });
+    resultsEl.append(btn);
+  });
+  resultsEl.hidden = false;
+}
+
+function scoreFoodForMealSearch(food, query, mealTag) {
+  if (!query) return -1;
+  const name = normalizeText(food.name);
+  const nameAr = normalizeText(food.nameAr);
+  const aliases = (food.aliases || []).map(normalizeText);
+  let score = -1;
+  if (name === query || nameAr === query || aliases.includes(query)) score = 100;
+  else if (name.startsWith(query) || nameAr.startsWith(query) || aliases.some((a) => a.startsWith(query))) score = 85;
+  else if (name.includes(query) || nameAr.includes(query) || aliases.some((a) => a.includes(query))) score = 65;
+  if (score < 0) return -1;
+  if ((food.mealTags || []).includes(mealTag)) score += 12;
+  return score;
+}
+
+function foodAllowedForCurrentPreferences(food) {
+  const prefs = getUserPreferences();
+  if (prefs.avoidFoods.includes(food.id)) return false;
+  return true;
+}
+
+function mergeSolvedQuantities(attemptedItems, solvedItems) {
+  const solvedById = new Map((solvedItems || []).map((item) => [String(item.foodId), Number(item.quantityG) || 0]));
+  return attemptedItems
+    .filter((item) => item.food && solvedById.has(String(item.food.id)))
+    .map((item) => normalizeStateItem({
+      ...item,
+      quantityG: solvedById.get(String(item.food.id)),
+    }));
+}
+
+function formatPortion(item) {
+  return `${formatNumber(item.quantityG)}g`;
+}
+
+// ── Edit / Save bars ─────────────────────────────────────────────────────────
+
+function planCreateUrl() {
+  return '/api/plans';
+}
+
+function planExportUrl(planId, clientName = '') {
+  const url = new URL(`/api/plans/${encodeURIComponent(planId)}/export.pdf`, window.location.origin);
+  if (clientName) url.searchParams.set('clientName', clientName);
+  return `${url.pathname}${url.search}`;
+}
+
+function requestPdfClientName({ hasCustomer = currentPlanHasCustomer } = {}) {
+  if (hasCustomer) return '';
+  if (!confirm('Do you want to add a client name in the PDF?')) return '';
+  const clientName = prompt('Client name for the PDF') || '';
+  return clientName.trim().slice(0, 80);
+}
+
+function planWillHaveCustomer() {
+  if (!preGenerationCustomerPicker) return currentPlanHasCustomer;
+  return Boolean(buildCustomerPayload(preGenerationCustomerPicker, preGenerationCustomerState)?.customer);
+}
+
+function startPlanExport(planId, { hasCustomer = currentPlanHasCustomer, clientName = null } = {}) {
+  const resolvedClientName = clientName === null
+    ? requestPdfClientName({ hasCustomer })
+    : clientName;
+  const link = document.createElement('a');
+  link.href = planExportUrl(planId, resolvedClientName);
+  link.download = '';
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
+function replacePlannerUrlWithSavedPlan(planId) {
+  if (!planId || plannerCtx?.exportPdf) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('planId', planId);
+  url.searchParams.set('view', 'plan');
+  url.searchParams.delete('customerId');
+  url.searchParams.delete('export');
+  history.replaceState({ plannerView: 'plan', planId: String(planId) }, '', url);
+}
+
+async function createGeneratedPlanRecord(planData, timeline = null) {
+  const { name, customerPayload } = preGenerationSavePayload();
+  const planDataToSave = {
+    ...planData,
+    manualMode: Boolean(planData?.manualMode || isManualModeActive()),
+  };
+  const saveStartedAt = performance.now();
+  if (!pendingPlanCreateKey) pendingPlanCreateKey = makeGenerationTimelineId();
+  const res = await fetch(planCreateUrl(), {
+    method: 'POST',
+    headers: timeline ? timelineHeaders(timeline) : { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      planData: planDataForPersistence(planDataToSave),
+      customer: customerPayload?.customer || null,
+      clientRequestId: pendingPlanCreateKey,
+    }),
+  });
+  if (timeline) {
+    timeline.timings.saveRoundTripMs = Number((performance.now() - saveStartedAt).toFixed(1));
+    timeline.timings.saveRequestId = res.headers.get('x-request-id') || '';
+  }
+  const data = await readJsonResponse(res, 'Unable to save generated plan.');
+  if (!res.ok || !data.plan?.id) {
+    if (timeline) {
+      reportGenerationTimelineEvent(timeline, 'save_failed', {
+        status: res.status,
+        error: data.error || 'Unable to save generated plan.',
+      });
+    }
+    throw new Error(data.error || 'Unable to save generated plan.');
+  }
+  if (timeline) {
+    reportGenerationTimelineEvent(timeline, 'save_finished', {
+      planId: data.plan.id,
+      saveStatus: res.status,
+    });
+  }
+  setLatestSavedPlanData(planDataToSave);
+  return data.plan;
+}
+
+function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
+  const token = ++initialPlanCreateToken;
+  createGeneratedPlanRecord(planData, timeline)
+    .then((createdPlan) => {
+      if (token !== initialPlanCreateToken) return null;
+      currentPlanId = createdPlan.id;
+      currentPlanVersion = Number.isInteger(createdPlan.version) ? createdPlan.version : null;
+      currentPlanName = createdPlan.name || currentPlanName || readPreGenerationPlanName();
+      currentPlanHasCustomer = Boolean(createdPlan.customer_id);
+      firstCreationPending = true;
+      setLatestSavedPlanData(planData);
+      replacePlannerUrlWithSavedPlan(currentPlanId);
+      showInitialCreationBar(currentPlanId, currentPlanName);
+      return createdPlan;
+    })
+    .catch((error) => {
+      if (token !== initialPlanCreateToken) return null;
+      currentPlanId = null;
+      showInitialCreationBar(null, currentPlanName || readPreGenerationPlanName(), {
+        allowRetry: true,
+      });
+      message.textContent = error.message || 'Plan generated, but saving failed.';
+      return null;
+    });
+}
+
+async function savePlanRecord(planId, planData, { fallbackName = '', status = true } = {}) {
+  const name = readPreGenerationPlanName() || fallbackName || currentPlanName || '';
+  if (!name) {
+    if (status) setSaveStatus('Enter a plan name to save.');
+    return false;
+  }
+
+  const { customerPayload } = preGenerationSavePayload();
+  const planDataToSave = {
+    ...planData,
+    manualMode: Boolean(planData?.manualMode || isManualModeActive()),
+  };
+  if (status) setSaveStatus('Saving...');
+  const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      planData: planDataForPersistence(planDataToSave),
+      customer: customerPayload?.customer || null,
+      ...(Number.isInteger(currentPlanVersion) ? { expectedVersion: currentPlanVersion } : {}),
+    }),
+  });
+  const data = await readJsonResponse(res, 'Unable to save plan changes.');
+  if (res.status === 409 && data.code === 'plan-version-conflict') {
+    // Shown even for silent autosaves: continuing to edit would only pile up
+    // changes that cannot be saved over the newer version.
+    message.textContent = data.error;
+    return false;
+  }
+  if (!res.ok) {
+    if (status) setSaveStatus(data.error || 'Save failed.');
+    return false;
+  }
+
+  if (Number.isInteger(data.plan?.version)) currentPlanVersion = data.plan.version;
+  currentPlanName = data.plan?.name || name;
+  currentPlanHasCustomer = Boolean(data.plan?.customer_id);
+  setLatestSavedPlanData(planDataToSave);
+  if (planDataToSave.manualMode) {
+    manualMode = true;
+    manualModeLocked = true;
+    output?.classList.add('plan-output--manual', 'plan-output--hide-targets');
+    mealStates.forEach((state) => {
+      state.editModeEnabled = true;
+      renderFoodList(state);
+      refreshMealCustomizationControls(state);
+      refreshMealCardHeader(state.cardEl, state);
+    });
+    refreshManualModeUi();
+  }
+  hasUnsavedChanges = false;
+  if (status) setSaveStatus('Saved');
+  return true;
+}
+
+function setSaveStatus(text) {
+  if (text && /unable|failed|enter/i.test(text)) {
+    message.textContent = text;
+    return;
+  }
+
+  if (text === 'Saved') {
+    hasUnsavedChanges = false;
+    refreshEditBar();
+    return;
+  }
+
+  if (text === 'Unsaved changes') {
+    refreshEditBar();
+  }
+}
+
+async function saveCurrentPlanChanges({ force = false, planData = null } = {}) {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return true;
+  if (!force && !document.body.classList.contains('is-plan-view')) return true;
+  if (!planData && !mealStates.length) return true;
+
+  if (saveInFlight) {
+    saveQueued = true;
+    await saveInFlight;
+    if (!force && !saveQueued) return true;
+  }
+
+  saveQueued = false;
+  saveInFlight = savePlanRecord(currentPlanId, planData || buildPlanData());
+  const ok = await saveInFlight;
+  saveInFlight = null;
+  if (saveQueued) {
+    saveQueued = false;
+    return saveCurrentPlanChanges({ force });
+  }
+  return ok;
+}
+
+function markPlanUnsaved() {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
+  if (!document.body.classList.contains('is-plan-view')) return;
+  if (hasUnsavedChanges) return;
+  hasUnsavedChanges = true;
+  refreshEditBar();
+}
+
+async function deleteCurrentPlan(planId) {
+  const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, { method: 'DELETE' });
+  const data = await readJsonResponse(res, 'Unable to discard plan.');
+  if (!res.ok) throw new Error(data.error || 'Unable to discard plan.');
+}
+
+function refreshEditBar() {
+  if (!currentPlanId || firstCreationPending || plannerCtx?.exportPdf) return;
+  if (!document.getElementById('edit-bar')) return;
+  showEditBar(currentPlanId, currentPlanName);
+}
+
+let saveToastTimer = null;
+
+function showSaveToast(text) {
+  let toast = document.querySelector('.planner-save-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'planner-save-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.append(toast);
+  }
+  toast.textContent = text;
+  toast.classList.add('is-visible');
+  window.clearTimeout(saveToastTimer);
+  saveToastTimer = window.setTimeout(() => {
+    toast.classList.remove('is-visible');
+  }, 5000);
+}
+
+function showEditBar(planId, initialName) {
+  const existing = document.getElementById('edit-bar');
+  if (existing) existing.remove();
+  if (!saveBarSlot) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'edit-bar';
+  bar.className = `save-action-bar${hasUnsavedChanges ? ' save-action-bar--dirty' : ''}`;
+  bar.innerHTML = hasUnsavedChanges ? `
+    <button class="btn btn-primary save-action-bar__save" type="button">${iconSvg('save')}Save changes</button>
+    <button class="btn btn-ghost save-action-bar__revert" type="button">${iconSvg('rotate')}Revert all changes</button>
+    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
+  ` : `
+    <button class="btn btn-primary save-action-bar__export" type="button">${iconSvg('file')}Export plan</button>
+  `;
+  currentPlanId = planId || currentPlanId;
+  currentPlanName = initialName || currentPlanName;
+  firstCreationPending = false;
+
+  bar.querySelector('.save-action-bar__save')?.addEventListener('click', async () => {
+    message.textContent = '';
+    const btn = bar.querySelector('.save-action-bar__save');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    const ok = await saveCurrentPlanChanges({ force: true });
+    if (!ok) return;
+    showSaveToast('Changes saved');
+    showEditBar(currentPlanId || planId, currentPlanName || initialName);
+  });
+
+  bar.querySelector('.save-action-bar__revert')?.addEventListener('click', async () => {
+    message.textContent = '';
+    const btn = bar.querySelector('.save-action-bar__revert');
+    btn.disabled = true;
+    btn.textContent = 'Reverting...';
+    await loadPlanForEdit(currentPlanId || planId);
+  });
+
+  bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
+    message.textContent = '';
+    const btn = bar.querySelector('.save-action-bar__export');
+    const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    const ok = await saveCurrentPlanChanges({ force: true });
+    if (!ok) {
+      btn.disabled = false;
+      btn.innerHTML = `${iconSvg('file')}Export plan`;
+      return;
+    }
+    startPlanExport(planId, { clientName });
+    btn.disabled = false;
+    btn.innerHTML = `${iconSvg('file')}Export plan`;
+  });
+
+  saveBarSlot.replaceChildren(bar);
+  reserveSpaceForSaveBar();
+}
+
+function showInitialCreationBar(planId, initialName, { allowRetry = false } = {}) {
+  const existing = document.getElementById('plan-save-bar');
+  if (existing) existing.remove();
+  if (!saveBarSlot) return;
+
+  const dashboardUrl = '/dashboard';
+  const isWaitingForPlanId = !planId && !allowRetry;
+
+  const bar = document.createElement('div');
+  bar.id = 'plan-save-bar';
+  bar.className = 'save-action-bar';
+  bar.innerHTML = `
+    <button class="btn btn-ghost save-action-bar__discard" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('rotate')}Discard plan</button>
+    <button class="btn btn-primary save-action-bar__save" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('save')}${allowRetry ? 'Retry save' : 'Save plan'}</button>
+    <button class="btn btn-primary save-action-bar__export" type="button"${isWaitingForPlanId ? ' disabled' : ''}>${iconSvg('file')}Export plan</button>
+  `;
+
+  async function updatePendingPlan(btn, loadingText, restoreHtml) {
+    message.textContent = '';
+    const planData = buildPlanData();
+    btn.disabled = true;
+    btn.textContent = loadingText;
+    let ok = false;
+    if (currentPlanId || planId) {
+      ok = await savePlanRecord(currentPlanId || planId, planData, { fallbackName: initialName });
+    } else {
+      try {
+        const createdPlan = await createGeneratedPlanRecord(planData);
+        currentPlanId = createdPlan.id;
+        currentPlanVersion = Number.isInteger(createdPlan.version) ? createdPlan.version : null;
+        currentPlanName = createdPlan.name || initialName || currentPlanName;
+        currentPlanHasCustomer = Boolean(createdPlan.customer_id);
+        ok = true;
+      } catch (error) {
+        setSaveStatus(error.message || 'Save failed.');
+      }
+    }
+    if (!ok) {
+      btn.disabled = false;
+      btn.innerHTML = restoreHtml;
+      return;
+    }
+    if (isManualModeActive() || planData.manualMode) {
+      manualMode = true;
+      manualModeLocked = true;
+      refreshManualModeUi();
+    }
+    firstCreationPending = false;
+    return true;
+  }
+
+  bar.querySelector('.save-action-bar__save').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__save');
+    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('save')}Save plan`))) return;
+    window.location.href = dashboardUrl;
+  });
+
+  bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__export');
+    const clientName = requestPdfClientName({ hasCustomer: planWillHaveCustomer() });
+    if (!(await updatePendingPlan(btn, 'Saving...', `${iconSvg('file')}Export plan`))) return;
+    const resolvedPlanId = currentPlanId || planId;
+    startPlanExport(resolvedPlanId, { clientName });
+    showEditBar(resolvedPlanId, currentPlanName || initialName);
+  });
+
+  bar.querySelector('.save-action-bar__discard').addEventListener('click', async () => {
+    const btn = bar.querySelector('.save-action-bar__discard');
+    btn.disabled = true;
+    btn.textContent = 'Discarding...';
+    try {
+      if (currentPlanId || planId) await deleteCurrentPlan(currentPlanId || planId);
+      window.location.href = dashboardUrl;
+    } catch (error) {
+      btn.disabled = false;
+      btn.innerHTML = `${iconSvg('rotate')}Discard plan`;
+      message.textContent = error.message || 'Unable to discard plan.';
+    }
+  });
+
+  saveBarSlot.replaceChildren(bar);
+  reserveSpaceForSaveBar();
+}
+
+function showPlanSaveBar() {
+  if (!currentPlanId) return;
+  showInitialCreationBar(currentPlanId, currentPlanName || readPreGenerationPlanName());
+}
+
+function bindCustomerPicker(bar) {
+  const state = { mode: 'general', selected: null, newName: '' };
+  const select = bar.querySelector('.save-action-bar__customer-select');
+  const input = bar.querySelector('.save-action-bar__customer');
+  if (!select || !input) return state;
+
+  select.addEventListener('change', () => {
+    const value = select.value;
+    if (value === 'new') {
+      selectNewCustomer('', state, bar);
+      window.requestAnimationFrame(() => input.focus());
+      return;
+    }
+    if (value === 'general') {
+      selectGeneralCustomer(state, bar);
+      return;
+    }
+    const customerId = value.startsWith('existing:') ? value.slice('existing:'.length) : '';
+    const customer = customerOptions.find((item) => String(item.id) === customerId);
+    if (customer) selectCustomer(customer, state, bar);
+  });
+
+  input.addEventListener('input', () => {
+    state.mode = 'new';
+    state.selected = null;
+    state.newName = input.value.trim();
+    markPlanUnsaved();
+  });
+
+  ensureCustomerOptionsLoaded()
+    .then((customers) => populateNativeCustomerSelect(select, customers, state))
+    .catch(() => {});
+  return state;
+}
+
+function populateNativeCustomerSelect(select, customers, state) {
+  if (!select) return;
+  const selectedValue = state.mode === 'existing' && state.selected
+    ? `existing:${state.selected.id}`
+    : state.mode;
+  select.replaceChildren();
+  select.add(new Option('General', 'general'));
+  select.add(new Option('New customer', 'new'));
+  if (customers.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Current customers';
+    customers.forEach((customer) => group.append(new Option(customer.name, `existing:${customer.id}`)));
+    select.append(group);
+  }
+  if (state.mode === 'existing' && state.selected && !customers.some((item) => String(item.id) === String(state.selected.id))) {
+    select.add(new Option(state.selected.name, `existing:${state.selected.id}`));
+  }
+  select.value = selectedValue || 'general';
+}
+
+async function loadCustomerForPlanning(customerId) {
+  if (!customerId || !preGenerationCustomerPicker) return;
+  try {
+    const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`);
+    const payload = await readJsonResponse(res, 'Unable to load customer.');
+    if (!res.ok || !payload.customer) {
+      throw new Error(payload.error || 'Unable to load customer.');
+    }
+    selectCustomer(payload.customer, preGenerationCustomerState, preGenerationCustomerPicker, { hydrateProfile: true });
+  } catch (error) {
+    message.textContent = error.message || 'Unable to load customer.';
+  }
+}
+
+function selectCustomer(customer, state, picker, { hydrateProfile = !plannerCtx?.planId, markUnsaved = true } = {}) {
+  state.mode = 'existing';
+  state.selected = customer;
+  state.newName = '';
+  const select = picker?.querySelector('.save-action-bar__customer-select');
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) {
+    if (![...select.options].some((option) => option.value === `existing:${customer.id}`)) {
+      select.add(new Option(customer.name, `existing:${customer.id}`));
+    }
+    select.value = `existing:${customer.id}`;
+  }
+  if (input) input.value = customer.name;
+  if (newNameField) newNameField.hidden = true;
+  if (picker === preGenerationCustomerPicker && hydrateProfile) applyCustomerProfileToForm(customer);
+  if (markUnsaved) markPlanUnsaved();
+}
+
+function selectNewCustomer(name, state, picker) {
+  state.mode = 'new';
+  state.selected = null;
+  state.newName = name.trim();
+  const select = picker?.querySelector('.save-action-bar__customer-select');
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) select.value = 'new';
+  if (input) input.value = state.newName;
+  if (newNameField) newNameField.hidden = false;
+  markPlanUnsaved();
+}
+
+function selectGeneralCustomer(state, picker) {
+  state.mode = 'general';
+  state.selected = null;
+  state.newName = '';
+  const select = picker?.querySelector('.save-action-bar__customer-select');
+  const input = picker?.querySelector('.save-action-bar__customer');
+  const newNameField = picker?.querySelector('.save-customer-picker__new-name');
+  if (select) select.value = 'general';
+  if (input) input.value = '';
+  if (newNameField) newNameField.hidden = true;
+  markPlanUnsaved();
+}
+
+function initializeCustomerPickerFromPlan(plan) {
+  const customer = plan?.Customer || plan?.customer || null;
+  if (!customer || !preGenerationCustomerPicker) return;
+  selectCustomer(customer, preGenerationCustomerState, preGenerationCustomerPicker, {
+    hydrateProfile: false,
+    markUnsaved: false,
+  });
+}
+
+function applyCustomerProfileToForm(customer) {
+  if (!customer) return;
+  suppressProfileTouchTracking = true;
+  setFormValue('age', customer.age);
+  setFormValue('sex', customer.sex);
+  setFormValue('weightKg', customer.weight);
+  setFormValue('heightCm', customer.height);
+  setFormValue('activityLevel', customer.activity_level);
+  suppressProfileTouchTracking = false;
+  syncInputSummary();
+}
+
+function setFormValue(name, value) {
+  if (value === undefined || value === null || value === '') return;
+  const field = form.elements[name];
+  if (!field) return;
+  field.value = value;
+}
+
+function buildCustomerPayload(bar, state) {
+  const name = bar.querySelector('.save-action-bar__customer')?.value.trim() || '';
+  const touchedFields = Array.from(touchedProfileFields);
+
+  if (state.mode === 'existing' && state.selected) {
+    return { customer: { id: state.selected.id, touchedFields } };
+  }
+
+  if (state.mode !== 'new') return null;
+  if (!name) return null;
+
+  return { customer: { name, touchedFields } };
+}
+
+function buildPlanData() {
+  mealStates.forEach(persistCurrentMealOption);
+  const actual = mealStates.reduce(
+    (acc, state) => {
+      const t = computeTotals(state.items);
+      acc.calories += t.calories; acc.proteinG += t.proteinG;
+      acc.carbG += t.carbG; acc.fatG += t.fatG;
+      return acc;
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+
+  return {
+    input: readForm(),
+    manualMode: isManualModeActive(),
+    dailyTargets,
+    dailyActuals: actual,
+    meals: mealStates.map((state) => ({
+      name: state.name,
+      tag: state.tag,
+      target: state.target,
+      mealOptionIndex: Number.isInteger(state.mealOptionIndex) ? state.mealOptionIndex : 0,
+      originalTemplateId: state.originalMealOption?.templateId || null,
+      originalTemplateName: state.originalMealOption?.templateName || state.name,
+      originalTemplateFamily: state.originalMealOption?.templateFamily || null,
+      originalTotals: state.originalMealOption?.totals || null,
+      originalIsApproximate: Boolean(state.originalMealOption?.isApproximate),
+      originalItems: state.originalItems.map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+      })),
+      items: state.items.filter((item) => item.food).map((item) => ({
+        food: item.food,
+        quantityG: item.quantityG,
+        alternatives: item.alternatives || [],
+        broaderAlternatives: item.broaderAlternatives || [],
+        nearestAlternatives: item.nearestAlternatives || [],
+        component: item.component || null,
+        totals: item.food ? itemTotals(item.food, item.quantityG) : { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+      })),
+      mealOptions: state.mealOptions || [],
+      totals: computeTotals(state.items),
+      templateId: state.templateId,
+      templateName: state.templateName,
+      readyMealId: state.templateId,
+      readyMealTrack: state.templateFamily || null,
+      isOriginalTemplate: state.isOriginalTemplate,
+      numberOfSwaps: state.numberOfSwaps,
+      candidateSource: state.candidateSource,
+    })),
+  };
+}
+
+function planDataForPersistence(planData) {
+  return planData;
+}
+
+function resetChat(state) {
+  state.chatWorkingItems = null;
+  state.chatPrevWorkingItems = null;
+  state.chatHistory = [];
+  state.chatTurnCount = 0;
+  state.chatMessages = [];
+}
+
+function getUserPreferences() {
+  return {
+    avoidFoods: preferenceState.avoidFoods.map((o) => o.id),
+  };
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+function computeTotals(items) {
+  return items.reduce(
+    (acc, item) => {
+      if (!item.food) return acc;
+      const t = itemTotals(item.food, item.quantityG);
+      acc.calories += t.calories;
+      acc.proteinG += t.proteinG;
+      acc.carbG += t.carbG;
+      acc.fatG += t.fatG;
+      return acc;
+    },
+    { calories: 0, proteinG: 0, carbG: 0, fatG: 0 },
+  );
+}
+
+function itemTotals(food, quantityG) {
+  const factor = quantityG / 100;
+  return {
+    calories: food.caloriesPer100g * factor,
+    proteinG: food.proteinGPer100g * factor,
+    carbG: food.carbGPer100g * factor,
+    fatG: food.fatGPer100g * factor,
+  };
+}
+
+function clampGrams(food, grams, step = 10) {
+  if (!Number.isFinite(Number(grams)) || Number(grams) <= 0) return 0;
+  const min = food.minServingG ?? 20;
+  const max = food.maxServingG ?? 500;
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 10;
+  const clamped = Math.min(Math.max(grams, min), max);
+  let rounded = Math.round(clamped / safeStep) * safeStep;
+  if (rounded < min) rounded = Math.ceil(min / safeStep) * safeStep;
+  if (rounded > max) rounded = Math.floor(max / safeStep) * safeStep;
+  return Math.min(Math.max(rounded, min), max);
+}
+
+// ── Preference picker ────────────────────────────────────────────────────────
+
+async function loadPreferenceOptions() {
+  try {
+    const response = await fetch('/api/preferences');
+    const payload = await readJsonResponse(response, 'Unable to load preference options.');
+
+    if (!response.ok) {
+      throw new Error(payload.error || 'Unable to load preference options.');
+    }
+
+    preferenceOptions = { avoidFoods: payload.avoidFoodOptions || [] };
+    hydrateAvoidFoodPreferences();
+
+    for (const field of preferenceFields) {
+      setupPreferencePicker(field);
+    }
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+function hydrateAvoidFoodPreferences() {
+  if (!Array.isArray(pendingAvoidFoodIds) || !preferenceOptions.avoidFoods?.length) return;
+  const optionsById = new Map(preferenceOptions.avoidFoods.map((option) => [option.id, option]));
+  preferenceState.avoidFoods = pendingAvoidFoodIds.map((id) => (
+    optionsById.get(id) || { id, label: titleCase(id), type: 'food' }
+  ));
+  pendingAvoidFoodIds = null;
+  preferenceFields.forEach((field) => field._renderTokens?.());
+}
+
+function setupPreferencePicker(field) {
+  const key = field.dataset.picker;
+  const input = field.querySelector('input[type="search"]');
+  const hidden = field.querySelector('input[type="hidden"]');
+  const tokenList = field.querySelector('.selected-tokens');
+  const suggestions = field.querySelector('.suggestions');
+  const combobox = field.querySelector('.token-input');
+
+  field._renderTokens = renderTokens;
+  renderTokens();
+
+  input.addEventListener('input', () => renderSuggestions());
+  input.addEventListener('focus', () => renderSuggestions());
+  input.addEventListener('keydown', (event) => {
+    const first = suggestions.querySelector('button');
+    if (event.key === 'Enter' && first) {
+      event.preventDefault();
+      addPreference(optionById(key, first.dataset.optionId));
+      input.value = '';
+      hideSuggestions();
+    }
+    if (event.key === 'Backspace' && input.value === '' && preferenceState[key].length > 0) {
+      preferenceState[key].pop();
+      renderTokens();
+    }
+    if (event.key === 'Escape') hideSuggestions();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!field.contains(event.target)) hideSuggestions();
+  });
+
+  function renderTokens() {
+    tokenList.innerHTML = '';
+    hidden.value = preferenceState[key].map((o) => o.id).join(',');
+    for (const option of preferenceState[key]) {
+      const token = document.createElement('button');
+      const food = foodFromPreferenceOption(option);
+      token.className = 'token';
+      token.type = 'button';
+      token.innerHTML = `${food ? foodMediaPlaceholder('token-food-icon') : ''}<span>${escapeHtml(option.label)}</span><strong aria-hidden="true">x</strong>`;
+      if (food) setFoodMedia(token.querySelector('.food-icon'), food, 12);
+      token.setAttribute('aria-label', `Remove ${option.label}`);
+      token.addEventListener('click', () => {
+        preferenceState[key] = preferenceState[key].filter((item) => item.id !== option.id);
+        renderTokens();
+        renderSuggestions();
+      });
+      tokenList.append(token);
+    }
+  }
+
+  function addPreference(option) {
+    if (!option || preferenceState[key].some((item) => item.id === option.id)) return;
+    if (preferenceState[key].length >= INPUT_LIMITS.preferenceItems) {
+      message.textContent = `You can avoid at most ${INPUT_LIMITS.preferenceItems} foods.`;
+      return;
+    }
+    preferenceState[key].push(option);
+    renderTokens();
+  }
+
+  function renderSuggestions() {
+    const query = input.value.trim();
+    const selected = new Set(preferenceState[key].map((o) => o.id));
+    const opts = preferenceOptions[key] || [];
+    const matches = opts
+      .filter((o) => !selected.has(o.id))
+      .map((o) => ({ option: o, score: scoreOption(o, query) }))
+      .filter((m) => m.score > -1)
+      .sort((a, b) => b.score - a.score || a.option.label.localeCompare(b.option.label));
+
+    suggestions.innerHTML = '';
+    if (matches.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'suggestion-empty';
+      empty.textContent = 'No close matches';
+      suggestions.append(empty);
+    } else {
+      for (const { option } of matches) {
+        const item = document.createElement('button');
+        const food = foodFromPreferenceOption(option);
+        item.type = 'button';
+        item.dataset.optionId = option.id;
+        item.className = 'suggestion-item';
+        item.innerHTML = `
+          ${food ? foodMediaPlaceholder('suggestion-food-icon') : ''}
+          <span class="suggestion-item__body">
+            <strong>${escapeHtml(option.label)}</strong>
+            <small>${escapeHtml(option.description || option.type)}</small>
+          </span>
+          <em>${escapeHtml(option.type)}</em>
+        `;
+        if (food) setFoodMedia(item.querySelector('.food-icon'), food, 15);
+        item.addEventListener('click', () => {
+          addPreference(option);
+          input.value = '';
+          hideSuggestions();
+        });
+        suggestions.append(item);
+      }
+    }
+    suggestions.hidden = false;
+    combobox.setAttribute('aria-expanded', 'true');
+  }
+
+  function hideSuggestions() {
+    suggestions.hidden = true;
+    combobox.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function optionById(key, id) {
+  return (preferenceOptions[key] || []).find((o) => o.id === id);
+}
+
+function scoreOption(option, query) {
+  if (!query) return option.type === 'food' ? 10 : 20;
+  const q = normalizeText(query);
+  const label = normalizeText(option.label);
+  const aliases = (option.aliases || []).map(normalizeText);
+  if (label === q || aliases.includes(q)) return 100;
+  if (label.startsWith(q)) return 90;
+  if (aliases.some((a) => a.startsWith(q))) return 80;
+  if (label.includes(q)) return 70;
+  if (aliases.some((a) => a.includes(q))) return 60;
+  return -1;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function setLoading(isLoading) {
+  submitButton.disabled = isLoading;
+  submitButton.querySelector('span:last-child').textContent = isLoading
+    ? 'Generating plan…'
+    : (document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan');
+}
+
+function formatNumber(value, decimals = 0) {
+  return Number(value).toFixed(decimals);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}

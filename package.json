@@ -4,11 +4,11 @@
   "description": "Node.js/Express website version of the Nutrition Plan app.",
   "main": "src/server.js",
   "scripts": {
-    "test": "npm run check",
+    "test": "npm run check && playwright test",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check": "find src -name '*.js' -exec node --check {} \\; && node --check public/js/app.js && node --check public/js/auth.js && node --check public/js/dashboard.js && node --check public/js/customer.js && node --check public/js/vitals.js && node --check public/js/pagination.js",
-    "build:food-swaps": "node scripts/buildFoodSwaps.js",
+    "check": "node scripts/checkCodebase.js && npm run lint",
+    "lint": "eslint api public/js scripts src tests",
     "experiment:inspect": "python3 testing_data/scripts/inspect_columns.py",
     "experiment:count": "python3 testing_data/scripts/count_valid_people.py",
     "experiment:sample": "python3 testing_data/scripts/extract_sample.py",
@@ -46,7 +46,8 @@
     "node": "^22.17 || ^24.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "eslint": "^10.11.0"
   },
   "overrides": {
     "qs": "^6.16.0",

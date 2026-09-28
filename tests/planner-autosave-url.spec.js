@@ -25,9 +25,7 @@ const generatedPlan = {
     goal: 'lose_weight',
     numberOfMeals: '4',
     mealDistribution: 'balanced',
-    dietType: 'standard',
     avoidFoods: [],
-    ramadanMode: false,
   },
   dailyTargets: {
     calories: 1800,
@@ -94,7 +92,7 @@ test('autosaved generated plan replaces transient URL with a durable plan URL', 
   }));
   await page.route('**/api/preferences', (route) => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ allergyOptions: [] }),
+    body: JSON.stringify({ avoidFoodOptions: [] }),
   }));
   await page.route('**/api/customers?limit=100', (route) => route.fulfill({
     contentType: 'application/json',
@@ -151,7 +149,7 @@ test('autosaved generated plan replaces transient URL with a durable plan URL', 
   await expect(page.getByRole('button', { name: 'Save plan' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export plan' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & export' })).toHaveCount(0);
-  await expect(page.locator('#folder-save-bar .save-action-bar__status')).toHaveCount(0);
+  await expect(page.locator('#plan-save-bar .save-action-bar__status')).toHaveCount(0);
   await expect(page.locator('#plan-form')).toBeHidden();
 });
 
@@ -162,7 +160,7 @@ test('customer assignment uses a native select with a conditional new-customer n
   }));
   await page.route('**/api/preferences', (route) => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ allergyOptions: [] }),
+    body: JSON.stringify({ avoidFoodOptions: [] }),
   }));
   await page.route('**/api/customers?limit=100', (route) => route.fulfill({
     contentType: 'application/json',
@@ -192,7 +190,7 @@ test('mobile inline food search keeps food names visible', async ({ page }) => {
   }));
   await page.route('**/api/preferences', (route) => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ allergyOptions: [] }),
+    body: JSON.stringify({ avoidFoodOptions: [] }),
   }));
   await page.route('**/api/customers?limit=100', (route) => route.fulfill({
     contentType: 'application/json',
@@ -237,7 +235,7 @@ test('manual mode uses switch confirmations and a stable grams editor', async ({
   }));
   await page.route('**/api/preferences', (route) => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ allergyOptions: [] }),
+    body: JSON.stringify({ avoidFoodOptions: [] }),
   }));
   await page.route('**/api/customers?limit=100', (route) => route.fulfill({
     contentType: 'application/json',
@@ -317,7 +315,7 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
   }));
   await page.route('**/api/preferences', (route) => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ allergyOptions: [] }),
+    body: JSON.stringify({ avoidFoodOptions: [] }),
   }));
   await page.route('**/api/customers?limit=100', (route) => route.fulfill({
     contentType: 'application/json',

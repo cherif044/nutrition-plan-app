@@ -8,8 +8,8 @@ const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = 'test-secret-that-is-definitely-longer-than-32-bytes';
 
-const userRepositoryPath = require.resolve('../src/repositories/userRepository');
-const sessionRepositoryPath = require.resolve('../src/repositories/sessionRepository');
+const userRepositoryPath = require.resolve('../src/features/auth/userRepository');
+const sessionRepositoryPath = require.resolve('../src/features/auth/sessionRepository');
 const firebaseAdminPath = require.resolve('../src/config/firebaseAdmin');
 const authPath = require.resolve('../src/middleware/auth');
 
@@ -218,7 +218,7 @@ test('an account being deleted cannot use its sessions', async () => {
 });
 
 test.describe('sign-in providers (N24)', () => {
-  const { assertFirebaseTokenCanAccessApp } = require('../src/services/firebaseAuthService');
+  const { assertFirebaseTokenCanAccessApp } = require('../src/features/auth/firebaseService');
   const token = (provider, verified = true) => ({
     uid: 'u', email: 'a@example.com', email_verified: verified, firebase: { sign_in_provider: provider },
   });

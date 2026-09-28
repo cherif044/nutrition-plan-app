@@ -77,46 +77,12 @@ const dailyContext = z.looseObject({
   weightKg: z.number().min(0).max(1000).nullable().optional(),
 });
 
-// Custom foods are only created by crafted or legacy data today, so they get
-// the tightest checks: real food never exceeds ~900 kcal or 100 g of a macro
-// per 100 g. Aliases mirror resolveFoodForMealAction in planGenerator.js.
-const customFood = z.looseObject({
-  name: optionalText('Custom food name', L.customFood.nameLength),
-  servingG: finite(1, L.customFood.servingGMax).optional(),
-  maxServingG: finite(0, L.customFood.servingGMax).optional(),
-}).superRefine((food, ctx) => {
-  const servingG = Number(food.servingG ?? 100);
-  const pick = (...keys) => {
-    const key = keys.find((candidate) => food[candidate] !== undefined && food[candidate] !== null);
-    return key === undefined ? 0 : food[key];
-  };
-  const values = {
-    calories: pick('calories', 'caloriesPerServing', 'caloriesPer100g'),
-    proteinG: pick('proteinG', 'proteinGPerServing', 'proteinGPer100g'),
-    carbG: pick('carbG', 'carbGPerServing', 'carbGPer100g'),
-    fatG: pick('fatG', 'fatGPerServing', 'fatGPer100g'),
-  };
-  for (const [key, value] of Object.entries(values)) {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-      ctx.addIssue({ code: 'custom', message: `Custom food ${key} must be a positive number.` });
-      return;
-    }
-    const per100g = (value * 100) / servingG;
-    const max = key === 'calories' ? L.customFood.kcalPer100gMax : L.customFood.macroPer100gMax;
-    if (per100g > max) {
-      ctx.addIssue({ code: 'custom', message: `Custom food ${key} is too high for its serving size.` });
-      return;
-    }
-  }
-});
-
 const foodId = z.union([z.string().min(1).max(L.foodIdLength), z.number().int()]);
 
-const mealActionItem = z.looseObject({
+const mealActionItem = z.strictObject({
   foodId,
   name: optionalText('Food name', L.foodNameLength),
   quantityG: finite(0, L.gramsPerFood).optional(),
-  customFood: customFood.nullable().optional(),
 });
 const mealActionItems = z.array(mealActionItem)
   .max(L.foodsPerMeal, `A meal can have at most ${L.foodsPerMeal} foods.`);
@@ -133,22 +99,20 @@ const rebalanceBody = z.looseObject({
   changedItemIndex: z.number().int().min(0).max(L.foodsPerMeal).nullable().optional(),
 });
 
-const swapSuggestionsBody = z.looseObject({
+const swapSuggestionsBody = z.strictObject({
   foodId,
-  userPreferences: z.looseObject({
-    dietType: z.string().max(20).optional(),
+  userPreferences: z.strictObject({
     avoidFoods: preferenceList.optional(),
-    dislikes: preferenceList.optional(),
   }).nullable().optional(),
   limit: z.union([z.literal('all'), z.number().int().min(1).max(200)]).nullable().optional(),
   cursor: z.number().int().min(0).max(100000).nullable().optional(),
-  mealContext: z.looseObject({
-    mealTag: z.string().max(20).optional(),
+  mealContext: z.strictObject({
+    mealTag: z.enum(['breakfast', 'snack', 'lunch', 'dinner', 'main', 'main_meal']),
     itemIndex: z.number().int().min(0).max(L.foodsPerMeal),
     currentItems: mealActionItems,
     mealTarget: macroTarget,
     dailyContext: dailyContext.optional(),
-  }).nullable().optional(),
+  }),
 });
 
 const timelineBody = z.object({
@@ -168,9 +132,8 @@ const timelineBody = z.object({
 // accepted only up to a fixed serialized size, so no key can carry an
 // unbounded payload.
 const GOAL_VALUES = ['maintain', 'lose_weight', 'gain_weight'];
-const DIET_VALUES = ['standard', 'vegetarian', 'vegan'];
 const DISTRIBUTION_VALUES = Object.keys(MEAL_DISTRIBUTIONS);
-const MEAL_TAG_VALUES = ['breakfast', 'snack', 'lunch', 'dinner', 'iftar', 'suhoor', 'main', 'main_meal'];
+const MEAL_TAG_VALUES = ['breakfast', 'snack', 'lunch', 'dinner', 'main', 'main_meal'];
 
 function jsonSize(value) {
   try {
@@ -197,50 +160,22 @@ const macroTotals = z.looseObject({
 }).catchall(boundedJson('Totals field', 4 * 1024));
 
 // Foods from the catalog are replaced on save with the server's own entry,
-// so names and nutrition values in a saved plan can never be forged. Foods
-// outside the catalog (custom foods) keep only known fields, each bounded.
+// so names and nutrition values in a saved plan can never be forged.
 let catalogById;
 function catalogFood(id) {
   if (!catalogById) {
     // Lazy: the PDF function loads this module without the food catalog.
-    const { loadFoods } = require('../repositories/foodRepository');
+    const { loadFoods } = require('../features/planner/foodRepository');
     catalogById = new Map(loadFoods().map((food) => [String(food.id), food]));
   }
   return catalogById.get(String(id));
 }
 
-// Mirrors resolveFoodForMealAction: the only foods outside the catalog are
-// custom foods, whose ids start with "custom_".
-const CUSTOM_FOOD_ID = /^custom_[A-Za-z0-9_.:-]{1,57}$/;
-
-const nonCatalogFood = z.object({
-  id: z.string().regex(CUSTOM_FOOD_ID, 'Unknown food.'),
-  name: text('Food name', L.foodNameLength),
-  nameAr: optionalText('Food name', L.foodNameLength),
-  macroRole: z.string().max(20).optional(),
-  caloriesPer100g: finite(0, L.customFood.kcalPer100gMax),
-  proteinGPer100g: finite(0, L.customFood.macroPer100gMax),
-  carbGPer100g: finite(0, L.customFood.macroPer100gMax),
-  fatGPer100g: finite(0, L.customFood.macroPer100gMax),
-  isVegan: z.boolean().optional(),
-  isVegetarian: z.boolean().optional(),
-  categories: z.array(z.string().max(40)).max(10).optional(),
-  mealTags: z.array(z.string().max(20)).max(10).optional(),
-  defaultServingG: finite(0, L.customFood.servingGMax).optional(),
-  minServingG: finite(0, L.customFood.servingGMax).optional(),
-  maxServingG: finite(0, L.customFood.servingGMax).optional(),
-  custom: z.boolean().optional(),
-});
-
 const savedFood = z.looseObject({ id: z.union([z.string().max(L.foodIdLength), z.number().int()]) })
   .transform((food, ctx) => {
     const known = catalogFood(food.id);
     if (known) return known;
-    const parsed = nonCatalogFood.safeParse(food);
-    if (parsed.success) return parsed.data;
-    for (const issue of parsed.error.issues) {
-      ctx.addIssue({ ...issue, path: ['food', ...issue.path] });
-    }
+    ctx.addIssue({ code: 'custom', message: 'Unknown food.', path: ['food', 'id'] });
     return z.NEVER;
   });
 
@@ -249,7 +184,6 @@ const alternativeList = z.array(boundedJson('Alternative', 8 * 1024)).max(100).o
 const savedItem = z.looseObject({
   food: savedFood.nullable().optional(),
   quantityG: finite(0, L.gramsPerFood).optional(),
-  customFood: customFood.nullable().optional(),
   totals: macroTotals.nullable().optional(),
   alternatives: alternativeList,
   broaderAlternatives: alternativeList,
@@ -285,12 +219,10 @@ const enumField = (values, message) => z.preprocess(
   blankToNull,
   z.enum(values, { error: message }).nullable(),
 ).optional();
-const flagField = z.union([z.boolean(), z.enum(['true', 'false', 'on', ''])]).nullable().optional();
-
 // The planner form as saved with the plan. Form posts send numbers as
 // strings; the generator's own echo sends numbers. Both are accepted, within
 // the same bounds the customer routes use.
-const planInput = z.object({
+const planInput = z.strictObject({
   weightKg: formNumberField('Weight', L.weightKg.min, L.weightKg.max),
   heightCm: formNumberField('Height', L.heightCm.min, L.heightCm.max),
   age: formNumberField('Age', L.age.min, L.age.max, { integer: true }),
@@ -298,16 +230,9 @@ const planInput = z.object({
   bodyFatPercentage: formNumberField('Body fat', L.bodyFatPercentage.min, L.bodyFatPercentage.max),
   activityLevel: enumField(ACTIVITY_VALUES, 'Choose a valid activity level.'),
   goal: enumField(GOAL_VALUES, 'Choose a valid goal.'),
-  dietType: enumField(DIET_VALUES, 'Choose a valid diet type.'),
   mealDistribution: enumField(DISTRIBUTION_VALUES, 'Choose a valid meal distribution.'),
   numberOfMeals: formNumberField('Number of meals', 2, 5, { integer: true }),
-  numberOfSnacks: formNumberField('Number of snacks', 0, 3, { integer: true }),
-  proteinPerKg: formNumberField('Protein per kg', 0, 5),
-  fatPerKg: formNumberField('Fat per kg', 0, 5),
   avoidFoods: preferenceList.optional(),
-  allergies: preferenceList.optional(),
-  dislikes: preferenceList.optional(),
-  ramadanMode: flagField,
 });
 
 const dailyNumbers = z.looseObject({
@@ -350,32 +275,18 @@ const customerSelection = z.looseObject({
 
 const clientRequestId = z.string().max(128).nullable().optional();
 
-const createPlanBody = z.looseObject({
+const createPlanBody = z.strictObject({
   name: text('Plan name', L.planNameLength),
   planData,
-  folderId: nullableId,
   customer: customerSelection,
   clientRequestId,
 });
 
-const updatePlanBody = z.looseObject({
+const updatePlanBody = z.strictObject({
   name: text('Plan name', L.planNameLength).optional(),
   planData: planData.optional(),
-  folderId: nullableId,
   customer: customerSelection,
   expectedVersion: z.number().int().min(1).nullable().optional(),
-});
-
-const duplicatePlanBody = z.looseObject({
-  targetFolderId: nullableId,
-  // "<name> (copy)" can run past the plan-name limit; shorten instead of failing.
-  newName: z.string().max(500).optional()
-    .transform((value) => (value === undefined ? value : value.replace(CONTROL_CHARS, '').trim().slice(0, L.planNameLength))),
-});
-
-const folderBody = z.looseObject({
-  name: text('Folder name', L.folderNameLength),
-  parentId: nullableId,
 });
 
 const customerBody = z.looseObject({
@@ -431,9 +342,6 @@ const customersListQuery = z.looseObject({
   query: searchParam,
   limit: z.string().regex(/^\d{1,3}$/, 'Invalid limit.').optional(),
 });
-const customerMatchQuery = z.looseObject({
-  name: text('Customer name', L.customerNameLength, { min: 0 }).optional(),
-});
 const pdfExportQuery = z.looseObject({
   clientName: text('Client name', L.clientNameLength, { min: 0 }).optional(),
   id: z.string().regex(/^\d{1,18}$/, 'Invalid plan id.').optional(),
@@ -449,10 +357,7 @@ module.exports = {
   createPlanBody,
   deleteAccountBody,
   customerBody,
-  customerMatchQuery,
   customersListQuery,
-  duplicatePlanBody,
-  folderBody,
   pagedListQuery,
   pdfExportQuery,
   plansListQuery,

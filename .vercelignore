@@ -4,6 +4,18 @@
 .northflank-env.json
 .vercel.env
 node_modules
+testing_data
+tests
+test-results
+docs
+.agents
+.claude
+.impeccable
+*.hbs
+*.docx
+*.pdf
+prompt.txt
+pp.txt
 
 filtering_data
 legacy

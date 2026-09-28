@@ -50,10 +50,10 @@ test.describe('food icons (P1.2, C01)', () => {
 
 test.describe('stored plan schema (P1.3, F05, F18)', () => {
   const { createPlanBody, sessionBody, pdfExportQuery } = require('../src/validation/schemas');
-  const { generatePlan } = require('../src/services/planGenerator');
+  const { generatePlan } = require('../src/features/planner/generator');
   const generated = generatePlan({
     weightKg: 78, heightCm: 178, age: 29, sex: 'male', activityLevel: 'moderate',
-    goal: 'lose_weight', dietType: 'standard', numberOfMeals: 4, mealDistribution: 'balanced',
+    goal: 'lose_weight', numberOfMeals: 4, mealDistribution: 'balanced',
   });
   const parse = (planData) => createPlanBody.safeParse({ name: 'Plan', planData });
   const withFood = (food) => {
@@ -72,6 +72,14 @@ test.describe('stored plan schema (P1.3, F05, F18)', () => {
     expect(result.success).toBe(true);
     expect(result.data.planData.meals[0].items[0].food.name).toBe(generated.meals[0].items[0].food.name);
     expect(result.data.planData.meals[0].items[0].food.caloriesPer100g).toBe(generated.meals[0].items[0].food.caloriesPer100g);
+  });
+
+  test('retired planner fields are rejected at the API boundary', () => {
+    for (const retiredField of ['ramadanMode', 'dietType', 'allergies', 'dislikes', 'customFood']) {
+      const planData = structuredClone(generated);
+      planData.input[retiredField] = retiredField === 'dietType' ? 'vegan' : true;
+      expect(parse(planData).success, retiredField).toBe(false);
+    }
   });
 
   test('assessment probes are rejected', () => {
@@ -102,7 +110,7 @@ test.describe('stored plan schema (P1.3, F05, F18)', () => {
 });
 
 test.describe('LIKE escaping (N29)', () => {
-  const { likePattern } = require('../src/repositories/likePattern');
+  const { likePattern } = require('../src/shared/likePattern');
   test('wildcards in a search are matched literally', () => {
     expect(likePattern('50%')).toBe('%50\\%%');
     expect(likePattern('a_b')).toBe('%a\\_b%');
@@ -184,7 +192,7 @@ test.describe('log redaction (P4.1)', () => {
 });
 
 test.describe('generation worker memory limit (N26)', () => {
-  const { PlanGenerationPool } = require('../src/services/planGenerationPool');
+  const { PlanGenerationPool } = require('../src/features/planner/generationPool');
 
   test('an oversized job kills only its own worker', async () => {
     const pool = new PlanGenerationPool({

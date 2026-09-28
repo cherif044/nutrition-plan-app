@@ -81,7 +81,7 @@ as a complete fleet-wide history.
 
 ### Generation workers and solver
 
-- `nutrition_generation_jobs_total`: outcomes by diet, meal count, and Ramadan mode.
+- `nutrition_generation_jobs_total`: outcomes by meal count.
 - `nutrition_generation_duration_seconds`: queue, worker execution, and total latency.
 - `nutrition_generation_queue_depth` / `capacity`: saturation and waiting work.
 - `nutrition_generation_workers`: configured, ready, and busy workers.

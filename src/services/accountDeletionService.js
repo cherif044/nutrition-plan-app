@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const { User } = require('../models');
-const { revokeAllSessionsForUser } = require('../repositories/sessionRepository');
+const { revokeAllSessionsForUser } = require('../features/auth/sessionRepository');
 const { firebaseCall } = require('../utils/firebaseCall');
 const { logger } = require('../utils/logger');
 

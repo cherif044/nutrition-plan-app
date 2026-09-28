@@ -7,8 +7,8 @@ const { apiSecurityHeaders, privateApiCache, requestId } = require('../src/middl
 const { validateQuery } = require('../src/middleware/validate');
 const { assertJwtSecretConfigured } = require('../src/config/session');
 const { pdfExportQuery } = require('../src/validation/schemas');
-const { getPlanById } = require('../src/repositories/planRepository');
-const { generatePlanPdf, pdfFilename } = require('../src/services/planPdfService');
+const { getPlanById } = require('../src/features/plans/repository');
+const { generatePlanPdf, pdfFilename } = require('../src/features/plans/pdfService');
 const { httpMetricsMiddleware } = require('../src/utils/metrics');
 
 assertJwtSecretConfigured();

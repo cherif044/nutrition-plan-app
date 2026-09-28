@@ -11,13 +11,13 @@ const {
   SESSION_TOUCH_INTERVAL_MS,
   jwtSecret,
 } = require('../config/session');
-const { findUserById } = require('../repositories/userRepository');
+const { findUserById } = require('../features/auth/userRepository');
 const {
   findSessionById,
   markFirebaseChecked,
   revokeSession,
   touchSession,
-} = require('../repositories/sessionRepository');
+} = require('../features/auth/sessionRepository');
 const { getFirebaseAdmin } = require('../config/firebaseAdmin');
 const { firebaseCall } = require('../utils/firebaseCall');
 const { logger } = require('../utils/logger');

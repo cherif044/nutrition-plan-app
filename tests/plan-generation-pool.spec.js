@@ -4,7 +4,7 @@ const {
   closeGenerationPool,
   generatePlanInWorker,
   generationPoolStats,
-} = require('../src/services/planGenerationPool');
+} = require('../src/features/planner/generationPool');
 
 const validInput = {
   weightKg: 78,
@@ -14,11 +14,8 @@ const validInput = {
   bodyFatPercentage: '',
   activityLevel: 'moderate',
   goal: 'lose_weight',
-  dietType: 'standard',
   numberOfMeals: 4,
   mealDistribution: 'balanced',
-  allergies: [],
-  dislikes: [],
   avoidFoods: [],
 };
 

@@ -1,9 +1,9 @@
 const { test, expect } = require('@playwright/test');
 const Module = require('module');
 
-const servicePath = require.resolve('../src/services/foodSwapService');
-const foodRepositoryPath = require.resolve('../src/repositories/foodRepository');
-const planGeneratorPath = require.resolve('../src/services/planGenerator');
+const servicePath = require.resolve('../src/features/planner/swapService');
+const foodRepositoryPath = require.resolve('../src/features/planner/foodRepository');
+const planGeneratorPath = require.resolve('../src/features/planner/generator');
 
 function makeFood(id, name = id, { macroRole = 'protein', mealTags = ['lunch'] } = {}) {
   return {
@@ -19,6 +19,15 @@ function makeFood(id, name = id, { macroRole = 'protein', mealTags = ['lunch'] }
     categories: ['protein'],
     macroRole,
     mealTags,
+  };
+}
+
+function mealContext() {
+  return {
+    mealTag: 'lunch',
+    itemIndex: 0,
+    currentItems: [{ foodId: 'source_food', quantityG: 100 }],
+    mealTarget: { calories: 500 },
   };
 }
 
@@ -63,7 +72,7 @@ function loadFoodSwapServiceWithMocks({ candidateCount = 35, extraFoods = [] } =
 test('swap suggestions default to every valid candidate instead of ten', () => {
   const { service } = loadFoodSwapServiceWithMocks({ candidateCount: 35 });
 
-  const result = service.getSwapSuggestions({ foodId: 'source_food' });
+  const result = service.getSwapSuggestions({ foodId: 'source_food', mealContext: mealContext() });
 
   expect(result.options).toHaveLength(35);
   expect(result.options[0]).toMatchObject({ foodId: 'candidate_1', name: 'Candidate 1' });
@@ -73,7 +82,11 @@ test('swap suggestions default to every valid candidate instead of ten', () => {
 test('swap suggestions still honor an explicit positive limit', () => {
   const { service } = loadFoodSwapServiceWithMocks({ candidateCount: 35 });
 
-  const result = service.getSwapSuggestions({ foodId: 'source_food', limit: 10 });
+  const result = service.getSwapSuggestions({
+    foodId: 'source_food',
+    limit: 10,
+    mealContext: mealContext(),
+  });
 
   expect(result.options).toHaveLength(10);
   expect(result.options.at(-1)).toMatchObject({ foodId: 'candidate_10' });
@@ -84,12 +97,7 @@ test('meal-context swap suggestions scan past the old thirty-candidate ceiling',
 
   const result = service.getSwapSuggestions({
     foodId: 'source_food',
-    mealContext: {
-      mealTag: 'lunch',
-      itemIndex: 0,
-      currentItems: [{ foodId: 'source_food', quantityG: 100 }],
-      mealTarget: { calories: 500 },
-    },
+    mealContext: mealContext(),
   });
 
   expect(result.options).toHaveLength(35);
@@ -106,12 +114,7 @@ test('swap suggestions use the current meal tag and the source macro role', () =
 
   const result = service.getSwapSuggestions({
     foodId: 'source_food',
-    mealContext: {
-      mealTag: 'lunch',
-      itemIndex: 0,
-      currentItems: [{ foodId: 'source_food', quantityG: 100 }],
-      mealTarget: { calories: 500 },
-    },
+    mealContext: mealContext(),
   });
 
   expect(result.options).toHaveLength(1);

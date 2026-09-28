@@ -1,157 +1,67 @@
-# Nutrition Plan Web
+# Pinch Nutrition Planner
 
-A Node.js/Express web app for generating personalised nutrition plans from a curated food database.
+Pinch is an Express and vanilla-JavaScript application for generating, editing, saving, and exporting personalized nutrition plans.
 
-The original Flutter project is archived in `legacy/flutter-app/`. The top-level repo is now
-organised around the Node.js/Express backend + vanilla JS frontend.
+The supported product is deliberately narrow. See [PRODUCT.md](PRODUCT.md) for the page and feature allowlist and [docs/api-surface.md](docs/api-surface.md) for every production HTTP surface.
 
----
+## Project structure
 
-## Project Structure
-
-```
-nutrition-plan-app/
-├── data/                        # Static app data (loaded at runtime)
-│   └── foods.json               # 95-food database with macros, categories, allergens
-│
-├── docs/                        # Developer documentation
-│   └── architecture.md          # Full architecture guide, meal generation simulation
-│
-├── filtering_data/              # USDA food pipeline (run once to rebuild foods.json)
-│   ├── README.md                # How to use this directory
-│   ├── clean.py                 # Filters raw USDA CSVs → filtered_ingredients.csv
-│   ├── *.csv                    # Raw USDA FoodData Central SR Legacy dataset
-│   └── lastversion_data.xlsx    # Annotated curation spreadsheet
-│
-├── legacy/                      # Archived Flutter implementation (reference only)
-│   └── flutter-app/
-│
-├── public/                      # Frontend — served as static files by Express
-│   ├── css/
-│   │   └── styles.css
-│   ├── js/
-│   │   ├── app.js               # Planner UI logic
-│   │   └── auth.js              # Login/register/session logic
-│   ├── index.html               # Home / plan generator form
-│   ├── planner.html             # Interactive meal plan editor
-│   ├── explorer.html            # Folder/plan browser
-│   ├── login.html
-│   ├── register.html
-│   ├── customer.html            # Single customer view
-│   └── customers.html           # Customer list
-│
-├── scripts/                     # Developer tooling (not part of the server)
-│   ├── db/
-│   │   └── setup.sql            # Creates all PostgreSQL tables (run once)
-│   └── data/
-│       └── enrichFoodData.js    # Merges allergen/category metadata into foods.json
-│
-├── src/                         # Backend server (Node.js/Express)
-│   ├── server.js                # HTTP server entry point
-│   ├── app.js                   # Express app composition
-│   ├── config/                  # Constants and DB pool
-│   ├── middleware/              # Auth (JWT) and error handler
-│   ├── routes/                  # URL → controller mapping (thin)
-│   ├── controllers/             # Request/response handling
-│   ├── services/                # Business logic (nutrition math, user validation)
-│   └── repositories/           # Database and file I/O
-│
-├── .env.example                 # Environment variable template
-├── package.json
-└── package-lock.json
+```text
+api/                       Vercel function entry points
+public/
+  css/styles.css           Shared application stylesheet
+  js/
+    account/               Account page behavior
+    auth/                  Login and registration behavior
+    dashboard/             Dashboard, customers, plans, and customer detail
+    landing/               Public landing page
+    planner/               Plan generation and editing UI
+    shared/                Browser utilities used across pages
+ready_meals/meals.json     Curated ready-meal definitions (protected data)
+src/
+  features/                Product code grouped by business capability
+    auth/
+    customers/
+    dashboard/
+    planner/
+    plans/
+  config/                  Runtime configuration and nutrition constants
+  middleware/              Authentication, validation, rate limits, and security
+  models/                  Sequelize models
+  services/                Cross-feature services
+  shared/                  Small shared persistence helpers
+  utils/                   Logging, metrics, errors, and infrastructure helpers
+  validation/              Request and persisted-plan schemas
+tests/                     Unit, contract, security, and browser tests
+used_food_repository/
+  foods.json               Curated food catalog (protected data)
+testing_data/              Local-only testing material; excluded from deployment
 ```
 
-See `docs/architecture.md` for a deep-dive on every file, the meal generation algorithm,
-and the auto-balance logic.
+Feature directories keep their HTTP route, controller, persistence, and domain logic together. Cross-cutting security stays centralized under `src/middleware`.
 
----
-
-## Getting Started
-
-### 1. Install dependencies
+## Local development
 
 ```bash
 npm install
-```
-
-### 2. Set up environment variables
-
-```bash
-cp .env.example .env
-# Edit .env — set DATABASE_URL and JWT_SECRET
-```
-
-For a hosted PostgreSQL database, use the provider connection string:
-
-```bash
-DATABASE_URL=postgresql://user:password@host/database?sslmode=require
-DB_SSL=true
-```
-
-If you are using a local PostgreSQL database instead, remove or comment out `DATABASE_URL`
-and fill in the `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` values.
-
-### 3. Create the database
-
-```bash
-psql "postgresql://user:password@host/database?sslmode=require" -f scripts/db/setup.sql
-```
-
-### 4. Start the server
-
-```bash
-npm start
-```
-
-Open `http://localhost:3000`.
-
-For development with auto-restart:
-
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
----
+Required production secrets and database settings are documented in `.env.example`. This cleanup does not require a database migration or data rewrite.
 
-## NPM Scripts
+## Verification
 
-| Command | Description |
-|---|---|
-| `npm start` | Start the production server |
-| `npm run dev` | Start with Node.js `--watch` (auto-restart on file change) |
-| `npm run check` | Syntax-check all JS files in `src/`, `public/js/`, and `scripts/data/` |
+```bash
+npm run check   # syntax and ESLint
+npm test        # check plus the complete Playwright suite
+```
 
----
+The Playwright configuration starts its own static server for browser tests. CI runs `npm test` so route-contract and security regressions block merging.
 
-## API Endpoints
+## Data policy
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/api/health` | — | Health check |
-| GET | `/api/foods` | — | Full food list |
-| GET | `/api/preferences` | — | Allergen/category options |
-| POST | `/api/generate-plan` | ✓ | Generate a nutrition plan |
-| POST | `/api/auto-balance-meal` | ✓ | Balance a meal toward original values |
-| POST | `/api/rebalance-meal` | ✓ | Rebalance a meal to a target |
-| POST | `/auth/register` | — | Create account |
-| POST | `/auth/login` | — | Log in |
-| POST | `/auth/logout` | ✓ | Log out |
-| GET | `/auth/me` | ✓ | Current user |
-| GET/POST | `/folders` | ✓ | Folder CRUD |
-| GET/PUT/DELETE | `/plans/:id` | ✓ | Plan CRUD |
-
----
-
-## Food Database
-
-Foods live in `used_food_repository/foods.json`. Each food has:
-
-- `macro_role` — `protein`, `carb`, `fat`, or `mixed`
-- `meal_tags` — which meals this food can appear in (`breakfast`, `lunch`, `dinner`, `snack`, etc.)
-- `categories` — broad preference tags (`poultry`, `seafood`, `red_meat`, `bread`, `legumes`, …)
-- `allergens` — strict allergy tags (`fish`, `milk`, `gluten`, `peanut`, `tree_nut`, …)
-- `min_serving_g` / `max_serving_g` — realistic portion bounds
-- Macro values per 100g: calories, protein, carbs, fat
-
-To add or change foods, see `filtering_data/README.md`.
-To re-apply category/allergen metadata after editing foods: `node scripts/data/enrichFoodData.js`
+- Do not casually edit `used_food_repository/foods.json` or `ready_meals/meals.json`; they are active product inputs.
+- Keep `testing_data/` local and out of deployment artifacts.
+- A new page, route, or product mode must be added to `PRODUCT.md`, `docs/api-surface.md`, and the route-contract tests.
+- Database schema and stored data changes require a separate reviewed migration; they are not part of code cleanup.

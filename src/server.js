@@ -1,7 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const sequelize = require('./config/database');
-const { closeGenerationPool } = require('./services/planGenerationPool');
+const { closeGenerationPool } = require('./features/planner/generationPool');
 const { logger } = require('./utils/logger');
 const { attachHttpServerMetrics, recordError, shutdownMetrics } = require('./utils/metrics');
 
