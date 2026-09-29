@@ -557,6 +557,9 @@ function roundedMacros(macros) {
 }
 
 function generateReadyMealDay({ mealTargets, allowedFoods, trace = null }) {
+  // Per-request cache of portion solves. Slots with the same macro windows
+  // (e.g. lunch and dinner) and templates with the same foods solve identically.
+  const solveCache = new Map();
   const candidateSets = mealTargets.map((target) => ({
     target,
     candidates: readyMealCandidatesForMeal({
@@ -565,6 +568,7 @@ function generateReadyMealDay({ mealTargets, allowedFoods, trace = null }) {
       target: target.targets,
       trace,
       targetName: target.name,
+      solveCache,
     }),
   }));
   const missing = candidateSets.filter((slot) => slot.candidates.length === 0);
@@ -600,7 +604,14 @@ function generateReadyMealDay({ mealTargets, allowedFoods, trace = null }) {
   }));
 }
 
-function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = null, targetName = '' }) {
+function readyMealCandidatesForMeal({
+  mealTag,
+  allowedFoods,
+  target,
+  trace = null,
+  targetName = '',
+  solveCache = null,
+}) {
   const slotStartedAt = process.hrtime.bigint();
   const allowedFoodByName = new Map(allowedFoods.map((food) => [normalizeIngredientName(food.name), food]));
   const tags = templateTagsForMealTag(mealTag);
@@ -613,6 +624,7 @@ function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = nul
     const solveStartedAt = process.hrtime.bigint();
     const candidate = solveReadyMealCandidate(readyMeal, allowedFoodByName, target, {
       bounds: acceptanceBounds,
+      solveCache,
     });
     const solveMs = roundedMs(elapsedMs(solveStartedAt));
     solveStats.push({
@@ -622,6 +634,7 @@ function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = nul
       solveMs,
       solved: Boolean(candidate),
       gridVisited: candidate?.solveStats?.gridVisited ?? 0,
+      cacheHit: candidate?.solveStats?.cacheHit ?? false,
     });
     if (candidate) solvedCandidates.push(candidate);
   }
@@ -639,6 +652,7 @@ function readyMealCandidatesForMeal({ mealTag, allowedFoods, target, trace = nul
       a.readyMealId.localeCompare(b.readyMealId, undefined, { numeric: true })
     ))
     .slice(0, TRACE_SLOW_SOLVE_LIMIT);
+      console.log(mealTag, JSON.stringify(slowestSolves));   // ← add this
 
   traceLog(trace, 'Plan generator trace: meal slot candidates', {
     phase: 'ready_meal_candidates',
@@ -747,9 +761,30 @@ function solveReadyMealCandidate(readyMeal, allowedFoodByName, target, options =
   }
 
   const acceptanceBounds = options.bounds ?? targetToleranceBounds(target);
-  const gridFit = findBestPortionGridFit(items, target, acceptanceBounds, items, {
-    step: EXACT_PORTION_SEARCH_STEP_G,
-  });
+  // The first-found grid fit depends only on the foods (their serving limits
+  // and default seeds) and the bounds, so identical solves can be reused.
+  const solveCache = options.solveCache ?? null;
+  const cacheKey = solveCache
+    ? `${items.map((item) => item.food.id).join('|')}|${JSON.stringify(acceptanceBounds)}`
+    : null;
+  const cacheHit = Boolean(solveCache?.has(cacheKey));
+  let gridFit;
+  if (cacheHit) {
+    const cached = solveCache.get(cacheKey);
+    gridFit = cached && {
+      items: items.map((item, index) => ({ ...item, quantityG: cached.quantities[index] })),
+      visited: 0,
+      variableCount: cached.variableCount,
+    };
+  } else {
+    gridFit = findBestPortionGridFit(items, target, acceptanceBounds, items, {
+      step: EXACT_PORTION_SEARCH_STEP_G,
+    });
+    solveCache?.set(cacheKey, gridFit && {
+      quantities: gridFit.items.map((item) => item.quantityG),
+      variableCount: gridFit.variableCount,
+    });
+  }
 
   if (!gridFit) return null;
 
@@ -766,6 +801,7 @@ function solveReadyMealCandidate(readyMeal, allowedFoodByName, target, options =
       gridVisited: gridFit.visited,
       gridStepG: EXACT_PORTION_SEARCH_STEP_G,
       variableCount: gridFit.variableCount,
+      cacheHit,
     },
     score: fit.score + servingRealismPenalty(withTotals) * 0.25,
   };
@@ -1066,6 +1102,8 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
     suffix[i] = addMacroRanges(current, suffix[i + 1]);
   }
 
+  const relaxationCuts = buildRelaxationCuts(variables, bounds, keys);
+
   let found = null;
   let foundScore = Infinity;
   let foundTotals = null;
@@ -1091,6 +1129,21 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
     return macroBoundFitScore(closest, target);
   }
 
+  // Continuous relaxation over the remaining variables: prunes subtrees that
+  // contain no grid point inside the bounds, so DFS order is unchanged.
+  function relaxationFeasible(totals, pos) {
+    const cuts = relaxationCuts?.[pos];
+    if (!cuts) return true;
+    const t0 = totals[keys[0]];
+    const t1 = totals[keys[1]];
+    const t2 = totals[keys[2]];
+    for (const cut of cuts) {
+      const projected = cut.d0 * t0 + cut.d1 * t1 + cut.d2 * t2;
+      if (projected < cut.min || projected > cut.max) return false;
+    }
+    return true;
+  }
+
   function visit(pos, totals) {
     if (stopped) return;
     visited += 1;
@@ -1099,6 +1152,7 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
       return;
     }
     if (!canStillFit(totals, pos)) return;
+    if (pos < variables.length && !relaxationFeasible(totals, pos)) return;
     if (findBest && lowerBoundScore(totals, pos) >= foundScore) return;
 
     if (pos >= variables.length) {
@@ -1139,6 +1193,79 @@ function findBestPortionGridFit(items, target, bounds, seedItems = items, option
     visited,
     variableCount: variables.length,
   };
+}
+
+const RELAXATION_EPSILON = 1e-6;
+
+// Builds, for each search depth, the linear cuts that decide whether the
+// continuous relaxation over the remaining variables is feasible:
+//   totals + sum(rates_i * x_i) in [bounds.min - eps, bounds.max + eps] per key,
+//   x_i in [min_i, max_i].
+// The reachable set {sum(rates_i * x_i) - z : x in box, z in bounds box} is a
+// zonotope whose generators are the remaining variables' rate vectors and the
+// macro axes. The relaxation is feasible iff -totals lies in that zonotope,
+// and a full-dimensional zonotope is the intersection of the slabs normal to
+// its facets, which are cross products of generator pairs. Axis-only pairs are
+// already covered by canStillFit, so only pairs involving a food are kept.
+function buildRelaxationCuts(variables, bounds, keys) {
+  if (keys.length !== 3) return null;
+  const axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const lower = keys.map((key) => bounds[key].min - RELAXATION_EPSILON);
+  const upper = keys.map((key) => bounds[key].max + RELAXATION_EPSILON);
+  const rateVector = (variable) => keys.map((key) => variable.rates[key] || 0);
+  const cutsByPos = [];
+
+  for (let pos = 0; pos < variables.length; pos++) {
+    const remaining = variables.slice(pos);
+    const generators = remaining
+      .filter((variable) => variable.max > variable.min)
+      .map(rateVector);
+    const directions = [];
+    for (let i = 0; i < generators.length; i++) {
+      for (let j = i + 1; j < generators.length; j++) directions.push(crossProduct(generators[i], generators[j]));
+      for (const axis of axes) directions.push(crossProduct(generators[i], axis));
+    }
+
+    const cuts = [];
+    for (const direction of directions) {
+      if (direction.every((value) => value === 0)) continue;
+      let reachMin = 0;
+      let reachMax = 0;
+      for (const variable of remaining) {
+        const slope = dotProduct(direction, rateVector(variable));
+        reachMin += Math.min(slope * variable.min, slope * variable.max);
+        reachMax += Math.max(slope * variable.min, slope * variable.max);
+      }
+      let boundsMin = 0;
+      let boundsMax = 0;
+      for (let k = 0; k < 3; k++) {
+        boundsMin += Math.min(direction[k] * lower[k], direction[k] * upper[k]);
+        boundsMax += Math.max(direction[k] * lower[k], direction[k] * upper[k]);
+      }
+      cuts.push({
+        d0: direction[0],
+        d1: direction[1],
+        d2: direction[2],
+        min: boundsMin - reachMax,
+        max: boundsMax - reachMin,
+      });
+    }
+    cutsByPos.push(cuts);
+  }
+
+  return cutsByPos;
+}
+
+function crossProduct(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function dotProduct(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
 function macroBoundKeys(bounds) {
