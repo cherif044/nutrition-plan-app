@@ -55,28 +55,44 @@ test.describe('stored plan schema (P1.3, F05, F18)', () => {
     weightKg: 78, heightCm: 178, age: 29, sex: 'male', activityLevel: 'moderate',
     goal: 'lose_weight', numberOfMeals: 4, mealDistribution: 'balanced',
   });
+  // Mirrors planDataForPersistence in public/js/planner/app.js.
+  const compactItems = (items) => items.map((item) => ({ foodId: String(item.food.id), quantityG: item.quantityG }));
+  const saved = {
+    ...generated,
+    meals: generated.meals.map((meal) => ({
+      ...meal,
+      items: compactItems(meal.items),
+      originalItems: compactItems(meal.originalItems),
+      mealOptions: meal.mealOptions.map((option) => ({
+        templateId: option.templateId,
+        templateName: option.templateName,
+        templateFamily: option.templateFamily,
+        isApproximate: option.isApproximate,
+        items: compactItems(option.items),
+      })),
+    })),
+  };
   const parse = (planData) => createPlanBody.safeParse({ name: 'Plan', planData });
-  const withFood = (food) => {
-    const plan = structuredClone(generated);
-    plan.meals[0].items[0].food = food;
+  const withItem = (item) => {
+    const plan = structuredClone(saved);
+    plan.meals[0].items[0] = item;
     return plan;
   };
 
-  test('a generated plan is accepted as-is', () => {
-    expect(parse(generated).success).toBe(true);
+  test('a compacted generated plan is accepted and stays small', () => {
+    expect(parse(saved).success).toBe(true);
+    expect(JSON.stringify(saved).length).toBeLessThan(64 * 1024);
   });
 
-  test('catalog foods are replaced by the server catalog entry', () => {
-    const food = { ...generated.meals[0].items[0].food, name: '<img src=x onerror=alert(1)>', caloriesPer100g: 1e30 };
-    const result = parse(withFood(food));
-    expect(result.success).toBe(true);
-    expect(result.data.planData.meals[0].items[0].food.name).toBe(generated.meals[0].items[0].food.name);
-    expect(result.data.planData.meals[0].items[0].food.caloriesPer100g).toBe(generated.meals[0].items[0].food.caloriesPer100g);
+  test('items carry food ids only; full food objects are rejected', () => {
+    expect(parse(generated).success).toBe(false);
+    const food = { ...generated.meals[0].items[0].food, name: '<img src=x onerror=alert(1)>' };
+    expect(parse(withItem({ ...saved.meals[0].items[0], food })).success).toBe(false);
   });
 
   test('retired planner fields are rejected at the API boundary', () => {
     for (const retiredField of ['ramadanMode', 'dietType', 'allergies', 'dislikes', 'customFood']) {
-      const planData = structuredClone(generated);
+      const planData = structuredClone(saved);
       planData.input[retiredField] = retiredField === 'dietType' ? 'vegan' : true;
       expect(parse(planData).success, retiredField).toBe(false);
     }
@@ -84,13 +100,14 @@ test.describe('stored plan schema (P1.3, F05, F18)', () => {
 
   test('assessment probes are rejected', () => {
     const probes = {
-      objectFoodName: withFood({ id: 'custom_1', name: { toString: 'x' }, caloriesPer100g: 1, proteinGPer100g: 1, carbGPer100g: 1, fatGPer100g: 1 }),
-      pathLikeFoodId: withFood({ id: '../../public/x', name: 'x', caloriesPer100g: 1, proteinGPer100g: 1, carbGPer100g: 1, fatGPer100g: 1 }),
-      age999: { ...generated, input: { ...generated.input, age: 999 } },
-      weightNegative: { ...generated, input: { ...generated.input, weightKg: -1 } },
-      calories1e30: { ...generated, dailyTargets: { ...generated.dailyTargets, calories: 1e30 } },
-      hugeGoal: { ...generated, input: { ...generated.input, goal: 'x'.repeat(5000) } },
-      unboundedExtra: { ...generated, junk: 'x'.repeat(100 * 1024) },
+      unknownFoodId: withItem({ foodId: 'custom_1', quantityG: 100 }),
+      pathLikeFoodId: withItem({ foodId: '../../public/x', quantityG: 100 }),
+      hugeGrams: withItem({ ...saved.meals[0].items[0], quantityG: 1e30 }),
+      age999: { ...saved, input: { ...saved.input, age: 999 } },
+      weightNegative: { ...saved, input: { ...saved.input, weightKg: -1 } },
+      calories1e30: { ...saved, dailyTargets: { ...saved.dailyTargets, calories: 1e30 } },
+      hugeGoal: { ...saved, input: { ...saved.input, goal: 'x'.repeat(5000) } },
+      unboundedExtra: { ...saved, junk: 'x'.repeat(100 * 1024) },
     };
     for (const [name, planData] of Object.entries(probes)) {
       expect(parse(planData).success, name).toBe(false);

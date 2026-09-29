@@ -289,6 +289,9 @@ let showTargets = false;
 let manualMode = false;
 let manualModeLocked = false;
 let latestSavedPlanData = null;
+// Customer the saved plan belongs to, so "Revert all changes" can restore it
+// without refetching the plan.
+let latestSavedCustomer = null;
 let currentPlanInput = null;
 let pendingAvoidFoodIds = null;
 let pdfExportScheduled = false;
@@ -327,8 +330,10 @@ function clonePlanData(planData) {
   return JSON.parse(JSON.stringify(planData));
 }
 
+// Kept with full food objects so reverting never depends on the catalog;
+// only requests to the server use the compact planDataForPersistence form.
 function setLatestSavedPlanData(planData) {
-  latestSavedPlanData = clonePlanData(planDataForPersistence(planData));
+  latestSavedPlanData = clonePlanData(planData);
 }
 
 async function readJsonResponse(response, fallbackMessage = 'Request failed.') {
@@ -813,7 +818,11 @@ function persistCurrentMealOption(state) {
 
 async function loadPlanForEdit(planId) {
   try {
-    const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`);
+    // Saved plans hold food ids only; the catalog turns them back into foods.
+    const [res] = await Promise.all([
+      fetch(`/api/plans/${encodeURIComponent(planId)}`),
+      ensureFoodsLoaded(),
+    ]);
     const payload = await readJsonResponse(res, 'Failed to load plan.');
     if (!res.ok) {
       throw new Error(payload.error || (res.status === 404 ? 'Plan not found.' : 'Failed to load plan.'));
@@ -821,21 +830,24 @@ async function loadPlanForEdit(planId) {
     const { plan } = payload;
     const shapeError = savedPlanLoadError(plan?.plan_data);
     if (shapeError) throw new Error(shapeError);
+    if (!foodsById.size) throw new Error('Unable to load foods. Please reload the page.');
 
     if (plan.plan_data?.input) {
       populateFormFromInput(plan.plan_data.input);
     }
     if (form.elements.planName) form.elements.planName.value = plan.name || '';
     initializeCustomerPickerFromPlan(plan);
+    latestSavedCustomer = plan.Customer || plan.customer || null;
     currentPlanId = plan.id;
     currentPlanVersion = Number.isInteger(plan.version) ? plan.version : null;
     currentPlanName = plan.name || '';
     currentPlanHasCustomer = Boolean(plan.customer_id);
     firstCreationPending = false;
     hasUnsavedChanges = false;
-    setLatestSavedPlanData(plan.plan_data);
+    const savedPlanData = hydratePlanData(plan.plan_data);
+    setLatestSavedPlanData(savedPlanData);
 
-    renderPlan(plan.plan_data, { editMode: true, planId, planName: plan.name });
+    renderPlan(clonePlanData(savedPlanData), { editMode: true, planId, planName: plan.name });
     switchPlannerView('plan', { push: false });
     // Recently-opened ordering on the dashboard; failure is harmless.
     fetch(`/api/plans/${encodeURIComponent(plan.id)}/opened`, { method: 'POST' }).catch(() => {});
@@ -2790,6 +2802,7 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
       saveStatus: res.status,
     });
   }
+  latestSavedCustomer = savedCustomerFromPayload(customerPayload, data.plan);
   setLatestSavedPlanData(planDataToSave);
   return data.plan;
 }
@@ -2858,6 +2871,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
   if (Number.isInteger(data.plan?.version)) currentPlanVersion = data.plan.version;
   currentPlanName = data.plan?.name || name;
   currentPlanHasCustomer = Boolean(data.plan?.customer_id);
+  latestSavedCustomer = savedCustomerFromPayload(customerPayload, data.plan);
   setLatestSavedPlanData(planDataToSave);
   if (planDataToSave.manualMode) {
     manualMode = true;
@@ -2989,7 +3003,7 @@ function showEditBar(planId, initialName) {
     const btn = bar.querySelector('.save-action-bar__revert');
     btn.disabled = true;
     btn.textContent = 'Reverting...';
-    await loadPlanForEdit(currentPlanId || planId);
+    revertToLatestSavedPlan(currentPlanId || planId);
   });
 
   bar.querySelector('.save-action-bar__export').addEventListener('click', async () => {
@@ -3311,8 +3325,99 @@ function buildPlanData() {
   };
 }
 
+// Saved plans store each food as { foodId, quantityG }; names, icons and
+// nutrients come from the food catalog when the plan is loaded. Derived
+// values (item and option totals, per-item alternatives) are not stored.
+function compactPlanItems(items) {
+  return (items || [])
+    .map((item) => {
+      const foodId = item?.food?.id ?? item?.foodId;
+      if (foodId === undefined || foodId === null) return null;
+      return { foodId: String(foodId), quantityG: Number(item.quantityG) || 0 };
+    })
+    .filter(Boolean);
+}
+
 function planDataForPersistence(planData) {
-  return planData;
+  if (!planData) return planData;
+  return {
+    ...planData,
+    meals: (planData.meals || []).map((meal) => ({
+      ...meal,
+      items: compactPlanItems(meal.items),
+      ...(meal.originalItems ? { originalItems: compactPlanItems(meal.originalItems) } : {}),
+      mealOptions: (meal.mealOptions || []).map((option) => ({
+        templateId: option.templateId ?? null,
+        templateName: option.templateName ?? null,
+        templateFamily: option.templateFamily ?? null,
+        isApproximate: Boolean(option.isApproximate),
+        items: compactPlanItems(option.items),
+      })),
+    })),
+  };
+}
+
+function hydratePlanItems(items) {
+  return (items || [])
+    .map((item) => {
+      if (item?.food) return item;
+      const food = foodsById.get(String(item?.foodId));
+      return food ? { food, quantityG: Number(item.quantityG) || 0 } : null;
+    })
+    .filter(Boolean);
+}
+
+function hydratePlanData(planData) {
+  const plan = clonePlanData(planData);
+  if (!plan) return plan;
+  plan.meals = (plan.meals || []).map((meal) => ({
+    ...meal,
+    items: hydratePlanItems(meal.items),
+    ...(meal.originalItems ? { originalItems: hydratePlanItems(meal.originalItems) } : {}),
+    mealOptions: (meal.mealOptions || []).map((option) => ({
+      ...option,
+      items: hydratePlanItems(option.items),
+    })),
+  }));
+  return plan;
+}
+
+function savedCustomerFromPayload(customerPayload, savedPlan) {
+  const customer = customerPayload?.customer;
+  if (!customer || !savedPlan?.customer_id) return null;
+  if (customer.id) {
+    return preGenerationCustomerState.selected?.id === customer.id
+      ? preGenerationCustomerState.selected
+      : { id: customer.id, name: customer.name || '' };
+  }
+  return { id: savedPlan.customer_id, name: customer.name || '' };
+}
+
+// Restores the last saved plan from memory: no refetch, since the saved copy
+// is already held in latestSavedPlanData.
+function revertToLatestSavedPlan(planId) {
+  if (!latestSavedPlanData) {
+    loadPlanForEdit(planId);
+    return;
+  }
+  if (latestSavedPlanData.input) populateFormFromInput(latestSavedPlanData.input);
+  if (form.elements.planName) form.elements.planName.value = currentPlanName || '';
+  if (preGenerationCustomerPicker) {
+    if (latestSavedCustomer) {
+      selectCustomer(latestSavedCustomer, preGenerationCustomerState, preGenerationCustomerPicker, {
+        hydrateProfile: false,
+        markUnsaved: false,
+      });
+    } else {
+      selectGeneralCustomer(preGenerationCustomerState, preGenerationCustomerPicker);
+    }
+  }
+  touchedProfileFields.clear();
+  hasUnsavedChanges = false;
+  renderPlan(clonePlanData(latestSavedPlanData), { editMode: true, planId, planName: currentPlanName });
+  hasUnsavedChanges = false;
+  refreshEditBar();
+  message.textContent = '';
 }
 
 function resetChat(state) {

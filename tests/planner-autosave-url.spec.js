@@ -85,6 +85,18 @@ const generatedPlan = {
   ],
 };
 
+// A saved plan as stored: foods referenced by id, resolved from /api/foods.
+const compactItems = (items) => items.map((item) => ({ foodId: item.food.id, quantityG: item.quantityG }));
+const savedPlanData = {
+  ...generatedPlan,
+  meals: generatedPlan.meals.map((meal) => ({
+    ...meal,
+    items: compactItems(meal.items),
+    originalItems: compactItems(meal.originalItems),
+    mealOptions: meal.mealOptions.map((option) => ({ ...option, items: compactItems(option.items) })),
+  })),
+};
+
 test('autosaved generated plan replaces transient URL with a durable plan URL', async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({
     contentType: 'application/json',
@@ -335,18 +347,26 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
         height: 169,
         activity_level: 'moderate',
       },
-      plan_data: generatedPlan,
+      plan_data: savedPlanData,
     },
   };
+  await page.route('**/api/foods', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ foods: [food] }),
+  }));
   let putCount = 0;
+  let getCount = 0;
+  let lastPutBody = null;
   await page.route('**/api/plans/123', async (route) => {
     if (route.request().method() === 'PUT') {
       putCount += 1;
+      lastPutBody = route.request().postDataJSON();
       return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify(savedPlanPayload),
       });
     }
+    getCount += 1;
     return route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(savedPlanPayload),
@@ -354,6 +374,7 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
   });
 
   await page.goto('/planner?planId=123&view=plan');
+  await expect(page.locator('.food-item').first()).toContainText('Chicken breast');
 
   await expect(page.locator('#edit-bar .save-action-bar__status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Export plan' })).toBeVisible();
@@ -372,6 +393,9 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
   await expect(page.getByRole('button', { name: 'Export plan' })).toBeVisible();
   await expect(page.getByText('Plan changes saved.')).toHaveCount(0);
   expect(putCount).toBe(1);
+  const savedMeal = lastPutBody.planData.meals[0];
+  expect(savedMeal.items[0]).toEqual({ foodId: food.id, quantityG: 260 });
+  expect(savedMeal.mealOptions.every((option) => option.items.every((item) => !item.food))).toBe(true);
 
   await page.getByRole('button', { name: 'Next ready meal' }).click();
   await expect(page.getByRole('button', { name: 'Revert all changes' })).toBeVisible();
@@ -379,4 +403,7 @@ test('customer-linked saved plan opens without being marked dirty', async ({ pag
   await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Revert all changes' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Export plan' })).toBeVisible();
+  await expect(page.locator('.food-item .portion-value').first()).toHaveText('260');
+  // Revert restores from memory; the plan is not fetched again.
+  expect(getCount).toBe(1);
 });

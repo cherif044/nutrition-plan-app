@@ -159,8 +159,8 @@ const macroTotals = z.looseObject({
   fatG: optionalFinite(0, 2000),
 }).catchall(boundedJson('Totals field', 4 * 1024));
 
-// Foods from the catalog are replaced on save with the server's own entry,
-// so names and nutrition values in a saved plan can never be forged.
+// Saved plans reference catalog foods by id only; names, icons and nutrition
+// values are read from the server's catalog, so they can never be forged.
 let catalogById;
 function catalogFood(id) {
   if (!catalogById) {
@@ -171,24 +171,14 @@ function catalogFood(id) {
   return catalogById.get(String(id));
 }
 
-const savedFood = z.looseObject({ id: z.union([z.string().max(L.foodIdLength), z.number().int()]) })
-  .transform((food, ctx) => {
-    const known = catalogFood(food.id);
-    if (known) return known;
-    ctx.addIssue({ code: 'custom', message: 'Unknown food.', path: ['food', 'id'] });
-    return z.NEVER;
-  });
+const catalogFoodId = z.union([z.string().max(L.foodIdLength), z.number().int()])
+  .transform(String)
+  .refine((id) => Boolean(catalogFood(id)), 'Unknown food.');
 
-const alternativeList = z.array(boundedJson('Alternative', 8 * 1024)).max(100).optional();
-
-const savedItem = z.looseObject({
-  food: savedFood.nullable().optional(),
-  quantityG: finite(0, L.gramsPerFood).optional(),
-  totals: macroTotals.nullable().optional(),
-  alternatives: alternativeList,
-  broaderAlternatives: alternativeList,
-  nearestAlternatives: alternativeList,
-}).catchall(boundedJson('Food item field', 4 * 1024));
+const savedItem = z.strictObject({
+  foodId: catalogFoodId,
+  quantityG: finite(0, L.gramsPerFood),
+});
 const savedItems = z.array(savedItem)
   .max(L.foodsPerMeal, `A meal can have at most ${L.foodsPerMeal} foods.`)
   .optional();

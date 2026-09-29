@@ -3,6 +3,14 @@ const { recordPdfExport } = require('../../utils/metrics');
 const { foodIconImage } = require('../../services/foodIcons');
 const { CONTROL_CHARS } = require('../../validation/schemas');
 const { INPUT_LIMITS } = require('../../config/inputLimits');
+const { loadFoods } = require('../planner/foodRepository');
+
+// Saved plans store { foodId, quantityG }; the catalog supplies the food.
+let foodsById;
+function catalogFoodById(id) {
+  if (!foodsById) foodsById = new Map(loadFoods().map((food) => [String(food.id), food]));
+  return foodsById.get(String(id)) || null;
+}
 
 // Text drawn into the PDF or its metadata: no control or bidi-override
 // characters, which could make a name render differently from what was typed.
@@ -78,7 +86,11 @@ function drawPlan(doc, record, options) {
   drawSummary(doc, plan.dailyTargets || {}, totalsForMeals(meals), margin, y, width);
 }
 
-function mealItems(meal) { return (Array.isArray(meal?.items) ? meal.items : []).slice(0, INPUT_LIMITS.foodsPerMeal); }
+function mealItems(meal) {
+  return (Array.isArray(meal?.items) ? meal.items : [])
+    .slice(0, INPUT_LIMITS.foodsPerMeal)
+    .map((item) => ({ quantityG: item?.quantityG, food: catalogFoodById(item?.foodId) }));
+}
 function mealHeight(meal) { return 42 + 25 + mealItems(meal).length * 25 + 29; }
 
 function drawMeal(doc, meal, x, y, width) {
