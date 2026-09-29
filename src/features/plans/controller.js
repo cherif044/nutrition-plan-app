@@ -71,11 +71,14 @@ async function exportPlanPdfHandler(req, res, next) {
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
 
     const { generatePlanPdf, pdfFilename } = require('./pdfService');
-    const pdf = await generatePlanPdf(plan, { clientName: req.validatedQuery?.clientName });
+    const { cachedPdf } = require('./pdfCache');
+    const options = { clientName: req.validatedQuery?.clientName };
+    const { pdf, cache } = await cachedPdf(plan, options, () => generatePlanPdf(plan, options));
     const filename = pdfFilename(plan);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', pdf.length);
+    res.setHeader('X-PDF-Cache', cache);
     return res.send(pdf);
   } catch (err) {
     return next(err);

@@ -1,4 +1,4 @@
-const { readdirSync } = require('fs');
+const { readdirSync, statSync } = require('fs');
 const { extname, join, relative } = require('path');
 const { spawnSync } = require('child_process');
 
@@ -28,3 +28,21 @@ for (const file of files) {
 }
 
 console.log(`Syntax checked ${files.length} JavaScript files.`);
+
+const SIZE_BUDGETS = [
+  ['public/css/styles.css', Number(process.env.CSS_SIZE_BUDGET_BYTES) || 330 * 1024],
+  ['public/js/planner/app.js', Number(process.env.PLANNER_JS_SIZE_BUDGET_BYTES) || 170 * 1024],
+  ['public/js/dashboard/app.js', Number(process.env.DASHBOARD_JS_SIZE_BUDGET_BYTES) || 80 * 1024],
+  ['public/js/auth/app.js', Number(process.env.AUTH_JS_SIZE_BUDGET_BYTES) || 80 * 1024],
+  ['public/js/account/app.js', Number(process.env.ACCOUNT_JS_SIZE_BUDGET_BYTES) || 80 * 1024],
+];
+
+for (const [asset, budget] of SIZE_BUDGETS) {
+  const size = statSync(join(ROOT, asset)).size;
+  if (size > budget) {
+    console.error(`${asset} is ${size} bytes, above budget ${budget}.`);
+    process.exit(1);
+  }
+}
+
+console.log(`Checked ${SIZE_BUDGETS.length} frontend asset size budgets.`);

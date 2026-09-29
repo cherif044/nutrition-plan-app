@@ -4,6 +4,7 @@ const {
   rebalanceMeal,
 } = require('./generator');
 const { generatePlanInWorker } = require('./generationPool');
+const { generationAdmission } = require('./generationAdmission');
 const { getSwapSuggestions } = require('./swapService');
 const { logger } = require('../../utils/logger');
 const { INPUT_LIMITS } = require('../../config/inputLimits');
@@ -90,8 +91,15 @@ function getPreferences(_req, res, next) {
 
 async function generatePlanHandler(req, res, next) {
   const generatorTraceEvents = [];
+  let admission;
   try {
     const timelineId = timelineIdFromRequest(req);
+    admission = await generationAdmission.acquire(req.user.id);
+    if (admission.globalCount !== undefined) {
+      req.metrics = req.metrics || {};
+      req.metrics.generationGlobalInflight = admission.globalCount;
+      req.metrics.generationAccountInflight = admission.accountCount;
+    }
     const generationStartedAt = process.hrtime.bigint();
     const plan = await generatePlanInWorker(req.body, {
       requestId: req.id,
@@ -123,6 +131,8 @@ async function generatePlanHandler(req, res, next) {
       res.setHeader('Retry-After', '1');
     }
     next(error);
+  } finally {
+    if (admission) await admission.release();
   }
 }
 

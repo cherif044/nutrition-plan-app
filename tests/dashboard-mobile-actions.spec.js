@@ -6,11 +6,11 @@ test('dashboard rows omit arrows and three-dot menus toggle closed on a second p
     contentType: 'application/json',
     body: JSON.stringify({ user: { firstname: 'QA' } }),
   }));
-  await page.route('**/api/dashboard?limit=100', (route) => route.fulfill({
+  await page.route('**/api/dashboard', (route) => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({
       stats: { totalPlans: 1, customers: 1, plansThisWeek: 1, customersThisWeek: 1 },
-      customers: [{ id: 1, name: 'QA Customer', planCount: 1 }],
+      recentCustomers: [{ id: 1, name: 'QA Customer', planCount: 1 }],
       generalPlans: [],
       recentPlans: [{ id: 2, name: 'QA Plan', customer_id: 1, goal: 'maintain', updated_at: new Date().toISOString() }],
     }),

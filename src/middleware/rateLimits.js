@@ -3,6 +3,8 @@ const { logger } = require('../utils/logger');
 const { hashIp } = require('../utils/ipHash');
 const { recordRateLimit, recordRateLimitStoreError } = require('../utils/metrics');
 const { PostgresRateLimitStore } = require('../utils/postgresRateLimitStore');
+const { UpstashRateLimitStore } = require('../utils/upstashRateLimitStore');
+const { isUpstashRedisConfigured } = require('../utils/upstashRedis');
 
 // Shared by app.js and the standalone Vercel functions in api/, so every
 // entry point enforces the same limits against the same counters.
@@ -70,10 +72,18 @@ function createLimiter({
   scope, windowMs, limit, message, failOpen = true, perAccount = false,
 }) {
   // RATE_LIMIT_STORE=memory keeps tests and offline development independent
-  // of the rate_limits table.
-  const store = process.env.RATE_LIMIT_STORE === 'memory'
-    ? undefined
-    : observedStore(new PostgresRateLimitStore({ prefix: scope }), scope);
+  // of external stores. RATE_LIMIT_STORE=postgres can force the legacy table
+  // during rollback; otherwise Redis is preferred when configured.
+  const storeMode = String(process.env.RATE_LIMIT_STORE || '').toLowerCase();
+  let rawStore;
+  if (storeMode === 'memory') {
+    rawStore = undefined;
+  } else if (storeMode === 'postgres' || !isUpstashRedisConfigured()) {
+    rawStore = new PostgresRateLimitStore({ prefix: scope });
+  } else {
+    rawStore = new UpstashRateLimitStore({ prefix: scope });
+  }
+  const store = observedStore(rawStore, scope);
   return rateLimit({
     windowMs,
     limit,

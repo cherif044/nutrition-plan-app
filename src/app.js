@@ -37,6 +37,7 @@ const { INPUT_LIMITS } = require('./config/inputLimits');
 const { logger } = require('./utils/logger');
 const { hashIp } = require('./utils/ipHash');
 const { finishPendingDeletions } = require('./services/accountDeletionService');
+const { cleanupOperationalTables } = require('./services/operationalCleanupService');
 const {
   httpMetricsMiddleware,
   metricsHandler,
@@ -245,6 +246,20 @@ app.get('/api/internal/finish-deletions', async (req, res, next) => {
   if (!matches) return res.status(404).json({ error: 'Not found.' });
   try {
     return res.json(await finishPendingDeletions());
+  } catch (err) {
+    return next(err);
+  }
+});
+
+app.get('/api/internal/cleanup-operational', async (req, res, next) => {
+  const secret = process.env.CRON_SECRET;
+  const presented = String(req.get('authorization') || '');
+  const expected = `Bearer ${secret}`;
+  const matches = secret && presented.length === expected.length
+    && timingSafeEqual(Buffer.from(presented), Buffer.from(expected));
+  if (!matches) return res.status(404).json({ error: 'Not found.' });
+  try {
+    return res.json(await cleanupOperationalTables());
   } catch (err) {
     return next(err);
   }
