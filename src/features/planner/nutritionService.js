@@ -149,11 +149,9 @@ function getMealSlotProfile(
   if (!factors) {
     throw inputError('Choose a valid meal count and distribution.');
   }
-  const slots = numberOfMeals === 2
-    ? AMBIGUOUS_MEAL_SLOT_POLICY[distribution]
-    : numberOfMeals === 5
-      ? AMBIGUOUS_MEAL_SLOT_POLICY[`${distribution}_5`]
-      : STANDARD_MEAL_SLOT_POLICY[numberOfMeals];
+  const slots = numberOfMeals === 5
+    ? AMBIGUOUS_MEAL_SLOT_POLICY[`${distribution}_5`]
+    : STANDARD_MEAL_SLOT_POLICY[numberOfMeals];
   if (!slots || slots.length !== factors.length) {
     throw new Error('Meal-slot policy is incomplete.');
   }
