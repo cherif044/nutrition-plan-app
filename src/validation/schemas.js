@@ -255,7 +255,7 @@ const planData = z.object({
 
 // Checked at the route so a malformed request never takes a worker slot;
 // the generator still applies its own rules (required fields, combinations).
-const generatePlanBody = planInput.extend({
+const generatePlanBody = planInput.safeExtend({
   timelineId: z.string().max(128).optional(),
   generationRequestId: z.string().max(128).optional(),
 });
