@@ -60,25 +60,21 @@ const NUTRITION = {
 
 const MEAL_DISTRIBUTIONS = {
   balanced: {
-    2: [0.40, 0.60],
     3: [0.25, 0.40, 0.35],
     4: [0.25, 0.15, 0.30, 0.30],
     5: [0.20, 0.15, 0.25, 0.15, 0.25],
   },
   breakfast_heavy: {
-    2: [0.45, 0.55],
     3: [0.30, 0.375, 0.325],
     4: [0.30, 0.15, 0.275, 0.275],
     5: [0.25, 0.15, 0.225, 0.15, 0.225],
   },
   lunch_heavy: {
-    2: [0.35, 0.65],
     3: [0.225, 0.45, 0.325],
     4: [0.225, 0.15, 0.35, 0.275],
     5: [0.175, 0.15, 0.30, 0.15, 0.225],
   },
   dinner_heavy: {
-    2: [0.35, 0.65],
     3: [0.225, 0.375, 0.40],
     4: [0.225, 0.15, 0.275, 0.35],
     5: [0.175, 0.15, 0.225, 0.15, 0.30],
@@ -100,22 +96,6 @@ const STANDARD_MEAL_SLOT_POLICY = {
 };
 
 const AMBIGUOUS_MEAL_SLOT_POLICY = {
-  balanced: [
-    { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Lunch/Dinner', tag: 'main_meal', profileTag: 'lunch' },
-  ],
-  breakfast_heavy: [
-    { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Lunch/Dinner', tag: 'main_meal', profileTag: 'lunch' },
-  ],
-  lunch_heavy: [
-    { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Lunch', tag: 'lunch' },
-  ],
-  dinner_heavy: [
-    { name: 'Breakfast', tag: 'breakfast' },
-    { name: 'Dinner', tag: 'dinner' },
-  ],
   balanced_5: [
     { name: 'Breakfast', tag: 'breakfast' },
     { name: 'Snack 1', tag: 'snack' },
