@@ -223,7 +223,10 @@ const planInput = z.strictObject({
   mealDistribution: enumField(DISTRIBUTION_VALUES, 'Choose a valid meal distribution.'),
   numberOfMeals: formNumberField('Number of meals', 3, 5, { integer: true }),
   avoidFoods: preferenceList.optional(),
-});
+}).refine(
+  (value) => !(value.activityLevel === 'athlete' && value.numberOfMeals === 3),
+  { message: 'Athlete plans require 4 or 5 meals.', path: ['numberOfMeals'] },
+);
 
 const dailyNumbers = z.looseObject({
   calories: optionalFinite(0, 20000),
