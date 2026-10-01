@@ -488,9 +488,11 @@ inputsToggle?.addEventListener('click', () => {
 
 form.addEventListener('input', syncInputSummary);
 form.addEventListener('change', syncInputSummary);
+form.addEventListener('change', syncAthleteMealCountOption);
 form.addEventListener('input', markProfileFieldTouched);
 form.addEventListener('change', markProfileFieldTouched);
 syncInputSummary();
+syncAthleteMealCountOption();
 if (!plannerCtx?.planId) {
   switchPlannerView('input', { push: false });
   setInputsExpanded(true);
@@ -500,6 +502,16 @@ if (!plannerCtx?.planId) {
   showSavedPlanSkeleton();
 }
 scheduleReferenceDataLoad();
+
+function syncAthleteMealCountOption() {
+  const activity = form.elements.activityLevel?.value;
+  const mealCount = form.elements.numberOfMeals;
+  const threeMealOption = mealCount?.querySelector('option[value="3"]');
+  if (!mealCount || !threeMealOption) return;
+  const athlete = activity === 'athlete';
+  threeMealOption.disabled = athlete;
+  if (athlete && mealCount.value === '3') mealCount.value = '4';
+}
 
 function readForm() {
   const data = new FormData(form);
@@ -531,6 +543,13 @@ async function validatePreGenerationSaveDetails() {
 
   const customerInput = form.elements.customerName;
   const customerName = customerInput?.value.trim() || '';
+
+  const input = readForm();
+  if (input.activityLevel === 'athlete' && Number(input.numberOfMeals) === 3) {
+    message.textContent = 'Athlete plans require 4 or 5 meals.';
+    form.elements.numberOfMeals?.focus();
+    return false;
+  }
 
   if (preGenerationCustomerState.mode === 'new' && !customerName) {
     message.textContent = 'Enter a customer name before adding a new customer.';
