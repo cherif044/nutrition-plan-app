@@ -221,7 +221,7 @@ const planInput = z.strictObject({
   activityLevel: enumField(ACTIVITY_VALUES, 'Choose a valid activity level.'),
   goal: enumField(GOAL_VALUES, 'Choose a valid goal.'),
   mealDistribution: enumField(DISTRIBUTION_VALUES, 'Choose a valid meal distribution.'),
-  numberOfMeals: formNumberField('Number of meals', 2, 5, { integer: true }),
+  numberOfMeals: formNumberField('Number of meals', 3, 5, { integer: true }),
   avoidFoods: preferenceList.optional(),
 });
 
