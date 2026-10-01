@@ -18,6 +18,10 @@ const NUTRITION = {
   weightLoss: {
     weeklyPercent: 0.75,
     kcalPerKg: 7700,
+    maxDailyDeficitCaloriesByActivity: {
+      light: 750,
+      default: 1000,
+    },
   },
   weightGain: {
     surplusCalories: 250,
@@ -27,9 +31,15 @@ const NUTRITION = {
     female: 1200,
   },
   proteinPerKg: {
-    minimum: 1.8,
+    minimum: 1.6,
     maximum: 2.2,
     default: 2.0,
+    byActivity: {
+      sedentary: { minimum: 1.0, maximum: 1.6 },
+      light: { minimum: 1.6, maximum: 2.2 },
+      moderate: { minimum: 1.6, maximum: 2.2 },
+      athlete: { minimum: 1.6, maximum: 2.2 },
+    },
   },
   fatPerKg: {
     minimum: 0.66,
