@@ -55,7 +55,10 @@ function calculateGoalCalories(input, maintenance) {
 
   const weeklyPercent = NUTRITION.weightLoss.weeklyPercent;
   const weeklyLossKg = input.weightKg * weeklyPercent / 100;
-  const dailyDeficit = weeklyLossKg * NUTRITION.weightLoss.kcalPerKg / 7;
+  const calculatedDailyDeficit = weeklyLossKg * NUTRITION.weightLoss.kcalPerKg / 7;
+  const maxDailyDeficit = NUTRITION.weightLoss.maxDailyDeficitCaloriesByActivity[input.activityLevel]
+    ?? NUTRITION.weightLoss.maxDailyDeficitCaloriesByActivity.default;
+  const dailyDeficit = Math.min(calculatedDailyDeficit, maxDailyDeficit);
   const targetCalories = maintenance - dailyDeficit;
 
   return withCalorieFloor(targetCalories, {
@@ -78,14 +81,16 @@ function calculateMacroTargets(input, targetCalories) {
     proteinG,
     carbG: remainingCalories / NUTRITION.carbKcalPerGram,
     fatG,
-    macroRanges: calculateDailyMacroRanges(input.weightKg, targetCalories),
+    macroRanges: calculateDailyMacroRanges(input.weightKg, targetCalories, input.activityLevel),
   };
 }
 
-function calculateDailyMacroRanges(weightKg, targetCalories) {
+function calculateDailyMacroRanges(weightKg, targetCalories, activityLevel) {
+  const proteinRange = NUTRITION.proteinPerKg.byActivity[activityLevel]
+    || NUTRITION.proteinPerKg;
   const protein = {
-    min: weightKg * NUTRITION.proteinPerKg.minimum,
-    max: weightKg * NUTRITION.proteinPerKg.maximum,
+    min: weightKg * proteinRange.minimum,
+    max: weightKg * proteinRange.maximum,
   };
   const fat = {
     min: weightKg * NUTRITION.fatPerKg.minimum,
