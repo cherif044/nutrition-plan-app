@@ -417,8 +417,8 @@ function normalizeInput(input = {}) {
   if (!GOALS.has(goal)) {
     throw inputError('Choose a valid goal.');
   }
-  if (![2, 3, 4, 5].includes(numberOfMeals)) {
-    throw inputError('Meals must be between 2 and 5.');
+  if (![3, 4, 5].includes(numberOfMeals)) {
+    throw inputError('Meals must be between 3 and 5.');
   }
   if (!MEAL_DISTRIBUTIONS.has(mealDistribution)) {
     throw inputError('Choose a valid meal distribution.');
