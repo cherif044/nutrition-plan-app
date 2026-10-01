@@ -420,6 +420,9 @@ function normalizeInput(input = {}) {
   if (![3, 4, 5].includes(numberOfMeals)) {
     throw inputError('Meals must be between 3 and 5.');
   }
+  if (activityLevel === 'athlete' && numberOfMeals === 3) {
+    throw inputError('Athlete plans require 4 or 5 meals.');
+  }
   if (!MEAL_DISTRIBUTIONS.has(mealDistribution)) {
     throw inputError('Choose a valid meal distribution.');
   }
