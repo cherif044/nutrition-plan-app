@@ -13,6 +13,11 @@ const Plan = sequelize.define('Plan', {
   client_request_id: { type: DataTypes.TEXT, allowNull: true },
   goal:       { type: DataTypes.TEXT, allowNull: true },
   calories:   { type: DataTypes.DECIMAL, allowNull: true },
+  protein_g:  { type: DataTypes.DECIMAL, allowNull: true },
+  carbs_g:    { type: DataTypes.DECIMAL, allowNull: true },
+  fat_g:      { type: DataTypes.DECIMAL, allowNull: true },
+  start_date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
+  duration_weeks: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 4 },
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, {

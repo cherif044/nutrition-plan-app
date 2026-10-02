@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+<symbol id="i-bolt" viewBox="0 0 16 16"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z"/></symbol>
+<symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></symbol>
+<symbol id="i-swap" viewBox="0 0 16 16"><path d="M2.5 5.5h10l-3-3M13.5 10.5h-10l3 3"/></symbol>
+<symbol id="i-shuffle" viewBox="0 0 16 16"><path d="M2 4.5h2c1.6 0 2.6.8 3.4 2.2l1.2 2.6c.8 1.4 1.8 2.2 3.4 2.2h2M12.5 9.5l1.5 2-1.5 2M12.5 2.5l1.5 2-1.5 2M9.3 5.6c.7-.7 1.5-1.1 2.7-1.1h2M2 11.5h2c1.2 0 2-.4 2.7-1.1"/></symbol>
+<symbol id="i-star" viewBox="0 0 16 16"><path d="M8 2l1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3l-3.7 2 .8-4.1L2 6.3l4.2-.5z"/></symbol>
+<symbol id="i-lock" viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 017 0v2M3.5 7h9v6.5h-9z"/></symbol>
+<symbol id="i-unlock" viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 016.8-1.2M3.5 7h9v6.5h-9z"/></symbol>
+<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="i-undo" viewBox="0 0 16 16"><path d="M5.5 3.5l-3 3 3 3M2.5 6.5H10a3.5 3.5 0 010 7H7"/></symbol>
+<symbol id="i-redo" viewBox="0 0 16 16"><path d="M10.5 3.5l3 3-3 3M13.5 6.5H6a3.5 3.5 0 000 7h3"/></symbol>
+<symbol id="i-back" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></symbol>
+<symbol id="i-search" viewBox="0 0 16 16"><path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3.5-3.5"/></symbol>
+<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+<symbol id="i-print" viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5H3A1.5 1.5 0 011.5 10V7.5A1.5 1.5 0 013 6h10a1.5 1.5 0 011.5 1.5V10a1.5 1.5 0 01-1.5 1.5h-1.5M4.5 9.5h7v4h-7z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 16 16"><path d="M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3"/></symbol>
+<symbol id="i-home" viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6.5h-11zM6.5 13.5v-4h3v4"/></symbol>
+<symbol id="i-person" viewBox="0 0 16 16"><path d="M8 7a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5"/></symbol>
+<symbol id="i-cal" viewBox="0 0 16 16"><path d="M2.5 4h11v9.5h-11zM2.5 7h11M5.5 2.5v3M10.5 2.5v3"/></symbol>
+<symbol id="i-ruler" viewBox="0 0 16 16"><path d="M2 11.5L11.5 2l2.5 2.5L4.5 14zM5 8.5l1.5 1.5M7 6.5l1.5 1.5M9 4.5l1.5 1.5"/></symbol>
+<symbol id="i-weight" viewBox="0 0 16 16"><path d="M4 5.5h8l1.5 8h-11zM6 5.5a2 2 0 114 0"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 16 16"><path d="M1.5 8h3l1.5-4 2.5 8 1.5-4h4.5"/></symbol>
+<symbol id="i-users" viewBox="0 0 16 16"><path d="M6 7.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M11 2.8a2.3 2.3 0 010 4.4M12.5 9.7c1.3.5 2 1.8 2 3.8"/></symbol>
+<symbol id="i-list" viewBox="0 0 16 16"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"/></symbol>
+<symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.5 4.5h11M6 4.5v-2h4v2M4 4.5l.7 9h6.6l.7-9"/></symbol>
+<symbol id="i-scale" viewBox="0 0 16 16"><path d="M8 2.5v11M5 13.5h6M3 4.5h10M4.5 4.5L2.5 9h4zM11.5 4.5L9.5 9h4z"/></symbol>
+<symbol id="i-key" viewBox="0 0 16 16"><path d="M1.5 4h13v8h-13zM4 7h.01M6.5 7h.01M9 7h.01M11.5 7h.01M5 9.5h6"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 113 5M3 2v3h3"/></symbol>
+<symbol id="i-send" viewBox="0 0 16 16"><path d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z"/></symbol>
+<symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5a1 1 0 011-1h3.3l1.5 1.5h6.2a1 1 0 011 1v6.5a1 1 0 01-1 1h-11a1 1 0 01-1-1z"/></symbol>
+<symbol id="i-logout" viewBox="0 0 16 16"><path d="M6.5 2.5h-3v11h3M10.5 5l3 3-3 3M13.5 8h-7"/></symbol>
+<symbol id="i-sun" viewBox="0 0 16 16"><path d="M8 5.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></symbol>
+<symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.5 9.6A5.5 5.5 0 016.4 2.5a5.5 5.5 0 107.1 7.1z"/></symbol>
+<symbol id="i-more" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"/></symbol>
+<symbol id="i-menu" viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></symbol>
+<symbol id="i-remove" viewBox="0 0 16 16"><path d="M6 3.5h7.5v9H6L2.5 8z M8 6.5l3 3M11 6.5l-3 3"/></symbol>
+<symbol id="i-user" viewBox="0 0 16 16"><path d="M8 7a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5"/></symbol>
+<symbol id="i-chevl" viewBox="0 0 16 16"><path d="M10 3.5L5.5 8l4.5 4.5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 16 16"><path d="M8 10a2 2 0 100-4 2 2 0 000 4zM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+<symbol id="meal-breakfast" viewBox="0 0 16 16"><path d="M8 1.8v1.4M2.8 4.2l1 1M13.2 4.2l-1 1M1.5 10.5h13M4.5 10.5a3.5 3.5 0 017 0M3.5 13.5h9"/></symbol>
+<symbol id="meal-snack" viewBox="0 0 16 16"><path d="M8 4.5c-1.2-1-4.5-1.2-4.5 2.6 0 3 2 6.4 3.4 6.4.5 0 .7-.3 1.1-.3s.6.3 1.1.3c1.4 0 3.4-3.4 3.4-6.4 0-3.8-3.3-3.6-4.5-2.6z"/><path d="M8 4.5c0-1.4.7-2.3 1.8-2.6"/></symbol>
+<symbol id="meal-lunch" viewBox="0 0 16 16"><path d="M1.8 7.5h12.4a6.2 6.2 0 01-12.4 0z"/><path d="M5.5 5.5c0-1 .8-1.5.8-2.5M8.5 5.5c0-1 .8-1.5.8-2.5"/></symbol>
+<symbol id="meal-dinner" viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 016.5 3a5.5 5.5 0 106.5 6.5z"/></symbol>
+<symbol id="logo" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" style="fill:var(--logo-tile);stroke:none"/><path transform="translate(13 82)" style="fill:var(--logo-ink);stroke:none" d="M0.256 0.0 7.6160000000000005 -34.432H17.472L16.576 -29.056Q18.432000000000002 -32.0 20.864 -33.6Q23.296 -35.2 26.176000000000002 -35.2Q30.016000000000002 -35.2 32.064 -33.408Q34.112 -31.616 34.624 -28.288V-28.16Q38.464 -35.2 45.184 -35.2Q49.664 -35.2 51.968 -32.768Q54.272 -30.336000000000002 54.272 -26.304000000000002Q54.272 -24.576 53.888 -22.112000000000002Q53.504 -19.648 53.056000000000004 -17.728L49.28 0.0H38.272L42.176 -18.304000000000002Q42.432 -19.584 42.688 -20.864Q42.944 -22.144000000000002 42.944 -23.424Q42.944 -25.088 42.08 -25.856Q41.216 -26.624000000000002 39.744 -26.624000000000002Q37.632 -26.624000000000002 36.064 -24.608Q34.496 -22.592 33.728 -18.88L29.696 0.0H19.84L23.872 -18.88Q24.128 -20.032 24.288 -21.28Q24.448 -22.528 24.448 -23.296Q24.448 -26.624000000000002 21.12 -26.624000000000002Q19.008 -26.624000000000002 17.536 -24.608Q16.064 -22.592 15.296000000000001 -18.88L11.264 0.0Z M69.94800000000001 0.768Q62.78 0.768 59.42 -2.176Q56.06 -5.12 55.548 -10.816L66.62 -11.200000000000001Q66.94 -8.832 68.02799999999999 -7.712000000000001Q69.116 -6.5920000000000005 71.356 -6.5920000000000005Q76.156 -6.5920000000000005 76.156 -9.6Q76.156 -11.008000000000001 75.004 -11.776Q73.852 -12.544 70.268 -13.184000000000001Q63.74 -14.336 60.956 -16.704Q58.172 -19.072 58.172 -23.104Q58.172 -28.48 62.076 -31.840000000000003Q65.98 -35.2 74.108 -35.2Q81.596 -35.2 85.212 -32.288000000000004Q88.828 -29.376 89.404 -23.104L78.396 -22.72Q78.14 -25.472 77.02000000000001 -26.656Q75.9 -27.84 73.66 -27.84Q71.612 -27.84 70.524 -26.848Q69.436 -25.856 69.436 -24.128Q69.436 -22.656 70.748 -21.856Q72.06 -21.056 75.26 -20.48Q79.868 -19.648 82.556 -18.432000000000002Q85.244 -17.216 86.364 -15.328Q87.48400000000001 -13.44 87.48400000000001 -10.624Q87.48400000000001 -5.12 82.84400000000001 -2.176Q78.20400000000001 0.768 69.94800000000001 0.768Z"/><circle cx="110" cy="76" r="7" style="fill:#B6F23A;stroke:none"/></symbol>
+</svg>

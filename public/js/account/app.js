@@ -9,12 +9,6 @@ let currentUser = null;
 let firebase = null;
 let auth = null;
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[char]));
-}
-
 function setMessage(id, text, tone = 'error') {
   const el = document.getElementById(id);
   el.textContent = text;
@@ -162,15 +156,7 @@ async function init() {
   }
   ({ user: currentUser } = await res.json());
   document.getElementById('account-email').textContent = currentUser.email || '';
-  document.getElementById('planner-nav-user').innerHTML = `
-    <span class="planner-nav__greeting">Hi, ${escapeHtml(currentUser.firstname)}</span>
-    <a class="planner-nav__link" href="/dashboard" aria-label="Home"><span>Home</span></a>
-    <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out"><span>Log out</span></button>
-  `;
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.replace('/');
-  });
+  window.Shell?.setUser(currentUser);
 
   document.getElementById('logout-all-btn').addEventListener('click', handleLogoutAll);
   document.getElementById('password-form').addEventListener('submit', handleChangePassword);

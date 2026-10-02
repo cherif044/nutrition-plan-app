@@ -23,7 +23,7 @@ function generationRequestIdFromRequest(req) {
 async function createPlanHandler(req, res, next) {
   try {
     const {
-      name, planData, customer = null, clientRequestId = null,
+      name, planData, customer = null, clientRequestId = null, startDate, durationWeeks,
     } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Plan name is required.' });
     if (!planData) return res.status(400).json({ error: 'planData is required.' });
@@ -31,6 +31,8 @@ async function createPlanHandler(req, res, next) {
     const plan = await createPlan(req.user.id, name, planData, {
       customer,
       clientRequestId,
+      startDate,
+      durationWeeks,
     });
     recordMetric(req, 'planSaveDbMs', elapsedMs(saveStartedAt));
     logger.info('Plan timeline: server saved plan', {
@@ -88,13 +90,13 @@ async function exportPlanPdfHandler(req, res, next) {
 async function updatePlanHandler(req, res, next) {
   try {
     const {
-      name, planData, customer, expectedVersion,
+      name, planData, customer, expectedVersion, startDate, durationWeeks,
     } = req.body;
-    if (!name && !planData && customer === undefined) {
-      return res.status(400).json({ error: 'name, planData, or customer required.' });
+    if (!name && !planData && customer === undefined && startDate === undefined && durationWeeks === undefined) {
+      return res.status(400).json({ error: 'name, planData, customer, startDate, or durationWeeks required.' });
     }
     const plan = await updatePlan(req.params.id, req.user.id, {
-      name, planData, customer, expectedVersion,
+      name, planData, customer, expectedVersion, startDate, durationWeeks,
     });
     if (!plan) return res.status(404).json({ error: 'Plan not found.' });
     res.json({ plan });

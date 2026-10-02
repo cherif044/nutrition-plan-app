@@ -3,104 +3,102 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Account — Pinch</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/styles.css" />
+    <title>Account — Macrospace</title>
+    <script src="/js/shared/theme.js?v=macrospace-20261002"></script>
+    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261002" />
     <script src="/js/shared/vitals.js" defer></script>
   </head>
-  <body class="dashboard-page account-page">
-    <main class="app-shell dashboard-frame">
-      <nav class="planner-nav">
-        <div class="planner-nav__brand">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 12-10 1 8-2 13-7 13" />
-              <path d="M7 14c2-1 4-1 7-4" />
-            </svg>
-          </span>
-          <span>
-            <strong>Pinch</strong>
-            <small>Account</small>
-          </span>
+  <body class="account-page">
+    <div class="shell">
+      <div class="dashboard-menu-backdrop" id="dashboard-menu-backdrop" hidden></div>
+      <aside class="side" id="dashboard-sidebar" aria-label="Main navigation">
+        <div class="side-top">
+          <a class="brand" href="/dashboard#/home"><svg class="ms-mark" aria-hidden="true"><use href="/img/icons.svg#logo"></use></svg><span>macrospace</span></a>
+          <div class="tt" role="group" aria-label="Color theme">
+            <button type="button" data-theme-set="light" aria-pressed="false" title="Light mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-sun"></use></svg><span class="sr-only">Light mode</span></button>
+            <button type="button" data-theme-set="dark" aria-pressed="false" title="Dark mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-moon"></use></svg><span class="sr-only">Dark mode</span></button>
+          </div>
         </div>
-        <div class="planner-nav__user" id="planner-nav-user"></div>
-      </nav>
+        <a class="btn btn-primary" href="/planner"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-plus"></use></svg>New plan</a>
+        <nav class="side-nav" aria-label="Sections">
+          <a href="/dashboard#/home"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-home"></use></svg>Home</a>
+          <a href="/dashboard#/customers"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-users"></use></svg>Clients</a>
+          <a href="/dashboard#/plans"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-list"></use></svg>Plans</a>
+        </nav>
+        <div class="side-foot" id="shell-user"></div>
+      </aside>
 
-      <div class="dashboard-app-body">
-        <section class="dashboard-shell" aria-labelledby="account-title">
-          <a class="dashboard-back-link" href="/dashboard">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-            Back to dashboard
-          </a>
+      <main class="main">
+        <div class="mtop">
+          <button class="menu-btn" id="dashboard-menu-toggle" type="button" aria-label="Open menu" aria-controls="dashboard-sidebar" aria-expanded="false"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-menu"></use></svg></button>
+          <a class="brand" href="/dashboard#/home"><svg class="ms-mark" aria-hidden="true"><use href="/img/icons.svg#logo"></use></svg><span>macrospace</span></a>
+          <div class="tt" role="group" aria-label="Color theme"><button type="button" data-theme-set="light" aria-pressed="false" title="Light mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-sun"></use></svg><span class="sr-only">Light mode</span></button><button type="button" data-theme-set="dark" aria-pressed="false" title="Dark mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-moon"></use></svg><span class="sr-only">Dark mode</span></button></div>
+          <button class="mtop-out" type="button" data-logout title="Sign out"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-logout"></use></svg><span class="sr-only">Sign out</span></button>
+        </div>
 
-          <section class="dashboard-panel-card customer-header-card">
+        <section class="page" aria-labelledby="account-title">
+          <a class="crumb" href="/dashboard"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-back"></use></svg>Home</a>
+          <div class="page-h">
             <div>
               <h1 id="account-title">Account</h1>
               <p id="account-email"></p>
             </div>
-          </section>
+          </div>
 
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="sessions-title">
-            <header class="dashboard-section__header">
+          <div class="box form-card">
+            <section class="acct-sec" aria-labelledby="sessions-title">
               <h2 id="sessions-title">Sessions</h2>
-            </header>
-            <p>Sign out on every device where this account is logged in, including this one.</p>
-            <div class="auth-form">
-              <button class="auth-submit" id="logout-all-btn" type="button"><span>Sign out everywhere</span></button>
-              <p class="auth-message" id="sessions-message" role="status" aria-live="polite"></p>
-            </div>
-          </section>
+              <p>Sign out on every device where this account is logged in, including this one.</p>
+              <div class="auth-form">
+                <button class="auth-submit" id="logout-all-btn" type="button"><span>Sign out everywhere</span></button>
+                <p class="auth-message" id="sessions-message" role="status" aria-live="polite"></p>
+              </div>
+            </section>
 
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="password-title">
-            <header class="dashboard-section__header">
+            <section class="acct-sec" aria-labelledby="password-title">
               <h2 id="password-title">Change password</h2>
-            </header>
-            <p>For accounts that log in with email and password. Every device is signed out afterwards.</p>
-            <form class="auth-form" id="password-form" novalidate>
-              <label>
-                <span>Current password</span>
-                <input type="password" name="currentPassword" autocomplete="current-password" required />
-              </label>
-              <label>
-                <span>New password</span>
-                <input type="password" name="newPassword" autocomplete="new-password" minlength="12" required />
-              </label>
-              <label>
-                <span>Confirm new password</span>
-                <input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" required />
-              </label>
-              <button class="auth-submit" type="submit"><span>Change password</span></button>
-              <p class="auth-message" id="password-message" role="status" aria-live="polite"></p>
-            </form>
-          </section>
+              <p>For accounts that log in with email and password. Every device is signed out afterwards.</p>
+              <form class="auth-form" id="password-form" novalidate>
+                <label>
+                  <span>Current password</span>
+                  <input type="password" name="currentPassword" autocomplete="current-password" required />
+                </label>
+                <label>
+                  <span>New password</span>
+                  <input type="password" name="newPassword" autocomplete="new-password" minlength="12" required />
+                </label>
+                <label>
+                  <span>Confirm new password</span>
+                  <input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" required />
+                </label>
+                <button class="auth-submit" type="submit"><span>Change password</span></button>
+                <p class="auth-message" id="password-message" role="status" aria-live="polite"></p>
+              </form>
+            </section>
 
-          <section class="dashboard-section dashboard-panel-card" aria-labelledby="delete-title">
-            <header class="dashboard-section__header">
+            <section class="acct-sec acct-danger" aria-labelledby="delete-title">
               <h2 id="delete-title">Delete account</h2>
-            </header>
-            <p>Deletes your login, customers, and plans. This cannot be undone.</p>
-            <form class="auth-form" id="delete-form" novalidate>
-              <label>
-                <span>Type DELETE to confirm</span>
-                <input type="text" name="confirm" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
-              </label>
-              <label>
-                <span>Password (email accounts)</span>
-                <input type="password" name="password" autocomplete="current-password" />
-              </label>
-              <button class="auth-submit" type="submit"><span>Delete with password</span></button>
-              <button class="auth-google" id="delete-google-btn" type="button"><span>Confirm with Google and delete</span></button>
-              <p class="auth-message" id="delete-message" role="status" aria-live="polite"></p>
-            </form>
-          </section>
+              <p>Deletes your login, clients, and plans. This cannot be undone.</p>
+              <form class="auth-form" id="delete-form" novalidate>
+                <label>
+                  <span>Type DELETE to confirm</span>
+                  <input type="text" name="confirm" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
+                </label>
+                <label>
+                  <span>Password (email accounts)</span>
+                  <input type="password" name="password" autocomplete="current-password" />
+                </label>
+                <button class="auth-submit" type="submit"><span>Delete with password</span></button>
+                <button class="auth-google" id="delete-google-btn" type="button"><span>Confirm with Google and delete</span></button>
+                <p class="auth-message" id="delete-message" role="status" aria-live="polite"></p>
+              </form>
+            </section>
+          </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
 
-    <script src="/js/account/app.js?v=cleanup-20260929" type="module"></script>
+    <script src="/js/shared/shell.js?v=macrospace-20261002" defer></script>
+    <script src="/js/account/app.js?v=macrospace-20261002" type="module"></script>
   </body>
 </html>

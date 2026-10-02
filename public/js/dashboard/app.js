@@ -1,46 +1,20 @@
-function iconSvg(name, size = 16) {
-  const attrs = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`;
-  const icons = {
-    home: '<path d="m3 10 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
-    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
-    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>',
-    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
-    user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
-    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
-    zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/>',
-    chart: '<path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>',
-    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
-    chevron: '<path d="m9 18 6-6-6-6"/>',
-    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
-  };
-  return `<svg ${attrs}>${icons[name] || ''}</svg>`;
+function icon(name, extraClass = '') {
+  return `<svg class="ic${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true"><use href="/img/icons.svg#i-${name}"></use></svg>`;
 }
 
-const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-const relativeUnits = [
-  ['year', 31536000000],
-  ['month', 2592000000],
-  ['week', 604800000],
-  ['day', 86400000],
-  ['hour', 3600000],
-  ['minute', 60000],
-];
-
-const GOAL_ORDER = ['lose_weight', 'gain_weight', 'maintain', 'unknown'];
-const GOAL_COLORS = {
-  lose_weight: '#e85d4e',
-  gain_weight: '#2f86d6',
-  maintain: '#1f9d77',
-  unknown: '#9aa6a0',
-};
 const PLAN_CALORIE_RANGE_SIZE = 200;
+const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'athlete'];
+const SEX_FOLDERS = [
+  ['female', 'Female'],
+  ['male', 'Male'],
+  ['unset', 'Sex not set'],
+];
 
 const state = {
   user: null,
   stats: {},
   recentPlans: [],
-  recentCustomers: [],
+  expiringPlans: [],
   // One server page at a time; search and filters are applied server-side.
   customersPage: null,
   plansPage: null,
@@ -48,8 +22,11 @@ const state = {
   planPage: 1,
   detailPage: 1,
   detailCustomerId: null,
+  // Set by the route: a sex folder for clients, a calorie folder for plans.
+  customerSex: '',
   planFilter: null,
   customerSearch: '',
+  groupSearch: '',
   planSearch: '',
   loadTokens: { customers: 0, plans: 0, detail: 0 },
   menu: null,
@@ -73,32 +50,13 @@ function titleCase(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function goalLabel(goal) {
-  const labels = {
-    maintain: 'Maintain',
-    lose_weight: 'Lose weight',
-    gain_weight: 'Gain weight',
-    unknown: 'Unknown',
-  };
-  return labels[goal] || titleCase(goal);
-}
-
-function formatRelativeTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Recently';
-
-  const diff = date.getTime() - Date.now();
-  const abs = Math.abs(diff);
-  if (abs < 60000) return 'Just now';
-  for (const [unit, ms] of relativeUnits) {
-    if (abs >= ms || unit === 'minute') return formatter.format(Math.round(diff / ms), unit);
-  }
-  return 'Just now';
-}
-
 function initials(name) {
   const parts = String(name || 'P').trim().split(/\s+/).filter(Boolean);
-  return (parts[0]?.[0] || 'P') + (parts[1]?.[0] || '');
+  return ((parts[0]?.[0] || 'P') + (parts[1]?.[0] || '')).toUpperCase();
+}
+
+function formatNumber(value) {
+  return Math.round(Number(value) || 0).toLocaleString('en-US');
 }
 
 function planHref(plan) {
@@ -119,237 +77,9 @@ function pdfDownloadName(planName) {
   return `${base}.pdf`;
 }
 
-function planGoalKey(plan) {
-  return plan.goal || plan.plan_data?.input?.goal || plan.planData?.input?.goal || 'unknown';
-}
-
-function planCalories(plan) {
-  const value = Number(
-    plan.calories
-    ?? plan.targetCalories
-    ?? plan.plan_data?.dailyActuals?.calories
-    ?? plan.planData?.dailyActuals?.calories
-    ?? plan.plan_data?.dailyTargets?.calories
-    ?? plan.planData?.dailyTargets?.calories
-    ?? plan.plan_data?.nutritionCalculation?.targetCalories
-    ?? plan.planData?.nutritionCalculation?.targetCalories
-  );
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function planCalorieRange(plan) {
-  const calories = planCalories(plan);
-  if (!calories) return null;
-  const min = Math.floor(calories / PLAN_CALORIE_RANGE_SIZE) * PLAN_CALORIE_RANGE_SIZE;
-  const max = min + PLAN_CALORIE_RANGE_SIZE;
-  return {
-    key: `${min}-${max}`,
-    label: `${min}-${max}`,
-    searchLabel: `${min}-${max} calories`,
-  };
-}
-
-function planCalorieRangeLabel(plan) {
-  return planCalorieRange(plan)?.label || '';
-}
-
-function planGoalVisualKey(goal) {
-  if (goal === 'lose_weight') return 'lose';
-  if (goal === 'gain_weight') return 'gain';
-  if (goal === 'maintain') return 'maintain';
-  return 'unknown';
-}
-
-function planGoalColor(goal) {
-  return GOAL_COLORS[goal] || GOAL_COLORS.unknown;
-}
-
-function planPageRow(plan) {
-  const updatedAt = plan.updated_at || plan.created_at;
-  const goal = planGoalKey(plan);
-  const visualKey = planGoalVisualKey(goal);
-  const calorieRange = planCalorieRangeLabel(plan);
-  return `
-    <li class="pp-row" data-name="${escapeHtml(plan.name)}" data-goal="${escapeHtml(goal)}" data-calorie-range="${escapeHtml(calorieRange)}">
-      <a class="pp-row__link" href="${escapeHtml(planHref(plan))}">
-        <span class="pp-row__text">
-          <span class="pp-row__name">${escapeHtml(plan.name)}</span>
-          <span class="pp-row__tags">
-            <span class="pp-goal pp-goal--${escapeHtml(visualKey)}">
-              <span class="pp-dot"></span>${escapeHtml(goalLabel(goal))}
-            </span>
-            ${calorieRange ? `<span class="pp-calorie-range">${escapeHtml(calorieRange)}</span>` : ''}
-          </span>
-        </span>
-        <span class="pp-row__time">${escapeHtml(formatRelativeTime(updatedAt))}</span>
-      </a>
-      <button
-        class="pp-row__more dashboard-plan-menu-btn"
-        type="button"
-        title="Plan options"
-        aria-label="More actions for ${escapeHtml(plan.name)}"
-        data-plan-id="${escapeHtml(plan.id)}"
-        data-plan-name="${escapeHtml(plan.name)}"
-        data-customer-id="${escapeHtml(plan.customer_id || '')}"
-        data-export-href="${escapeHtml(planExportHref(plan))}"
-      >${iconSvg('more', 18)}</button>
-    </li>
-  `;
-}
-
-function customerPageRow(customer) {
-  const count = Number(customer.planCount || 0);
-  const name = customer.name || 'Customer';
-  return `
-    <li class="pc-row" data-customer-id="${escapeHtml(customer.id)}">
-      <a class="pc-row__link" href="#/customers/${encodeURIComponent(customer.id)}">
-        <span class="pc-avatar" aria-hidden="true">${escapeHtml(initials(name).toLowerCase())}</span>
-        <span class="pc-row__text">
-          <span class="pc-row__name">${escapeHtml(name)}</span>
-          <span class="pc-row__meta">
-            ${count} plan${count === 1 ? '' : 's'}
-          </span>
-        </span>
-      </a>
-      <button
-        class="pc-row__more dashboard-customer-menu-btn"
-        type="button"
-        title="Customer options"
-        aria-label="More actions for ${escapeHtml(name)}"
-        data-customer-id="${escapeHtml(customer.id)}"
-        data-customer-name="${escapeHtml(name)}"
-      >${iconSvg('more', 18)}</button>
-    </li>
-  `;
-}
-
-function homeCustomerRow(customer) {
-  const count = Number(customer.planCount || 0);
-  const name = customer.name || 'Customer';
-  return `
-    <li class="ph-row">
-      <a class="ph-row__link" href="#/customers/${encodeURIComponent(customer.id)}">
-        <span class="ph-avatar" aria-hidden="true">${escapeHtml(initials(name).toLowerCase())}</span>
-        <span class="ph-row__text">
-          <span class="ph-row__name">${escapeHtml(name)}</span>
-          <span class="ph-row__meta">${count} plan${count === 1 ? '' : 's'}</span>
-        </span>
-      </a>
-      <button
-        type="button"
-        class="ph-row__more dashboard-customer-menu-btn"
-        aria-label="More actions for ${escapeHtml(name)}"
-        data-customer-id="${escapeHtml(customer.id)}"
-        data-customer-name="${escapeHtml(name)}"
-      >${iconSvg('more', 18)}</button>
-    </li>
-  `;
-}
-
-function homePlanRow(plan) {
-  const goal = planGoalKey(plan);
-  const visualKey = planGoalVisualKey(goal);
-  const updatedAt = plan.updated_at || plan.created_at;
-  return `
-    <li class="ph-row">
-      <a class="ph-row__link" href="${escapeHtml(planHref(plan))}">
-        <span class="ph-row__text">
-          <span class="ph-row__name">${escapeHtml(plan.name)}</span>
-          <span class="ph-row__meta">
-            <span class="ph-goal ph-goal--${escapeHtml(visualKey)}"><span class="ph-dot"></span>${escapeHtml(goalLabel(goal))}</span>
-            ${escapeHtml(formatRelativeTime(updatedAt))}
-          </span>
-        </span>
-      </a>
-      <button
-        type="button"
-        class="ph-row__more dashboard-plan-menu-btn"
-        aria-label="More actions for ${escapeHtml(plan.name)}"
-        data-plan-id="${escapeHtml(plan.id)}"
-        data-plan-name="${escapeHtml(plan.name)}"
-        data-customer-id="${escapeHtml(plan.customer_id || '')}"
-        data-export-href="${escapeHtml(planExportHref(plan))}"
-      >${iconSvg('more', 18)}</button>
-    </li>
-  `;
-}
-
-function detailNumberValue(value, fallback = '-') {
-  if (value === null || value === undefined || value === '') return fallback;
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toLocaleString() : fallback;
-}
-
-function customerDetailMeta(customer, planCount) {
-  return `
-    <span>${Number(planCount || 0).toLocaleString()} assigned ${Number(planCount || 0) === 1 ? 'plan' : 'plans'}</span>
-  `;
-}
-
-function customerDetailGrid(customer) {
-  const details = [
-    { label: 'Age', value: detailNumberValue(customer.age), text: false },
-    { label: 'Sex', value: customer.sex ? titleCase(customer.sex) : '-', text: true },
-    { label: 'Weight', value: detailNumberValue(customer.weight), unit: customer.weight ? 'kg' : '', text: false },
-    { label: 'Height', value: detailNumberValue(customer.height), unit: customer.height ? 'cm' : '', text: false },
-    { label: 'Activity level', value: customer.activity_level ? titleCase(customer.activity_level) : '-', text: true },
-  ];
-
-  return details.map((item) => `
-    <div class="pd-detail">
-      <span class="pd-detail__label">${escapeHtml(item.label)}</span>
-      <span class="pd-detail__value${item.text ? ' pd-detail__value--text' : ''}">
-        ${escapeHtml(item.value)}${item.unit ? `<span class="pd-detail__unit">${escapeHtml(item.unit)}</span>` : ''}
-      </span>
-    </div>
-  `).join('');
-}
-
-function customerDetailPlanRow(plan) {
-  const goal = planGoalKey(plan);
-  const visualKey = planGoalVisualKey(goal);
-  const updatedAt = plan.updated_at || plan.created_at;
-  return `
-    <li class="pd-row">
-      <a class="pd-row__link" href="${escapeHtml(planHref(plan))}">
-        <span class="pd-row__text">
-          <span class="pd-row__name">${escapeHtml(plan.name)}</span>
-          <span class="pd-tag pd-tag--${escapeHtml(visualKey)}"><span class="pd-dot"></span>${escapeHtml(goalLabel(goal))}</span>
-        </span>
-        <span class="pd-row__time">${escapeHtml(formatRelativeTime(updatedAt))}</span>
-      </a>
-      <button
-        type="button"
-        class="pd-row__more dashboard-plan-menu-btn"
-        aria-label="More actions for ${escapeHtml(plan.name)}"
-        data-plan-id="${escapeHtml(plan.id)}"
-        data-plan-name="${escapeHtml(plan.name)}"
-        data-customer-id="${escapeHtml(plan.customer_id || '')}"
-        data-export-href="${escapeHtml(planExportHref(plan))}"
-      >${iconSvg('more', 18)}</button>
-    </li>
-  `;
-}
-
-function renderHomeSummary({ totalPlans, customers, plansThisWeek, customersThisWeek }) {
-  const planLabel = plansThisWeek === 1 ? 'plan' : 'plans';
-  const customerLabel = customersThisWeek === 1 ? 'customer' : 'customers';
-  document.getElementById('home-week-plans').textContent = `${plansThisWeek.toLocaleString()} ${planLabel}`;
-  document.getElementById('home-week-customers').textContent = `${customersThisWeek.toLocaleString()} new ${customerLabel}`;
-  document.getElementById('home-active-work').textContent = `${totalPlans.toLocaleString()} saved ${totalPlans === 1 ? 'plan' : 'plans'}`;
-  document.getElementById('home-active-percent').textContent = plansThisWeek ? `${plansThisWeek.toLocaleString()} updated this week` : 'No new plans this week';
-  document.getElementById('home-roster-count').textContent = `${customers.toLocaleString()} customer${customers === 1 ? '' : 's'}`;
-  document.getElementById('home-roster-plans').textContent = totalPlans ? `${totalPlans.toLocaleString()} saved plans total` : 'No saved plans yet';
-}
-
-function planFilterChip(key, label, count, active) {
-  return `
-    <button type="button" class="pp-chip" data-key="${escapeHtml(key || '')}" aria-pressed="${active ? 'true' : 'false'}">
-      <span class="pp-dot pp-dot--calories"></span>
-      ${escapeHtml(label)}
-      <span>${Number(count || 0).toLocaleString()}</span>
-    </button>
-  `;
+function rangeLabel(key) {
+  const [min, max] = String(key).split('-').map(Number);
+  return `${formatNumber(min)}–${formatNumber(max)} kcal`;
 }
 
 function sortCalorieRangeKeys(keys) {
@@ -361,79 +91,301 @@ function sortCalorieRangeKeys(keys) {
   });
 }
 
-function renderPlanFilterChips(counts, total, activeKey) {
-  const container = document.getElementById('plan-filter-chips');
-  if (!container) return;
-  const keys = sortCalorieRangeKeys(Object.keys(counts));
-  container.innerHTML = [
-    planFilterChip(null, 'All', total, activeKey === null),
-    ...keys.map((key) => planFilterChip(key, `${key} calories`, counts[key], activeKey === key)),
-  ].join('');
+function validCalorieRange(value) {
+  const match = /^(\d{1,5})-(\d{1,5})$/.exec(String(value || ''));
+  if (!match) return null;
+  const start = Number(match[1]);
+  return start % PLAN_CALORIE_RANGE_SIZE === 0 && Number(match[2]) === start + PLAN_CALORIE_RANGE_SIZE
+    ? `${start}-${start + PLAN_CALORIE_RANGE_SIZE}`
+    : null;
 }
 
-function renderPlanGoalBreakdown(counts) {
-  const bar = document.getElementById('plan-goal-bar');
-  const legend = document.getElementById('plan-goal-legend');
-  if (!bar || !legend) return;
+// ── Plan pieces ──────────────────────────────────────────────────────────────
 
-  const entries = [
-    ...GOAL_ORDER.filter((key) => counts[key]).map((key) => [key, counts[key]]),
-    ...Object.keys(counts).filter((key) => !GOAL_ORDER.includes(key)).map((key) => [key, counts[key]]),
-  ].filter(([, count]) => count > 0);
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+function planStatus(plan) {
+  return window.PlanStatus?.status(plan) || null;
+}
 
-  bar.setAttribute('aria-label', entries.length
-    ? entries.map(([key, count]) => `${count} ${goalLabel(key)}`).join(', ')
-    : 'No goal data yet');
-  bar.innerHTML = total
-    ? entries.map(([key, count]) => `
-      <div
-        class="pp-bar__seg pp-bar__seg--${escapeHtml(planGoalVisualKey(key))}"
-        style="width: ${(count / total * 100).toFixed(1)}%; background: ${escapeHtml(planGoalColor(key))};"
-      ></div>
-    `).join('')
-    : '<div class="pp-bar__seg pp-bar__seg--unknown" style="width:100%;"></div>';
-  legend.innerHTML = entries.length
-    ? entries.map(([key, count]) => `
-      <li>
-        <span class="pp-dot pp-dot--${escapeHtml(planGoalVisualKey(key))}"></span>
-        ${escapeHtml(goalLabel(key))}
-        <b>${Number(count).toLocaleString()}</b>
-      </li>
-    `).join('')
-    : '<li>No goal data yet</li>';
+function canRenew(status) {
+  return status?.state === 'expired';
+}
+
+function statusLine(status) {
+  if (!status) return '<span class="st none"><i></i>No schedule</span>';
+  return `<span class="st ${status.state}"><i></i>${escapeHtml(status.label)}</span>`;
+}
+
+function macroCell(plan) {
+  const calories = Number(plan.calories) || 0;
+  const protein = Number(plan.protein_g) || 0;
+  const carbs = Number(plan.carbs_g) || 0;
+  const fat = Number(plan.fat_g) || 0;
+  if (!calories && !protein && !carbs && !fat) return '<span class="na">—</span>';
+  const kcal = { p: protein * 4, c: carbs * 4, f: fat * 9 };
+  const hasSplit = kcal.p + kcal.c + kcal.f > 0;
+  return `
+    <div class="mx">
+      <div class="mx-k"><b>${formatNumber(calories)}</b> kcal</div>
+      ${hasSplit ? `
+        <div class="mx-bar" aria-hidden="true"><i class="mx-p" style="flex:${kcal.p}"></i><i class="mx-c" style="flex:${kcal.c}"></i><i class="mx-f" style="flex:${kcal.f}"></i></div>
+        <div class="mx-g">
+          <span><i class="mx-p"></i><span class="mx-w">Protein</span><span class="show-s-i">P</span><b>${formatNumber(protein)}g</b></span>
+          <span><i class="mx-c"></i><span class="mx-w">Carbs</span><span class="show-s-i">C</span><b>${formatNumber(carbs)}g</b></span>
+          <span><i class="mx-f"></i><span class="mx-w">Fat</span><span class="show-s-i">F</span><b>${formatNumber(fat)}g</b></span>
+        </div>` : ''}
+    </div>`;
+}
+
+function renewButton(plan, status, className = 'btn btn-secondary btn-sm', show = canRenew(status)) {
+  if (!show) return '';
+  return `<button type="button" class="${className} renew-btn" data-plan-id="${escapeHtml(plan.id)}" data-plan-name="${escapeHtml(plan.name)}">Renew</button>`;
+}
+
+function planMenuButton(plan) {
+  return `<button
+    class="iconbtn dashboard-plan-menu-btn"
+    type="button"
+    title="Plan options"
+    aria-label="More actions for ${escapeHtml(plan.name)}"
+    data-plan-id="${escapeHtml(plan.id)}"
+    data-plan-name="${escapeHtml(plan.name)}"
+    data-customer-id="${escapeHtml(plan.customer_id || '')}"
+    data-export-href="${escapeHtml(planExportHref(plan))}"
+  >${icon('more')}</button>`;
+}
+
+function planTableRow(plan, index = 0) {
+  const status = planStatus(plan);
+  return `
+    <tr data-href="${escapeHtml(planHref(plan))}" style="--i:${index}">
+      <td>
+        <div class="who">
+          <span class="tile">${icon('list')}</span>
+          <div>
+            <b><a href="${escapeHtml(planHref(plan))}">${escapeHtml(plan.name)}</a></b>
+            <div class="hint">${statusLine(status)}</div>
+          </div>
+        </div>
+      </td>
+      <td>${macroCell(plan)}</td>
+      <td class="r"><div class="row-actions"><span class="hide-s">${renewButton(plan, status)}</span>${planMenuButton(plan)}</div></td>
+    </tr>
+  `;
+}
+
+function emptyTableRow(columns, html) {
+  return `<tr><td colspan="${columns}" class="dt-empty">${html}</td></tr>`;
+}
+
+// ── Client pieces ────────────────────────────────────────────────────────────
+
+function activityPill(level) {
+  const rank = ACTIVITY_LEVELS.indexOf(level) + 1;
+  if (!rank) return '';
+  const dots = [1, 2, 3, 4].map((step) => `<i class="${step <= rank ? 'on' : ''}" style="--d:${step * 110}ms"></i>`).join('');
+  return `<span class="act"><span class="adots" aria-hidden="true">${dots}</span><span class="pill">${escapeHtml(titleCase(level))}</span></span>`;
+}
+
+function activityDots(level) {
+  const rank = ACTIVITY_LEVELS.indexOf(level) + 1;
+  if (!rank) return '<span class="na">—</span>';
+  const dots = [1, 2, 3, 4].map((step) => `<i class="${step <= rank ? 'on' : ''}" style="--d:${step * 90}ms"></i>`).join('');
+  return `<span class="act"><span class="adots" aria-hidden="true">${dots}</span><span>${escapeHtml(titleCase(level))}</span></span>`;
+}
+
+function valueWithUnit(value, unit) {
+  if (value === null || value === undefined || value === '') return '<span class="na">—</span>';
+  const number = Number(value);
+  const shown = Number.isFinite(number) ? number.toLocaleString('en-US') : value;
+  return `${escapeHtml(shown)}<span class="unit"> ${unit}</span>`;
+}
+
+function addedLabel(createdAt) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return '';
+  if (Date.now() - date.getTime() < 86400000) return 'added today';
+  return `added ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+}
+
+function customerTableRow(customer) {
+  const count = Number(customer.planCount || 0);
+  const name = customer.name || 'Client';
+  const plans = count ? `${count} plan${count === 1 ? '' : 's'}` : 'No plans';
+  const added = addedLabel(customer.created_at);
+  const mobile = [customer.age ? `${customer.age} y` : '', customer.weight ? `${Number(customer.weight)} kg` : '', plans]
+    .filter(Boolean).join(' · ');
+  const href = `#/customers/${encodeURIComponent(customer.id)}`;
+  return `
+    <tr data-href="${href}" data-customer-id="${escapeHtml(customer.id)}">
+      <td>
+        <div class="who">
+          <span class="av" aria-hidden="true">${escapeHtml(initials(name))}</span>
+          <div>
+            <b class="pc-row__name"><a href="${href}">${escapeHtml(name)}</a></b>
+            <div class="hint hide-s">${escapeHtml(plans)}${added ? ` · ${escapeHtml(added)}` : ''}</div>
+            <div class="hint show-s">${escapeHtml(mobile)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="hide-s">${valueWithUnit(customer.age, 'y')}</td>
+      <td class="hide-s">${valueWithUnit(customer.weight, 'kg')}</td>
+      <td class="hide-s">${valueWithUnit(customer.height, 'cm')}</td>
+      <td>${activityDots(customer.activity_level)}</td>
+    </tr>
+  `;
+}
+
+function sexFolderHref(sex) {
+  return `#/customers/group/${encodeURIComponent(sex || 'unset')}`;
+}
+
+function sexLabel(sex) {
+  return (SEX_FOLDERS.find(([key]) => key === (sex || 'unset')) || SEX_FOLDERS[2])[1];
+}
+
+function folderCard(href, title, subtitle, count, onCount = null) {
+  const spark = onCount === null ? '' : `<div class="fspark" aria-hidden="true">${
+    Array.from({ length: Math.min(count, 12) }, (_, i) => `<i class="${i < onCount ? 'on' : ''}"></i>`).join('')
+  }</div>`;
+  return `
+    <a class="box folder" href="${href}">
+      <span class="folder-ic">${icon('folder')}</span>
+      <div><div class="folder-t">${escapeHtml(title)}</div><div class="folder-s">${escapeHtml(subtitle)}</div>${spark}</div>
+      <b class="folder-n">${Number(count).toLocaleString('en-US')}</b>
+      ${icon('chev', 'folder-go')}
+    </a>
+  `;
+}
+
+// ── Home ─────────────────────────────────────────────────────────────────────
+
+function greeting() {
+  const hour = new Date().getHours();
+  const part = hour < 5 ? 'Welcome back' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = String(state.user?.firstname || '').trim();
+  return firstName ? `${part}, ${firstName}` : part;
+}
+
+function statusRing(onTrack, endingSoon, expired) {
+  const radius = 30;
+  const circumference = 2 * Math.PI * radius;
+  const total = onTrack + endingSoon + expired;
+  let offset = 0;
+  const segment = (count, className) => {
+    if (!count || !total) return '';
+    const length = circumference * count / total;
+    const gap = total > 1 && count < total ? 2 : 0;
+    const circle = `<circle r="${radius}" cx="38" cy="38" class="${className}" stroke-dasharray="${(length - gap).toFixed(1)} ${circumference.toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}"/>`;
+    offset += length;
+    return circle;
+  };
+  return `<circle r="${radius}" cx="38" cy="38" class="hm-trk"/>${segment(onTrack, 'hm-on')}${segment(endingSoon, 'hm-soon')}${segment(expired, 'hm-ex')}`;
+}
+
+function homePlanRow(plan) {
+  const status = planStatus(plan);
+  const owner = plan.customer_name || 'General plan';
+  let progress = '<span class="hm-exp">No schedule</span>';
+  let mobileWeek = '';
+  if (status?.state === 'expired') {
+    progress = '<span class="hm-exp">Expired</span>';
+  } else if (status) {
+    const segments = Array.from({ length: status.weeks }, (_, i) => {
+      const cls = i < status.week - 1 ? 'done' : i === status.week - 1 ? 'now' : '';
+      return `<i class="${cls}"></i>`;
+    }).join('');
+    const weekText = status.week ? `Week ${status.week}<span class="hm-of"> of ${status.weeks}</span>` : 'Not started';
+    progress = `<div class="hm-wk"><span>${weekText}</span><em>ends ${escapeHtml(status.endLabel)}</em></div><div class="hm-segs" style="--n:${status.weeks}">${segments}</div>`;
+    mobileWeek = status.week ? ` · Wk ${status.week}/${status.weeks}` : '';
+  }
+  return `
+    <li>
+      <a class="hm-row" href="${escapeHtml(planHref(plan))}">
+        <div class="hm-main"><div class="hm-pn">${escapeHtml(plan.name)}</div><div class="hm-sub">${escapeHtml(owner)}<span class="hm-wkm">${escapeHtml(mobileWeek)}</span></div></div>
+        <div class="hm-prog">${progress}</div>
+      </a>
+    </li>
+  `;
+}
+
+function homeExpiringRow(plan) {
+  const status = planStatus(plan);
+  if (!status) return '';
+  const end = status.end;
+  const warn = status.state === 'expired' || status.daysLeft <= 7;
+  return `
+    <li>
+      <div class="hm-row">
+        <div class="hm-day"><small>${escapeHtml(end.toLocaleDateString('en-GB', { month: 'short' }))}</small><b>${end.getDate()}</b></div>
+        <a class="hm-main hm-link" href="${escapeHtml(planHref(plan))}">
+          <div class="hm-pn">${escapeHtml(plan.name)}</div>
+          <div class="hm-sub${warn ? ' warn' : ''}">${escapeHtml(status.state === 'expired' ? 'Expired' : status.label)}${renewButton(plan, status, 'hm-rn', warn)}</div>
+        </a>
+        ${renewButton(plan, status, 'btn btn-secondary btn-sm hm-renew', warn)}
+      </div>
+    </li>
+  `;
 }
 
 function renderStats() {
-  const totalPlans = Number(state.stats.totalPlans || 0);
-  const customers = Number(state.stats.customers || 0);
-  const plansThisWeek = Number(state.stats.plansThisWeek || 0);
-  const customersThisWeek = Number(state.stats.customersThisWeek || 0);
-  document.getElementById('stat-total-plans').textContent = totalPlans.toLocaleString();
-  document.getElementById('stat-customers').textContent = customers.toLocaleString();
-  document.getElementById('stat-active-plans').textContent = plansThisWeek.toLocaleString();
-  document.getElementById('stat-plans-trend').textContent = plansThisWeek ? `+${plansThisWeek.toLocaleString()} this week` : 'no new plans';
-  document.getElementById('stat-plans-trend').hidden = !plansThisWeek;
-  document.getElementById('stat-customers-trend').textContent = customersThisWeek ? `+${customersThisWeek.toLocaleString()} this week` : 'no new clients';
-  document.getElementById('stat-customers-trend').hidden = !customersThisWeek;
-  document.getElementById('stat-active-trend').textContent = plansThisWeek ? 'new activity' : 'no new plans';
-  document.getElementById('stat-active-trend').hidden = !plansThisWeek;
-  document.getElementById('dashboard-hero-sub').textContent =
-    `You have ${totalPlans.toLocaleString()} plans across ${customers.toLocaleString()} customers.`;
-  renderHomeSummary({ totalPlans, customers, plansThisWeek, customersThisWeek });
+  const stats = state.stats || {};
+  const customers = Number(stats.customers || 0);
+  const totalPlans = Number(stats.totalPlans || 0);
+  const status = stats.planStatus || {};
+  const onTrack = Number(status.onTrack || 0);
+  const endingSoon = Number(status.endingSoon || 0);
+  const expired = Number(status.expired || 0);
+  const running = onTrack + endingSoon;
+  const bySex = stats.customersBySex || {};
+  const female = bySex.female?.total || 0;
+  const male = bySex.male?.total || 0;
+
+  document.getElementById('nav-count-customers').textContent = customers ? customers.toLocaleString('en-US') : '';
+  document.getElementById('nav-count-plans').textContent = totalPlans ? totalPlans.toLocaleString('en-US') : '';
+  document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('dashboard-title').textContent = greeting();
+  document.getElementById('dashboard-hero-sub').innerHTML = `
+    <b class="hm-b">${customers.toLocaleString('en-US')}</b> client${customers === 1 ? '' : 's'}${customers ? ` (${female} F · ${male} M)` : ''}
+    <span class="hm-dot"></span><b class="hm-b">${running.toLocaleString('en-US')}</b> plan${running === 1 ? '' : 's'} running
+  `;
+
+  document.getElementById('home-status-total').textContent = `${totalPlans.toLocaleString('en-US')} plan${totalPlans === 1 ? '' : 's'}`;
+  document.getElementById('home-status').innerHTML = `
+    <div class="hm-ring" role="img" aria-label="${onTrack} on track, ${endingSoon} ending soon, ${expired} expired">
+      <svg viewBox="0 0 76 76">${statusRing(onTrack, endingSoon, expired)}</svg>
+      <div class="hm-rc"><b>${running}</b><span>active</span></div>
+    </div>
+    <div class="hm-lg">
+      <div class="on">On track<b>${onTrack}</b></div>
+      <div class="soon">Ending soon<b>${endingSoon}</b></div>
+      <div class="ex">Expired<b>${expired}</b></div>
+    </div>
+  `;
+
+  const ranges = stats.activeCalorieRanges || [];
+  const max = Math.max(1, ...ranges.map((range) => range.count));
+  const short = (value) => (value / 1000).toFixed(1).replace(/\.0$/, '');
+  document.getElementById('home-calorie-ranges').innerHTML = ranges.length
+    ? ranges.map((range) => {
+      const [min, top] = range.key.split('-').map(Number);
+      return `<div class="hm-hr"><span>${short(min)}–${short(top)}k</span><div class="hm-tr"><i style="width:${(range.count / max) * 100}%"></i></div><b>${range.count}</b></div>`;
+    }).join('')
+    : '<p class="hm-empty">No active plans yet.</p>';
 }
 
 function renderHome() {
   renderStats();
-  const customers = state.recentCustomers.slice(0, 4);
   const plans = state.recentPlans.slice(0, 4);
-  document.getElementById('home-customers-list').innerHTML = customers.length
-    ? customers.map(homeCustomerRow).join('')
-    : '<li><p class="ph-empty">No customers yet.</p></li>';
   document.getElementById('home-plans-list').innerHTML = plans.length
     ? plans.map(homePlanRow).join('')
-    : '<li><p class="ph-empty">No plans yet.</p></li>';
+    : '<li><div class="hm-row hm-none">No plans yet.</div></li>';
+  const expiring = state.expiringPlans.slice(0, 4);
+  document.getElementById('home-expiring-list').innerHTML = expiring.length
+    ? expiring.map(homeExpiringRow).join('')
+    : '<li><div class="hm-row hm-none">Nothing ending soon.</div></li>';
 }
+
+// ── Lists ────────────────────────────────────────────────────────────────────
 
 function listQuery(params) {
   const search = new URLSearchParams();
@@ -447,14 +399,27 @@ function scrollListIntoView(elementId) {
   document.getElementById(elementId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
+function customerListTargets() {
+  return state.customerSex
+    ? { list: 'group-customers-list', pager: 'group-customers-pager', search: state.groupSearch }
+    : { list: 'customers-list', pager: 'customers-pager', search: state.customerSearch };
+}
+
+function planListTargets() {
+  return state.planFilter
+    ? { list: 'folder-plans', pager: 'folder-plans-pager' }
+    : { list: 'recent-plans', pager: 'plans-pager' };
+}
+
 // Each loader ignores responses that arrive after a newer request started,
 // so fast typing or clicking never renders an out-of-date page.
 async function loadCustomersPage(page = state.customerPage) {
   const token = ++state.loadTokens.customers;
-  const res = await fetch(`/api/dashboard/customers?${listQuery({ page, query: state.customerSearch })}`);
+  const { list, search } = customerListTargets();
+  const res = await fetch(`/api/dashboard/customers?${listQuery({ page, query: search, sex: state.customerSex })}`);
   if (token !== state.loadTokens.customers) return;
   if (!res.ok) {
-    document.getElementById('customers-list').innerHTML = '<li class="pc-empty-state">Failed to load customers.</li>';
+    document.getElementById(list).innerHTML = emptyTableRow(5, 'Failed to load clients.');
     return;
   }
   const data = await res.json();
@@ -470,11 +435,11 @@ async function loadCustomersPage(page = state.customerPage) {
 
 async function loadPlansPage(page = state.planPage) {
   const token = ++state.loadTokens.plans;
-  const query = listQuery({ page, query: state.planSearch, calorieRange: state.planFilter });
+  const query = listQuery({ page, query: state.planFilter ? '' : state.planSearch, calorieRange: state.planFilter });
   const res = await fetch(`/api/dashboard/plans?${query}`);
   if (token !== state.loadTokens.plans) return;
   if (!res.ok) {
-    document.getElementById('recent-plans').innerHTML = '<li class="pp-empty">Failed to load plans.</li>';
+    document.getElementById(planListTargets().list).innerHTML = emptyTableRow(3, 'Failed to load plans.');
     return;
   }
   const data = await res.json();
@@ -488,58 +453,109 @@ async function loadPlansPage(page = state.planPage) {
   renderPlansPage();
 }
 
+function renderCustomerFolders() {
+  const bySex = state.stats.customersBySex || {};
+  const total = Number(state.stats.customers || 0);
+  const female = bySex.female?.total || 0;
+  const male = bySex.male?.total || 0;
+  document.getElementById('customers-subtitle').textContent =
+    `${total.toLocaleString('en-US')} client${total === 1 ? '' : 's'}: ${female} female, ${male} male.`;
+  const folders = SEX_FOLDERS
+    .filter(([key]) => key !== 'unset' || bySex.unset?.total)
+    .map(([key, label]) => {
+      const group = bySex[key] || { total: 0, ongoing: 0 };
+      const sub = `${group.total} client${group.total === 1 ? '' : 's'}, ${group.ongoing} with an ongoing plan`;
+      return folderCard(sexFolderHref(key), label, sub, group.total, group.ongoing);
+    });
+  document.getElementById('customer-folders').innerHTML = total
+    ? folders.join('')
+    : `<div class="box empty folders-empty"><h3>No clients yet</h3><p>Add a client once and every plan for them starts from their profile.</p><a class="btn btn-primary" href="#/customers/new">Add client</a></div>`;
+}
+
 function renderCustomersPage() {
   const data = state.customersPage;
   if (!data) return;
-  const totalCustomers = data.summary.totalCustomers;
-  const assignedPlans = data.summary.assignedPlans;
+  const { list, pager } = customerListTargets();
 
-  document.getElementById('customers-subtitle').textContent = `${totalCustomers} customers total`;
-  document.getElementById('customer-stat-total').textContent = totalCustomers.toLocaleString();
-  document.getElementById('customer-stat-active').textContent = assignedPlans.toLocaleString();
-  document.getElementById('customer-stat-average').textContent = totalCustomers ? (assignedPlans / totalCustomers).toFixed(1) : '0';
-  document.getElementById('customer-list-count').textContent =
-    state.customerSearch ? `(${data.total} of ${totalCustomers})` : '';
-  document.getElementById('customers-list').innerHTML = data.items.length
-    ? data.items.map(customerPageRow).join('')
-    : `<li class="pc-empty-state">${totalCustomers ? 'No customers match that search.' : 'No customers yet.'}</li>`;
-  renderPagination(document.getElementById('customers-pager'), data, (page) => {
-    loadCustomersPage(page).then(() => scrollListIntoView('customers-list'));
+  if (state.customerSex) {
+    const group = state.stats.customersBySex?.[state.customerSex];
+    document.getElementById('group-subtitle').textContent = state.groupSearch
+      ? `${data.total} of ${group?.total ?? data.total} clients`
+      : `${data.total} client${data.total === 1 ? '' : 's'}`;
+  }
+
+  document.getElementById(list).innerHTML = data.items.length
+    ? data.items.map(customerTableRow).join('')
+    : emptyTableRow(5, data.summary.totalCustomers ? 'No clients match that search.' : 'No clients here yet.');
+  renderPagination(document.getElementById(pager), data, (page) => {
+    loadCustomersPage(page).then(() => scrollListIntoView(list));
   });
+}
+
+function renderPlanFolders(summary) {
+  const counts = summary.calorieRangeCounts || {};
+  const active = summary.calorieRangeActiveCounts || {};
+  const keys = sortCalorieRangeKeys(Object.keys(counts));
+  document.getElementById('plan-folders').innerHTML = keys.length
+    ? keys.map((key) => {
+      const count = counts[key];
+      const ongoing = active[key] || 0;
+      return folderCard(`#/plans/band/${encodeURIComponent(key)}`, rangeLabel(key), `${count} plan${count === 1 ? '' : 's'}, ${ongoing} ongoing`, count, ongoing);
+    }).join('')
+    : `<div class="box empty folders-empty"><h3>No plans yet</h3><p>Generated general plans land here, in folders by daily calories.</p><a class="btn btn-primary" href="/planner">Create your first plan</a></div>`;
 }
 
 function renderPlansPage() {
   const data = state.plansPage;
   if (!data) return;
-  const { totalGeneralPlans, assignedPlans, newestAt, goalCounts, calorieRangeCounts } = data.summary;
-  const filtering = Boolean(state.planFilter || state.planSearch);
+  const { totalGeneralPlans } = data.summary;
+  const { list, pager } = planListTargets();
 
-  document.getElementById('plans-subtitle').textContent = `${totalGeneralPlans} general plans`;
-  document.getElementById('plan-stat-total').textContent = totalGeneralPlans.toLocaleString();
-  document.getElementById('plan-stat-assigned').textContent = assignedPlans.toLocaleString();
-  document.getElementById('plan-stat-newest').textContent = newestAt ? formatRelativeTime(newestAt) : '-';
-  document.getElementById('plan-list-count').textContent =
-    filtering ? `(${data.total} of ${totalGeneralPlans})` : '';
-  document.getElementById('recent-plans').innerHTML = data.items.length
-    ? data.items.map(planPageRow).join('')
-    : totalGeneralPlans
-      ? '<li class="pp-empty">No plans match those filters.</li>'
-      : '<li class="pp-empty-state"><p>No plans yet.</p><a href="/planner" class="pp-btn">Create your first plan</a></li>';
-  renderPlanFilterChips(calorieRangeCounts, totalGeneralPlans, state.planFilter);
-  renderPlanGoalBreakdown(goalCounts);
-  renderPagination(document.getElementById('plans-pager'), data, (page) => {
-    loadPlansPage(page).then(() => scrollListIntoView('recent-plans'));
+  if (state.planFilter) {
+    document.getElementById('folder-title').textContent = rangeLabel(state.planFilter);
+    document.getElementById('folder-subtitle').textContent = `${data.total} plan${data.total === 1 ? '' : 's'} in this folder`;
+  } else {
+    document.getElementById('plans-subtitle').textContent =
+      `${totalGeneralPlans.toLocaleString('en-US')} general plan${totalGeneralPlans === 1 ? '' : 's'}, in folders by daily calories.`;
+    renderPlanFolders(data.summary);
+    const searching = Boolean(state.planSearch);
+    document.getElementById('plan-folders').hidden = searching;
+    document.getElementById('plan-results').hidden = !searching;
+  }
+
+  document.getElementById(list).innerHTML = data.items.length
+    ? data.items.map(planTableRow).join('')
+    : emptyTableRow(3, totalGeneralPlans ? 'No plans match.' : 'No plans yet.');
+  renderPagination(document.getElementById(pager), data, (page) => {
+    loadPlansPage(page).then(() => scrollListIntoView(list));
   });
+}
+
+function customerDetailRows(customer) {
+  const na = '<span class="cp-na">—</span>';
+  const row = (iconName, label, value) => `
+    <div class="cp-row"><span class="cp-rl"><i class="cp-ic">${icon(iconName)}</i>${label}</span><b>${value || na}</b></div>`;
+  return [
+    row('person', 'Sex', customer.sex ? escapeHtml(titleCase(customer.sex)) : ''),
+    row('cal', 'Age', customer.age ? `${escapeHtml(customer.age)} years` : ''),
+    row('ruler', 'Height', customer.height ? `${escapeHtml(Number(customer.height))} cm` : ''),
+    row('weight', 'Weight', customer.weight ? `${escapeHtml(Number(customer.weight))} kg` : ''),
+    row('pulse', 'Activity level', activityPill(customer.activity_level)),
+  ].join('');
 }
 
 async function renderCustomerDetail(customerId, page = 1) {
   const pageEl = document.getElementById('page-customer-detail');
   const token = ++state.loadTokens.detail;
+  const sameCustomer = state.detailCustomerId === String(customerId);
   state.detailCustomerId = String(customerId);
   state.detailPage = page;
-  if (page === 1) {
-    document.getElementById('detail-plan-count').textContent = 'Loading...';
-    document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Loading assigned plans.</p></div></li>';
+  if (page === 1 && !sameCustomer) {
+    document.getElementById('detail-customer-title').textContent = '';
+    document.getElementById('detail-customer-avatar').textContent = '';
+    document.getElementById('detail-customer-details').innerHTML = '';
+    document.getElementById('detail-plan-count').textContent = '';
+    document.getElementById('detail-customer-plans').innerHTML = emptyTableRow(3, 'Loading plans…');
   }
 
   let data;
@@ -549,12 +565,12 @@ async function renderCustomerDetail(customerId, page = 1) {
       location.hash = '#/customers';
       return;
     }
-    if (!res.ok) throw new Error('Failed to load customer plans.');
+    if (!res.ok) throw new Error('Failed to load client plans.');
     data = await res.json();
   } catch {
     if (token === state.loadTokens.detail && pageEl.classList.contains('is-active')) {
       document.getElementById('detail-plan-count').textContent = '';
-      document.getElementById('detail-customer-plans').innerHTML = '<li><div class="pd-empty"><p>Failed to load customer plans.</p></div></li>';
+      document.getElementById('detail-customer-plans').innerHTML = emptyTableRow(3, 'Failed to load client plans.');
     }
     return;
   }
@@ -566,46 +582,51 @@ async function renderCustomerDetail(customerId, page = 1) {
     return;
   }
   const total = pagination.total;
-  document.getElementById('detail-customer-avatar').textContent = initials(customer.name).toLowerCase();
+  const firstName = String(customer.name || '').split(/\s+/)[0] || 'this client';
+  document.getElementById('detail-back-link').href = customer.sex ? sexFolderHref(customer.sex) : '#/customers';
+  document.getElementById('detail-back-label').textContent = customer.sex ? `${sexLabel(customer.sex)} clients` : 'Clients';
+  document.getElementById('detail-customer-avatar').textContent = initials(customer.name);
   document.getElementById('detail-customer-title').textContent = customer.name;
-  document.getElementById('detail-customer-meta').innerHTML = customerDetailMeta(customer, total);
-  document.getElementById('detail-customer-details').innerHTML = customerDetailGrid(customer);
+  document.getElementById('detail-customer-details').innerHTML = customerDetailRows(customer);
   document.getElementById('detail-edit-link').href = `#/customers/${encodeURIComponent(customer.id)}/edit`;
   document.getElementById('detail-add-plan-link').href = `/planner?customerId=${encodeURIComponent(customer.id)}`;
-  document.getElementById('detail-plan-count').textContent = `${total} total`;
+  document.getElementById('detail-plan-count').textContent = `${total} plan${total === 1 ? '' : 's'}`;
   document.getElementById('detail-customer-plans').innerHTML = plans.length
-    ? plans.map(customerDetailPlanRow).join('')
-    : `<li>
-        <div class="pd-empty">
-          <p>No plans assigned yet.</p>
-          <a href="/planner?customerId=${encodeURIComponent(customer.id)}" class="pd-btn">Assign a plan</a>
-        </div>
-      </li>`;
+    ? plans.map(planTableRow).join('')
+    : emptyTableRow(3, `<div class="empty empty--inline"><h3>No plans for ${escapeHtml(firstName)} yet</h3><p>One click builds a full day from this profile.</p><a class="btn btn-primary" href="/planner?customerId=${encodeURIComponent(customer.id)}">Generate plan</a></div>`);
   renderPagination(document.getElementById('detail-plans-pager'), pagination, (nextPage) => {
     renderCustomerDetail(customerId, nextPage).then(() => scrollListIntoView('detail-customer-plans'));
   });
 }
+
+// ── Client forms ─────────────────────────────────────────────────────────────
 
 function customerFormPayload(form) {
   const formData = new FormData(form);
   return {
     name: formData.get('name'),
     age: formData.get('age'),
-    sex: formData.get('sex'),
+    sex: formData.get('sex') || '',
     weightKg: formData.get('weightKg'),
     heightCm: formData.get('heightCm'),
-    activityLevel: formData.get('activityLevel'),
+    activityLevel: formData.get('activityLevel') || '',
   };
+}
+
+function setRadioValue(form, name, value) {
+  form.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.checked = input.value === (value || '');
+  });
 }
 
 function setCustomerFormValues(form, customer) {
   form.elements.namedItem('id').value = customer.id;
   form.elements.namedItem('name').value = customer.name || '';
   form.elements.namedItem('age').value = customer.age || '';
-  form.elements.namedItem('sex').value = customer.sex || '';
+  setRadioValue(form, 'sex', customer.sex);
   form.elements.namedItem('weightKg').value = customer.weight || '';
   form.elements.namedItem('heightCm').value = customer.height || '';
-  form.elements.namedItem('activityLevel').value = customer.activity_level || '';
+  setRadioValue(form, 'activityLevel', customer.activity_level);
 }
 
 async function renderCustomerEdit(customerId) {
@@ -618,8 +639,11 @@ async function renderCustomerEdit(customerId) {
   const { customer } = await res.json();
   document.getElementById('edit-customer-title').textContent = `Edit ${customer.name}`;
   document.getElementById('edit-customer-back').href = `#/customers/${encodeURIComponent(customer.id)}`;
+  document.getElementById('edit-customer-delete').dataset.customerName = customer.name;
   setCustomerFormValues(form, customer);
 }
+
+// ── Routing ──────────────────────────────────────────────────────────────────
 
 function setActiveNav(route) {
   document.querySelectorAll('[data-route]').forEach((item) => {
@@ -636,7 +660,7 @@ function setMobileNavOpen(open) {
   sidebar.classList.toggle('is-open', open);
   document.body.classList.toggle('dashboard-menu-open', open);
   toggle.setAttribute('aria-expanded', String(open));
-  toggle.setAttribute('aria-label', open ? 'Close dashboard menu' : 'Open dashboard menu');
+  toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   backdrop.hidden = !open;
 }
 
@@ -651,8 +675,22 @@ function showPage(pageId, route) {
 
 function parseHash() {
   const hash = location.hash.replace(/^#\/?/, '');
-  const parts = hash.split('/').filter(Boolean);
+  const parts = hash.split('/').filter(Boolean).map((part) => decodeURIComponent(part));
   return parts.length ? parts : ['home'];
+}
+
+function setCustomerSex(sex) {
+  if (state.customerSex === sex) return;
+  state.customerSex = sex;
+  state.customerPage = 1;
+  state.customersPage = null;
+}
+
+function setPlanFilter(range) {
+  if (state.planFilter === range) return;
+  state.planFilter = range;
+  state.planPage = 1;
+  state.plansPage = null;
 }
 
 function renderRoute() {
@@ -662,20 +700,37 @@ function renderRoute() {
   if (section === 'customers') {
     if (parts[1] === 'new') {
       showPage('page-customer-new', 'customers');
+    } else if (parts[1] === 'group' && ['female', 'male', 'unset'].includes(parts[2])) {
+      setCustomerSex(parts[2]);
+      document.getElementById('group-title').textContent = parts[2] === 'unset' ? 'Sex not set' : sexLabel(parts[2]);
+      document.getElementById('customer-group-search').value = state.groupSearch;
+      showPage('page-customer-group', 'customers');
+      loadCustomersPage();
     } else if (parts[1] && parts[2] === 'edit') {
       showPage('page-customer-edit', 'customers');
       renderCustomerEdit(parts[1]);
-    } else if (parts[1]) {
+    } else if (parts[1] && parts[1] !== 'group') {
       showPage('page-customer-detail', 'customers');
-      // Stay on the same page of plans when refreshing the same customer.
+      // Stay on the same page of plans when refreshing the same client.
       const samePage = state.detailCustomerId === String(parts[1]) ? state.detailPage : 1;
       renderCustomerDetail(parts[1], samePage);
     } else {
+      setCustomerSex('');
+      renderCustomerFolders();
+      const searching = Boolean(state.customerSearch);
+      document.getElementById('customer-folders').hidden = searching;
+      document.getElementById('customer-results').hidden = !searching;
       showPage('page-customers', 'customers');
-      loadCustomersPage();
+      if (searching) loadCustomersPage();
     }
   } else if (section === 'plans') {
-    showPage('page-plans', 'plans');
+    const range = parts[1] === 'band' ? validCalorieRange(parts[2]) : null;
+    if (parts[1] === 'band' && !range) {
+      location.hash = '#/plans';
+      return;
+    }
+    setPlanFilter(range);
+    showPage(range ? 'page-plan-folder' : 'page-plans', 'plans');
     loadPlansPage();
   } else {
     renderHome();
@@ -684,6 +739,8 @@ function renderRoute() {
 
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
+
+// ── Context menu ─────────────────────────────────────────────────────────────
 
 function ensureDashboardMenu() {
   if (state.menu) return state.menu;
@@ -747,9 +804,15 @@ async function refreshDashboard() {
   const data = await res.json();
   state.stats = data.stats || {};
   state.recentPlans = data.recentPlans || [];
-  state.recentCustomers = data.recentCustomers || [];
+  state.expiringPlans = data.expiringPlans || [];
+  renderStats();
   renderRoute();
   document.body.classList.remove('dashboard-loading');
+}
+
+function setSubmitBusy(button, busy, label) {
+  button.disabled = busy;
+  button.textContent = label;
 }
 
 async function submitNewCustomer(form) {
@@ -758,8 +821,7 @@ async function submitNewCustomer(form) {
   const payload = customerFormPayload(form);
 
   message.textContent = '';
-  submitButton.disabled = true;
-  submitButton.textContent = 'Adding...';
+  setSubmitBusy(submitButton, true, 'Adding…');
 
   try {
     const res = await fetch('/api/customers', {
@@ -768,17 +830,15 @@ async function submitNewCustomer(form) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Failed to add customer.');
+    if (!res.ok) throw new Error(data.error || 'Failed to add client.');
 
     form.reset();
-    message.textContent = 'Customer added.';
     await refreshDashboard();
-    location.hash = '#/customers';
+    location.hash = data.customer?.id ? `#/customers/${encodeURIComponent(data.customer.id)}` : '#/customers';
   } catch (error) {
-    message.textContent = error.message || 'Failed to add customer.';
+    message.textContent = error.message || 'Failed to add client.';
   } finally {
-    submitButton.disabled = false;
-    submitButton.innerHTML = `${iconSvg('plus', 15)}Add customer`;
+    setSubmitBusy(submitButton, false, 'Add client');
   }
 }
 
@@ -789,8 +849,7 @@ async function submitEditCustomer(form) {
   const payload = customerFormPayload(form);
 
   message.textContent = '';
-  submitButton.disabled = true;
-  submitButton.textContent = 'Saving...';
+  setSubmitBusy(submitButton, true, 'Saving…');
 
   try {
     const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`, {
@@ -799,25 +858,63 @@ async function submitEditCustomer(form) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Failed to update customer.');
+    if (!res.ok) throw new Error(data.error || 'Failed to update client.');
 
     message.textContent = '';
     await refreshDashboard();
     location.hash = `#/customers/${encodeURIComponent(customerId)}`;
   } catch (error) {
-    message.textContent = error.message || 'Failed to update customer.';
+    message.textContent = error.message || 'Failed to update client.';
   } finally {
-    submitButton.disabled = false;
-    submitButton.innerHTML = `${iconSvg('plus', 15)}Save customer`;
+    setSubmitBusy(submitButton, false, 'Save changes');
+  }
+}
+
+async function deleteCustomer(customerId, customerName) {
+  if (!confirm(`Delete client "${customerName}"? Plans assigned to this client will stay saved as general plans.`)) return;
+  const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    document.getElementById('dashboard-message').textContent = 'Failed to delete client.';
+    return;
+  }
+  document.getElementById('dashboard-message').textContent = '';
+  if (parseHash()[0] === 'customers' && String(parseHash()[1] || '') === String(customerId)) {
+    location.hash = '#/customers';
+  }
+  await refreshDashboard();
+}
+
+// Renewing restarts the plan today for the same number of weeks.
+async function renewPlan(button) {
+  const { planId, planName } = button.dataset;
+  const message = document.getElementById('dashboard-message');
+  button.disabled = true;
+  button.textContent = 'Renewing…';
+  try {
+    const res = await fetch(`/api/plans/${encodeURIComponent(planId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: window.PlanStatus.todayIso() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Failed to renew "${planName}".`);
+    message.textContent = '';
+    await refreshDashboard();
+  } catch (error) {
+    message.textContent = error.message || 'Failed to renew plan.';
+    button.disabled = false;
+    button.textContent = 'Renew';
   }
 }
 
 function showPlanMenu(button) {
   const menu = ensureDashboardMenu();
-  const { planId, planName, exportHref, customerId } = button.dataset;
+  const {
+    planId, planName, exportHref, customerId,
+  } = button.dataset;
   menu.innerHTML = `
-    <button type="button" data-action="export">Export as PDF</button>
-    <button type="button" class="danger" data-action="delete">Delete</button>
+    <button type="button" data-action="export">${icon('print')}Export as PDF</button>
+    <button type="button" class="danger" data-action="delete">${icon('trash')}Delete</button>
   `;
 
   menu.querySelector('[data-action="export"]').addEventListener('click', () => {
@@ -833,52 +930,11 @@ function showPlanMenu(button) {
       document.getElementById('dashboard-message').textContent = 'Failed to delete plan.';
       return;
     }
-    document.getElementById('dashboard-message').textContent = 'Plan deleted.';
-    await refreshDashboard();
-  });
-
-  positionDashboardMenu(button);
-}
-
-function showCustomerMenu(button) {
-  const menu = ensureDashboardMenu();
-  const { customerId, customerName } = button.dataset;
-  menu.innerHTML = `
-    <button type="button" data-action="edit">Edit customer</button>
-    <button type="button" class="danger" data-action="delete">Delete customer</button>
-  `;
-
-  menu.querySelector('[data-action="edit"]').addEventListener('click', () => {
-    hideDashboardMenu();
-    location.hash = `#/customers/${encodeURIComponent(customerId)}/edit`;
-  });
-
-  menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
-    hideDashboardMenu();
-    if (!confirm(`Delete customer "${customerName}"? Plans assigned to this customer will stay saved as general plans.`)) return;
-    const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}`, { method: 'DELETE' });
-    if (!res.ok) {
-      document.getElementById('dashboard-message').textContent = 'Failed to delete customer.';
-      return;
-    }
     document.getElementById('dashboard-message').textContent = '';
-    if (parseHash()[0] === 'customers' && String(parseHash()[1] || '') === String(customerId)) {
-      location.hash = '#/customers';
-    }
     await refreshDashboard();
   });
 
   positionDashboardMenu(button);
-}
-
-function installStaticIcons() {
-  document.querySelectorAll('.dashboard-action-tile [data-tone="cal"]').forEach((el) => { el.innerHTML = iconSvg('plus', 17); });
-  document.querySelectorAll('.dashboard-action-tile [data-tone="protein"]').forEach((el) => { el.innerHTML = iconSvg('users', 17); });
-  document.querySelectorAll('[data-icon="customers"]').forEach((el) => { el.innerHTML = iconSvg('users', 15); });
-  document.querySelectorAll('[data-icon="plans"]').forEach((el) => { el.innerHTML = iconSvg('file', 15); });
-  document.querySelectorAll('[data-icon="active"]').forEach((el) => { el.innerHTML = iconSvg('zap', 15); });
-  document.querySelectorAll('[data-icon="chart"]').forEach((el) => { el.innerHTML = iconSvg('chart', 15); });
-  document.querySelectorAll('[data-icon="clock"]').forEach((el) => { el.innerHTML = iconSvg('clock', 15); });
 }
 
 async function initNav() {
@@ -890,21 +946,17 @@ async function initNav() {
 
   const { user } = await res.json();
   state.user = user;
-  const firstName = String(user.firstname || '');
-  document.getElementById('planner-nav-user').innerHTML = `
-    <span class="planner-nav__greeting">Hi, ${escapeHtml(firstName)}</span>
-    <a class="planner-nav__link" href="/account" aria-label="Account">${iconSvg('user')}<span>Account</span></a>
-    <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
-    <span class="dashboard-nav-avatar" aria-hidden="true">${escapeHtml(firstName[0] || 'P')}</span>
-  `;
-
-  document.getElementById('dashboard-title').textContent = `Good afternoon, ${firstName}`;
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.replace('/');
-  });
-
+  window.Shell?.setUser(user);
+  document.getElementById('dashboard-title').textContent = greeting();
   return true;
+}
+
+function debounceSearch(inputId, apply) {
+  let timer = null;
+  document.getElementById(inputId)?.addEventListener('input', (event) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => apply(event.target.value.trim()), 250);
+  });
 }
 
 function bindEvents() {
@@ -919,36 +971,20 @@ function bindEvents() {
     if (event.target.closest('a')) setMobileNavOpen(false);
   });
   // Searches run on the server, so wait for a pause in typing.
-  let customerSearchTimer = null;
-  document.getElementById('customer-search')?.addEventListener('input', (event) => {
-    clearTimeout(customerSearchTimer);
-    customerSearchTimer = setTimeout(() => {
-      state.customerSearch = event.target.value.trim();
-      loadCustomersPage(1);
-    }, 250);
+  debounceSearch('customer-search', (value) => {
+    state.customerSearch = value;
+    const searching = Boolean(value);
+    document.getElementById('customer-folders').hidden = searching;
+    document.getElementById('customer-results').hidden = !searching;
+    if (searching) loadCustomersPage(1);
   });
-  let planSearchTimer = null;
-  document.getElementById('general-plan-search')?.addEventListener('input', (event) => {
-    clearTimeout(planSearchTimer);
-    planSearchTimer = setTimeout(() => {
-      state.planSearch = event.target.value.trim();
-      loadPlansPage(1);
-    }, 250);
+  debounceSearch('customer-group-search', (value) => {
+    state.groupSearch = value;
+    loadCustomersPage(1);
   });
-  document.getElementById('plan-filter-chips')?.addEventListener('click', (event) => {
-    const chip = event.target.closest('.dashboard-filter-chip, .pp-chip');
-    if (!chip) return;
-    state.planFilter = chip.dataset.key || null;
+  debounceSearch('general-plan-search', (value) => {
+    state.planSearch = value;
     loadPlansPage(1);
-  });
-  document.querySelectorAll('.dashboard-insights-toggle').forEach((button) => {
-    button.addEventListener('click', () => {
-      const block = button.nextElementSibling;
-      const open = !block.classList.contains('is-open');
-      block.classList.toggle('is-open', open);
-      button.classList.toggle('is-open', open);
-      button.setAttribute('aria-expanded', String(open));
-    });
   });
   document.getElementById('new-customer-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -957,6 +993,10 @@ function bindEvents() {
   document.getElementById('edit-customer-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
     submitEditCustomer(event.currentTarget);
+  });
+  document.getElementById('edit-customer-delete')?.addEventListener('click', (event) => {
+    const form = document.getElementById('edit-customer-form');
+    deleteCustomer(form.elements.namedItem('id').value, event.currentTarget.dataset.customerName || 'this client');
   });
 }
 
@@ -973,25 +1013,22 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const customerMenuButton = event.target.closest('.dashboard-customer-menu-btn');
-  if (customerMenuButton) {
+  const renew = event.target.closest('.renew-btn');
+  if (renew) {
     event.preventDefault();
     event.stopPropagation();
-    if (customerMenuButton.getAttribute('aria-expanded') === 'true' && state.menu && !state.menu.hidden) {
-      hideDashboardMenu();
-      return;
-    }
-    showCustomerMenu(customerMenuButton);
-    return;
-  }
-
-  const customerOpen = event.target.closest('[data-customer-open]');
-  if (customerOpen) {
-    location.hash = `#/customers/${encodeURIComponent(customerOpen.dataset.customerOpen)}`;
+    renewPlan(renew);
     return;
   }
 
   if (!event.target.closest('.dashboard-context-menu')) hideDashboardMenu();
+
+  // Whole table rows open their plan or client; links and buttons inside
+  // them keep their own behaviour.
+  const row = event.target.closest('tr[data-href]');
+  if (row && !event.target.closest('a, button')) {
+    window.location.href = row.dataset.href;
+  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -1009,7 +1046,6 @@ window.addEventListener('scroll', () => {
 }, true);
 
 (async () => {
-  installStaticIcons();
   bindEvents();
   const authed = await initNav();
   if (!authed) return;

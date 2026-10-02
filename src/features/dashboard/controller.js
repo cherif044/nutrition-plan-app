@@ -16,6 +16,7 @@ async function getDashboardCustomers(req, res, next) {
   try {
     res.json(await listCustomersPage(req.user.id, {
       query: req.validatedQuery.query,
+      sex: req.validatedQuery.sex,
       page: req.validatedQuery.page,
       pageSize: req.validatedQuery.pageSize,
     }));

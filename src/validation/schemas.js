@@ -268,11 +268,27 @@ const customerSelection = z.looseObject({
 
 const clientRequestId = z.string().max(128).nullable().optional();
 
+// A plan runs from startDate for durationWeeks weeks; its end date and status
+// are derived from these two, never stored.
+const planStartDate = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be a date.')
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'Start date must be a real date.')
+  .optional();
+const planDurationWeeks = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() ? Number(value) : value),
+  number('Plan duration', 1, 8, { integer: true }),
+).optional();
+
 const createPlanBody = z.strictObject({
   name: text('Plan name', L.planNameLength),
   planData,
   customer: customerSelection,
   clientRequestId,
+  startDate: planStartDate,
+  durationWeeks: planDurationWeeks,
 });
 
 const updatePlanBody = z.strictObject({
@@ -280,6 +296,8 @@ const updatePlanBody = z.strictObject({
   planData: planData.optional(),
   customer: customerSelection,
   expectedVersion: z.number().int().min(1).nullable().optional(),
+  startDate: planStartDate,
+  durationWeeks: planDurationWeeks,
 });
 
 const customerBody = z.looseObject({
@@ -328,6 +346,9 @@ const pageSizeParam = z.string().regex(/^\d{1,2}$/, 'Invalid page size.')
 const searchParam = z.string().max(L.searchLength, `Search must be at most ${L.searchLength} characters.`).optional();
 
 const pagedListQuery = z.looseObject({ page: pageParam, pageSize: pageSizeParam, query: searchParam });
+const customersPageQuery = pagedListQuery.extend({
+  sex: z.enum([...SEX_VALUES, 'unset'], { error: 'Invalid sex filter.' }).optional(),
+});
 const plansListQuery = pagedListQuery.extend({
   calorieRange: z.string().regex(/^\d{1,5}-\d{1,5}$/, 'Invalid calorie range.').optional(),
 });
@@ -351,6 +372,7 @@ module.exports = {
   deleteAccountBody,
   customerBody,
   customersListQuery,
+  customersPageQuery,
   pagedListQuery,
   pdfExportQuery,
   plansListQuery,

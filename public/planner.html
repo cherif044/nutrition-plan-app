@@ -3,215 +3,204 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Planner — Pinch</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/css/styles.css?v=portion-stepper-20260926" />
+    <title>Planner — Macrospace</title>
+    <script src="/js/shared/theme.js?v=macrospace-20261002"></script>
+    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261002" />
     <script src="/js/shared/vitals.js" defer></script>
   </head>
-  <body>
-    <main class="app-shell">
-      <nav class="planner-nav">
-        <div class="planner-nav__brand">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 12-10 1 8-2 13-7 13" />
-              <path d="M7 14c2-1 4-1 7-4" />
-            </svg>
-          </span>
-          <span>
-            <strong>Pinch</strong>
-            <small id="planner-eyebrow">Nutrition Plan</small>
-          </span>
-        </div>
-        <div class="planner-nav__user" id="planner-nav-user">
-          <!-- Populated by JS -->
-        </div>
-      </nav>
-
-      <section class="workspace">
-        <section class="setup-intro" aria-labelledby="setup-title">
-          <p class="setup-kicker">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9.9 2.1 8.5 7 3.7 8.5l4.8 1.5 1.4 4.9 1.5-4.9 4.8-1.5L11.4 7 9.9 2.1Z" />
-              <path d="m18 14 .8 2.7 2.7.8-2.7.8L18 21l-.8-2.7-2.7-.8 2.7-.8L18 14Z" />
-            </svg>
-            Plan builder
-          </p>
-          <h1 id="setup-title">Build your daily nutrition plan</h1>
-          <p>Enter your body data and goals — we assemble a ready-meal plan that hits your calories and macros.</p>
-          <div class="setup-stats" aria-label="Dataset summary">
-            <span><b>223</b><small>ready meals</small></span>
-            <span><b>104</b><small>foods</small></span>
-            <span><b>4</b><small>macros</small></span>
+  <body class="planner-page">
+    <div class="shell">
+      <div class="dashboard-menu-backdrop" id="dashboard-menu-backdrop" hidden></div>
+      <aside class="side" id="dashboard-sidebar" aria-label="Main navigation">
+        <div class="side-top">
+          <a class="brand" href="/dashboard#/home"><svg class="ms-mark" aria-hidden="true"><use href="/img/icons.svg#logo"></use></svg><span>macrospace</span></a>
+          <div class="tt" role="group" aria-label="Color theme">
+            <button type="button" data-theme-set="light" aria-pressed="false" title="Light mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-sun"></use></svg><span class="sr-only">Light mode</span></button>
+            <button type="button" data-theme-set="dark" aria-pressed="false" title="Dark mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-moon"></use></svg><span class="sr-only">Dark mode</span></button>
           </div>
-        </section>
+        </div>
+        <a class="btn btn-primary" href="/planner"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-plus"></use></svg>New plan</a>
+        <nav class="side-nav" aria-label="Sections">
+          <a href="/dashboard#/home"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-home"></use></svg>Home</a>
+          <a href="/dashboard#/customers"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-users"></use></svg>Clients</a>
+          <a href="/dashboard#/plans" id="nav-plans-link"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-list"></use></svg>Plans</a>
+        </nav>
+        <div class="side-foot" id="shell-user"></div>
+      </aside>
 
-        <form id="plan-form" class="planner inputs-card" novalidate>
-          <header class="inputs-card__summary">
-            <span class="inputs-card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M7 21h10" />
-                <path d="M12 21v-9" />
-                <path d="M3.3 9.3c2.1 2.1 5.1 2.7 8.7 1.7C13 7.4 12.4 4.4 10.3 2.3 6.7 3.3 4.3 5.7 3.3 9.3Z" />
-                <path d="M20.7 9.3c-2.1 2.1-5.1 2.7-8.7 1.7-1-3.6-.4-6.6 1.7-8.7 3.6 1 6 3.4 7 7Z" />
-              </svg>
-            </span>
-            <div class="inputs-card__title">
-              <h1 id="planner-title">Your inputs</h1>
-              <div class="input-chip-row" id="input-chip-row"></div>
-            </div>
+      <main class="main">
+        <div class="mtop">
+          <button class="menu-btn" id="dashboard-menu-toggle" type="button" aria-label="Open menu" aria-controls="dashboard-sidebar" aria-expanded="false"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-menu"></use></svg></button>
+          <a class="brand" href="/dashboard#/home"><svg class="ms-mark" aria-hidden="true"><use href="/img/icons.svg#logo"></use></svg><span>macrospace</span></a>
+          <div class="tt" role="group" aria-label="Color theme"><button type="button" data-theme-set="light" aria-pressed="false" title="Light mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-sun"></use></svg><span class="sr-only">Light mode</span></button><button type="button" data-theme-set="dark" aria-pressed="false" title="Dark mode"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-moon"></use></svg><span class="sr-only">Dark mode</span></button></div>
+          <button class="mtop-out" type="button" data-logout title="Sign out"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-logout"></use></svg><span class="sr-only">Sign out</span></button>
+        </div>
+
+        <section class="page workspace">
+          <header class="pb-hero setup-intro">
+            <h1 id="setup-title">New plan</h1>
+            <p>Body data in, ready-meal plan out. Saved to Plans automatically.</p>
           </header>
 
-          <div class="inputs-card__body" id="inputs-card-body">
-            <section class="panel input-section">
-              <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg></span>Save details</h2>
-              <label>
-                <span>Plan name</span>
-                <input type="text" name="planName" placeholder="Cutting plan - week 1" autocomplete="off" maxlength="100" required />
-              </label>
-              <div class="save-customer-picker" id="pre-generation-customer-picker">
-                <label class="save-customer-picker__field" for="customer-choice">
-                  <span>Customer</span>
-                  <select class="save-action-bar__customer-select" id="customer-choice" name="customerChoice">
-                    <option value="general">General</option>
-                    <option value="new">New customer</option>
-                  </select>
-                </label>
-                <label class="save-customer-picker__field save-customer-picker__new-name" for="new-customer-name" hidden>
-                  <span>Customer name</span>
-                  <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Enter customer name" autocomplete="off" maxlength="80" />
-                </label>
-              </div>
-            </section>
+          <header class="pv-hero" id="plan-view-head" hidden>
+            <div>
+              <a class="crumb" id="plan-view-back" href="/dashboard#/plans"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-back"></use></svg><span id="plan-view-back-label">Plans</span></a>
+              <h1 id="plan-view-title"></h1>
+              <p id="plan-view-meta"></p>
+            </div>
+            <span class="badge" id="plan-view-badge" hidden></span>
+          </header>
 
-            <section class="panel input-section">
-              <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span>Body data</h2>
-              <div class="field-grid">
-                <label>
-                  <span>Weight (kg)</span>
-                  <input type="number" name="weightKg" min="30" max="250" step="0.1" value="78" required />
-                </label>
-                <label>
-                  <span>Height (cm)</span>
-                  <input type="number" name="heightCm" min="120" max="230" step="0.1" value="178" required />
-                </label>
-              </div>
-              <div class="field-grid">
-                <label>
-                  <span>Age</span>
-                  <input type="number" name="age" min="12" max="100" step="1" value="29" required />
-                </label>
-                <label>
-                  <span>Sex</span>
-                  <select name="sex" required>
-                    <option value="male" selected>Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </label>
-              </div>
-              <div class="field-grid">
-                <label>
-                  <span>Body fat %</span>
-                  <input type="number" name="bodyFatPercentage" min="3" max="60" step="0.1" placeholder="—" />
-                  <small>Optional</small>
-                </label>
-                <label>
-                  <span>Activity level</span>
-                  <select name="activityLevel">
-                    <option value="sedentary">Sedentary</option>
-                    <option value="light">Light</option>
-                    <option value="moderate" selected>Moderate</option>
-                    <option value="athlete">Athlete / physically demanding</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-
-            <section class="panel input-section">
-              <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6"/><path d="M6 20V10"/><path d="M18 20V4"/><path d="M6 10h.01"/><path d="M12 14h.01"/><path d="M18 4h.01"/></svg></span>Plan setup</h2>
-              <label class="field-label">Goal</label>
-              <div class="segmented" role="radiogroup" aria-label="Goal">
-                <label>
-                  <input type="radio" name="goal" value="maintain" />
-                  <span>Maintain</span>
-                </label>
-                <label>
-                  <input type="radio" name="goal" value="lose_weight" checked />
-                  <span>Lose</span>
-                </label>
-                <label>
-                  <input type="radio" name="goal" value="gain_weight" />
-                  <span>Gain</span>
-                </label>
-              </div>
-              <div class="field-grid">
-                <label>
-                  <span>Total meals</span>
-                  <select name="numberOfMeals">
-                    <option value="3">3 meals</option>
-                    <option value="4" selected>4 meals</option>
-                    <option value="5">5 meals</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Calorie distribution</span>
-                  <select name="mealDistribution">
-                    <option value="balanced" selected>Balanced</option>
-                    <option value="breakfast_heavy">Breakfast-heavy</option>
-                    <option value="lunch_heavy">Lunch-heavy</option>
-                    <option value="dinner_heavy">Dinner-heavy</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-
-            <section class="panel input-section">
-              <h2><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3v7"/><path d="M8 3v7"/><path d="M4 7h4"/><path d="M6 10v11"/><path d="M17 3v18"/><path d="M14 3h6"/></svg></span>Preferences</h2>
-              <div class="preference-field" data-picker="avoidFoods">
-                <span>Avoid foods</span>
-                <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
-                  <div class="selected-tokens"></div>
-                  <input type="search" placeholder="e.g. peanuts" autocomplete="off" />
+          <form id="plan-form" class="pb-grid planner" novalidate>
+            <div class="box pb-form">
+              <div class="pb-line">
+                <div class="pb-tag">Client</div>
+                <div class="pb-fs pb-fs-client save-customer-picker" id="pre-generation-customer-picker">
+                  <div class="field save-customer-picker__field">
+                    <label for="customer-choice">Customer</label>
+                    <select class="save-action-bar__customer-select" id="customer-choice" name="customerChoice">
+                      <option value="general">General</option>
+                      <option value="new">New customer</option>
+                    </select>
+                  </div>
+                  <div class="field save-customer-picker__field save-customer-picker__new-name" hidden>
+                    <label for="new-customer-name">Customer name</label>
+                    <input class="save-action-bar__customer" id="new-customer-name" type="text" name="customerName" placeholder="Full name" autocomplete="off" maxlength="80" />
+                  </div>
+                  <div class="field">
+                    <label for="plan-name">Plan name</label>
+                    <input id="plan-name" type="text" name="planName" placeholder="e.g. Cut phase, week 1" autocomplete="off" maxlength="100" required />
+                  </div>
                 </div>
-                <input type="hidden" name="avoidFoods" />
-                <small>Type to search, Enter to add</small>
-                <div class="suggestions" role="listbox" hidden></div>
               </div>
-            </section>
 
-            <div class="inputs-card__actions">
-              <button class="generate-button" type="submit">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M9.9 2.1 8.5 7 3.7 8.5l4.8 1.5 1.4 4.9 1.5-4.9 4.8-1.5L11.4 7 9.9 2.1Z" />
-                  <path d="m18 14 .8 2.7 2.7.8-2.7.8L18 21l-.8-2.7-2.7-.8 2.7-.8L18 14Z" />
-                </svg>
+              <div class="pb-line">
+                <div class="pb-tag">Body</div>
+                <div>
+                  <div class="pb-fs pb-fs-body">
+                    <div class="field">
+                      <span class="lbl" id="sex-label">Sex</span>
+                      <div class="seg" role="radiogroup" aria-labelledby="sex-label">
+                        <label><input type="radio" name="sex" value="male" checked /><span>Male</span></label>
+                        <label><input type="radio" name="sex" value="female" /><span>Female</span></label>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="input-age">Age</label>
+                      <input id="input-age" type="number" name="age" min="12" max="100" step="1" inputmode="numeric" value="29" required />
+                    </div>
+                    <div class="field">
+                      <label for="input-weight">Weight (kg)</label>
+                      <input id="input-weight" type="number" name="weightKg" min="30" max="250" step="0.1" inputmode="decimal" value="78" required />
+                    </div>
+                    <div class="field">
+                      <label for="input-height">Height (cm)</label>
+                      <input id="input-height" type="number" name="heightCm" min="120" max="230" step="0.1" inputmode="decimal" value="178" required />
+                    </div>
+                    <div class="field pb-act-f">
+                      <label for="input-activity">Activity</label>
+                      <select id="input-activity" name="activityLevel">
+                        <option value="sedentary">Sedentary</option>
+                        <option value="light">Light</option>
+                        <option value="moderate" selected>Moderate</option>
+                        <option value="athlete">Athlete / physically demanding</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="pb-fs pb-fs-body2">
+                    <div class="field">
+                      <label for="input-body-fat">Body fat % <span class="opt">Optional</span></label>
+                      <input id="input-body-fat" type="number" name="bodyFatPercentage" min="3" max="60" step="0.1" inputmode="decimal" placeholder="—" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pb-line">
+                <div class="pb-tag">Plan</div>
+                <div class="pb-fs pb-fs-plan">
+                  <div class="field">
+                    <span class="lbl" id="goal-label">Goal</span>
+                    <div class="seg segmented" role="radiogroup" aria-labelledby="goal-label">
+                      <label><input type="radio" name="goal" value="maintain" /><span>Maintain</span></label>
+                      <label><input type="radio" name="goal" value="lose_weight" checked /><span>Lose</span></label>
+                      <label><input type="radio" name="goal" value="gain_weight" /><span>Gain</span></label>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <span class="lbl" id="meals-label">Meals a day</span>
+                    <div class="seg" role="radiogroup" aria-labelledby="meals-label">
+                      <label><input type="radio" name="numberOfMeals" value="3" /><span>3</span></label>
+                      <label><input type="radio" name="numberOfMeals" value="4" checked /><span>4</span></label>
+                      <label><input type="radio" name="numberOfMeals" value="5" /><span>5</span></label>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="input-weeks">Duration</label>
+                    <select id="input-weeks" name="durationWeeks">
+                      <option value="1">1 week</option>
+                      <option value="2">2 weeks</option>
+                      <option value="3">3 weeks</option>
+                      <option value="4" selected>4 weeks</option>
+                      <option value="5">5 weeks</option>
+                      <option value="6">6 weeks</option>
+                      <option value="7">7 weeks</option>
+                      <option value="8">8 weeks</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="input-start">Starts</label>
+                    <input id="input-start" type="date" name="planStartDate" required />
+                  </div>
+                </div>
+              </div>
+
+              <div class="pb-line">
+                <div class="pb-tag">Prefs</div>
+                <div class="pb-fs pb-fs-more">
+                  <div class="field">
+                    <label for="input-distribution">Calorie distribution</label>
+                    <select id="input-distribution" name="mealDistribution">
+                      <option value="balanced" selected>Balanced</option>
+                      <option value="breakfast_heavy">Breakfast-heavy</option>
+                      <option value="lunch_heavy">Lunch-heavy</option>
+                      <option value="dinner_heavy">Dinner-heavy</option>
+                    </select>
+                  </div>
+                  <div class="field preference-field" data-picker="avoidFoods">
+                    <span class="lbl">Avoid foods</span>
+                    <div class="token-input" role="combobox" aria-haspopup="listbox" aria-expanded="false">
+                      <div class="selected-tokens"></div>
+                      <input type="search" placeholder="Type to search, Enter to add" autocomplete="off" aria-label="Avoid foods" />
+                    </div>
+                    <input type="hidden" name="avoidFoods" />
+                    <div class="suggestions" role="listbox" hidden></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="box pb-rail" aria-label="Generate">
+              <h2>Ready-meal plan</h2>
+              <div class="pb-facts" id="input-chip-row"></div>
+              <button class="btn btn-primary generate-button" type="submit">
+                <svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-bolt"></use></svg>
                 <span>Generate plan</span>
               </button>
-            </div>
-          </div>
-          <p id="form-message" class="message" role="status" aria-live="polite"></p>
-        </form>
+              <p class="pb-note">Saved to Plans automatically</p>
+            </aside>
+          </form>
 
-        <section class="results" aria-live="polite">
-          <div id="empty-state" class="empty-state">
-            <div class="empty-mark" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <h2>Your plan will appear here</h2>
-            <p>Generated meals, target macros, and portions will stay organized in this panel.</p>
-          </div>
-          <div id="plan-output" hidden></div>
+          <p id="form-message" class="message" role="status" aria-live="polite"></p>
+
+          <section class="results" aria-live="polite">
+            <div id="empty-state" class="empty-state"></div>
+            <div id="plan-output" hidden></div>
+          </section>
+          <div id="save-bar-slot" class="planner-save-slot"></div>
         </section>
-        <div id="save-bar-slot" class="planner-save-slot"></div>
-      </section>
-    </main>
+      </main>
+    </div>
 
     <template id="summary-template">
       <section class="summary panel">
@@ -282,6 +271,8 @@
       </article>
     </template>
 
-    <script src="/js/planner/app.js?v=cleanup-20260929" defer></script>
+    <script src="/js/shared/planStatus.js?v=macrospace-20261002" defer></script>
+    <script src="/js/shared/shell.js?v=macrospace-20261002" defer></script>
+    <script src="/js/planner/app.js?v=macrospace-20261002" defer></script>
   </body>
 </html>

@@ -55,10 +55,6 @@ const MEAL_ICONS = {
   dinner: 'moon',
 };
 
-function mealIconName(tag) {
-  return MEAL_ICONS[String(tag || '').toLowerCase()] || 'salad';
-}
-
 function mealTypeKey(tag) {
   const key = String(tag || '').toLowerCase();
   return MEAL_ICONS[key] ? key : 'other';
@@ -202,19 +198,7 @@ let deleteUndoSequence = 0;
     const res = await fetch('/api/auth/me');
     if (!res.ok) { window.location.replace('/login'); return; }
     const { user } = await res.json();
-      const navUser = document.getElementById('planner-nav-user');
-    if (navUser) {
-      navUser.innerHTML = `
-        <span class="planner-nav__greeting">Hi, ${escapeHtml(user.firstname)}</span>
-        <a class="planner-nav__link" href="/dashboard" aria-label="Home">${iconSvg('home')}<span>Home</span></a>
-        <a class="planner-nav__link" href="/account" aria-label="Account">${iconSvg('user')}<span>Account</span></a>
-        <button class="planner-nav__link" id="logout-btn" type="button" aria-label="Log out">${iconSvg('logout')}<span>Log out</span></button>
-      `;
-      document.getElementById('logout-btn').addEventListener('click', async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        window.location.replace('/');
-      });
-    }
+    window.Shell?.setUser(user);
 
     if (plannerCtx?.planId) {
       const eyebrow = document.getElementById('planner-eyebrow');
@@ -493,6 +477,7 @@ form.addEventListener('input', markProfileFieldTouched);
 form.addEventListener('change', markProfileFieldTouched);
 syncInputSummary();
 syncAthleteMealCountOption();
+setPlanSchedule();
 if (!plannerCtx?.planId) {
   switchPlannerView('input', { push: false });
   setInputsExpanded(true);
@@ -504,13 +489,11 @@ if (!plannerCtx?.planId) {
 scheduleReferenceDataLoad();
 
 function syncAthleteMealCountOption() {
-  const activity = form.elements.activityLevel?.value;
-  const mealCount = form.elements.numberOfMeals;
-  const threeMealOption = mealCount?.querySelector('option[value="3"]');
-  if (!mealCount || !threeMealOption) return;
-  const athlete = activity === 'athlete';
-  threeMealOption.disabled = athlete;
-  if (athlete && mealCount.value === '3') mealCount.value = '4';
+  const threeMeals = form.querySelector('input[name="numberOfMeals"][value="3"]');
+  if (!threeMeals) return;
+  const athlete = form.elements.activityLevel?.value === 'athlete';
+  threeMeals.disabled = athlete;
+  if (athlete && threeMeals.checked) form.elements.numberOfMeals.value = '4';
 }
 
 function readForm() {
@@ -533,6 +516,60 @@ function readPreGenerationPlanName() {
   return form.elements.planName?.value.trim() || '';
 }
 
+// Start date and duration are plan columns, not part of the generator input,
+// so they travel next to planData on save rather than inside it.
+function readPlanSchedule() {
+  const schedule = {};
+  const startDate = form.elements.planStartDate?.value || '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(startDate)) schedule.startDate = startDate;
+  const weeks = Number(form.elements.durationWeeks?.value);
+  if (Number.isInteger(weeks) && weeks >= 1 && weeks <= 8) schedule.durationWeeks = weeks;
+  return schedule;
+}
+
+function setPlanSchedule({ startDate, durationWeeks } = {}) {
+  if (form.elements.planStartDate) {
+    form.elements.planStartDate.value = String(startDate || '').slice(0, 10) || window.PlanStatus?.todayIso() || '';
+  }
+  if (form.elements.durationWeeks && durationWeeks) form.elements.durationWeeks.value = String(durationWeeks);
+}
+
+function planHeaderCustomer() {
+  const state = preGenerationCustomerState;
+  if (state.mode === 'existing' && state.selected) return state.selected;
+  if (state.mode === 'new' && state.newName) {
+    return { id: latestSavedCustomer?.id || null, name: state.newName };
+  }
+  return null;
+}
+
+// Plan view header: name, who it is for, and where it is in its schedule.
+function renderPlanHeader() {
+  const head = document.getElementById('plan-view-head');
+  if (!head) return;
+  const name = currentPlanName || readPreGenerationPlanName() || 'Untitled plan';
+  const customer = planHeaderCustomer();
+  const status = window.PlanStatus?.status({
+    start_date: form.elements.planStartDate?.value,
+    duration_weeks: form.elements.durationWeeks?.value,
+  });
+  document.getElementById('plan-view-title').textContent = name;
+  document.getElementById('plan-view-meta').textContent = [
+    customer?.name || 'General plan',
+    status ? `${status.label}${status.state !== 'expired' && status.week ? ` · week ${status.week} of ${status.weeks}` : ''}` : '',
+  ].filter(Boolean).join(' · ');
+  const back = document.getElementById('plan-view-back');
+  back.href = customer?.id ? `/dashboard#/customers/${encodeURIComponent(customer.id)}` : '/dashboard#/plans';
+  document.getElementById('plan-view-back-label').textContent = customer?.id ? customer.name : 'Plans';
+  const badge = document.getElementById('plan-view-badge');
+  badge.hidden = !status;
+  if (status) {
+    badge.className = `badge ${status.state}`;
+    badge.textContent = status.badge;
+  }
+  head.hidden = false;
+}
+
 async function validatePreGenerationSaveDetails() {
   const planName = readPreGenerationPlanName();
   if (!planName) {
@@ -547,7 +584,7 @@ async function validatePreGenerationSaveDetails() {
   const input = readForm();
   if (input.activityLevel === 'athlete' && Number(input.numberOfMeals) === 3) {
     message.textContent = 'Athlete plans require 4 or 5 meals.';
-    form.elements.numberOfMeals?.focus();
+    form.querySelector('input[name="numberOfMeals"]:checked')?.focus();
     return false;
   }
 
@@ -855,6 +892,7 @@ async function loadPlanForEdit(planId) {
       populateFormFromInput(plan.plan_data.input);
     }
     if (form.elements.planName) form.elements.planName.value = plan.name || '';
+    setPlanSchedule({ startDate: plan.start_date, durationWeeks: plan.duration_weeks });
     initializeCustomerPickerFromPlan(plan);
     latestSavedCustomer = plan.Customer || plan.customer || null;
     currentPlanId = plan.id;
@@ -872,7 +910,7 @@ async function loadPlanForEdit(planId) {
     fetch(`/api/plans/${encodeURIComponent(plan.id)}/opened`, { method: 'POST' }).catch(() => {});
     setInputsExpanded(false);
     message.textContent = '';
-    output?.scrollIntoView({ block: 'start' });
+    window.scrollTo({ top: 0 });
   } catch (error) {
     if (output) {
       output.innerHTML = '';
@@ -1025,6 +1063,7 @@ function renderPlan(plan, { editMode = false, firstCreation = false, planId = nu
 
   refreshRedFlags();
   refreshManualModeUi();
+  renderPlanHeader();
   if (plannerCtx?.exportPdf) schedulePdfExport();
 }
 
@@ -1357,7 +1396,8 @@ function renderMealCard(state) {
   card.querySelector('h2').textContent = state.name;
   card.dataset.mealIndex = state.mealIndex;
   card.dataset.mealType = mealTypeKey(state.tag);
-  card.querySelector('.meal-card__icon').innerHTML = iconSvg(mealIconName(state.tag), 20);
+  const mealType = mealTypeKey(state.tag);
+  card.querySelector('.meal-card__icon').innerHTML = `<svg class="ic" aria-hidden="true"><use href="/img/icons.svg#meal-${mealType === 'other' ? 'lunch' : mealType}"></use></svg>`;
   state.cardEl = card;
 
   refreshMealCardHeader(card, state);
@@ -1422,11 +1462,19 @@ function refreshMealCardHeader(card, state) {
   }
 }
 
+// Ready-meal names carry a catalog code ("B03 - Sweet — Oats"); only the
+// readable part is shown.
+function mealDisplayName(templateName) {
+  return String(templateName || '').replace(/^[A-Z]{1,3}\d+\s*-\s*/, '').trim();
+}
+
 function mealCardMetaText(state) {
-  const optionCount = readyMealOptions(state).length;
-  const total = Math.max(optionCount, 1);
+  const options = readyMealOptions(state);
+  const total = Math.max(options.length, 1);
   const current = Math.min(Math.max((Number(state.mealOptionIndex) || 0) + 1, 1), total);
-  return `${current} of ${total}`;
+  const candidates = [state.templateName, options[current - 1]?.templateName];
+  const name = candidates.map(mealDisplayName).find((value) => value && value !== state.name);
+  return name ? `${name} · option ${current} of ${total}` : `Option ${current} of ${total}`;
 }
 
 function mealRangeNoteHtml(target) {
@@ -1566,6 +1614,7 @@ function updateFoodRow(row, state, itemIndex) {
   const iconEl = row.querySelector('.food-icon');
   setFoodMedia(iconEl, food, 15);
   row.querySelector('.food-name').textContent = food.name;
+  setFoodMobileLine(row, totals);
 
   renderPortionCell(row, state, itemIndex, item);
 
@@ -1671,8 +1720,16 @@ function updateManualItemQuantity(state, itemIndex, rawValue, { force = false } 
   markPlanUnsaved();
 }
 
+// Phones hide the macro columns; the same numbers sit under the food name.
+function setFoodMobileLine(row, totals) {
+  const line = row.querySelector('.food-mob');
+  if (!line) return;
+  line.innerHTML = `${formatNumber(totals.calories)} kcal · <b class="tx-p">P ${formatNumber(totals.proteinG)}</b> · <b>C ${formatNumber(totals.carbG)}</b> · <b class="tx-f">F ${formatNumber(totals.fatG)}</b>`;
+}
+
 function updateFoodMacroCells(row, item) {
   const totals = itemTotals(item.food, item.quantityG);
+  setFoodMobileLine(row, totals);
   const cells = {
     '.food-cell--cal': formatNumber(totals.calories),
     '.food-cell--protein': `${formatNumber(totals.proteinG)}g`,
@@ -1736,7 +1793,7 @@ function setRowActions(row, state, itemIndex) {
   slot.dataset.mode = mode;
   if (mode === 'pending-search') {
     slot.innerHTML = `
-      <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove empty food row"><span aria-hidden="true">⌫</span></button>
+      <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove empty food row"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-x"></use></svg><span aria-hidden="true">Cancel</span></button>
     `;
     slot.querySelector('.food-delete-btn')?.addEventListener('click', () => removePendingFoodSearchRow(state, Number(row.dataset.itemIndex)));
     return;
@@ -1744,8 +1801,8 @@ function setRowActions(row, state, itemIndex) {
 
   const name = escapeHtml(item?.food?.name || 'food');
   slot.innerHTML = mode === 'edit' ? `
-    <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><span aria-hidden="true">⇄</span></button>
-    <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><span aria-hidden="true">⌫</span></button>
+    <button class="food-icon-btn food-swap-btn" type="button" aria-label="Swap ${name}"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-swap"></use></svg><span aria-hidden="true">Swap</span></button>
+    <button class="food-icon-btn food-delete-btn" type="button" aria-label="Remove ${name}"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-remove"></use></svg><span aria-hidden="true">Remove</span></button>
   ` : '';
   slot.querySelector('.food-swap-btn')?.addEventListener('click', () => {
     const nextIndex = Number(row.dataset.itemIndex);
@@ -1762,7 +1819,7 @@ function renderFoodItem(state, itemIndex) {
   row.innerHTML = `
     <div class="food-title">
       <span class="food-icon" aria-hidden="true"></span>
-      <span class="food-name"></span>
+      <span class="food-text"><span class="food-name"></span><span class="food-mob" aria-hidden="true"></span></span>
     </div>
     <div class="food-cell food-cell--portion"></div>
     <div class="food-cell food-cell--cal"></div>
@@ -2799,6 +2856,7 @@ async function createGeneratedPlanRecord(planData, timeline = null) {
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
       clientRequestId: pendingPlanCreateKey,
+      ...readPlanSchedule(),
     }),
   });
   if (timeline) {
@@ -2839,6 +2897,7 @@ function startInitialPlanSave(planData, timeline = activeGenerationTimeline) {
       setLatestSavedPlanData(planData);
       replacePlannerUrlWithSavedPlan(currentPlanId);
       showInitialCreationBar(currentPlanId, currentPlanName);
+      renderPlanHeader();
       return createdPlan;
     })
     .catch((error) => {
@@ -2872,6 +2931,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
       name,
       planData: planDataForPersistence(planDataToSave),
       customer: customerPayload?.customer || null,
+      ...readPlanSchedule(),
       ...(Number.isInteger(currentPlanVersion) ? { expectedVersion: currentPlanVersion } : {}),
     }),
   });
@@ -2905,6 +2965,7 @@ async function savePlanRecord(planId, planData, { fallbackName = '', status = tr
     refreshManualModeUi();
   }
   hasUnsavedChanges = false;
+  renderPlanHeader();
   if (status) setSaveStatus('Saved');
   return true;
 }

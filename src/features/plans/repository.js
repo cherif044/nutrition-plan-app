@@ -14,18 +14,34 @@ function stripMeta(plan) {
 // read (and decompress) the large plan_data document.
 const SUMMARY_GOALS = new Set(['maintain', 'lose_weight', 'gain_weight']);
 
+function positiveOrNull(value) {
+  const number = Number(value);
+  return value !== null && value !== undefined && Number.isFinite(number) && number > 0 ? number : null;
+}
+
 function planSummaryColumns(planData) {
-  const calories = Number(
-    planData?.dailyActuals?.calories
-    ?? planData?.dailyTargets?.calories
-    ?? planData?.nutritionCalculation?.targetCalories,
-  );
+  const actuals = planData?.dailyActuals;
+  const targets = planData?.dailyTargets;
   const goal = planData?.input?.goal;
   return {
     // Only known values reach the dashboard filter columns.
     goal: SUMMARY_GOALS.has(goal) ? goal : null,
-    calories: Number.isFinite(calories) && calories > 0 ? calories : null,
+    calories: positiveOrNull(
+      actuals?.calories ?? targets?.calories ?? planData?.nutritionCalculation?.targetCalories,
+    ),
+    protein_g: positiveOrNull(actuals?.proteinG ?? targets?.proteinG),
+    carbs_g: positiveOrNull(actuals?.carbG ?? targets?.carbG),
+    fat_g: positiveOrNull(actuals?.fatG ?? targets?.fatG),
   };
+}
+
+// Only the fields the request actually sent; the column defaults cover
+// clients that send neither.
+function planScheduleColumns({ startDate, durationWeeks } = {}) {
+  const columns = {};
+  if (startDate !== undefined) columns.start_date = startDate;
+  if (durationWeeks !== undefined) columns.duration_weeks = durationWeeks;
+  return columns;
 }
 
 // Accept only opaque, UUID-like keys; anything else is ignored rather than
@@ -81,6 +97,7 @@ async function insertPlan(userId, name, planData, options) {
       name: name.trim(),
       plan_data: planData,
       ...planSummaryColumns(planData),
+      ...planScheduleColumns(options),
       is_active: false,
       client_request_id: options.clientRequestId,
     }, { transaction });
@@ -125,7 +142,7 @@ function versionConflict(currentVersion) {
 }
 
 async function updatePlan(planId, userId, {
-  name, planData, customer, expectedVersion,
+  name, planData, customer, expectedVersion, startDate, durationWeeks,
 }) {
   return sequelize.transaction(async (transaction) => {
     const plan = await Plan.findOne({
@@ -146,6 +163,7 @@ async function updatePlan(planId, userId, {
 
     const updates = { updated_at: new Date(), version: currentVersion + 1 };
     if (name !== undefined) updates.name = name.trim();
+    Object.assign(updates, planScheduleColumns({ startDate, durationWeeks }));
     if (planData !== undefined) {
       updates.plan_data = planData;
       Object.assign(updates, planSummaryColumns(planData));

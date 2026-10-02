@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../../middleware/auth');
 const { validateQuery } = require('../../middleware/validate');
-const { pagedListQuery, plansListQuery } = require('../../validation/schemas');
+const { customersPageQuery, plansListQuery } = require('../../validation/schemas');
 const {
   getDashboard,
   getDashboardCustomers,
@@ -11,7 +11,7 @@ const {
 const router = express.Router();
 
 router.get('/', requireAuth, getDashboard);
-router.get('/customers', requireAuth, validateQuery(pagedListQuery), getDashboardCustomers);
+router.get('/customers', requireAuth, validateQuery(customersPageQuery), getDashboardCustomers);
 router.get('/plans', requireAuth, validateQuery(plansListQuery), getDashboardPlans);
 
 module.exports = router;
