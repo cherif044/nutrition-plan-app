@@ -194,24 +194,8 @@ async function getCustomerPlans(userId, customerId, options = {}) {
   if (!customer) return null;
 
   // Lazy require: dashboardRepository is not needed by the rest of this module.
-  const { normalizePaging, pageResult, planRowToSummary } = require('../dashboard/repository');
-  const paging = normalizePaging(options);
-  const where = { user_id: userId, customer_id: customerId };
-  const [plans, total] = await Promise.all([
-    Plan.findAll({
-      where,
-      attributes: [
-        'id', 'customer_id', 'name', 'created_at', 'updated_at', 'goal',
-        'calories', 'protein_g', 'carbs_g', 'fat_g', 'start_date', 'duration_weeks',
-      ],
-      order: [['updated_at', 'DESC'], ['id', 'DESC']],
-      limit: paging.pageSize,
-      offset: paging.offset,
-    }),
-    Plan.count({ where }),
-  ]);
-
-  const page = pageResult(plans.map((plan) => planRowToSummary(plan.toJSON())), total, paging);
+  const { listCustomerPlansPage } = require('../dashboard/repository');
+  const page = await listCustomerPlansPage(userId, customer.id, options);
 
   return { customer, plans: page.items, pagination: { ...page, items: undefined } };
 }

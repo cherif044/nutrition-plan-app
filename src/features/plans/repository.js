@@ -23,6 +23,7 @@ function planSummaryColumns(planData) {
   const actuals = planData?.dailyActuals;
   const targets = planData?.dailyTargets;
   const goal = planData?.input?.goal;
+  const meals = planData?.meals;
   return {
     // Only known values reach the dashboard filter columns.
     goal: SUMMARY_GOALS.has(goal) ? goal : null,
@@ -32,6 +33,7 @@ function planSummaryColumns(planData) {
     protein_g: positiveOrNull(actuals?.proteinG ?? targets?.proteinG),
     carbs_g: positiveOrNull(actuals?.carbG ?? targets?.carbG),
     fat_g: positiveOrNull(actuals?.fatG ?? targets?.fatG),
+    meal_count: Array.isArray(meals) ? meals.length : null,
   };
 }
 

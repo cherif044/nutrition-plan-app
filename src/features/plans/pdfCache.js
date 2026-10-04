@@ -22,7 +22,9 @@ function cacheKey(plan, options = {}) {
   const clientName = String(options.clientName || '').trim();
   const nameHash = createHash('sha256').update(clientName).digest('hex').slice(0, 16);
   return [
+    // Bumped when the PDF layout changes, so old-looking copies are not served.
     'pdf',
+    'v2',
     String(plan?.user_id || 'u'),
     String(plan?.id || 'plan'),
     String(plan?.version || 1),

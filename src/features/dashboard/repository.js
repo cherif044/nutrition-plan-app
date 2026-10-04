@@ -78,6 +78,7 @@ function planRowToSummary(row) {
     protein_g: toNumberOrNull(row.protein_g),
     carbs_g: toNumberOrNull(row.carbs_g),
     fat_g: toNumberOrNull(row.fat_g),
+    meal_count: Number(row.meal_count) || null,
     start_date: dateOnly(row.start_date),
     duration_weeks: Number(row.duration_weeks) || null,
   };
@@ -103,7 +104,7 @@ function customerRowToSummary(row) {
 const PLAN_SUMMARY_COLUMNS = `
   p.id, p.customer_id, p.name, p.last_opened_at,
   p.created_at, p.updated_at, p.goal, p.calories,
-  p.protein_g, p.carbs_g, p.fat_g, p.start_date, p.duration_weeks
+  p.protein_g, p.carbs_g, p.fat_g, p.meal_count, p.start_date, p.duration_weeks
 `;
 
 // Only the customer's name rides along with a home-list plan.
@@ -189,34 +190,20 @@ async function getStats(userId) {
   };
 }
 
-// Recently opened plans; a coach who has never opened one sees their newest
-// general plans instead.
+// The newest plans, general or assigned to a client.
 async function listRecentPlans(userId) {
   const rows = await sequelize.query(`
-    (
-      SELECT ${PLAN_SUMMARY_COLUMNS}, c.name AS customer_name, 0 AS source_rank, p.last_opened_at AS sort_at
-      FROM plans p
-      ${PLAN_CUSTOMER_JOIN}
-      WHERE p.user_id = :userId AND p.last_opened_at IS NOT NULL
-      ORDER BY p.last_opened_at DESC, p.id DESC
-      LIMIT :limit
-    )
-    UNION ALL
-    (
-      SELECT ${PLAN_SUMMARY_COLUMNS}, NULL AS customer_name, 1 AS source_rank, p.updated_at AS sort_at
-      FROM plans p
-      WHERE p.user_id = :userId AND p.customer_id IS NULL
-      ORDER BY p.updated_at DESC, p.id DESC
-      LIMIT :limit
-    )
-    ORDER BY source_rank, sort_at DESC
+    SELECT ${PLAN_SUMMARY_COLUMNS}, c.name AS customer_name
+    FROM plans p
+    ${PLAN_CUSTOMER_JOIN}
+    WHERE p.user_id = :userId
+    ORDER BY p.created_at DESC, p.id DESC
+    LIMIT :limit
   `, {
     replacements: { userId, limit: HOME_LIST_SIZE },
     type: QueryTypes.SELECT,
   });
-
-  const opened = rows.filter((row) => Number(row.source_rank) === 0);
-  return (opened.length ? opened : rows).slice(0, HOME_LIST_SIZE).map(planRowToSummary);
+  return rows.map(planRowToSummary);
 }
 
 // Plans that already ended, then plans ending within the window, soonest
@@ -321,7 +308,7 @@ async function listCustomersPage(userId, options = {}) {
   };
 }
 
-function generalPlanSearchClause(query) {
+function planSearchClause(query) {
   if (!query) return '';
   return `
     AND (
@@ -341,7 +328,7 @@ async function listGeneralPlansPage(userId, options = {}) {
   const paging = normalizePaging(options);
   const query = normalizeSearch(options.query);
   const rangeStart = calorieRangeStart(options.calorieRange);
-  const searchClause = generalPlanSearchClause(query);
+  const searchClause = planSearchClause(query);
   const rangeClause = rangeStart === null
     ? ''
     : `AND p.calories >= :rangeStart AND p.calories < :rangeStart + ${CALORIE_RANGE_SIZE}`;
@@ -364,7 +351,7 @@ async function listGeneralPlansPage(userId, options = {}) {
     sequelize.query(`
       SELECT ${PLAN_SUMMARY_COLUMNS}
       ${filteredFrom}
-      ORDER BY p.updated_at DESC, p.id DESC
+      ORDER BY p.created_at DESC, p.id DESC
       LIMIT :limit OFFSET :offset
     `, { replacements, type: QueryTypes.SELECT }),
     sequelize.query(`
@@ -439,8 +426,37 @@ async function listGeneralPlansPage(userId, options = {}) {
   };
 }
 
+// One client's plans, newest first, optionally narrowed by a search.
+async function listCustomerPlansPage(userId, customerId, options = {}) {
+  const paging = normalizePaging(options);
+  const query = normalizeSearch(options.query);
+  const replacements = {
+    userId,
+    customerId,
+    likeQuery: likePattern(query),
+    limit: paging.pageSize,
+    offset: paging.offset,
+  };
+  const filteredFrom = `
+    FROM plans p
+    WHERE p.user_id = :userId AND p.customer_id = :customerId
+      ${planSearchClause(query)}
+  `;
+  const [rows, [countRow]] = await Promise.all([
+    sequelize.query(`
+      SELECT ${PLAN_SUMMARY_COLUMNS}
+      ${filteredFrom}
+      ORDER BY p.created_at DESC, p.id DESC
+      LIMIT :limit OFFSET :offset
+    `, { replacements, type: QueryTypes.SELECT }),
+    sequelize.query(`SELECT COUNT(*)::int AS matching ${filteredFrom}`, { replacements, type: QueryTypes.SELECT }),
+  ]);
+  return pageResult(rows.map(planRowToSummary), Number(countRow.matching || 0), paging);
+}
+
 module.exports = {
   getDashboardSummary,
+  listCustomerPlansPage,
   listCustomersPage,
   listGeneralPlansPage,
   normalizePaging,

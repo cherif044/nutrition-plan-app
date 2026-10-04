@@ -49,6 +49,7 @@ async function updateCustomerHandler(req, res, next) {
 async function getCustomerPlansHandler(req, res, next) {
   try {
     const data = await getCustomerPlans(req.user.id, req.params.id, {
+      query: req.validatedQuery.query,
       page: req.validatedQuery.page,
       pageSize: req.validatedQuery.pageSize,
     });

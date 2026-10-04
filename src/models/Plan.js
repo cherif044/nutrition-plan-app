@@ -16,6 +16,7 @@ const Plan = sequelize.define('Plan', {
   protein_g:  { type: DataTypes.DECIMAL, allowNull: true },
   carbs_g:    { type: DataTypes.DECIMAL, allowNull: true },
   fat_g:      { type: DataTypes.DECIMAL, allowNull: true },
+  meal_count: { type: DataTypes.SMALLINT, allowNull: true },
   start_date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
   duration_weeks: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 4 },
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },

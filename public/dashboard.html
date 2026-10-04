@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dashboard — Macrospace</title>
-    <script src="/js/shared/theme.js?v=macrospace-20261002"></script>
-    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261002" />
+    <script src="/js/shared/theme.js?v=macrospace-20261004b"></script>
+    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261004b" />
     <script src="/js/shared/vitals.js" defer></script>
   </head>
   <body class="dashboard-page dashboard-loading">
@@ -259,10 +259,14 @@
             </section>
             <section>
               <div class="cp-sh"><h2>Plans</h2><span class="pill" id="detail-plan-count"></span></div>
+              <label class="search search--list">
+                <span class="sr-only">Search this client's plans</span>
+                <input class="input" id="detail-plan-search" type="search" placeholder="Search plans" autocomplete="off" maxlength="100" />
+              </label>
               <div class="box">
                 <div class="tscroll">
                   <table class="dt cpt">
-                    <thead><tr><th>Plan</th><th>Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
+                    <thead><tr><th>Plan</th><th class="hide-s">Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
                     <tbody id="detail-customer-plans"></tbody>
                   </table>
                 </div>
@@ -289,7 +293,7 @@
           <div class="box" id="plan-results" hidden>
             <div class="tscroll">
               <table class="dt plans-t">
-                <thead><tr><th>Plan</th><th>Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Plan</th><th class="hide-s">Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody id="recent-plans"></tbody>
               </table>
             </div>
@@ -307,10 +311,14 @@
             </div>
             <a class="btn btn-primary" href="/planner"><svg class="ic" aria-hidden="true"><use href="/img/icons.svg#i-plus"></use></svg>New plan</a>
           </div>
+          <label class="search">
+            <span class="sr-only">Search plans in this folder</span>
+            <input class="input" id="folder-plan-search" type="search" placeholder="Search plans" autocomplete="off" maxlength="100" />
+          </label>
           <div class="box">
             <div class="tscroll">
               <table class="dt plans-t">
-                <thead><tr><th>Plan</th><th>Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Plan</th><th class="hide-s">Macros</th><th class="r"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody id="folder-plans"></tbody>
               </table>
             </div>
@@ -322,9 +330,9 @@
       </main>
     </div>
 
-    <script src="/js/shared/planStatus.js?v=macrospace-20261002" defer></script>
-    <script src="/js/shared/shell.js?v=macrospace-20261002" defer></script>
-    <script src="/js/shared/pagination.js?v=macrospace-20261002" defer></script>
-    <script src="/js/dashboard/app.js?v=macrospace-20261002" defer></script>
+    <script src="/js/shared/planStatus.js?v=macrospace-20261004b" defer></script>
+    <script src="/js/shared/shell.js?v=macrospace-20261004b" defer></script>
+    <script src="/js/shared/pagination.js?v=macrospace-20261004b" defer></script>
+    <script src="/js/dashboard/app.js?v=macrospace-20261004b" defer></script>
   </body>
 </html>
