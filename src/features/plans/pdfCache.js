@@ -24,7 +24,7 @@ function cacheKey(plan, options = {}) {
   return [
     // Bumped when the PDF layout changes, so old-looking copies are not served.
     'pdf',
-    'v2',
+    'v3',
     String(plan?.user_id || 'u'),
     String(plan?.id || 'plan'),
     String(plan?.version || 1),
