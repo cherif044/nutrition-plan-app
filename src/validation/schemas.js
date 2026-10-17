@@ -161,6 +161,7 @@ const macroTotals = z.looseObject({
 
 // Saved plans reference catalog foods by id only; names, icons and nutrition
 // values are read from the server's catalog, so they can never be forged.
+// The one exception is a custom food (below), which carries its own values.
 let catalogById;
 function catalogFood(id) {
   if (!catalogById) {
@@ -175,10 +176,32 @@ const catalogFoodId = z.union([z.string().max(L.foodIdLength), z.number().int()]
   .transform(String)
   .refine((id) => Boolean(catalogFood(id)), 'Unknown food.');
 
-const savedItem = z.strictObject({
+// A custom food's macros per 100 g. Each is 0-100 g and together they cannot
+// exceed the 100 g they describe; calories are always derived from them.
+const macroPer100g = (label) => number(label, 0, 100);
+const customFoodFields = {
+  name: text('Food name', L.customFoodNameLength),
+  proteinGPer100g: macroPer100g('Protein'),
+  carbGPer100g: macroPer100g('Carbs'),
+  fatGPer100g: macroPer100g('Fat'),
+};
+const withinHundredGrams = (value) => value.proteinGPer100g + value.carbGPer100g + value.fatGPer100g <= 100;
+const MACRO_TOTAL_MESSAGE = 'Protein, carbs and fat together cannot be more than 100 g per 100 g.';
+const customFoodBody = z.strictObject(customFoodFields)
+  .refine(withinHundredGrams, { message: MACRO_TOTAL_MESSAGE, path: ['fatGPer100g'] });
+
+const catalogSavedItem = z.strictObject({
   foodId: catalogFoodId,
   quantityG: finite(0, L.gramsPerFood),
 });
+// Custom foods are not in the catalog, so a plan keeps its own copy of the
+// name and macros. That copy only ever feeds this plan's own view and PDF.
+const customSavedItem = z.strictObject({
+  foodId: z.string().regex(/^custom_\d{1,18}$/, 'Invalid custom food id.'),
+  quantityG: finite(0, L.gramsPerFood),
+  customFood: z.strictObject(customFoodFields).refine(withinHundredGrams, MACRO_TOTAL_MESSAGE),
+});
+const savedItem = z.union([catalogSavedItem, customSavedItem]);
 const savedItems = z.array(savedItem)
   .max(L.foodsPerMeal, `A meal can have at most ${L.foodsPerMeal} foods.`)
   .optional();
@@ -362,6 +385,7 @@ const pdfExportQuery = z.looseObject({
 });
 
 module.exports = {
+  customFoodBody,
   generatePlanBody,
   planData,
   planInput,

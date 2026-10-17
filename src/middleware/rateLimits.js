@@ -140,6 +140,15 @@ const planWriteLimiter = createLimiter({
   failOpen: false,
   perAccount: true,
 });
+// Creating a custom food is rare; the cap stops one account from flooding it.
+const customFoodCreateLimiter = createLimiter({
+  scope: 'custom_food_create',
+  windowMs: 60 * 60 * 1000,
+  limit: envNumber('CUSTOM_FOOD_CREATE_RATE_LIMIT_MAX', 30),
+  message: 'Too many custom foods created. Please try again later.',
+  failOpen: false,
+  perAccount: true,
+});
 const pdfExportLimiter = createLimiter({
   scope: 'pdf',
   windowMs: envNumber('PDF_RATE_LIMIT_WINDOW_MS', WINDOW_15_MIN),
@@ -181,6 +190,7 @@ module.exports = {
   apiLimiter,
   authLimiter,
   cspReportLimiter,
+  customFoodCreateLimiter,
   generationLimiter,
   pdfExportLimiter,
   planWriteLimiter,

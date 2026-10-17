@@ -10,6 +10,7 @@ const authRoutes = require('./features/auth/routes');
 const planRoutes = require('./features/plans/routes');
 const dashboardRoutes = require('./features/dashboard/routes');
 const customerRoutes = require('./features/customers/routes');
+const customFoodRoutes = require('./features/customFoods/routes');
 const sequelize = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requireAuth } = require('./middleware/auth');
@@ -268,6 +269,7 @@ app.get('/api/internal/cleanup-operational', async (req, res, next) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/custom-foods', customFoodRoutes);
 
 // Expensive and state-changing routes authenticate first, so their limits
 // are counted per account (see rateLimits.js), then fail closed.

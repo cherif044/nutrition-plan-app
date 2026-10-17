@@ -914,6 +914,25 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .pb-facts b { font-weight: 500; color: #fff; text-align: right; }
 .pb-rail .generate-button { width: 100%; height: 48px; font-size: 15px; }
 .pb-note { text-align: center; font-size: 12px; color: #8C96BA; margin-top: -6px; }
+/* Secondary way in: plain text under Generate plan, so generating stays the main path. */
+.scratch-link {
+  align-self: center;
+  margin-top: -8px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: #A9B3D1;
+  text-decoration: underline;
+  text-decoration-color: rgba(169, 179, 209, .35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.scratch-link:hover { color: #fff; text-decoration-color: var(--lime); }
+.scratch-link:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.scratch-link[hidden] { display: none; }
 
 /* Avoid-foods token picker */
 .preference-field { position: relative; }
@@ -984,6 +1003,59 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .suggestion-item__body small { display: block; font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .suggestion-item em { font-style: normal; font-size: 11px; color: var(--text-3); text-transform: capitalize; }
 .suggestion-empty { padding: 10px; font-size: 13px; color: var(--text-3); }
+.suggestion-item--create { margin-top: 4px; border-top: 1px dashed var(--border); border-radius: 0 0 8px 8px; }
+.suggestion-item--create strong { color: var(--accent); font-weight: 600; }
+.suggestion-item--create .food-icon { background: var(--primary-soft); color: var(--accent); box-shadow: none; }
+.custom-food-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--primary-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+/* ── Dialogs (custom food, start from scratch) ─────────────────────────── */
+
+.ms-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+}
+.ms-dialog::backdrop { background: rgba(10, 15, 36, .45); }
+.ms-dialog__form { display: flex; flex-direction: column; gap: 18px; padding: 22px; }
+.ms-dialog__head h2 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.ms-dialog__head p { margin-top: 4px; font-size: 13px; color: var(--text-3); }
+.ms-dialog__body { display: flex; flex-direction: column; gap: 14px; }
+.ms-dialog__error { padding: 8px 10px; border-radius: 8px; background: var(--error-soft); color: var(--error); font-size: 13px; }
+.ms-dialog__error[hidden] { display: none; }
+.ms-dialog__foot { display: flex; justify-content: flex-end; gap: 8px; }
+.custom-food-macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; border: 0; }
+.custom-food-macros legend { margin-bottom: 8px; padding: 0; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.custom-food-macro label { display: flex; align-items: center; gap: 6px; }
+.custom-food-macro--proteinGPer100g { --c: var(--mx-p); }
+.custom-food-macro--carbGPer100g { --c: var(--mx-c); }
+.custom-food-macro--fatGPer100g { --c: var(--mx-f); }
+.custom-food-macro__input { position: relative; display: block; }
+.field .custom-food-macro__input input { width: 100%; padding-right: 26px; }
+.custom-food-macro__input input { -moz-appearance: textfield; appearance: textfield; }
+.custom-food-macro__input input::-webkit-inner-spin-button,
+.custom-food-macro__input input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.custom-food-macro__input .unit { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); font-size: 12px; color: var(--text-3); pointer-events: none; }
+.custom-food-kcal { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); font-size: 13px; color: var(--text-2); }
+.custom-food-kcal b { font-size: 16px; font-weight: 600; color: var(--text); }
+.ms-dialog .hint { margin-top: -6px; }
+.scratch-meal-count { margin-top: 2px; }
+.scratch-meal-names { margin-top: 4px; }
 
 /* ── Plan view header ───────────────────────────────────────────────────── */
 
@@ -1046,6 +1118,8 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .summary .metric-bar i { transform-origin: left; animation: mxgrow .8s cubic-bezier(.2, .8, .2, 1) both; }
 .summary .metric[data-metric="carbG"] .metric-bar i { animation-delay: 90ms; }
 .summary .metric[data-metric="fatG"] .metric-bar i { animation-delay: 180ms; }
+.summary .metric--empty .metric-bar i { width: 0 !important; }
+.summary .metric--empty .cal-ring__value { opacity: 0; }
 
 .metrics { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 28px; align-items: center; }
 .metric--ring { text-align: center; }
@@ -1166,6 +1240,7 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .food-icon svg { width: 15px; height: 15px; }
 .food-icon[data-tone="protein"] { color: var(--tx-p); }
 .food-icon[data-tone="fat"] { color: var(--tx-f); }
+.food-icon[data-tone="custom"] { background: var(--primary-soft); color: var(--accent); }
 .portion--readonly { display: inline-flex; align-items: baseline; gap: 3px; font-weight: 600; }
 .portion .unit { font-size: 12px; color: var(--text-3); font-weight: 400; }
 .portion:not(.portion--readonly) { display: inline-flex; align-items: center; gap: 2px; justify-content: flex-end; }
@@ -1883,6 +1958,8 @@ body.on-site {
   .meal-card:has(.food-actions[data-mode="edit"]),
   .meal-card:has(.food-actions[data-mode="pending-search"]) { --food-actions-w: 0px; }
   .food-item--wide-portion { --food-cols: minmax(0, 1fr) 128px; }
+  /* Manual mode edits grams in place: room for − / grams / + on phones. */
+  .plan-output--manual .food-table { --food-cols: minmax(0, 1fr) 128px; }
   .food-cell--protein, .food-cell--carb, .food-cell--fat { display: none; }
   .food-list-head > :first-child, .food-item > :first-child, .meal-card__totals > :first-child { padding-left: 16px; }
   .food-item .food-actions { grid-column: 1 / -1; justify-content: flex-start; padding: 0 16px 10px 62px !important; }

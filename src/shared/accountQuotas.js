@@ -45,7 +45,14 @@ async function assertCanAddCustomer(userId, transaction) {
   if (count >= Q.customers) throw quotaError(`An account can hold at most ${Q.customers} customers.`);
 }
 
+async function assertCanAddCustomFood(userId, transaction) {
+  await lockAccount(userId, transaction);
+  const count = await scalar('SELECT count(*) FROM custom_foods WHERE user_id = :userId', { userId }, transaction);
+  if (count >= Q.customFoods) throw quotaError(`An account can hold at most ${Q.customFoods} custom foods.`);
+}
+
 module.exports = {
   assertCanAddCustomer,
+  assertCanAddCustomFood,
   assertCanAddPlan,
 };

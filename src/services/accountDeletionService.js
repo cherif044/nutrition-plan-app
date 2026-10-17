@@ -34,6 +34,7 @@ async function deleteUserRows(userId) {
     const q = (sql) => sequelize.query(sql, { replacements: { userId }, transaction });
     await q('DELETE FROM plans WHERE user_id = :userId');
     await q('DELETE FROM customers WHERE user_id = :userId');
+    await q('DELETE FROM custom_foods WHERE user_id = :userId');
     await q('UPDATE folders SET parent_id = NULL WHERE user_id = :userId');
     await q('DELETE FROM folders WHERE user_id = :userId');
     await q('DELETE FROM sessions WHERE user_id = :userId');

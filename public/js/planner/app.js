@@ -40,6 +40,8 @@ function iconSvg(name, size = 16) {
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
     sliders: '<path d="M4 6h10"/><path d="M18 6h2"/><path d="M4 12h4"/><path d="M12 12h8"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    // Every custom food uses this one icon (fork and knife).
+    plate: '<path d="M4 3v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3"/><path d="M7 3v18"/><path d="M20 15V3a4 4 0 0 0-4 4v6a2 2 0 0 0 2 2h2Zm0 0v6"/>',
   };
   return `<svg ${attrs}>${icons[name] || ''}</svg>`;
 }
@@ -76,6 +78,7 @@ const FOOD_ICON_RULES = [
 ];
 
 function foodIcon(food) {
+  if (food?.custom) return { icon: 'plate', tone: 'custom' };
   const name = `${food?.name || ''} ${food?.category || ''}`;
   for (const [pattern, icon, tone] of FOOD_ICON_RULES) {
     if (pattern.test(name)) return { icon, tone };
@@ -221,6 +224,7 @@ const INPUT_LIMITS = Object.freeze({
   foodsPerMeal: 12,
   gramsPerFood: 1000,
   preferenceItems: 60,
+  customFoodNameLength: 60,
 });
 
 function clampManualGrams(value) {
@@ -488,6 +492,314 @@ if (!plannerCtx?.planId) {
 }
 scheduleReferenceDataLoad();
 
+// ── Custom foods (manual mode only) ─────────────────────────────────────────
+// Foods a coach adds by hand. They are offered only when adding a food in
+// manual mode; generation, swaps and rebalancing never see them. A plan keeps
+// its own copy of each custom food's name and macros.
+
+let customFoodsById = new Map();
+let customFoodsLoadPromise = null;
+
+function customFoodCalories({ proteinGPer100g, carbGPer100g, fatGPer100g }) {
+  return (Number(proteinGPer100g) || 0) * 4 + (Number(carbGPer100g) || 0) * 4 + (Number(fatGPer100g) || 0) * 9;
+}
+
+// The planner's food shape, with the serving bounds manual mode uses.
+function customFoodWithDefaults(food) {
+  return {
+    id: String(food.id),
+    name: String(food.name || 'Custom food'),
+    custom: true,
+    proteinGPer100g: Number(food.proteinGPer100g) || 0,
+    carbGPer100g: Number(food.carbGPer100g) || 0,
+    fatGPer100g: Number(food.fatGPer100g) || 0,
+    caloriesPer100g: customFoodCalories(food),
+    macroRole: 'custom',
+    mealTags: [],
+    defaultServingG: 100,
+    minServingG: 1,
+    maxServingG: INPUT_LIMITS.gramsPerFood,
+  };
+}
+
+function customFoodFromSnapshot(foodId, snapshot) {
+  return customFoodWithDefaults({ id: foodId, ...snapshot });
+}
+
+function customFoodSnapshot(food) {
+  return {
+    name: food.name,
+    proteinGPer100g: Number(food.proteinGPer100g) || 0,
+    carbGPer100g: Number(food.carbGPer100g) || 0,
+    fatGPer100g: Number(food.fatGPer100g) || 0,
+  };
+}
+
+function ensureCustomFoodsLoaded() {
+  if (!customFoodsLoadPromise) {
+    customFoodsLoadPromise = fetch('/api/custom-foods')
+      .then((res) => (res.ok ? readJsonResponse(res) : { foods: [] }))
+      .then(({ foods }) => {
+        customFoodsById = new Map((foods || []).map((food) => [String(food.id), customFoodWithDefaults(food)]));
+        return customFoodsById;
+      })
+      .catch(() => {
+        customFoodsLoadPromise = null;
+        return customFoodsById;
+      });
+  }
+  return customFoodsLoadPromise;
+}
+
+let formDialogSequence = 0;
+
+// A small modal form. onSubmit returns true to close; it can report an error
+// with setError and show progress with setBusy.
+function openFormDialog({ title, description = '', bodyHtml, submitLabel, onOpen, onSubmit }) {
+  const dialog = document.createElement('dialog');
+  const titleId = `ms-dialog-title-${++formDialogSequence}`;
+  dialog.className = 'ms-dialog';
+  dialog.setAttribute('aria-labelledby', titleId);
+  dialog.innerHTML = `
+    <form class="ms-dialog__form" novalidate>
+      <header class="ms-dialog__head">
+        <h2 id="${titleId}">${escapeHtml(title)}</h2>
+        ${description ? `<p>${escapeHtml(description)}</p>` : ''}
+      </header>
+      <div class="ms-dialog__body">${bodyHtml}</div>
+      <p class="ms-dialog__error" role="alert" hidden></p>
+      <footer class="ms-dialog__foot">
+        <button class="btn btn-secondary" type="button" data-dialog-cancel>Cancel</button>
+        <button class="btn btn-primary" type="submit">${escapeHtml(submitLabel)}</button>
+      </footer>
+    </form>
+  `;
+  const formEl = dialog.querySelector('form');
+  const errorEl = dialog.querySelector('.ms-dialog__error');
+  const submitEl = dialog.querySelector('button[type="submit"]');
+  const setError = (text) => {
+    errorEl.textContent = text || '';
+    errorEl.hidden = !text;
+  };
+  const setBusy = (busy) => {
+    submitEl.disabled = busy;
+    submitEl.textContent = busy ? 'Saving…' : submitLabel;
+  };
+  dialog.querySelector('[data-dialog-cancel]').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => dialog.remove());
+  // A click on the backdrop (outside the form) closes the dialog.
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  formEl.addEventListener('input', () => setError(''));
+  formEl.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setError('');
+    if (await onSubmit(formEl, { setError, setBusy })) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  onOpen?.(formEl);
+  return dialog;
+}
+
+const CUSTOM_FOOD_MACROS = [
+  ['proteinGPer100g', 'Protein'],
+  ['carbGPer100g', 'Carbs'],
+  ['fatGPer100g', 'Fat'],
+];
+
+function readCustomFoodForm(formEl) {
+  const value = (name) => {
+    const raw = formEl.elements[name].value.trim();
+    return raw === '' ? NaN : Number(raw);
+  };
+  return {
+    name: formEl.elements.name.value.replace(/\s+/g, ' ').trim(),
+    proteinGPer100g: value('proteinGPer100g'),
+    carbGPer100g: value('carbGPer100g'),
+    fatGPer100g: value('fatGPer100g'),
+  };
+}
+
+// Mirrors customFoodBody in src/validation/schemas.js.
+function customFoodFormError(food) {
+  if (!food.name) return 'Enter a food name.';
+  if (food.name.length > INPUT_LIMITS.customFoodNameLength) {
+    return `Food names can be at most ${INPUT_LIMITS.customFoodNameLength} characters.`;
+  }
+  for (const [key, label] of CUSTOM_FOOD_MACROS) {
+    if (!Number.isFinite(food[key])) return `Enter ${label.toLowerCase()} per 100 g.`;
+    if (food[key] < 0 || food[key] > 100) return `${label} must be between 0 and 100 g.`;
+  }
+  if (food.proteinGPer100g + food.carbGPer100g + food.fatGPer100g > 100) {
+    return 'Protein, carbs and fat together cannot be more than 100 g per 100 g.';
+  }
+  return '';
+}
+
+function openCustomFoodDialog(initialName, onCreated) {
+  openFormDialog({
+    title: 'Create custom food',
+    description: 'Only you can use it, and only in manual mode.',
+    submitLabel: 'Create and add',
+    bodyHtml: `
+      <div class="field">
+        <label for="custom-food-name">Food name</label>
+        <input id="custom-food-name" name="name" type="text" maxlength="${INPUT_LIMITS.customFoodNameLength}" autocomplete="off" required />
+      </div>
+      <fieldset class="custom-food-macros">
+        <legend>Per 100 g</legend>
+        ${CUSTOM_FOOD_MACROS.map(([key, label]) => `
+          <div class="field custom-food-macro custom-food-macro--${key}">
+            <label for="custom-food-${key}"><i class="macro-dot" aria-hidden="true"></i>${label}</label>
+            <span class="custom-food-macro__input">
+              <input id="custom-food-${key}" name="${key}" type="number" inputmode="decimal" min="0" max="100" step="0.1" placeholder="0" required />
+              <span class="unit">g</span>
+            </span>
+          </div>
+        `).join('')}
+      </fieldset>
+      <div class="custom-food-kcal">
+        <span>Calories per 100 g</span>
+        <b><span data-custom-food-kcal>0</span> kcal</b>
+      </div>
+      <p class="hint">Worked out from the macros: protein and carbs 4 kcal per gram, fat 9.</p>
+    `,
+    onOpen(formEl) {
+      formEl.elements.name.value = String(initialName || '').trim().slice(0, INPUT_LIMITS.customFoodNameLength);
+      const kcal = formEl.querySelector('[data-custom-food-kcal]');
+      formEl.addEventListener('input', () => {
+        const food = readCustomFoodForm(formEl);
+        kcal.textContent = formatNumber(customFoodCalories({
+          proteinGPer100g: Math.max(0, food.proteinGPer100g || 0),
+          carbGPer100g: Math.max(0, food.carbGPer100g || 0),
+          fatGPer100g: Math.max(0, food.fatGPer100g || 0),
+        }));
+      });
+      (formEl.elements.name.value ? formEl.elements.proteinGPer100g : formEl.elements.name).focus();
+    },
+    async onSubmit(formEl, { setError, setBusy }) {
+      const food = readCustomFoodForm(formEl);
+      const error = customFoodFormError(food);
+      if (error) {
+        setError(error);
+        return false;
+      }
+      setBusy(true);
+      try {
+        const res = await fetch('/api/custom-foods', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(food),
+        });
+        const data = await readJsonResponse(res, 'Unable to create the food.');
+        if (!res.ok || !data.food) throw new Error(data.error || 'Unable to create the food.');
+        const created = customFoodWithDefaults(data.food);
+        customFoodsById.set(created.id, created);
+        onCreated(created);
+        return true;
+      } catch (err) {
+        setError(err.message || 'Unable to create the food.');
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+  });
+}
+
+// ── Start from scratch ──────────────────────────────────────────────────────
+// An empty plan in manual mode: the meals are there, the generator never runs.
+
+const SCRATCH_MEALS = {
+  1: [['Meal', 'lunch']],
+  2: [['Breakfast', 'breakfast'], ['Dinner', 'dinner']],
+  3: [['Breakfast', 'breakfast'], ['Lunch', 'lunch'], ['Dinner', 'dinner']],
+  4: [['Breakfast', 'breakfast'], ['Snack', 'snack'], ['Lunch', 'lunch'], ['Dinner', 'dinner']],
+  5: [['Breakfast', 'breakfast'], ['Snack 1', 'snack'], ['Lunch', 'lunch'], ['Snack 2', 'snack'], ['Dinner', 'dinner']],
+  6: [['Breakfast', 'breakfast'], ['Snack 1', 'snack'], ['Lunch', 'lunch'], ['Snack 2', 'snack'], ['Dinner', 'dinner'], ['Snack 3', 'snack']],
+};
+
+function buildScratchPlan(mealCount) {
+  const zero = () => ({ calories: 0, proteinG: 0, carbG: 0, fatG: 0 });
+  return {
+    input: readForm(),
+    manualMode: true,
+    dailyTargets: zero(),
+    dailyActuals: zero(),
+    meals: SCRATCH_MEALS[mealCount].map(([name, tag]) => ({
+      name,
+      tag,
+      target: zero(),
+      items: [],
+      originalItems: [],
+      mealOptions: [],
+      totals: zero(),
+    })),
+  };
+}
+
+function openStartFromScratchDialog() {
+  const preset = Number(form.elements.numberOfMeals?.value) || 4;
+  openFormDialog({
+    title: 'Start from scratch',
+    description: 'Get empty meals in manual mode and add every food yourself.',
+    submitLabel: 'Start plan',
+    bodyHtml: `
+      <div class="field">
+        <span>Number of meals</span>
+        <div class="seg scratch-meal-count" role="radiogroup" aria-label="Number of meals">
+          ${Object.keys(SCRATCH_MEALS).map((count) => `
+            <label><input type="radio" name="mealCount" value="${count}" ${Number(count) === preset ? 'checked' : ''} /><span>${count}</span></label>
+          `).join('')}
+        </div>
+        <small class="scratch-meal-names" data-scratch-meal-names></small>
+      </div>
+    `,
+    onOpen(formEl) {
+      const names = formEl.querySelector('[data-scratch-meal-names]');
+      const sync = () => {
+        const count = Number(formEl.elements.mealCount.value);
+        names.textContent = (SCRATCH_MEALS[count] || []).map(([name]) => name).join(' · ');
+      };
+      formEl.addEventListener('change', sync);
+      sync();
+      formEl.querySelector('input[name="mealCount"]:checked')?.focus();
+    },
+    async onSubmit(formEl, { setError }) {
+      const count = Number(formEl.elements.mealCount.value);
+      if (!SCRATCH_MEALS[count]) {
+        setError('Choose how many meals.');
+        return false;
+      }
+      return startPlanFromScratch(count);
+    },
+  });
+}
+
+// Mirrors a new generated plan: same save details, same first save, so the
+// plan lands under its customer and on the dashboard like any other.
+async function startPlanFromScratch(mealCount) {
+  message.textContent = '';
+  if (!(await validatePreGenerationSaveDetails())) return true;
+  const payload = buildScratchPlan(mealCount);
+  currentPlanId = null;
+  currentPlanVersion = null;
+  pendingPlanCreateKey = makeGenerationTimelineId();
+  currentPlanName = readPreGenerationPlanName();
+  currentPlanHasCustomer = planWillHaveCustomer();
+  firstCreationPending = true;
+  setLatestSavedPlanData(payload);
+  renderPlan(payload, { firstCreation: true, planId: null, planName: currentPlanName });
+  startInitialPlanSave(payload, null);
+  switchPlannerView('plan', { push: true });
+  setInputsExpanded(false);
+  return true;
+}
+
+document.querySelector('#start-from-scratch')?.addEventListener('click', openStartFromScratchDialog);
+
 function syncAthleteMealCountOption() {
   const threeMeals = form.querySelector('input[name="numberOfMeals"][value="3"]');
   if (!threeMeals) return;
@@ -641,6 +953,12 @@ function updateSubmitIdleLabel() {
   const label = submitButton?.querySelector('span:last-child');
   if (label) {
     label.textContent = document.body.classList.contains('is-plan-view') ? 'Update plan' : 'Generate plan';
+  }
+  // Starting from scratch makes a new plan, so it is offered only before one exists.
+  const scratchLink = document.querySelector('#start-from-scratch');
+  if (scratchLink) {
+    scratchLink.hidden = Boolean(plannerCtx?.planId || currentPlanId || firstCreationPending)
+      || document.body.classList.contains('is-plan-view');
   }
 }
 
@@ -1362,7 +1680,11 @@ function refreshRedFlags() {
     const flagged = showTargets && !dailyMetricFitsTarget(key, actual[key], dailyTargets, dailyBounds);
 
     const metricEl = summaryEl.querySelector(`.metric[data-metric="${key}"]`);
-    if (metricEl) metricEl.classList.toggle('metric--flagged', flagged);
+    if (metricEl) {
+      metricEl.classList.toggle('metric--flagged', flagged);
+      // Nothing to show yet (a plan started from scratch): keep the bar empty.
+      metricEl.classList.toggle('metric--empty', !(actual[key] > 0));
+    }
 
     const actualEl = summaryEl.querySelector(`.daily-actual-${key}`);
     if (actualEl) actualEl.textContent = formatNumber(actual[key]);
@@ -1663,7 +1985,8 @@ function renderPortionCell(row, state, itemIndex, item) {
   const input = cell.querySelector('.manual-grams-input');
   const fitInput = () => {
     const length = String(input.value).length;
-    input.style.width = `${Math.max(2, length) + 0.4}ch`;
+    // The digits, plus the box's 8px padding and 2px border.
+    input.style.width = `calc(${Math.max(2, length) + 0.4}ch + 10px)`;
     row.classList.toggle('food-item--wide-portion', length >= 5);
   };
   fitInput();
@@ -1769,7 +2092,7 @@ function renderPendingFoodSearchRow(row, state, itemIndex) {
   search.addEventListener('input', () => {
     renderFoodSearchResults(state, search.value, results, (food) => {
       attemptInlineFoodSearchSelection(state, itemIndex, food);
-    });
+    }, { allowCustom: isManualModeActive() && !isSwap });
   });
   window.requestAnimationFrame(() => search.focus());
 }
@@ -2707,18 +3030,29 @@ function showActionFeedback(state, { tone = 'success', message, cardClass = '', 
   }, FEEDBACK_DISMISS_MS);
 }
 
-function renderFoodSearchResults(state, query, resultsEl, onSelect) {
+function renderFoodSearchResults(state, query, resultsEl, onSelect, { allowCustom = false } = {}) {
   const q = normalizeText(query);
   if (q && foodsById.size === 0) {
     resultsEl.innerHTML = '<div class="suggestion-empty">Loading foods...</div>';
     resultsEl.hidden = false;
     ensureFoodsLoaded().then(() => {
-      if (normalizeText(query) === q) renderFoodSearchResults(state, query, resultsEl, onSelect);
+      if (normalizeText(query) === q) renderFoodSearchResults(state, query, resultsEl, onSelect, { allowCustom });
     });
     return;
   }
-  const foods = [...foodsById.values()]
-    .filter(foodAllowedForCurrentPreferences)
+  // Custom foods join the search only when adding a food in manual mode.
+  if (allowCustom && !customFoodsLoadPromise) {
+    ensureCustomFoodsLoaded().then(() => {
+      if (resultsEl.isConnected && normalizeText(query) === q) {
+        renderFoodSearchResults(state, query, resultsEl, onSelect, { allowCustom });
+      }
+    });
+  }
+  const candidates = [
+    ...[...foodsById.values()].filter(foodAllowedForCurrentPreferences),
+    ...(allowCustom ? customFoodsById.values() : []),
+  ];
+  const foods = candidates
     .map((food) => ({ food, score: scoreFoodForMealSearch(food, q, state.tag) }))
     .filter((entry) => entry.score > -1)
     .sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name))
@@ -2732,10 +3066,8 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect) {
   if (!foods.length) {
     const empty = document.createElement('div');
     empty.className = 'suggestion-empty';
-    empty.textContent = 'No allowed foods match that search.';
+    empty.textContent = allowCustom ? 'No foods match that search.' : 'No allowed foods match that search.';
     resultsEl.append(empty);
-    resultsEl.hidden = false;
-    return;
   }
 
   foods.forEach(({ food }) => {
@@ -2745,8 +3077,8 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect) {
     btn.innerHTML = `
       ${foodMediaPlaceholder('suggestion-food-icon')}
       <span class="suggestion-item__body">
-        <strong>${escapeHtml(food.name)}</strong>
-        <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${escapeHtml(food.macroRole || 'mixed')}</small>
+        <strong>${escapeHtml(food.name)}${food.custom ? ' <span class="custom-food-badge">Custom</span>' : ''}</strong>
+        <small>${formatNumber(food.caloriesPer100g)} kcal/100g · ${food.custom ? `P ${formatNumber(food.proteinGPer100g, 1)} · C ${formatNumber(food.carbGPer100g, 1)} · F ${formatNumber(food.fatGPer100g, 1)}` : escapeHtml(food.macroRole || 'mixed')}</small>
       </span>
       <em>Select</em>
     `;
@@ -2757,6 +3089,26 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect) {
     });
     resultsEl.append(btn);
   });
+
+  if (allowCustom) {
+    const create = document.createElement('button');
+    create.type = 'button';
+    create.className = 'suggestion-item suggestion-item--create';
+    create.innerHTML = `
+      <span class="food-icon suggestion-food-icon" aria-hidden="true">${iconSvg('plus', 15)}</span>
+      <span class="suggestion-item__body">
+        <strong>Create custom food “${escapeHtml(query.trim())}”</strong>
+        <small>Add your own food with its protein, carbs and fat</small>
+      </span>
+    `;
+    create.addEventListener('click', () => {
+      openCustomFoodDialog(query, (food) => {
+        resultsEl.hidden = true;
+        onSelect(food);
+      });
+    });
+    resultsEl.append(create);
+  }
   resultsEl.hidden = false;
 }
 
@@ -3413,7 +3765,11 @@ function compactPlanItems(items) {
     .map((item) => {
       const foodId = item?.food?.id ?? item?.foodId;
       if (foodId === undefined || foodId === null) return null;
-      return { foodId: String(foodId), quantityG: Number(item.quantityG) || 0 };
+      const saved = { foodId: String(foodId), quantityG: Number(item.quantityG) || 0 };
+      // Custom foods are not in the catalog, so the plan keeps their values.
+      if (item?.food?.custom) saved.customFood = customFoodSnapshot(item.food);
+      else if (item?.customFood) saved.customFood = item.customFood;
+      return saved;
     })
     .filter(Boolean);
 }
@@ -3441,7 +3797,9 @@ function hydratePlanItems(items) {
   return (items || [])
     .map((item) => {
       if (item?.food) return item;
-      const food = foodsById.get(String(item?.foodId));
+      const food = item?.customFood
+        ? customFoodFromSnapshot(item.foodId, item.customFood)
+        : foodsById.get(String(item?.foodId));
       return food ? { food, quantityG: Number(item.quantityG) || 0 } : null;
     })
     .filter(Boolean);

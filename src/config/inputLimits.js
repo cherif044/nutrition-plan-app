@@ -25,6 +25,7 @@ const INPUT_LIMITS = Object.freeze({
   searchLength: 100,
   foodIdLength: 64,
   foodNameLength: 120,
+  customFoodNameLength: 60,
 
   maxPage: 10000,
   maxPageSize: 50,
@@ -40,6 +41,7 @@ const INPUT_LIMITS = Object.freeze({
   account: {
     plans: 2000,
     customers: 1000,
+    customFoods: 50,
     planDataBytes: 500 * 1024 * 1024,
   },
 

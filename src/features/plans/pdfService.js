@@ -140,7 +140,25 @@ function drawPlan(doc, record, options) {
 function mealItems(meal) {
   return (Array.isArray(meal?.items) ? meal.items : [])
     .slice(0, INPUT_LIMITS.foodsPerMeal)
-    .map((item) => ({ quantityG: item?.quantityG, food: catalogFoodById(item?.foodId) }));
+    .map((item) => ({ quantityG: item?.quantityG, food: item?.customFood ? customFoodFromItem(item) : catalogFoodById(item?.foodId) }));
+}
+
+// A custom food travels inside the plan with its own macros; calories are
+// derived from them, as in the planner.
+function customFoodFromItem(item) {
+  const { name, proteinGPer100g, carbGPer100g, fatGPer100g } = item.customFood;
+  const protein = Number(proteinGPer100g) || 0;
+  const carbs = Number(carbGPer100g) || 0;
+  const fat = Number(fatGPer100g) || 0;
+  return {
+    id: null,
+    custom: true,
+    name: String(name || ''),
+    proteinGPer100g: protein,
+    carbGPer100g: carbs,
+    fatGPer100g: fat,
+    caloriesPer100g: protein * 4 + carbs * 4 + fat * 9,
+  };
 }
 function mealHeightPx(itemCount) { return PX.mealHead + itemCount * PX.row; }
 
@@ -381,11 +399,21 @@ function drawMealIcon(doc, tag, cx, cy, size, color) {
   doc.restore();
 }
 
+// The one icon every custom food uses (the planner's fork and knife, 24x24).
+const CUSTOM_FOOD_ICON_PATHS = ['M4 3v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3', 'M7 3v18', 'M20 15V3a4 4 0 0 0-4 4v6a2 2 0 0 0 2 2h2ZM20 15v6'];
+
 function drawFoodIcon(doc, food, x, y, size) {
   const r = size / 2;
-  const image = foodIconImage(food?.id);
-  doc.circle(x + r, y + r, r).fill('#F6F8FC');
-  if (image) {
+  const image = food?.custom ? null : foodIconImage(food?.id);
+  doc.circle(x + r, y + r, r).fill(food?.custom ? '#EEF8D8' : '#F6F8FC');
+  if (food?.custom) {
+    const iconSize = size * 0.62;
+    doc.save();
+    doc.translate(x + r - iconSize / 2, y + r - iconSize / 2).scale(iconSize / 24);
+    doc.lineWidth(1.8).lineCap('round').lineJoin('round').strokeColor('#3F6B00');
+    CUSTOM_FOOD_ICON_PATHS.forEach((d) => doc.path(d).stroke());
+    doc.restore();
+  } else if (image) {
     doc.save();
     doc.circle(x + r, y + r, r).clip();
     doc.image(image, x, y, { width: size, height: size });
