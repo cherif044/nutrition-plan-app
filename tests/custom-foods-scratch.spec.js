@@ -26,7 +26,10 @@ async function shot(page, name, target = null) {
   if (!SHOTS) return;
   await page.waitForTimeout(700); // let bar and ring transitions finish
   const path = `${SHOTS}/${name}.png`;
-  if (target?.screenshot) await target.screenshot({ path });
+  if (target?.screenshot) {
+    await target.scrollIntoViewIfNeeded();
+    await page.screenshot({ path, clip: await target.boundingBox() });
+  }
   else await page.screenshot({ path, ...(target || {}) });
 }
 
@@ -113,6 +116,10 @@ test('custom food is created from manual-mode search and saved with its own macr
   const results = lunch.locator('.pending-food-search__results');
   await expect(results.getByText('Mama\'s kofta')).toBeVisible();
   await expect(results.locator('.custom-food-badge')).toHaveText('Custom');
+  // Typing an existing food's exact name (any case) offers no "create".
+  await search.fill('MAMA\'S KOFTA');
+  await expect(results.getByText('Mama\'s kofta')).toBeVisible();
+  await expect(results.getByRole('button', { name: /Create custom food/ })).toHaveCount(0);
   await search.fill('Grilled halloumi');
   await expect(results.getByText('No foods match that search.')).toBeVisible();
   const createRow = results.getByRole('button', { name: /Create custom food/ });
@@ -260,4 +267,46 @@ test('a saved plan shows its custom foods from the copy stored in the plan', asy
   // 80 g of 18/6/14 per 100 g: (18*4 + 6*4 + 14*9) * 0.8 = 177.6
   await expect(row.locator('.food-cell--cal')).toHaveText('178');
   await expect(page.locator('.manual-mode-toggle')).toBeChecked();
+});
+
+test('food search floats over the meal and its icons are not dashed', async ({ page }) => {
+  await mockApi(page, { customFoods: [savedCustomFood] });
+  await startFromScratch(page, 3);
+  const lunch = page.locator('.meal-card').nth(1);
+  await lunch.getByRole('button', { name: 'Add food' }).click();
+  const row = lunch.locator('.food-item--pending-add');
+  const rowHeight = (await row.boundingBox()).height;
+  await lunch.locator('.pending-food-search__input').fill('ch');
+  const results = lunch.locator('.pending-food-search__results');
+  await expect(results.locator('.suggestion-item').first()).toBeVisible();
+  // The list is a floating card: the row does not grow to hold it.
+  expect(await results.evaluate((el) => getComputedStyle(el).position)).toBe('absolute');
+  expect((await row.boundingBox()).height).toBe(rowHeight);
+  const icon = results.locator('.suggestion-item .food-icon').first();
+  expect(await icon.evaluate((el) => getComputedStyle(el).borderStyle)).not.toBe('dashed');
+  await shot(page, '11-manual-search-floating');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await shot(page, '13-mobile-search-floating');
+});
+
+test('manual grams cannot be typed past the limits', async ({ page }) => {
+  await mockApi(page);
+  await startFromScratch(page, 1);
+  const meal = page.locator('.meal-card').first();
+  await meal.getByRole('button', { name: 'Add food' }).click();
+  await meal.locator('.pending-food-search__input').fill('chicken');
+  await meal.locator('.pending-food-search__results .suggestion-item').first().click();
+  const grams = meal.locator('.manual-grams-input');
+  await grams.fill('99999');
+  await expect(grams).toHaveValue('1000');
+  await grams.fill('');
+  await grams.pressSequentially('-5e');
+  await expect(grams).toHaveValue('5');
+  await grams.fill('12.345');
+  await expect(grams).toHaveValue('12.3');
+  await grams.fill('995');
+  await meal.getByRole('button', { name: 'Increase' }).click();
+  await meal.getByRole('button', { name: 'Increase' }).click();
+  await expect(grams).toHaveValue('1000');
+  await shot(page, '12-grams-1000', meal);
 });

@@ -946,12 +946,62 @@ async function renewPlan(button) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Failed to renew "${planName}".`);
     message.textContent = '';
-    await refreshDashboard();
+    showRenewedPlan(planId, data.plan || { start_date: window.PlanStatus.todayIso() });
+    refreshStatsQuietly();
   } catch (error) {
     message.textContent = error.message || 'Failed to renew plan.';
     button.disabled = false;
     button.textContent = 'Renew';
   }
+}
+
+// After a renewal only the rows showing that plan change; the rest of the
+// page stays as it is, with no reload and no list redrawn.
+function showRenewedPlan(planId, renewed) {
+  const id = String(planId);
+  const cached = [...state.recentPlans, ...state.expiringPlans, ...(state.plansPage?.items || [])]
+    .find((plan) => String(plan.id) === id) || {};
+  const plan = { ...cached, ...renewed };
+  [state.recentPlans, state.expiringPlans, state.plansPage?.items || []].forEach((list) => {
+    list.forEach((item) => { if (String(item.id) === id) Object.assign(item, renewed); });
+  });
+
+  // Plan tables (Plans, a calorie folder, a client's plans).
+  document.querySelectorAll(`.dt tr .renew-btn[data-plan-id="${CSS.escape(id)}"]`).forEach((button) => {
+    const row = button.closest('tr');
+    const index = Number(row.style.getPropertyValue('--i')) || 0;
+    row.outerHTML = planTableRow(plan, index).replace('<tr ', '<tr data-renewed ');
+  });
+
+  // Home: the plan leaves "Ending soon" and its "Active plans" row updates.
+  const expiringList = document.getElementById('home-expiring-list');
+  expiringList?.querySelectorAll(`.renew-btn[data-plan-id="${CSS.escape(id)}"]`).forEach((button) => button.closest('li')?.remove());
+  state.expiringPlans = state.expiringPlans.filter((item) => String(item.id) !== id);
+  if (expiringList && !expiringList.children.length) {
+    expiringList.innerHTML = '<li data-renewed><div class="hm-row hm-none">Nothing ending soon.</div></li>';
+  }
+  document.querySelectorAll(`#home-plans-list a.hm-row[href="${CSS.escape(planHref(plan))}"]`).forEach((link) => {
+    const item = link.closest('li');
+    const index = Number(item.style.getPropertyValue('--r')) || 0;
+    item.outerHTML = homePlanRow(plan, index).replace('<li ', '<li data-renewed ');
+  });
+  // Let the tint show, then fade it out.
+  window.setTimeout(() => {
+    document.querySelectorAll('[data-renewed]').forEach((el) => el.classList.add('is-settled'));
+  }, 400);
+}
+
+// Counters (running, expired, ending soon) without redrawing the page.
+async function refreshStatsQuietly() {
+  try {
+    const res = await fetch('/api/dashboard');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.stats = data.stats || {};
+    state.recentPlans = data.recentPlans || state.recentPlans;
+    state.expiringPlans = data.expiringPlans || state.expiringPlans;
+    renderStats();
+  } catch { /* the counters catch up on the next visit */ }
 }
 
 function showPlanMenu(button) {

@@ -879,8 +879,44 @@ function renderPlanHeader() {
     badge.className = `badge ${status.state}`;
     badge.textContent = status.badge;
   }
+  // A saved plan that has ended can be restarted from here, as on the dashboard.
+  const renew = document.getElementById('plan-view-renew');
+  if (renew) {
+    renew.hidden = !(status?.state === 'expired' && currentPlanId);
+    if (status) renew.title = `Restart today for ${status.weeks} week${status.weeks === 1 ? '' : 's'}`;
+  }
   head.hidden = false;
 }
+
+// Renewing restarts the plan today for the same number of weeks. Only the
+// start date changes, so the page stays as it is and unsaved edits are kept.
+async function renewCurrentPlan() {
+  const button = document.getElementById('plan-view-renew');
+  if (!button || !currentPlanId) return;
+  const today = window.PlanStatus.todayIso();
+  button.disabled = true;
+  button.textContent = 'Renewing…';
+  try {
+    const res = await fetch(`/api/plans/${encodeURIComponent(currentPlanId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: today, expectedVersion: currentPlanVersion }),
+    });
+    const data = await readJsonResponse(res, 'Failed to renew the plan.');
+    if (!res.ok) throw new Error(data.error || 'Failed to renew the plan.');
+    if (Number.isInteger(data.plan?.version)) currentPlanVersion = data.plan.version;
+    setPlanSchedule({ startDate: data.plan?.start_date || today, durationWeeks: data.plan?.duration_weeks });
+    message.textContent = '';
+    renderPlanHeader();
+  } catch (error) {
+    message.textContent = error.message || 'Failed to renew the plan.';
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Renew';
+  }
+}
+
+document.getElementById('plan-view-renew')?.addEventListener('click', renewCurrentPlan);
 
 async function validatePreGenerationSaveDetails() {
   const planName = readPreGenerationPlanName();
@@ -1987,8 +2023,20 @@ function renderPortionCell(row, state, itemIndex, item) {
     const length = String(input.value).length;
     // The digits, plus the box's 8px padding and 2px border.
     input.style.width = `calc(${Math.max(2, length) + 0.4}ch + 10px)`;
-    row.classList.toggle('food-item--wide-portion', length >= 5);
+    row.classList.toggle('food-item--wide-portion', length >= 4);
   };
+  // Typing can never go past the limits: 0 to INPUT_LIMITS.gramsPerFood grams,
+  // one decimal place, no signs or exponents.
+  input.addEventListener('keydown', (event) => {
+    if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault();
+  });
+  input.addEventListener('input', () => {
+    if (input.value === '') return;
+    const grams = Number(input.value);
+    if (!Number.isFinite(grams) || grams < 0) input.value = '0';
+    else if (grams > INPUT_LIMITS.gramsPerFood) input.value = String(INPUT_LIMITS.gramsPerFood);
+    else if (/\.\d{2,}/.test(input.value)) input.value = String(Math.floor(grams * 10) / 10);
+  });
   fitInput();
   input.addEventListener('input', fitInput);
   cell.querySelectorAll('.portion-step').forEach((button) => {
@@ -3090,7 +3138,10 @@ function renderFoodSearchResults(state, query, resultsEl, onSelect, { allowCusto
     resultsEl.append(btn);
   });
 
-  if (allowCustom) {
+  // No "create" offer when the exact name already exists (custom names are
+  // unique per account; a catalog food can simply be picked).
+  const exactMatch = candidates.some((food) => normalizeText(food.name) === q);
+  if (allowCustom && !exactMatch) {
     const create = document.createElement('button');
     create.type = 'button';
     create.className = 'suggestion-item suggestion-item--create';

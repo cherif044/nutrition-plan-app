@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Planner — Macrospace</title>
-    <script src="/js/shared/theme.js?v=macrospace-20261016a"></script>
-    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261016a" />
+    <script src="/js/shared/theme.js?v=macrospace-20261018b"></script>
+    <link rel="stylesheet" href="/css/styles.css?v=macrospace-20261018b" />
     <script src="/js/shared/vitals.js" defer></script>
   </head>
   <body class="planner-page">
@@ -48,7 +48,10 @@
               <h1 id="plan-view-title"></h1>
               <p id="plan-view-meta"></p>
             </div>
-            <span class="badge" id="plan-view-badge" hidden></span>
+            <div class="pv-status">
+              <span class="badge" id="plan-view-badge" hidden></span>
+              <button class="btn btn-secondary btn-sm" id="plan-view-renew" type="button" hidden>Renew</button>
+            </div>
           </header>
 
           <form id="plan-form" class="pb-grid planner" novalidate>
@@ -272,8 +275,8 @@
       </article>
     </template>
 
-    <script src="/js/shared/planStatus.js?v=macrospace-20261016a" defer></script>
-    <script src="/js/shared/shell.js?v=macrospace-20261016a" defer></script>
-    <script src="/js/planner/app.js?v=macrospace-20261016a" defer></script>
+    <script src="/js/shared/planStatus.js?v=macrospace-20261018b" defer></script>
+    <script src="/js/shared/shell.js?v=macrospace-20261018b" defer></script>
+    <script src="/js/planner/app.js?v=macrospace-20261018b" defer></script>
   </body>
 </html>

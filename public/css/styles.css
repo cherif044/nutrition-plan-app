@@ -748,6 +748,10 @@ circle.hm-ex { stroke: var(--border-strong); }
 .hm-ring circle:not(.hm-trk) { animation: ringdraw .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--s, 0) * 160ms + 100ms); }
 .hm-tr i { transform-origin: left; animation: mxgrow .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 150ms); }
 .hm-list > li { animation: rowin .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--r, 0) * 60ms); }
+/* A row redrawn after a renewal: no entrance animation, just a brief tint. */
+[data-renewed], [data-renewed] * { animation: none !important; }
+[data-renewed] { background-color: var(--primary-soft); transition: background-color 1.2s ease; }
+[data-renewed].is-settled { background-color: transparent; }
 .hm-segs i.done, .hm-segs i.now { transform-origin: left; animation: mxgrow .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--r, 0) * 60ms + var(--k, 0) * 50ms + 200ms); }
 .hm-rows { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
 .hm-hr { display: grid; grid-template-columns: 70px minmax(0, 1fr) 18px; align-items: center; gap: 10px; font-size: 12px; color: var(--text-2); }
@@ -1062,6 +1066,8 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .pv-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .pv-hero h1 { font-family: var(--display); font-size: 28px; font-weight: 700; letter-spacing: -.022em; line-height: 1.12; overflow-wrap: anywhere; }
 .pv-hero p { color: var(--text-2); margin-top: 8px; }
+.pv-status { display: flex; align-items: center; gap: 8px; }
+#plan-view-renew[hidden] { display: none; }
 
 .results, #plan-output { display: flex; flex-direction: column; gap: 16px; }
 #plan-output[hidden] { display: none !important; }
@@ -1326,7 +1332,8 @@ body.is-input-view .planner-save-slot { display: none !important; }
 .meal-add-food-btn:active { transform: scale(.97); }
 
 .food-item--pending-add .food-title { align-items: flex-start; padding-top: 10px; padding-bottom: 10px; }
-.food-item--pending-add .food-icon { box-shadow: none; border: 1.5px dashed var(--border-strong); background: none; }
+/* Only the empty row's own icon is dashed, not the icons in its search results. */
+.food-item--pending-add .food-title > .food-icon { box-shadow: none; border: 1.5px dashed var(--border-strong); background: none; }
 .pending-food-search { position: relative; flex: 1; max-width: 560px; }
 .pending-food-search__input {
   width: 100%;
@@ -1339,7 +1346,10 @@ body.is-input-view .planner-save-slot { display: none !important; }
   color: var(--text);
 }
 .pending-food-search__input:focus { outline: none; }
-.pending-food-search__results { position: static; margin-top: 6px; }
+/* Results float over the rows below as a card (.guided-search-results), as
+   before the redesign, instead of stretching the row. */
+.pending-food-search { z-index: 46; }
+.pending-food-search__results { z-index: 60; max-height: min(320px, 46vh); -webkit-overflow-scrolling: touch; }
 .food-item--pending-add .food-cell { color: var(--text-3); }
 
 /* Action panel: swap list, messages */
@@ -1958,6 +1968,12 @@ body.on-site {
   .meal-card:has(.food-actions[data-mode="edit"]),
   .meal-card:has(.food-actions[data-mode="pending-search"]) { --food-actions-w: 0px; }
   .food-item--wide-portion { --food-cols: minmax(0, 1fr) 128px; }
+  /* While searching on phones the empty row is all search box (its 0g cells hide). */
+  .food-item--pending-add > .food-cell, .food-item--pending-swap > .food-cell { display: none; }
+  .food-item--pending-add .food-title, .food-item--pending-swap .food-title { grid-column: 1 / -1; }
+  /* Floating food search on phones: the whole row is the food's name. */
+  .pending-food-search__results .suggestion-item { gap: 8px; padding: 10px 8px; }
+  .pending-food-search__results .suggestion-item em { display: none; }
   /* Manual mode edits grams in place: room for − / grams / + on phones. */
   .plan-output--manual .food-table { --food-cols: minmax(0, 1fr) 128px; }
   .food-cell--protein, .food-cell--carb, .food-cell--fat { display: none; }
